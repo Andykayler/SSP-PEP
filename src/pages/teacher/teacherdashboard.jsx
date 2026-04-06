@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   Users, BookOpen, Calendar, Award, TrendingUp, AlertTriangle,
-  Bell, Settings, LogOut, Menu, X, Home, ClipboardList, FileText
+  Bell, Settings, LogOut, Menu, X, Home, FileText
 } from "lucide-react";
 
 import Studentmodule from "./modules/student";           // Reuse where appropriate
@@ -37,7 +37,7 @@ const Icon = {
 const teacherStats = [
   { label: "My Students", value: "187", change: "+3", color: "text-emerald-600" },
   { label: "Classes Taught", value: "6", change: "", color: "text-blue-600" },
-  { label: "Daily Attendance", value: "92%", change: "-2%", color: "text-amber-600" },
+  { label: "Today’s Attendance", value: "92%", change: "-2%", color: "text-amber-600" },
   { label: "Pending Marks", value: "3", change: "Classes", color: "text-red-600" },
 ];
 
