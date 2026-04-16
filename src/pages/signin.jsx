@@ -45,8 +45,6 @@ const ExclamationIcon = () => (
   </svg>
 );
 
-
-
 const CheckCircleIcon = ({ className = "w-5 h-5" }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -63,15 +61,15 @@ const Spinner = () => (
 // ─── Data ─────────────────────────────────────────────────────────────────────
 const STATS = [
   { value: "340+", label: "Schools Active" },
-  { value: "92K",  label: "Students Enrolled" },
+  { value: "92K", label: "Students Enrolled" },
   { value: "99.8%", label: "Uptime SLA" },
 ];
 
 const ACTIVITY = [
-  { school: "Blantyre Secondary",      action: "Uploaded exam results",  time: "2m ago",  dot: "bg-emerald-400" },
-  { school: "Lilongwe Girls",          action: "Parent report sent",     time: "11m ago", dot: "bg-blue-400" },
-  { school: "St. Patrick's College",   action: "New student enrolled",   time: "34m ago", dot: "bg-amber-400" },
-  { school: "Chancellor College Sec.", action: "Fee notice published",   time: "1h ago",  dot: "bg-blue-300" },
+  { school: "Blantyre Secondary", action: "Uploaded exam results", time: "2m ago", dot: "bg-emerald-400" },
+  { school: "Lilongwe Girls", action: "Parent report sent", time: "11m ago", dot: "bg-blue-400" },
+  { school: "St. Patrick's College", action: "New student enrolled", time: "34m ago", dot: "bg-amber-400" },
+  { school: "Chancellor College Sec.", action: "Fee notice published", time: "1h ago", dot: "bg-blue-300" },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -117,9 +115,7 @@ const ForgotPasswordModal = ({ onClose }) => {
             <h3 className="text-white font-bold text-base">Reset Password</h3>
           </div>
           <button onClick={onClose} className="text-blue-300 hover:text-white transition-colors">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            ✕
           </button>
         </div>
         <div className="px-6 py-5">
@@ -131,24 +127,24 @@ const ForgotPasswordModal = ({ onClose }) => {
               <div>
                 <p className="font-bold text-gray-900 text-sm">Reset Link Sent</p>
                 <p className="text-xs text-gray-500 mt-1">
-                  Check your inbox at <span className="font-semibold text-blue-900">{email}</span> for reset instructions.
+                  Check your inbox at <span className="font-semibold text-blue-900">{email}</span>
                 </p>
               </div>
-              <button onClick={onClose} className="w-full py-2.5 bg-blue-900 text-white text-sm font-semibold rounded-xl hover:bg-blue-800 transition-colors">
+              <button onClick={onClose} className="w-full py-2.5 bg-blue-900 text-white text-sm font-semibold rounded-xl hover:bg-blue-800">
                 Back to Sign In
               </button>
             </div>
           ) : (
             <form onSubmit={handleSend} className="space-y-4">
               <p className="text-xs text-gray-500 leading-relaxed">
-                Enter the admin email address associated with your school account. We'll send a secure reset link.
+                Enter the admin email address associated with your school account.
               </p>
               <div>
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">
                   Admin Email <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300">
                     <EnvelopeIcon />
                   </span>
                   <input
@@ -164,7 +160,7 @@ const ForgotPasswordModal = ({ onClose }) => {
               <button
                 type="submit"
                 disabled={loading || !email}
-                className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-900 hover:bg-blue-800 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-900 hover:bg-blue-800 disabled:opacity-60 text-white text-sm font-semibold rounded-xl"
               >
                 {loading ? <><Spinner /> Sending...</> : "Send Reset Link"}
               </button>
@@ -198,7 +194,7 @@ const SuccessScreen = ({ email, schoolCode, role }) => (
       <p className="text-xs font-semibold text-blue-900 uppercase tracking-wider mb-2">Session Details</p>
       {[
         ["Role", role],
-        ["Access Level", role === "School Administrator" ? "Full Portal Access" : "Teacher Portal Access"],
+        ["Access Level", role === "Head Teacher" ? "Super Admin Access" : role === "School Administrator" ? "Full Portal Access" : "Teacher Portal Access"],
         ["Login Time", new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })],
         ["Session", "Secure · AES-256 Encrypted"],
       ].map(([k, v]) => (
@@ -215,7 +211,7 @@ const SuccessScreen = ({ email, schoolCode, role }) => (
   </div>
 );
 
-// ─── Shared Layout Pieces ─────────────────────────────────────────────────────
+// ─── Shared Components ────────────────────────────────────────────────────────
 const LogoMark = () => (
   <div className="flex items-center gap-3">
     <div className="w-11 h-11 bg-blue-900 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
@@ -254,11 +250,8 @@ const GlobalStyles = () => (
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
     * { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
     .mono { font-family: 'DM Mono', monospace; }
-    @keyframes fadeIn  { from { opacity:0; transform:translateY(8px);  } to { opacity:1; transform:translateY(0); } }
-    @keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
-    .animate-fadeIn   { animation: fadeIn  0.4s ease both; }
-    .slide-up         { animation: slideUp 0.6s cubic-bezier(0.16,1,0.3,1) both; }
-    .slide-up-delay   { animation: slideUp 0.6s 0.15s cubic-bezier(0.16,1,0.3,1) both; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .animate-fadeIn { animation: fadeIn 0.4s ease both; }
     .pattern-bg {
       background-color: #F9FAFB;
       background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
@@ -268,7 +261,7 @@ const GlobalStyles = () => (
   `}</style>
 );
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Main Sign In Component ───────────────────────────────────────────────────
 export default function SignIn() {
   const [email, setEmail] = useState("");
   const [schoolCode, setSchoolCode] = useState("");
@@ -291,24 +284,9 @@ export default function SignIn() {
   }, []);
 
   // Validation
-  const emailError = touched.email
-    ? !email.trim() ? "Email address is required"
-    : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? "Enter a valid email address"
-    : "" : "";
-
-  const schoolCodeError = touched.schoolCode
-    ? !schoolCode.trim() ? "School code is required"
-    : !/^[A-Z0-9\-]{4,12}$/.test(schoolCode.trim()) ? "Must be 4–12 uppercase alphanumeric characters"
-    : "" : "";
-
-  const passwordError = touched.password
-    ? !password ? "Password is required"
-    : password.length < 6 ? "Password must be at least 6 characters"
-    : "" : "";
-
-  const emailValid = touched.email && !emailError && email;
-  const schoolCodeValid = touched.schoolCode && !schoolCodeError && schoolCode;
-  const passwordValid = touched.password && !passwordError && password;
+  const emailError = touched.email && (!email.trim() ? "Email address is required" : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? "Enter a valid email address" : "");
+  const schoolCodeError = touched.schoolCode && (!schoolCode.trim() ? "School code is required" : !/^[A-Z0-9\-]{4,12}$/.test(schoolCode.trim()) ? "Must be 4–12 uppercase alphanumeric characters" : "");
+  const passwordError = touched.password && (!password ? "Password is required" : password.length < 6 ? "Password must be at least 6 characters" : "");
 
   const touchAll = () => setTouched({ email: true, schoolCode: true, password: true });
   const hasErrors = !!emailError || !!schoolCodeError || !!passwordError || !email || !schoolCode || !password;
@@ -321,46 +299,51 @@ export default function SignIn() {
     if (hasErrors) return;
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1800));
+    await new Promise((r) => setTimeout(r, 1800)); // Simulate API call
     setLoading(false);
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    // Special credentials
+    // ==================== CREDENTIALS ====================
+    if (normalizedEmail === "headteacher@gmail.com" && password === "123456") {
+      setRedirectTo("/head");
+      setUserRole("Head Teacher");
+      setSuccess(true);
+      return;
+    }
     if (normalizedEmail === "andy@gmail.com" && password === "123456") {
       setRedirectTo("/admin");
       setUserRole("School Administrator");
       setSuccess(true);
       return;
     }
-    if (normalizedEmail === "parent@gmail.com" && password === "123456") {
-      setRedirectTo("/parent");
-      setUserRole("School Administrator");
-      setSuccess(true);
-      return;
-    }
-
     if (normalizedEmail === "teacher@gmail.com" && password === "123456") {
       setRedirectTo("/teacher");
       setUserRole("Teacher");
       setSuccess(true);
       return;
     }
-
-    // Demo fallback
-    if (failCount === 0 && password !== "demo1234") {
-      setFailCount(1);
-      setAuthError("Invalid credentials. Please verify your email, school code, and password.");
+    if (normalizedEmail === "parent@gmail.com" && password === "123456") {
+      setRedirectTo("/parent");
+      setUserRole("Parent");
+      setSuccess(true);
       return;
     }
 
-    // Default success
+    // Fallback for demo
+    if (failCount === 0) {
+      setFailCount(1);
+      setAuthError("Invalid credentials. Please check your email, school code, and password.");
+      return;
+    }
+
+    // Default fallback
     setRedirectTo("/admin");
     setUserRole("School Administrator");
     setSuccess(true);
   };
 
-  // Auto redirect after success screen
+  // Auto redirect after success
   useEffect(() => {
     if (success && redirectTo) {
       const timer = setTimeout(() => {
@@ -376,16 +359,11 @@ export default function SignIn() {
       <>
         <GlobalStyles />
         <div className="min-h-screen pattern-bg flex flex-col">
-          <div className="gold-bar h-1 w-full flex-shrink-0" />
+          <div className="gold-bar h-1 w-full" />
           <div className="flex-1 flex items-center justify-center px-4 py-12">
             <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden w-full max-w-md animate-fadeIn">
               <div className="bg-blue-900 px-7 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center">
-                    <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="white" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
-                    </svg>
-                  </div>
                   <span className="text-white font-bold">SSP-PEP</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-emerald-300 text-xs font-semibold">
@@ -410,19 +388,18 @@ export default function SignIn() {
       {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
 
       <div className="min-h-screen pattern-bg flex flex-col">
-        <div className="gold-bar h-1 w-full flex-shrink-0" />
+        <div className="gold-bar h-1 w-full" />
 
         <div className="flex-1 flex items-start lg:items-center justify-center px-4 py-8 lg:py-10">
           <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-10 items-center">
 
-            {/* LEFT PANEL */}
-            <div className="lg:col-span-2 slide-up">
+            {/* Left Panel */}
+            <div className="lg:col-span-2">
               <LogoMark />
 
               <div className="mt-8 mb-3">
                 <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 leading-tight">
-                  Administrator<br />
-                  Portal<br />
+                  Administrator<br />Portal<br />
                   <span className="text-blue-900">Sign In</span>
                 </h2>
               </div>
@@ -431,15 +408,11 @@ export default function SignIn() {
               </p>
 
               <div className="flex items-start gap-3 bg-amber-50 border border-amber-200/60 rounded-xl px-4 py-3 mb-8">
-                <span className="text-amber-500 flex-shrink-0 mt-0.5">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-                  </svg>
-                </span>
+                <span className="text-amber-500 mt-0.5">⚠️</span>
                 <div>
                   <p className="text-xs font-bold text-amber-800">Authorised Personnel Only</p>
                   <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
-                    This portal is restricted to registered school administrators. Your school code was issued during institution registration.
+                    This portal is restricted to registered school administrators.
                   </p>
                 </div>
               </div>
@@ -448,7 +421,7 @@ export default function SignIn() {
                 {STATS.map(({ value, label }) => (
                   <div key={label} className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm text-center">
                     <p className="text-xl font-bold text-blue-900">{value}</p>
-                    <p className="text-xs text-gray-400 mt-0.5 leading-tight">{label}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{label}</p>
                   </div>
                 ))}
               </div>
@@ -457,8 +430,7 @@ export default function SignIn() {
                 <div className="px-4 py-3 border-b border-gray-50 flex items-center justify-between">
                   <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">Platform Activity</p>
                   <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-semibold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
-                    Live
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
                   </span>
                 </div>
                 <div className="divide-y divide-gray-50">
@@ -469,22 +441,20 @@ export default function SignIn() {
                         <p className="text-xs font-semibold text-gray-700 truncate">{item.school}</p>
                         <p className="text-xs text-gray-400">{item.action}</p>
                       </div>
-                      <span className="text-xs text-gray-300 whitespace-nowrap flex-shrink-0">{item.time}</span>
+                      <span className="text-xs text-gray-300 whitespace-nowrap">{item.time}</span>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
 
-            {/* RIGHT PANEL - SIGN IN FORM */}
-            <div className="lg:col-span-3 slide-up-delay">
+            {/* Sign In Form */}
+            <div className="lg:col-span-3">
               <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/60 border border-gray-100 overflow-hidden">
                 <div className="bg-blue-900 px-7 py-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-blue-300 text-xs font-semibold uppercase tracking-widest mb-1">
-                        Secure Administrator Access
-                      </p>
+                      <p className="text-blue-300 text-xs font-semibold uppercase tracking-widest mb-1">Secure Administrator Access</p>
                       <h3 className="text-white text-xl font-bold">School Admin Sign In</h3>
                     </div>
                     <div className="flex items-center gap-2 bg-white/10 border border-white/20 rounded-xl px-3 py-1.5">
@@ -496,35 +466,23 @@ export default function SignIn() {
 
                 <div className="px-7 py-6 space-y-5">
                   {authError && (
-                    <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 animate-fadeIn">
-                      <span className="mt-0.5"><ExclamationIcon /></span>
+                    <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3">
+                      <ExclamationIcon />
                       <div>
                         <p className="text-xs font-bold">Authentication Failed</p>
-                        <p className="text-xs mt-0.5 text-red-600">{authError}</p>
-                        {failCount >= 1 && (
-                          <p className="text-xs mt-1.5 text-red-500">
-                            Trouble signing in?{" "}
-                            <button
-                              onClick={() => setShowForgot(true)}
-                              className="font-bold underline hover:no-underline"
-                            >
-                              Reset your password
-                            </button>
-                            {" "}or contact your IT administrator.
-                          </p>
-                        )}
+                        <p className="text-xs mt-0.5">{authError}</p>
                       </div>
                     </div>
                   )}
 
                   <form onSubmit={handleSubmit} noValidate className="space-y-4">
-                    {/* Email Field */}
+                    {/* Email */}
                     <div>
-                      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider flex items-center gap-1 mb-1">
+                      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">
                         Admin Email Address <span className="text-red-500">*</span>
                       </label>
                       <div className="relative">
-                        <span className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${touched.email && emailError ? "text-red-400" : emailValid ? "text-emerald-500" : "text-gray-300"}`}>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300">
                           <EnvelopeIcon />
                         </span>
                         <input
@@ -534,20 +492,19 @@ export default function SignIn() {
                           onChange={(e) => { setEmail(e.target.value); setAuthError(""); }}
                           onBlur={() => setTouched((p) => ({ ...p, email: true }))}
                           placeholder="admin@school.mw"
-                          className={`${inputClass(touched.email, emailError, emailValid)} pl-9 pr-9 py-2.5`}
+                          className={`${inputClass(touched.email, emailError, email && !emailError)} pl-9 py-2.5`}
                         />
-                        {emailValid && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500"><CheckCircleIcon className="w-4 h-4" /></span>}
                       </div>
                       <FieldError msg={emailError} />
                     </div>
 
                     {/* School Code */}
                     <div>
-                      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider flex items-center gap-1 mb-1">
+                      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">
                         School Code <span className="text-red-500">*</span>
                       </label>
                       <div className="relative">
-                        <span className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${touched.schoolCode && schoolCodeError ? "text-red-400" : schoolCodeValid ? "text-emerald-500" : "text-gray-300"}`}>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300">
                           <BuildingOfficeIcon />
                         </span>
                         <input
@@ -555,22 +512,17 @@ export default function SignIn() {
                           value={schoolCode}
                           onChange={(e) => { setSchoolCode(e.target.value.toUpperCase()); setAuthError(""); }}
                           onBlur={() => setTouched((p) => ({ ...p, schoolCode: true }))}
-                          placeholder="e.g. KA-2024"
-                          className={`${inputClass(touched.schoolCode, schoolCodeError, schoolCodeValid)} mono tracking-widest pl-9 pr-9 py-2.5`}
+                          placeholder="e.g. LLW-2026"
+                          className={`${inputClass(touched.schoolCode, schoolCodeError, schoolCode && !schoolCodeError)} pl-9 py-2.5 mono tracking-widest`}
                         />
-                        {schoolCodeValid && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500"><CheckCircleIcon className="w-4 h-4" /></span>}
                       </div>
                       <FieldError msg={schoolCodeError} />
-                      <p className="text-xs text-gray-400 mt-1">
-                        Issued to your institution during registration.{" "}
-                        <a href="/" className="text-blue-900 font-semibold hover:underline">Not registered yet?</a>
-                      </p>
                     </div>
 
                     {/* Password */}
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider flex items-center gap-1">
+                      <div className="flex justify-between mb-1">
+                        <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
                           Password <span className="text-red-500">*</span>
                         </label>
                         <button type="button" onClick={() => setShowForgot(true)} className="text-xs text-blue-900 font-semibold hover:underline">
@@ -578,7 +530,7 @@ export default function SignIn() {
                         </button>
                       </div>
                       <div className="relative">
-                        <span className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${touched.password && passwordError ? "text-red-400" : passwordValid ? "text-emerald-500" : "text-gray-300"}`}>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300">
                           <LockClosedIcon />
                         </span>
                         <input
@@ -587,12 +539,12 @@ export default function SignIn() {
                           onChange={(e) => { setPassword(e.target.value); setAuthError(""); }}
                           onBlur={() => setTouched((p) => ({ ...p, password: true }))}
                           placeholder="Enter your password"
-                          className={`${inputClass(touched.password, passwordError, passwordValid)} pl-9 pr-10 py-2.5`}
+                          className={`${inputClass(touched.password, passwordError, password && !passwordError)} pl-9 pr-10 py-2.5`}
                         />
                         <button
                           type="button"
                           onClick={() => setShowPw(!showPw)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                         >
                           {showPw ? <EyeSlashIcon /> : <EyeIcon />}
                         </button>
@@ -600,63 +552,29 @@ export default function SignIn() {
                       <FieldError msg={passwordError} />
                     </div>
 
-                    {/* Remember me */}
-                    <div className="flex items-center justify-between pt-0.5">
-                      <label className="flex items-center gap-2 cursor-pointer select-none">
-                        <div
-                          onClick={() => setRemember(!remember)}
-                          className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all cursor-pointer flex-shrink-0 ${remember ? "bg-blue-900 border-blue-900" : "border-gray-300 hover:border-blue-900"}`}
-                        >
-                          {remember && (
-                            <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </div>
-                        <span className="text-xs text-gray-600 font-medium">Remember this device</span>
+                    {/* Remember & Submit */}
+                    <div className="pt-2 flex items-center justify-between">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={remember}
+                          onChange={() => setRemember(!remember)}
+                          className="w-4 h-4 accent-blue-900"
+                        />
+                        <span className="text-xs text-gray-600">Remember this device</span>
                       </label>
-                      <span className="text-xs text-gray-400 flex items-center gap-1">
-                        <LockClosedIcon className="w-3 h-3" />
-                        Session: 8 hours
-                      </span>
                     </div>
 
-                    {/* Submit Button */}
                     <button
                       type="submit"
                       disabled={loading}
-                      className="w-full flex items-center justify-center gap-2 bg-blue-900 hover:bg-blue-800 active:bg-blue-950 disabled:opacity-70 disabled:cursor-not-allowed text-white font-semibold text-sm py-3 rounded-xl transition-all duration-200"
-                      style={{ boxShadow: "0 4px 14px 0 rgba(30,58,138,0.25)" }}
+                      className="w-full flex items-center justify-center gap-2 bg-blue-900 hover:bg-blue-800 disabled:opacity-70 text-white font-semibold py-3 rounded-xl transition-all"
                     >
-                      {loading ? <><Spinner /> Verifying credentials...</> : <><ShieldCheckIcon /> Sign In to Admin Portal</>}
+                      {loading ? <><Spinner /> Verifying...</> : <><ShieldCheckIcon /> Sign In to Admin Portal</>}
                     </button>
                   </form>
-
-                  <div className="flex items-center justify-center gap-2 text-gray-400 pt-1">
-                    <LockClosedIcon className="w-3.5 h-3.5 flex-shrink-0" />
-                    <p className="text-xs text-center">
-                      All sessions encrypted with AES-256. Activity is logged for security auditing.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="px-7 py-3 bg-gray-50/60 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2">
-                  {[
-                    { icon: "🔒", text: "HTTPS Encrypted" },
-                    { icon: "🇲🇼", text: "Malawi Data Residency" },
-                    { icon: "✅", text: "GDPR Compliant" },
-                  ].map(({ icon, text }) => (
-                    <span key={text} className="flex items-center gap-1.5 text-xs text-gray-400 font-medium">
-                      <span>{icon}</span> {text}
-                    </span>
-                  ))}
                 </div>
               </div>
-
-              <p className="text-center text-xs text-gray-400 mt-4">
-                Having trouble signing in?{" "}
-                <a href="#support" className="text-blue-900 font-semibold hover:underline">Contact IT Support</a>
-              </p>
             </div>
           </div>
         </div>

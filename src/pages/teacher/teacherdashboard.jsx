@@ -10,6 +10,7 @@ import TimetableModule from "./modules/TimetableModule";
 import AttendanceModule from "./modules/AttendanceModule";
 import DisciplineModule from "./modules/DisciplineModule";
 import PerformanceModule from "./modules/PerformanceModule";
+import HomeworkModule from "./modules/homework";
 
 // ─── Design System (Consistent with Admin) ─────────────────────────────────
 const colors = {
@@ -60,9 +61,8 @@ export default function TeacherDashboard() {
     { id: "marks", label: "Enter Marks", icon: Icon.EnterMarks, component: <PerformanceModule /> },
     { id: "discipline", label: "Discipline Cases", icon: Icon.Discipline, component: <DisciplineModule /> },
     { id: "students", label: "My Students", icon: Icon.MyStudents, component: <Studentmodule /> },
-    { id: "reports", label: "Reports", icon: Icon.Reports },
-    { id: "notifications", label: "Notifications", icon: Icon.Notifications },
-    { id: "settings", label: "Settings", icon: Icon.Settings },
+    { id: "Homework", label: "Homework", icon: Icon.Reports, component: <HomeworkModule /> },
+   
   ];
 
   const currentNavItem = navItems.find(item => item.id === currentTab);

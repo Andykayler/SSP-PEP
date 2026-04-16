@@ -1,0 +1,1 @@
+removed settings, notification and reports in the sidebar and added in a homework module
