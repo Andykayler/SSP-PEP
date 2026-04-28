@@ -1,7 +1,6 @@
 // modules/AttendanceModule.jsx
 import { useState } from "react";
 import {
-  Calendar, CheckCircle, XCircle, Clock,
   Users, AlertTriangle, Download, X
 } from "lucide-react";
 

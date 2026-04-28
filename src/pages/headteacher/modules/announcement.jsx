@@ -1,6 +1,6 @@
 // modules/AnnouncementsModule.jsx
 import { useState } from "react";
-import { Bell, Send, Calendar, Users, Megaphone, Eye } from "lucide-react";
+import {  Megaphone, Eye } from "lucide-react";
 
 const dummyAnnouncements = [
   {

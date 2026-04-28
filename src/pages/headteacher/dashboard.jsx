@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
-  Users, BookOpen, Calendar, Award, TrendingUp, AlertTriangle,
-  Bell, Settings, LogOut, Menu, X, Home, FileText, DollarSign, UserCheck
+  Users, Calendar, Award,  AlertTriangle,
+  Bell, Settings, LogOut, Menu, X, Home, FileText, UserCheck
 } from "lucide-react";
 
 import StudentManagement from "./modules/student";     // Full enrollment + records

@@ -1,6 +1,6 @@
 // modules/PerformanceModule.jsx
 import { useState } from "react";
-import { Award, TrendingUp, Download, Save, Calculator } from "lucide-react";
+import { Download, Save, Calculator } from "lucide-react";
 
 const dummyStudents = [
   { id: "SS24001", name: "Chisomo Banda", ca1: 18, ca2: 22, exam: 65, total: 0, grade: "", rank: 0 },

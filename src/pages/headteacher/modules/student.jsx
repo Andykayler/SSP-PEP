@@ -1,6 +1,6 @@
 // modules/StudentManagement.jsx
 import { useState } from "react";
-import { Search, Eye, Bell, BellRing, X, Check, ChevronDown, Users } from "lucide-react";
+import { Search, Eye, Bell, BellRing, X, Check } from "lucide-react";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 

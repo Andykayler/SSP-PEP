@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   Calendar, Clock, BookOpen, Eye, Download,
-  X, ChevronDown, Users, User
+  X, Users
 } from "lucide-react";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────

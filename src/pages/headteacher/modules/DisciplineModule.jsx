@@ -1,6 +1,6 @@
 // modules/DisciplineModule.jsx
 import { useState } from "react";
-import { AlertTriangle, Plus, Eye, Edit2, Clock, UserCheck } from "lucide-react";
+import {  Plus, Eye, } from "lucide-react";
 
 const dummyDisciplineCases = [
   {

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { 
-  Plus, Calendar, Clock, BookOpen, Users, Edit2, Eye, 
-  Trash2, Download, CheckCircle, AlertCircle, Target, X, Save 
+  Plus, Calendar, Clock, Edit2, Eye, 
+  Trash2, X, Save 
 } from "lucide-react";
 
 // ========================

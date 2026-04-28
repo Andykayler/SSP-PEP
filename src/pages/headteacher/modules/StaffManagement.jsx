@@ -1,6 +1,6 @@
 // modules/StaffManagement.jsx
 import { useState } from "react";
-import { Users, UserPlus, Edit2, Trash2, Eye, BookOpen, X, Check } from "lucide-react";
+import { UserPlus, Edit2, Trash2, Eye, BookOpen, X, Check } from "lucide-react";
 
 const FORMS = ["Form 1", "Form 2", "Form 3", "Form 4"];
 const SUBJECTS = [
