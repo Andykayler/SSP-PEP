@@ -10,7 +10,6 @@ import TimetableModule from "./modules/TimetableModule";         // School-wide
 import AttendanceOverview from "./modules/AttendanceModule";
 import DisciplineOverview from "./modules/DisciplineModule";
 import PerformanceAnalytics from "./modules/PerformanceModule";
-import FeesOverview from "./modules/fees_overview";               // Oversight only
 import ReportsModule from "./modules/reports";
 import StaffManagement from "./modules/StaffManagement";
 import AnnouncementsModule from "./modules/announcement";
@@ -31,7 +30,6 @@ const Icon = {
   Attendance: () => <UserCheck className="w-5 h-5" />,
   Performance: () => <Award className="w-5 h-5" />,
   Discipline: () => <AlertTriangle className="w-5 h-5" />,
-  Fees: () => <DollarSign className="w-5 h-5" />,
   Reports: () => <FileText className="w-5 h-5" />,
   Staff: () => <Users className="w-5 h-5" />,
   Announcements: () => <Bell className="w-5 h-5" />,
@@ -52,7 +50,7 @@ const quickActions = [
   { title: "Enroll New Student", icon: <Users className="w-8 h-8" />, color: "bg-[#0F2044]", tab: "students" },
   { title: "School Timetable", icon: <Calendar className="w-8 h-8" />, color: "bg-amber-600", tab: "timetable" },
   { title: "View Reports", icon: <FileText className="w-8 h-8" />, color: "bg-emerald-600", tab: "reports" },
-  { title: "Fee Overview", icon: <DollarSign className="w-8 h-8" />, color: "bg-blue-600", tab: "fees" },
+  { title: "Staff Management", icon: <Users className="w-8 h-8" />, color: "bg-blue-600", tab: "staff" },
 ];
 
 export default function HeadTeacherDashboard() {
@@ -67,7 +65,6 @@ export default function HeadTeacherDashboard() {
     { id: "attendance", label: "Attendance Overview", icon: Icon.Attendance, component: <AttendanceOverview /> },
     { id: "performance", label: "Performance Analytics", icon: Icon.Performance, component: <PerformanceAnalytics /> },
     { id: "discipline", label: "Discipline Management", icon: Icon.Discipline, component: <DisciplineOverview /> },
-    { id: "fees", label: "Fee Tracking", icon: Icon.Fees, component: <FeesOverview /> },   // Oversight + approval
     { id: "reports", label: "Reports & Exports", icon: Icon.Reports, component: <ReportsModule /> },
     { id: "staff", label: "Staff Management", icon: Icon.Staff, component: <StaffManagement /> },
     { id: "announcements", label: "Announcements", icon: Icon.Announcements, component: <AnnouncementsModule /> },
