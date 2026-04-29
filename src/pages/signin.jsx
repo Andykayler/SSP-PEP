@@ -1,5 +1,58 @@
+// src/pages/SignIn.jsx
 import { useState, useEffect, useRef } from "react";
+import { auth, db } from "../firebase";
+import { signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 import Header from "../components/header";
+
+// ─── Role Config ─────────────────────────────────────────────────────────────
+const ROLES = [
+  {
+    key: "admin",
+    label: "Administrator",
+    shortLabel: "Admin",
+    description: "Full portal access",
+    redirectTo: "/admin",
+    displayRole: "School Administrator",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-4 h-4">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+      </svg>
+    ),
+  },
+  {
+    key: "head_teacher",
+    label: "Head Teacher",
+    shortLabel: "Head Teacher",
+    description: "Super admin access",
+    redirectTo: "/head",
+    displayRole: "Head Teacher",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-4 h-4">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+      </svg>
+    ),
+  },
+  {
+    key: "class_teacher",
+    label: "Class Teacher",
+    shortLabel: "Teacher",
+    description: "Teacher portal access",
+    redirectTo: "/teacher",
+    displayRole: "Class Teacher",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-4 h-4">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
+      </svg>
+    ),
+  },
+];
+
+const ACCESS_LEVEL = {
+  head_teacher: "Super Admin Access",
+  admin: "Full Portal Access",
+  class_teacher: "Teacher Portal Access",
+};
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 const ShieldCheckIcon = ({ className = "w-4 h-4" }) => (
@@ -17,12 +70,6 @@ const LockClosedIcon = ({ className = "w-4 h-4" }) => (
 const EnvelopeIcon = ({ className = "w-4 h-4" }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-  </svg>
-);
-
-const BuildingOfficeIcon = ({ className = "w-4 h-4" }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
   </svg>
 );
 
@@ -58,22 +105,23 @@ const Spinner = () => (
   </svg>
 );
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
+// ─── Static Data ──────────────────────────────────────────────────────────────
 const STATS = [
   { value: "340+", label: "Schools Active" },
-  { value: "92K", label: "Students Enrolled" },
+  { value: "92K",  label: "Students Enrolled" },
   { value: "99.8%", label: "Uptime SLA" },
 ];
 
 const ACTIVITY = [
-  { school: "Blantyre Secondary", action: "Uploaded exam results", time: "2m ago", dot: "bg-emerald-400" },
-  { school: "Lilongwe Girls", action: "Parent report sent", time: "11m ago", dot: "bg-blue-400" },
-  { school: "St. Patrick's College", action: "New student enrolled", time: "34m ago", dot: "bg-amber-400" },
-  { school: "Chancellor College Sec.", action: "Fee notice published", time: "1h ago", dot: "bg-blue-300" },
+  { school: "Blantyre Secondary",      action: "Uploaded exam results",  time: "2m ago",  dot: "bg-emerald-400" },
+  { school: "Lilongwe Girls",          action: "Parent report sent",      time: "11m ago", dot: "bg-blue-400"    },
+  { school: "St. Patrick's College",   action: "New student enrolled",    time: "34m ago", dot: "bg-amber-400"   },
+  { school: "Chancellor College Sec.", action: "Fee notice published",    time: "1h ago",  dot: "bg-blue-300"    },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const inputBase = "w-full text-sm text-gray-800 bg-white border rounded-xl outline-none transition-all duration-200 placeholder:text-gray-300 focus:ring-2 focus:ring-blue-900/20 focus:border-blue-900";
+const inputBase =
+  "w-full text-sm text-gray-800 bg-white border rounded-xl outline-none transition-all duration-200 placeholder:text-gray-300 focus:ring-2 focus:ring-blue-900/20 focus:border-blue-900";
 
 const inputClass = (touched, error, valid) => {
   if (touched && error) return `${inputBase} border-red-400 bg-red-50/60 focus:ring-red-200 focus:border-red-500`;
@@ -91,32 +139,80 @@ const FieldError = ({ msg }) =>
     </p>
   ) : null;
 
+// ─── Role Selector ────────────────────────────────────────────────────────────
+const RoleSelector = ({ selected, onChange }) => (
+  <div>
+    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2 block">
+      Sign in as <span className="text-red-500">*</span>
+    </label>
+    <div className="grid grid-cols-3 gap-2">
+      {ROLES.map((role) => {
+        const isActive = selected === role.key;
+        return (
+          <button
+            key={role.key}
+            type="button"
+            onClick={() => onChange(role.key)}
+            className={`
+              relative flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl border text-center
+              transition-all duration-200 cursor-pointer select-none
+              ${isActive
+                ? "bg-blue-900 border-blue-900 text-white shadow-md shadow-blue-900/20"
+                : "bg-white border-gray-200 text-gray-500 hover:border-blue-900/40 hover:text-blue-900 hover:bg-blue-50/40"
+              }
+            `}
+          >
+            <span className={isActive ? "text-white" : "text-gray-400"}>
+              {role.icon}
+            </span>
+            <span className="text-xs font-bold leading-tight">{role.shortLabel}</span>
+            <span className={`text-[10px] leading-tight ${isActive ? "text-blue-200" : "text-gray-400"}`}>
+              {role.description}
+            </span>
+            {isActive && (
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-amber-400" />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  </div>
+);
+
 // ─── Forgot Password Modal ────────────────────────────────────────────────────
 const ForgotPasswordModal = ({ onClose }) => {
-  const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [email, setEmail]     = useState("");
+  const [sent, setSent]       = useState(false);
   const [loading, setLoading] = useState(false);
+  const [err, setErr]         = useState("");
 
   const handleSend = async (e) => {
     e.preventDefault();
     if (!email) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1500));
-    setLoading(false);
-    setSent(true);
+    setErr("");
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      setSent(true);
+    } catch {
+      setErr("Could not send reset email. Please check the address and try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ backgroundColor: "rgba(15,23,42,0.55)", backdropFilter: "blur(4px)" }}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      style={{ backgroundColor: "rgba(15,23,42,0.55)", backdropFilter: "blur(4px)" }}
+    >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fadeIn">
         <div className="bg-blue-900 px-6 py-4 flex items-center justify-between">
           <div>
             <p className="text-blue-300 text-xs font-semibold uppercase tracking-widest mb-0.5">Account Recovery</p>
             <h3 className="text-white font-bold text-base">Reset Password</h3>
           </div>
-          <button onClick={onClose} className="text-blue-300 hover:text-white transition-colors">
-            ✕
-          </button>
+          <button onClick={onClose} className="text-blue-300 hover:text-white transition-colors text-lg leading-none">✕</button>
         </div>
         <div className="px-6 py-5">
           {sent ? (
@@ -137,21 +233,20 @@ const ForgotPasswordModal = ({ onClose }) => {
           ) : (
             <form onSubmit={handleSend} className="space-y-4">
               <p className="text-xs text-gray-500 leading-relaxed">
-                Enter the admin email address associated with your school account.
+                Enter the email address associated with your account and we'll send you a reset link.
               </p>
+              {err && <p className="text-xs text-red-600 font-medium">{err}</p>}
               <div>
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">
-                  Admin Email <span className="text-red-500">*</span>
+                  Email Address <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300">
-                    <EnvelopeIcon />
-                  </span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300"><EnvelopeIcon /></span>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="admin@school.mw"
+                    placeholder="your@email.mw"
                     className={`${inputBase} border-gray-200 hover:border-gray-300 pl-9 pr-4 py-2.5`}
                     required
                   />
@@ -162,7 +257,7 @@ const ForgotPasswordModal = ({ onClose }) => {
                 disabled={loading || !email}
                 className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-900 hover:bg-blue-800 disabled:opacity-60 text-white text-sm font-semibold rounded-xl"
               >
-                {loading ? <><Spinner /> Sending...</> : "Send Reset Link"}
+                {loading ? <><Spinner /> Sending…</> : "Send Reset Link"}
               </button>
             </form>
           )}
@@ -183,18 +278,21 @@ const SuccessScreen = ({ email, schoolCode, role }) => (
       <p className="text-gray-500 text-sm">
         Signed in as <span className="font-semibold text-blue-900">{email}</span>
       </p>
-      <span className="inline-flex items-center gap-1.5 mt-2 bg-blue-900/5 border border-blue-900/10 rounded-lg px-3 py-1">
-        <BuildingOfficeIcon className="w-3.5 h-3.5 text-blue-900" />
-        <span className="text-xs font-bold text-blue-900 mono tracking-wider">{schoolCode}</span>
-        <span className="text-xs text-gray-400">· {role}</span>
-      </span>
+      {schoolCode && (
+        <span className="inline-flex items-center gap-1.5 mt-2 bg-blue-900/5 border border-blue-900/10 rounded-lg px-3 py-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5 text-blue-900">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+          </svg>
+          <span className="text-xs font-bold text-blue-900 font-mono tracking-wider">{schoolCode}</span>
+          <span className="text-xs text-gray-400">· {role}</span>
+        </span>
+      )}
     </div>
-
     <div className="w-full bg-blue-50 border border-blue-100 rounded-xl p-4 text-left space-y-2">
       <p className="text-xs font-semibold text-blue-900 uppercase tracking-wider mb-2">Session Details</p>
       {[
         ["Role", role],
-        ["Access Level", role === "Head Teacher" ? "Super Admin Access" : role === "School Administrator" ? "Full Portal Access" : "Teacher Portal Access"],
+        ["Access Level", ACCESS_LEVEL[ROLES.find(r => r.displayRole === role)?.key] ?? "Portal Access"],
         ["Login Time", new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })],
         ["Session", "Secure · AES-256 Encrypted"],
       ].map(([k, v]) => (
@@ -204,14 +302,11 @@ const SuccessScreen = ({ email, schoolCode, role }) => (
         </div>
       ))}
     </div>
-
-    <div className="text-xs text-emerald-600 font-medium animate-pulse">
-      Redirecting to dashboard...
-    </div>
+    <div className="text-xs text-emerald-600 font-medium animate-pulse">Redirecting to dashboard…</div>
   </div>
 );
 
-// ─── Shared Components ────────────────────────────────────────────────────────
+// ─── Shared UI ────────────────────────────────────────────────────────────────
 const LogoMark = () => (
   <div className="flex items-center gap-3">
     <div className="w-11 h-11 bg-blue-900 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
@@ -220,9 +315,7 @@ const LogoMark = () => (
       </svg>
     </div>
     <div>
-      <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest leading-none mb-0.5">
-        Ministry of Education · Malawi
-      </p>
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest leading-none mb-0.5">Ministry of Education · Malawi</p>
       <h1 className="text-lg font-bold text-blue-900 leading-none">SSP-PEP</h1>
     </div>
   </div>
@@ -236,9 +329,7 @@ const Footer = () => (
       </p>
       <div className="flex items-center gap-5">
         {["Contact", "Privacy Policy", "Terms of Service", "Help"].map((link) => (
-          <a key={link} href="#" className="text-xs text-gray-400 hover:text-blue-900 transition-colors font-medium">
-            {link}
-          </a>
+          <a key={link} href="#" className="text-xs text-gray-400 hover:text-blue-900 transition-colors font-medium">{link}</a>
         ))}
       </div>
     </div>
@@ -249,7 +340,7 @@ const GlobalStyles = () => (
   <style>{`
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
     * { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
-    .mono { font-family: 'DM Mono', monospace; }
+    .font-mono { font-family: 'DM Mono', monospace; }
     @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
     .animate-fadeIn { animation: fadeIn 0.4s ease both; }
     .pattern-bg {
@@ -261,99 +352,137 @@ const GlobalStyles = () => (
   `}</style>
 );
 
-// ─── Main Sign In Component ───────────────────────────────────────────────────
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function SignIn() {
-  const [email, setEmail] = useState("");
-  const [schoolCode, setSchoolCode] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPw, setShowPw] = useState(false);
-  const [remember, setRemember] = useState(false);
-  const [touched, setTouched] = useState({ email: false, schoolCode: false, password: false });
-  const [loading, setLoading] = useState(false);
-  const [authError, setAuthError] = useState("");
-  const [success, setSuccess] = useState(false);
-  const [showForgot, setShowForgot] = useState(false);
-  const [failCount, setFailCount] = useState(0);
-  const [redirectTo, setRedirectTo] = useState("");
-  const [userRole, setUserRole] = useState("");
+  const [selectedRole, setSelectedRole] = useState("admin");
+  const [email, setEmail]               = useState("");
+  const [password, setPassword]         = useState("");
+  const [showPw, setShowPw]             = useState(false);
+  const [remember, setRemember]         = useState(false);
+  const [touched, setTouched]           = useState({ email: false, password: false });
+  const [loading, setLoading]           = useState(false);
+  const [authError, setAuthError]       = useState("");
+  const [success, setSuccess]           = useState(false);
+  const [showForgot, setShowForgot]     = useState(false);
+
+  // Populated after successful login
+  const [sessionEmail, setSessionEmail]         = useState("");
+  const [sessionSchoolCode, setSessionSchoolCode] = useState("");
+  const [sessionRole, setSessionRole]           = useState("");
+  const [redirectTo, setRedirectTo]             = useState("");
 
   const emailRef = useRef(null);
+  useEffect(() => { emailRef.current?.focus(); }, []);
 
-  useEffect(() => {
-    emailRef.current?.focus();
-  }, []);
+  // Clear auth error when role changes
+  useEffect(() => { setAuthError(""); }, [selectedRole]);
 
-  // Validation
-  const emailError = touched.email && (!email.trim() ? "Email address is required" : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? "Enter a valid email address" : "");
-  const schoolCodeError = touched.schoolCode && (!schoolCode.trim() ? "School code is required" : !/^[A-Z0-9\-]{4,12}$/.test(schoolCode.trim()) ? "Must be 4–12 uppercase alphanumeric characters" : "");
-  const passwordError = touched.password && (!password ? "Password is required" : password.length < 6 ? "Password must be at least 6 characters" : "");
+  // ── Validation ─────────────────────────────────────────────────────────────
+  const emailError =
+    touched.email &&
+    (!email.trim()
+      ? "Email address is required"
+      : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      ? "Enter a valid email address"
+      : "");
 
-  const touchAll = () => setTouched({ email: true, schoolCode: true, password: true });
-  const hasErrors = !!emailError || !!schoolCodeError || !!passwordError || !email || !schoolCode || !password;
+  const passwordError =
+    touched.password &&
+    (!password
+      ? "Password is required"
+      : password.length < 6
+      ? "Password must be at least 6 characters"
+      : "");
 
+  const hasErrors = !!emailError || !!passwordError || !email || !password;
+
+  // ── Submit ──────────────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
-    touchAll();
+    setTouched({ email: true, password: true });
     setAuthError("");
-
     if (hasErrors) return;
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1800)); // Simulate API call
-    setLoading(false);
+    try {
+      // 1. Authenticate with Firebase Auth
+      const credential = await signInWithEmailAndPassword(
+        auth,
+        email.trim().toLowerCase(),
+        password
+      );
+      const uid = credential.user.uid;
 
-    const normalizedEmail = email.trim().toLowerCase();
+      // 2. Fetch user document from Firestore
+      const userSnap = await getDoc(doc(db, "users", uid));
 
-    // ==================== CREDENTIALS ====================
-    if (normalizedEmail === "headteacher@gmail.com" && password === "123456") {
-      setRedirectTo("/head");
-      setUserRole("Head Teacher");
-      setSuccess(true);
-      return;
-    }
-    if (normalizedEmail === "andy@gmail.com" && password === "123456") {
-      setRedirectTo("/admin");
-      setUserRole("School Administrator");
-      setSuccess(true);
-      return;
-    }
-    if (normalizedEmail === "teacher@gmail.com" && password === "123456") {
-      setRedirectTo("/teacher");
-      setUserRole("Teacher");
-      setSuccess(true);
-      return;
-    }
-    if (normalizedEmail === "parent@gmail.com" && password === "123456") {
-      setRedirectTo("/parent");
-      setUserRole("Parent");
-      setSuccess(true);
-      return;
-    }
+      if (!userSnap.exists()) {
+        await signOut(auth);
+        setAuthError("No account record found. Please contact your administrator.");
+        setLoading(false);
+        return;
+      }
 
-    // Fallback for demo
-    if (failCount === 0) {
-      setFailCount(1);
-      setAuthError("Invalid credentials. Please check your email, school code, and password.");
-      return;
-    }
+      const userData = userSnap.data();
 
-    // Default fallback
-    setRedirectTo("/admin");
-    setUserRole("School Administrator");
-    setSuccess(true);
+      // 3. Role guard — verify the selected role matches the stored role
+      const allowedRoles = ["admin", "head_teacher", "class_teacher"];
+
+      if (!allowedRoles.includes(userData.role)) {
+        await signOut(auth);
+        setAuthError("Access denied. This portal is for school staff only.");
+        setLoading(false);
+        return;
+      }
+
+      if (userData.role !== selectedRole) {
+        await signOut(auth);
+        const roleConfig = ROLES.find((r) => r.key === userData.role);
+        setAuthError(
+          `This account is registered as "${roleConfig?.label ?? userData.role}". Please select the correct role above.`
+        );
+        setLoading(false);
+        return;
+      }
+
+      // 4. All good — store session info and show success screen
+      const roleConfig = ROLES.find((r) => r.key === userData.role);
+      setSessionEmail(userData.email ?? email.trim().toLowerCase());
+      setSessionSchoolCode(userData.schoolCode ?? "");
+      setSessionRole(roleConfig?.displayRole ?? userData.role);
+      setRedirectTo(roleConfig?.redirectTo ?? "/admin");
+      setSuccess(true);
+
+    } catch (err) {
+      console.error("Sign-in error:", err.code, err.message);
+
+      const map = {
+        "auth/user-not-found":         "No account found with that email address.",
+        "auth/wrong-password":         "Incorrect password. Please try again.",
+        "auth/invalid-credential":     "Invalid email or password.",
+        "auth/too-many-requests":      "Too many failed attempts. Please wait a moment and try again.",
+        "auth/user-disabled":          "This account has been disabled. Contact support.",
+        "auth/network-request-failed": "Network error. Check your connection and try again.",
+      };
+
+      setAuthError(map[err.code] || "Sign-in failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Auto redirect after success
+  // ── Auto-redirect after success ─────────────────────────────────────────────
   useEffect(() => {
     if (success && redirectTo) {
-      const timer = setTimeout(() => {
-        window.location.href = redirectTo;
-      }, 2200);
-      return () => clearTimeout(timer);
+      const t = setTimeout(() => { window.location.href = redirectTo; }, 2200);
+      return () => clearTimeout(t);
     }
   }, [success, redirectTo]);
 
-  // Success Screen
+  // ── Current role config ─────────────────────────────────────────────────────
+  const currentRole = ROLES.find((r) => r.key === selectedRole);
+
+  // ── Success screen ──────────────────────────────────────────────────────────
   if (success) {
     return (
       <>
@@ -363,15 +492,13 @@ export default function SignIn() {
           <div className="flex-1 flex items-center justify-center px-4 py-12">
             <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden w-full max-w-md animate-fadeIn">
               <div className="bg-blue-900 px-7 py-4 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-white font-bold">SSP-PEP</span>
-                </div>
+                <span className="text-white font-bold">SSP-PEP</span>
                 <div className="flex items-center gap-1.5 text-emerald-300 text-xs font-semibold">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   Session Active
                 </div>
               </div>
-              <SuccessScreen email={email} schoolCode={schoolCode} role={userRole} />
+              <SuccessScreen email={sessionEmail} schoolCode={sessionSchoolCode} role={sessionRole} />
             </div>
           </div>
           <Footer />
@@ -380,7 +507,7 @@ export default function SignIn() {
     );
   }
 
-  // Main Sign In Page
+  // ── Sign-in form ────────────────────────────────────────────────────────────
   return (
     <>
       <Header />
@@ -393,18 +520,17 @@ export default function SignIn() {
         <div className="flex-1 flex items-start lg:items-center justify-center px-4 py-8 lg:py-10">
           <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-10 items-center">
 
-            {/* Left Panel */}
+            {/* ── Left panel ──────────────────────────────────────────────── */}
             <div className="lg:col-span-2">
               <LogoMark />
-
               <div className="mt-8 mb-3">
                 <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 leading-tight">
-                  Administrator<br />Portal<br />
+                  Staff Portal<br />
                   <span className="text-blue-900">Sign In</span>
                 </h2>
               </div>
               <p className="text-gray-500 text-sm leading-relaxed mb-8 max-w-xs">
-                Secure access for registered school administrators. Manage students, staff, examinations, and parent engagement from one unified dashboard.
+                Secure access for registered school staff. Select your role and sign in to access your personalised dashboard.
               </p>
 
               <div className="flex items-start gap-3 bg-amber-50 border border-amber-200/60 rounded-xl px-4 py-3 mb-8">
@@ -412,7 +538,7 @@ export default function SignIn() {
                 <div>
                   <p className="text-xs font-bold text-amber-800">Authorised Personnel Only</p>
                   <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
-                    This portal is restricted to registered school administrators.
+                    This portal is restricted to registered school staff. Unauthorised access is prohibited.
                   </p>
                 </div>
               </div>
@@ -448,14 +574,19 @@ export default function SignIn() {
               </div>
             </div>
 
-            {/* Sign In Form */}
+            {/* ── Sign-in form ─────────────────────────────────────────────── */}
             <div className="lg:col-span-3">
               <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/60 border border-gray-100 overflow-hidden">
+                {/* Form header */}
                 <div className="bg-blue-900 px-7 py-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-blue-300 text-xs font-semibold uppercase tracking-widest mb-1">Secure Administrator Access</p>
-                      <h3 className="text-white text-xl font-bold">School Admin Sign In</h3>
+                      <p className="text-blue-300 text-xs font-semibold uppercase tracking-widest mb-1">
+                        Secure Staff Access
+                      </p>
+                      <h3 className="text-white text-xl font-bold">
+                        {currentRole?.label} Sign In
+                      </h3>
                     </div>
                     <div className="flex items-center gap-2 bg-white/10 border border-white/20 rounded-xl px-3 py-1.5">
                       <ShieldCheckIcon className="w-3.5 h-3.5 text-amber-300" />
@@ -465,6 +596,7 @@ export default function SignIn() {
                 </div>
 
                 <div className="px-7 py-6 space-y-5">
+                  {/* Auth error */}
                   {authError && (
                     <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3">
                       <ExclamationIcon />
@@ -476,10 +608,20 @@ export default function SignIn() {
                   )}
 
                   <form onSubmit={handleSubmit} noValidate className="space-y-4">
+                    {/* Role selector */}
+                    <RoleSelector selected={selectedRole} onChange={setSelectedRole} />
+
+                    {/* Divider */}
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 h-px bg-gray-100" />
+                      <span className="text-xs text-gray-300 font-medium">credentials</span>
+                      <div className="flex-1 h-px bg-gray-100" />
+                    </div>
+
                     {/* Email */}
                     <div>
                       <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">
-                        Admin Email Address <span className="text-red-500">*</span>
+                        Email Address <span className="text-red-500">*</span>
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300">
@@ -491,32 +633,11 @@ export default function SignIn() {
                           value={email}
                           onChange={(e) => { setEmail(e.target.value); setAuthError(""); }}
                           onBlur={() => setTouched((p) => ({ ...p, email: true }))}
-                          placeholder="admin@school.mw"
+                          placeholder="your@school.mw"
                           className={`${inputClass(touched.email, emailError, email && !emailError)} pl-9 py-2.5`}
                         />
                       </div>
                       <FieldError msg={emailError} />
-                    </div>
-
-                    {/* School Code */}
-                    <div>
-                      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">
-                        School Code <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300">
-                          <BuildingOfficeIcon />
-                        </span>
-                        <input
-                          type="text"
-                          value={schoolCode}
-                          onChange={(e) => { setSchoolCode(e.target.value.toUpperCase()); setAuthError(""); }}
-                          onBlur={() => setTouched((p) => ({ ...p, schoolCode: true }))}
-                          placeholder="e.g. LLW-2026"
-                          className={`${inputClass(touched.schoolCode, schoolCodeError, schoolCode && !schoolCodeError)} pl-9 py-2.5 mono tracking-widest`}
-                        />
-                      </div>
-                      <FieldError msg={schoolCodeError} />
                     </div>
 
                     {/* Password */}
@@ -525,7 +646,11 @@ export default function SignIn() {
                         <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
                           Password <span className="text-red-500">*</span>
                         </label>
-                        <button type="button" onClick={() => setShowForgot(true)} className="text-xs text-blue-900 font-semibold hover:underline">
+                        <button
+                          type="button"
+                          onClick={() => setShowForgot(true)}
+                          className="text-xs text-blue-900 font-semibold hover:underline"
+                        >
                           Forgot password?
                         </button>
                       </div>
@@ -552,33 +677,38 @@ export default function SignIn() {
                       <FieldError msg={passwordError} />
                     </div>
 
-                    {/* Remember & Submit */}
-                    <div className="pt-2 flex items-center justify-between">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={remember}
-                          onChange={() => setRemember(!remember)}
-                          className="w-4 h-4 accent-blue-900"
-                        />
-                        <span className="text-xs text-gray-600">Remember this device</span>
+                    {/* Remember me */}
+                    <div className="pt-1 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="remember"
+                        checked={remember}
+                        onChange={() => setRemember(!remember)}
+                        className="w-4 h-4 accent-blue-900"
+                      />
+                      <label htmlFor="remember" className="text-xs text-gray-600 cursor-pointer">
+                        Remember this device
                       </label>
                     </div>
 
+                    {/* Submit */}
                     <button
                       type="submit"
                       disabled={loading}
                       className="w-full flex items-center justify-center gap-2 bg-blue-900 hover:bg-blue-800 disabled:opacity-70 text-white font-semibold py-3 rounded-xl transition-all"
                     >
-                      {loading ? <><Spinner /> Verifying...</> : <><ShieldCheckIcon /> Sign In to Admin Portal</>}
+                      {loading
+                        ? <><Spinner /> Verifying…</>
+                        : <><ShieldCheckIcon /> Sign In as {currentRole?.label}</>
+                      }
                     </button>
                   </form>
                 </div>
               </div>
             </div>
+
           </div>
         </div>
-
         <Footer />
       </div>
     </>
