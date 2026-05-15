@@ -1,348 +1,751 @@
-import { useState } from "react";
-import { TrendingUp, Award, BarChart3, Download, Users, AlertTriangle, Edit3 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { db } from "../../../firebase";
+import {
+  collection, query, where, getDocs, doc, getDoc,
+  setDoc, serverTimestamp,
+} from "firebase/firestore";
+import {
+  Award, AlertTriangle, RefreshCw, Loader2, CheckCircle,
+  AlertCircle, Search, ChevronDown, Users,
+  BarChart2, Edit3, Save,
+} from "lucide-react";
 
-export default function PerformanceModule() {
-  const [selectedTerm, setSelectedTerm] = useState("Term 2 2026");
-  const [selectedClass, setSelectedClass] = useState("Form 3A"); // Teacher's main class
-  const [viewMode, setViewMode] = useState("overview"); // overview, enter-marks, ranking
+function fullName(s) {
+  return s.fullName || `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() || "—";
+}
 
-  const teacherClasses = ["Form 3A", "Form 4B"]; // Classes this teacher teaches
+// ─── MANEB Grade Scale (MSCE) ─────────────────────────────────────────────────
+const MANEB_GRADES = [
+  { grade: 1, min: 80, max: 100, remark: "Distinction", color: "text-emerald-700", bg: "bg-emerald-100", border: "border-emerald-200" },
+  { grade: 2, min: 70, max: 79,  remark: "Distinction", color: "text-emerald-600", bg: "bg-emerald-50",  border: "border-emerald-200" },
+  { grade: 3, min: 65, max: 69,  remark: "Credit",      color: "text-blue-700",    bg: "bg-blue-100",    border: "border-blue-200" },
+  { grade: 4, min: 60, max: 64,  remark: "Credit",      color: "text-blue-600",    bg: "bg-blue-50",     border: "border-blue-200" },
+  { grade: 5, min: 55, max: 59,  remark: "Credit",      color: "text-sky-600",     bg: "bg-sky-50",      border: "border-sky-200" },
+  { grade: 6, min: 50, max: 54,  remark: "Credit",      color: "text-sky-500",     bg: "bg-sky-50",      border: "border-sky-200" },
+  { grade: 7, min: 45, max: 49,  remark: "Pass",        color: "text-amber-600",   bg: "bg-amber-50",    border: "border-amber-200" },
+  { grade: 8, min: 40, max: 44,  remark: "Pass",        color: "text-amber-500",   bg: "bg-amber-50",    border: "border-amber-200" },
+  { grade: 9, min: 0,  max: 39,  remark: "Fail",        color: "text-red-600",     bg: "bg-red-50",      border: "border-red-200" },
+];
 
-  // Sample data - only students from teacher's classes
-  const [performanceData, setPerformanceData] = useState([
-    {
-      id: "STU-001",
-      name: "John Phiri",
-      class: "Form 3A",
-      subjects: {
-        Mathematics: 92,
-        English: 78,
-        Biology: 95,
-        History: 85,
-      },
-      average: 87.5,
-      rank: 2,
-      trend: "up",
-      lastUpdated: "2026-03-25",
-    },
-    {
-      id: "STU-003",
-      name: "Blessing Mwale",
-      class: "Form 3A",
-      subjects: {
-        Mathematics: 96,
-        English: 88,
-        Biology: 89,
-        History: 92,
-      },
-      average: 91.2,
-      rank: 1,
-      trend: "up",
-      lastUpdated: "2026-03-26",
-    },
-    {
-      id: "STU-006",
-      name: "Grace Nyirenda",
-      class: "Form 3A",
-      subjects: {
-        Mathematics: 65,
-        English: 82,
-        Biology: 71,
-        History: 68,
-      },
-      average: 71.5,
-      rank: 8,
-      trend: "down",
-      lastUpdated: "2026-03-20",
-    },
-    {
-      id: "STU-008",
-      name: "Kelvin Chirwa",
-      class: "Form 3A",
-      subjects: {
-        Mathematics: 88,
-        English: 79,
-        Biology: 84,
-        History: 91,
-      },
-      average: 85.5,
-      rank: 3,
-      trend: "stable",
-      lastUpdated: "2026-03-26",
-    },
-  ]);
+function getGradeInfo(score) {
+  if (score === null || score === undefined || score === "") return null;
+  const n = Number(score);
+  if (isNaN(n)) return null;
+  return MANEB_GRADES.find(g => n >= g.min && n <= g.max) || MANEB_GRADES[MANEB_GRADES.length - 1];
+}
 
-  const filteredStudents = performanceData.filter(student => 
-    student.class === selectedClass
+function GradeBadge({ score, small = false }) {
+  const g = getGradeInfo(score);
+  if (!g) return <span className="text-[#0F2044]/30 text-xs">—</span>;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border font-bold
+      ${small ? "text-[10px]" : "text-xs"} ${g.bg} ${g.color} ${g.border}`}>
+      G{g.grade} <span className="font-normal opacity-70">{g.remark}</span>
+    </span>
   );
+}
 
-  const classAverage = filteredStudents.length 
-    ? (filteredStudents.reduce((sum, s) => sum + s.average, 0) / filteredStudents.length).toFixed(1) 
-    : 0;
+function Spinner({ size = 20 }) {
+  return <Loader2 size={size} className="animate-spin text-[#0F2044]/40 inline-block" />;
+}
 
-  const atRiskCount = filteredStudents.filter(s => s.average < 60).length;
+function Toast({ message, type = "success", onClose }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 3500);
+    return () => clearTimeout(t);
+  }, [onClose]);
+  return (
+    <div className={`fixed bottom-6 right-6 z-[200] flex items-center gap-3 px-5 py-3.5
+      rounded-2xl shadow-xl text-sm font-medium
+      ${type === "success" ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}`}>
+      {type === "success" ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+      {message}
+    </div>
+  );
+}
 
-  // Update a student's mark
-  const updateMark = (studentId, subject, newScore) => {
-    setPerformanceData(prev =>
-      prev.map(student => {
-        if (student.id === studentId) {
-          const newSubjects = { ...student.subjects, [subject]: parseFloat(newScore) || 0 };
-          const newAverage = Object.values(newSubjects).reduce((a, b) => a + b, 0) / 4;
-          
-          return {
-            ...student,
-            subjects: newSubjects,
-            average: Math.round(newAverage * 10) / 10,
-            lastUpdated: new Date().toISOString().split('T')[0]
-          };
-        }
-        return student;
-      })
-    );
+// ─── Score input cell ─────────────────────────────────────────────────────────
+function ScoreCell({ value, onCommit, disabled }) {
+  const [local, setLocal] = useState(value ?? "");
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => { setLocal(value ?? ""); }, [value]);
+
+  const handleBlur = () => {
+    setEditing(false);
+    const n = local === "" ? null : Math.min(100, Math.max(0, Number(local)));
+    if (isNaN(n) && local !== "") { setLocal(value ?? ""); return; }
+    if (n !== value) onCommit(n);
   };
 
+  const g = getGradeInfo(value);
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-3xl font-bold text-[#0F2044]" style={{ fontFamily: "'Playfair Display', serif" }}>
-            My Students' Performance
-          </h2>
-          <p className="text-[#0F2044]/60">Continuous Assessment • MANEB-aligned • Real-time updates</p>
-        </div>
+    <td className="px-3 py-3 text-center align-middle" style={{ minWidth: 88 }}>
+      <div className="flex flex-col items-center gap-1">
+        <input
+          type="number" min={0} max={100}
+          value={local}
+          disabled={disabled}
+          onChange={e => setLocal(e.target.value)}
+          onFocus={() => setEditing(true)}
+          onBlur={handleBlur}
+          placeholder="—"
+          className={`w-16 text-center rounded-xl border py-1.5 text-sm font-semibold outline-none transition-all
+            ${disabled ? "bg-[#F7F5F0] text-[#0F2044]/30 border-transparent cursor-not-allowed"
+            : editing ? "border-[#F4B400] bg-white shadow-sm text-[#0F2044]"
+            : g ? `${g.bg} ${g.color} ${g.border}` : "border-[#0F2044]/10 bg-white text-[#0F2044]/40"}
+          `}
+        />
+        {!editing && g && (
+          <span className={`text-[9px] font-bold tracking-wide ${g.color}`}>
+            G{g.grade} · {g.remark}
+          </span>
+        )}
+      </div>
+    </td>
+  );
+}
 
-        <div className="flex gap-3">
+// ─── Main Component ───────────────────────────────────────────────────────────
+export default function PerformanceModule({ userId, schoolCode }) {
+  // ── class/subject assignments (mirrors StudentModule pattern) ──────────────
+  const [classes,       setClasses]       = useState([]); // resolved school_classes docs
+  const [mySubjects,    setMySubjects]    = useState([]);
+  const [selectedClassId,   setSelectedClassId]   = useState("");
+  const [classesReady,  setClassesReady]  = useState(false);
+  const [studentsReady, setStudentsReady] = useState(false);
+  const isLoading = !classesReady || !studentsReady;
+  const noAssignment = classesReady && studentsReady && classes.length === 0;
+
+  const [selectedTerm, setSelectedTerm] = useState("Term 1 2026");
+  const [viewMode,     setViewMode]     = useState("marks");
+  const [search,       setSearch]       = useState("");
+
+  const [students, setStudents] = useState([]);
+  const [marks,    setMarks]    = useState({});
+  const [saving,   setSaving]   = useState(false);
+  const [toast,    setToast]    = useState(null);
+  const [dirty,    setDirty]    = useState(false);
+  const [error,    setError]    = useState("");
+
+  const showToast = (msg, type = "success") => setToast({ message: msg, type });
+
+  const selectedClass = classes.find(c => c.id === selectedClassId);
+
+  // 1. Load teacher profile → assigned class names → resolve to school_classes docs
+  useEffect(() => {
+    if (!userId || !schoolCode) return;
+    let cancelled = false;
+    (async () => {
+      setClassesReady(false);
+      setStudentsReady(false);
+      setClasses([]);
+      setError("");
+      try {
+        const userSnap = await getDoc(doc(db, "users", userId));
+        if (cancelled) return;
+        const userData = userSnap.exists() ? userSnap.data() : {};
+        const assignedNames    = userData.assignedClasses  || [];
+        const assignedSubjects = userData.assignedSubjects || [];
+        setMySubjects(assignedSubjects);
+
+        if (assignedNames.length === 0) {
+          setClasses([]);
+          setClassesReady(true);
+          setStudentsReady(true);
+          return;
+        }
+
+        const snap = await getDocs(
+          query(collection(db, "school_classes"), where("schoolCode", "==", schoolCode))
+        );
+        if (cancelled) return;
+        const myClasses = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(c => assignedNames.includes(c.name));
+
+        setClasses(myClasses);
+        setClassesReady(true);
+        if (myClasses.length > 0) {
+          setSelectedClassId(myClasses[0].id);
+        } else {
+          setStudentsReady(true);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        console.error("load assignments:", err);
+        setError("Could not load your class assignments.");
+        setClassesReady(true);
+        setStudentsReady(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [userId, schoolCode]);
+
+  // 2. Fetch students by classId (exactly as StudentModule does)
+  const fetchStudents = useCallback(async () => {
+    if (!schoolCode || !selectedClassId) return;
+    setStudentsReady(false);
+    setStudents([]);
+    setMarks({});
+    setDirty(false);
+    try {
+      const snap = await getDocs(
+        query(
+          collection(db, "students"),
+          where("schoolCode", "==", schoolCode),
+          where("classId",    "==", selectedClassId)
+        )
+      );
+      const list = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.lastName || "").localeCompare(b.lastName || ""));
+      setStudents(list);
+    } catch (err) {
+      console.error("fetchStudents:", err);
+      setError("Could not load students: " + err.message);
+    } finally {
+      setStudentsReady(true);
+    }
+  }, [schoolCode, selectedClassId]);
+
+  useEffect(() => {
+    if (classesReady && selectedClassId) fetchStudents();
+  }, [fetchStudents, classesReady, selectedClassId]);
+
+  // 3. Load saved marks whenever class or term changes
+  const loadMarks = useCallback(async () => {
+    if (!selectedClassId || !schoolCode || !selectedTerm || !userId) return;
+    try {
+      const docId = `${schoolCode}_${selectedClassId}_${selectedTerm.replace(/\s+/g, "_")}_${userId}`;
+      const snap = await getDoc(doc(db, "ca_marks", docId));
+      if (snap.exists()) {
+        setMarks(snap.data().marks || {});
+      } else {
+        setMarks({});
+      }
+      setDirty(false);
+    } catch (err) {
+      console.error("loadMarks:", err);
+    }
+  }, [selectedClassId, selectedTerm, schoolCode, userId]);
+
+  useEffect(() => { loadMarks(); }, [loadMarks]);
+
+  // 4. Update a mark locally
+  const updateMark = (studentId, subject, score) => {
+    setMarks(prev => ({
+      ...prev,
+      [studentId]: { ...(prev[studentId] || {}), [subject]: score }
+    }));
+    setDirty(true);
+  };
+
+  // 5. Save all marks to Firestore
+  const saveAllMarks = async () => {
+    if (!dirty) return;
+    setSaving(true);
+    try {
+      const docId = `${schoolCode}_${selectedClassId}_${selectedTerm.replace(/\s+/g, "_")}_${userId}`;
+      await setDoc(doc(db, "ca_marks", docId), {
+        schoolCode,
+        classId:   selectedClassId,
+        className: selectedClass?.name || "",
+        term:      selectedTerm,
+        teacherId: userId,
+        subjects:  mySubjects,
+        marks,
+        updatedAt: serverTimestamp(),
+      });
+      setDirty(false);
+      showToast("Marks saved successfully.");
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to save marks: " + err.message, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── helpers ───────────────────────────────────────────────────────────────
+  const getStudentAvg = (studentId) => {
+    const m = marks[studentId] || {};
+    const scores = mySubjects.map(s => m[s]).filter(v => v !== null && v !== undefined && v !== "");
+    if (!scores.length) return null;
+    return Math.round((scores.reduce((a, b) => a + Number(b), 0) / scores.length) * 10) / 10;
+  };
+
+  const studentsWithStats = students.map(s => ({
+    ...s,
+    average: getStudentAvg(s.id),
+    subjectMarks: marks[s.id] || {},
+  }));
+
+  const ranked = [...studentsWithStats]
+    .filter(s => s.average !== null)
+    .sort((a, b) => b.average - a.average)
+    .map((s, i) => ({ ...s, rank: i + 1 }));
+
+  const allWithRank = studentsWithStats.map(s => {
+    const r = ranked.find(r => r.id === s.id);
+    return { ...s, rank: r?.rank ?? null };
+  });
+
+  const filtered = allWithRank.filter(s =>
+    !search ||
+    fullName(s).toLowerCase().includes(search.toLowerCase()) ||
+    s.studentCode?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const classAvg = ranked.length
+    ? Math.round((ranked.reduce((a, b) => a + b.average, 0) / ranked.length) * 10) / 10
+    : null;
+  const atRisk    = ranked.filter(s => s.average < 40).length;
+  const needsHelp = ranked.filter(s => s.average >= 40 && s.average < 50).length;
+  const topPass   = ranked.filter(s => s.average >= 70).length;
+
+  const noStudents = classesReady && studentsReady && students.length === 0 && selectedClassId;
+
+  const TERMS = ["Term 1 2026", "Term 2 2026", "Term 3 2025", "Term 1 2025", "Term 2 2025"];
+
+  return (
+    <div className="space-y-5">
+      {/* ── Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-[#0F2044]">Student Performance</h2>
+          <p className="text-sm text-[#0F2044]/55 mt-0.5">
+            {isLoading
+              ? "Loading assignments…"
+              : noAssignment
+              ? "No classes assigned yet"
+              : `${selectedClass?.name || ""} · Continuous Assessment · MANEB grade scale (1–9)`}
+          </p>
+        </div>
+        <div className="flex gap-2 shrink-0 flex-wrap">
+          <button
+            onClick={fetchStudents}
+            disabled={isLoading}
+            className="p-2.5 bg-white border border-[#0F2044]/10 rounded-xl hover:bg-[#F7F5F0] transition-colors text-[#0F2044]/60 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Refresh"
+          >
+            <RefreshCw size={16} />
+          </button>
+          {dirty && (
+            <button
+              onClick={saveAllMarks}
+              disabled={saving}
+              className="flex items-center gap-2 px-5 py-2.5 bg-[#F4B400] text-[#0F2044] rounded-2xl hover:brightness-105 transition-all font-bold text-sm disabled:opacity-60"
+            >
+              {saving ? <Spinner size={15} /> : <Save size={15} />}
+              Save marks
+            </button>
+          )}
+        </div>
+      </div>
+
+      {noAssignment && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl text-sm">
+          <AlertCircle size={16} className="shrink-0 mt-0.5" />
+          No classes assigned yet. Ask your head teacher to assign classes from Staff Management.
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl text-sm">
+          <AlertCircle size={16} className="shrink-0 mt-0.5" />
+          {error}
+        </div>
+      )}
+
+      {/* ── Controls ── */}
+      <div className="flex flex-wrap gap-3 items-end">
+        <div>
+          <label className="text-[10px] font-bold tracking-widest text-[#0F2044]/45 block mb-1">CLASS</label>
+          <select
+            value={selectedClassId}
+            onChange={e => { setSelectedClassId(e.target.value); setDirty(false); }}
+            disabled={isLoading || classes.length === 0}
+            className="px-4 py-2.5 bg-white border border-[#0F2044]/12 rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044] font-medium disabled:opacity-50"
+          >
+            {classes.length === 0 && <option value="">No classes</option>}
+            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-[10px] font-bold tracking-widest text-[#0F2044]/45 block mb-1">TERM</label>
           <select
             value={selectedTerm}
-            onChange={(e) => setSelectedTerm(e.target.value)}
-            className="px-5 py-3 bg-white border border-[#0F2044]/15 rounded-2xl focus:border-[#F4B400]"
+            onChange={e => setSelectedTerm(e.target.value)}
+            className="px-4 py-2.5 bg-white border border-[#0F2044]/12 rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044]"
           >
-            <option value="Term 1 2026">Term 1 2026</option>
-            <option value="Term 2 2026">Term 2 2026</option>
-            <option value="Term 3 2025">Term 3 2025</option>
-          </select>
-
-          <button className="flex items-center gap-2 px-6 py-3 bg-[#0F2044] text-white rounded-2xl font-medium hover:bg-black transition-colors">
-            <Download className="w-5 h-5" /> Export Report Cards
-          </button>
-        </div>
-      </div>
-
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="bg-white rounded-3xl p-6 border border-[#0F2044]/8">
-          <p className="text-sm text-[#0F2044]/60">Class Average</p>
-          <p className="text-4xl font-bold text-[#0F2044] mt-1">{classAverage}%</p>
-          <p className="text-xs text-emerald-600 mt-2">↑ 4.1% from last term</p>
-        </div>
-
-        <div className="bg-white rounded-3xl p-6 border border-[#0F2044]/8">
-          <p className="text-sm text-[#0F2044]/60">Students in Class</p>
-          <p className="text-4xl font-bold text-[#0F2044] mt-1">{filteredStudents.length}</p>
-          <p className="text-xs text-[#0F2044]/60 mt-1">Form {selectedClass}</p>
-        </div>
-
-        <div className="bg-white rounded-3xl p-6 border border-[#0F2044]/8">
-          <p className="text-sm text-[#0F2044]/60">Top Performer</p>
-          <p className="text-xl font-bold text-[#0F2044] mt-2">
-            {filteredStudents.sort((a, b) => b.average - a.average)[0]?.name || "—"}
-          </p>
-          <p className="text-sm text-emerald-600">
-            {filteredStudents.sort((a, b) => b.average - a.average)[0]?.average || 0}%
-          </p>
-        </div>
-
-        <div className="bg-white rounded-3xl p-6 border border-[#0F2044]/8">
-          <p className="text-sm text-[#0F2044]/60">At-Risk Students</p>
-          <p className="text-4xl font-bold text-amber-600 mt-1">{atRiskCount}</p>
-          <p className="text-xs text-amber-600">Below 60% average</p>
-        </div>
-      </div>
-
-      {/* Class & View Selector */}
-      <div className="flex flex-col sm:flex-row gap-4 items-end">
-        <div className="flex-1">
-          <label className="block text-xs font-bold tracking-widest text-[#0F2044]/60 mb-1">MY CLASS</label>
-          <select
-            value={selectedClass}
-            onChange={(e) => setSelectedClass(e.target.value)}
-            className="w-full px-5 py-3 border border-[#0F2044]/15 rounded-2xl focus:border-[#F4B400]"
-          >
-            {teacherClasses.map(cls => (
-              <option key={cls} value={cls}>{cls}</option>
-            ))}
+            {TERMS.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
-
-        <div className="flex border-b border-[#0F2044]/10 flex-1">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#0F2044]/35" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search students…"
+            className="w-full pl-9 pr-4 py-2.5 bg-white border border-[#0F2044]/10 rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/30 text-[#0F2044]"
+          />
+        </div>
+        <div className="flex gap-1 ml-auto">
           {[
-            { id: "overview", label: "Performance Overview" },
-            { id: "enter-marks", label: "Enter / Edit Marks" },
-            { id: "ranking", label: "Class Ranking" }
-          ].map((mode) => (
+            { id: "marks",     icon: Edit3,    label: "Marks" },
+            { id: "ranking",   icon: Award,    label: "Ranking" },
+            { id: "analytics", icon: BarChart2, label: "Analytics" },
+          ].map(({ id, icon: Icon, label }) => (
             <button
-              key={mode.id}
-              onClick={() => setViewMode(mode.id)}
-              className={`flex-1 py-4 text-sm font-medium transition-all border-b-2 ${
-                viewMode === mode.id 
-                  ? "border-[#F4B400] text-[#0F2044]" 
-                  : "border-transparent text-[#0F2044]/60 hover:text-[#0F2044]"
-              }`}
+              key={id}
+              onClick={() => setViewMode(id)}
+              className={`flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold rounded-xl transition-all
+                ${viewMode === id ? "bg-[#0F2044] text-white" : "bg-white border border-[#0F2044]/10 text-[#0F2044]/60 hover:border-[#0F2044]/25"}`}
             >
-              {mode.label}
+              <Icon size={13} />{label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* OVERVIEW */}
-      {viewMode === "overview" && (
-        <div className="bg-white rounded-3xl border border-[#0F2044]/8 overflow-hidden">
-          <div className="px-6 py-4 bg-[#F7F5F0] border-b">
-            <h3 className="font-semibold">Performance Overview - {selectedClass}</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-[#0F2044]/10">
-                  <th className="px-6 py-4 text-left">Student Name</th>
-                  <th className="px-6 py-4 text-center">Mathematics</th>
-                  <th className="px-6 py-4 text-center">English</th>
-                  <th className="px-6 py-4 text-center">Biology</th>
-                  <th className="px-6 py-4 text-center">History</th>
-                  <th className="px-6 py-4 text-center font-bold">Average</th>
-                  <th className="px-6 py-4 text-center">Rank</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {filteredStudents.map((student) => (
-                  <tr key={student.id} className="hover:bg-[#FAFAF8]">
-                    <td className="px-6 py-5 font-medium">{student.name}</td>
-                    {Object.entries(student.subjects).map(([sub, score]) => (
-                      <td key={sub} className="px-6 py-5 text-center font-medium">
-                        {score}
-                      </td>
-                    ))}
-                    <td className="px-6 py-5 text-center font-bold text-lg">{student.average}%</td>
-                    <td className="px-6 py-5 text-center">
-                      <span className="inline-flex items-center justify-center w-8 h-8 bg-[#F4B400]/10 text-[#F4B400] rounded-full text-sm font-bold">
-                        {student.rank}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {/* ── Summary cards ── */}
+      {ranked.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: "Class average", value: classAvg !== null ? `${classAvg}%` : "—", sub: classAvg !== null ? getGradeInfo(classAvg)?.remark : "", color: "text-[#0F2044]" },
+            { label: "Distinctions (G1–G2)", value: topPass, sub: `≥70%`, color: "text-emerald-700" },
+            { label: "Needs support (G8)", value: needsHelp, sub: "40–49%", color: "text-amber-600" },
+            { label: "Failing (G9)", value: atRisk, sub: "<40%", color: "text-red-600" },
+          ].map(c => (
+            <div key={c.label} className="bg-white rounded-2xl border border-[#0F2044]/8 p-4">
+              <p className="text-[11px] text-[#0F2044]/50 mb-1">{c.label}</p>
+              <p className={`text-2xl font-bold ${c.color}`}>{c.value}</p>
+              <p className="text-[10px] text-[#0F2044]/40 mt-0.5">{c.sub}</p>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* ENTER / EDIT MARKS - Most Important for Teachers */}
-      {viewMode === "enter-marks" && (
-        <div className="bg-white rounded-3xl border border-[#0F2044]/8 overflow-hidden">
-          <div className="px-6 py-4 bg-[#F7F5F0] border-b flex justify-between items-center">
-            <h3 className="font-semibold">Enter Continuous Assessment Marks - {selectedClass}</h3>
-            <span className="text-xs text-emerald-600 font-medium">Last saved: Today</span>
-          </div>
+      {/* ── MANEB scale reference ── */}
+      <details className="group">
+        <summary className="text-[11px] text-[#0F2044]/45 cursor-pointer select-none hover:text-[#0F2044]/70 transition-colors flex items-center gap-1.5">
+          <ChevronDown size={12} className="group-open:rotate-180 transition-transform" />
+          MANEB Grade Scale Reference
+        </summary>
+        <div className="mt-2 flex flex-wrap gap-1.5 pl-4">
+          {MANEB_GRADES.map(g => (
+            <span key={g.grade}
+              className={`text-[10px] px-2.5 py-1 rounded-lg border font-semibold ${g.bg} ${g.color} ${g.border}`}>
+              G{g.grade}: {g.min}{g.grade < 9 ? `–${g.max}` : "+"}% · {g.remark}
+            </span>
+          ))}
+        </div>
+      </details>
 
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-[#0F2044]/10 bg-white">
-                  <th className="px-6 py-4 text-left">Student</th>
-                  <th className="px-6 py-4 text-center">Mathematics</th>
-                  <th className="px-6 py-4 text-center">English</th>
-                  <th className="px-6 py-4 text-center">Biology</th>
-                  <th className="px-6 py-4 text-center">History</th>
-                  <th className="px-6 py-4 text-center">Average</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {filteredStudents.map((student) => (
-                  <tr key={student.id} className="hover:bg-[#FAFAF8]">
-                    <td className="px-6 py-6 font-medium">{student.name}</td>
-                    
-                    {Object.entries(student.subjects).map(([subject, score]) => (
-                      <td key={subject} className="px-6 py-6 text-center">
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={score}
-                          onChange={(e) => updateMark(student.id, subject, e.target.value)}
-                          className="w-20 text-center bg-white border border-[#0F2044]/20 focus:border-[#F4B400] rounded-xl py-2 font-medium outline-none"
-                        />
-                      </td>
-                    ))}
-
-                    <td className="px-6 py-6 text-center font-bold text-lg text-[#0F2044]">
-                      {student.average}%
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="p-6 border-t bg-[#F7F5F0] text-center text-sm text-[#0F2044]/60">
-            Changes are saved automatically • Marks contribute to Continuous Assessment (40%)
-          </div>
+      {isLoading && (
+        <div className="bg-white rounded-2xl border border-[#0F2044]/8 py-16 flex flex-col items-center gap-3">
+          <Spinner size={28} />
+          <p className="text-sm text-[#0F2044]/40">Loading…</p>
         </div>
       )}
 
-      {/* CLASS RANKING */}
-      {viewMode === "ranking" && (
-        <div className="bg-white rounded-3xl p-8 border border-[#0F2044]/8">
-          <div className="text-center mb-8">
-            <Award className="w-12 h-12 mx-auto text-[#F4B400] mb-3" />
-            <h3 className="text-2xl font-bold">Class Ranking - {selectedClass}</h3>
-            <p className="text-[#0F2044]/60 mt-1">{selectedTerm}</p>
-          </div>
+      {noStudents && !isLoading && (
+        <div className="bg-white rounded-2xl border border-[#0F2044]/8 py-16 text-center">
+          <Users size={28} className="mx-auto mb-3 text-[#0F2044]/20" />
+          <p className="text-sm text-[#0F2044]/40 font-medium">No students found in {selectedClass?.name || "this class"}</p>
+          <p className="text-xs text-[#0F2044]/30 mt-1">Students need to be enrolled in this class first.</p>
+        </div>
+      )}
 
-          <div className="space-y-4">
-            {[...filteredStudents]
-              .sort((a, b) => b.average - a.average)
-              .map((student, index) => (
-                <div
-                  key={student.id}
-                  className={`flex items-center justify-between px-6 py-5 rounded-2xl border ${
-                    index < 3 ? "border-[#F4B400]/30 bg-[#F4B400]/5" : "border-[#0F2044]/10"
-                  }`}
+      {!isLoading && !noAssignment && students.length > 0 && (
+        <>
+          {/* ════ MARKS VIEW ════ */}
+          {viewMode === "marks" && (
+            <div className="bg-white rounded-2xl border border-[#0F2044]/8 overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-[#0F2044]/8 flex items-center justify-between bg-[#F7F5F0]">
+                <div>
+                  <h3 className="font-semibold text-[#0F2044] text-sm">
+                    Enter / Edit CA Marks — {selectedClass?.name || ""} · {selectedTerm}
+                  </h3>
+                  <p className="text-[10px] text-[#0F2044]/45 mt-0.5">
+                    Marks are out of 100. MANEB grade is auto-calculated per subject.
+                  </p>
+                </div>
+                {dirty && (
+                  <span className="text-[10px] text-amber-600 font-semibold bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                    Unsaved changes
+                  </span>
+                )}
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[#0F2044]/8 bg-white">
+                      <th className="px-5 py-3 text-left text-[11px] font-bold tracking-wide text-[#0F2044]/50 sticky left-0 bg-white">
+                        STUDENT
+                      </th>
+                      {mySubjects.map(subj => (
+                        <th key={subj} className="px-3 py-3 text-center text-[11px] font-bold tracking-wide text-[#0F2044]/50 whitespace-nowrap">
+                          {subj}
+                        </th>
+                      ))}
+                      <th className="px-3 py-3 text-center text-[11px] font-bold tracking-wide text-[#0F2044]/50">
+                        AVERAGE
+                      </th>
+                      <th className="px-3 py-3 text-center text-[11px] font-bold tracking-wide text-[#0F2044]/50">
+                        RANK
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#0F2044]/5">
+                    {filtered.map((student) => {
+                      const avg = student.average;
+                      const avgGrade = getGradeInfo(avg);
+                      return (
+                        <tr key={student.id} className="hover:bg-[#FAFAF8] transition-colors">
+                          <td className="px-5 py-3 sticky left-0 bg-white">
+                            <p className="font-semibold text-[#0F2044] text-sm">{fullName(student)}</p>
+                            <p className="text-[10px] text-[#0F2044]/40">{student.studentCode || student.id}</p>
+                          </td>
+                          {mySubjects.map(subj => (
+                            <ScoreCell
+                              key={subj}
+                              value={student.subjectMarks[subj] ?? null}
+                              onCommit={score => updateMark(student.id, subj, score)}
+                            />
+                          ))}
+                          <td className="px-3 py-3 text-center">
+                            {avg !== null ? (
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className={`font-bold text-base ${avgGrade?.color || "text-[#0F2044]"}`}>
+                                  {avg}%
+                                </span>
+                                {avgGrade && (
+                                  <span className={`text-[9px] font-bold ${avgGrade.color}`}>
+                                    G{avgGrade.grade} · {avgGrade.remark}
+                                  </span>
+                                )}
+                              </div>
+                            ) : <span className="text-[#0F2044]/25 text-xs">—</span>}
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            {student.rank ? (
+                              <span className={`inline-flex items-center justify-center w-7 h-7 rounded-xl text-xs font-bold
+                                ${student.rank === 1 ? "bg-[#F4B400] text-[#0F2044]"
+                                : student.rank === 2 ? "bg-gray-200 text-gray-700"
+                                : student.rank === 3 ? "bg-amber-100 text-amber-700"
+                                : "bg-[#F7F5F0] text-[#0F2044]/50"}`}>
+                                {student.rank}
+                              </span>
+                            ) : <span className="text-[#0F2044]/20 text-xs">—</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="px-5 py-3 border-t border-[#0F2044]/8 bg-[#F7F5F0] flex items-center justify-between">
+                <p className="text-[10px] text-[#0F2044]/45">
+                  {students.length} student{students.length !== 1 ? "s" : ""} · {mySubjects.length} subject{mySubjects.length !== 1 ? "s" : ""} · CA contributes 40% to final MSCE grade                </p>
+                <button
+                  onClick={saveAllMarks}
+                  disabled={!dirty || saving}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-[#F4B400] text-[#0F2044] text-xs font-bold rounded-xl
+                    disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-105 transition-all"
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="w-9 h-9 rounded-2xl bg-[#0F2044] text-white flex items-center justify-center font-bold">
-                      {index + 1}
+                  {saving ? <Spinner size={13} /> : <Save size={13} />}
+                  Save all marks
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ════ RANKING VIEW ════ */}
+          {viewMode === "ranking" && (
+            <div className="bg-white rounded-2xl border border-[#0F2044]/8 overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#0F2044]/8 bg-[#F7F5F0]">
+                <h3 className="font-semibold text-[#0F2044] text-sm">
+                  Class Ranking — {selectedClass?.name || ""} · {selectedTerm}
+                </h3>
+                <p className="text-[10px] text-[#0F2044]/45 mt-0.5">
+                  Ranked by overall average across all taught subjects
+                </p>
+              </div>
+              <div className="p-4 space-y-2">
+                {ranked.length === 0 && (
+                  <p className="text-center text-sm text-[#0F2044]/40 py-10">
+                    No marks entered yet. Enter marks in the Marks view first.
+                  </p>
+                )}
+                {ranked.map((student) => {
+                  const g = getGradeInfo(student.average);
+                  return (
+                    <div
+                      key={student.id}
+                      className={`flex items-center gap-4 p-4 rounded-2xl border transition-all
+                        ${student.rank <= 3 ? "border-[#F4B400]/30 bg-[#F4B400]/4" : "border-[#0F2044]/8 bg-white"}`}
+                    >
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm shrink-0
+                        ${student.rank === 1 ? "bg-[#F4B400] text-[#0F2044]"
+                        : student.rank === 2 ? "bg-gray-300 text-gray-800"
+                        : student.rank === 3 ? "bg-amber-200 text-amber-800"
+                        : "bg-[#F7F5F0] text-[#0F2044]/50"}`}>
+                        {student.rank}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-[#0F2044] text-sm truncate">{fullName(student)}</p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {mySubjects.map(subj => {
+                            const score = student.subjectMarks[subj];
+                            const sg = getGradeInfo(score);
+                            return score !== null && score !== undefined ? (
+                              <span key={subj} className={`text-[9px] px-1.5 py-0.5 rounded border font-medium
+                                ${sg ? `${sg.bg} ${sg.color} ${sg.border}` : "bg-gray-50 text-gray-500 border-gray-200"}`}>
+                                {subj}: {score}%
+                              </span>
+                            ) : null;
+                          })}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className={`text-xl font-bold ${g?.color || "text-[#0F2044]"}`}>
+                          {student.average}%
+                        </p>
+                        {g && (
+                          <p className={`text-[10px] font-semibold ${g.color}`}>
+                            Grade {g.grade} · {g.remark}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium">{student.name}</p>
-                      <p className="text-xs text-[#0F2044]/60">{student.id}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-[#0F2044]">{student.average}%</p>
-                    <p className="text-xs text-emerald-600">Average</p>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ════ ANALYTICS VIEW ════ */}
+          {viewMode === "analytics" && (
+            <div className="space-y-4">
+              {/* Grade distribution */}
+              <div className="bg-white rounded-2xl border border-[#0F2044]/8 p-5">
+                <h3 className="font-semibold text-[#0F2044] text-sm mb-4">Grade Distribution — {selectedClass?.name || ""}</h3>
+                <div className="space-y-2.5">
+                  {MANEB_GRADES.map(g => {
+                    const count = ranked.filter(s => {
+                      const sg = getGradeInfo(s.average);
+                      return sg?.grade === g.grade;
+                    }).length;
+                    const pct = ranked.length ? Math.round((count / ranked.length) * 100) : 0;
+                    return (
+                      <div key={g.grade} className="flex items-center gap-3">
+                        <span className={`text-[10px] font-bold w-20 shrink-0 ${g.color}`}>
+                          G{g.grade} {g.remark}
+                        </span>
+                        <div className="flex-1 bg-[#F7F5F0] rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full transition-all duration-500 ${g.bg.replace("bg-", "bg-").replace("-50", "-400").replace("-100", "-500")}`}
+                            style={{ width: `${pct}%`, backgroundColor: g.grade <= 2 ? "#10b981" : g.grade <= 6 ? "#3b82f6" : g.grade <= 8 ? "#f59e0b" : "#ef4444" }}
+                          />
+                        </div>
+                        <span className="text-[11px] font-semibold text-[#0F2044]/60 w-12 text-right">
+                          {count} <span className="text-[#0F2044]/30">({pct}%)</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Per-subject average */}
+              {mySubjects.length > 0 && (
+                <div className="bg-white rounded-2xl border border-[#0F2044]/8 p-5">
+                  <h3 className="font-semibold text-[#0F2044] text-sm mb-4">Subject Averages</h3>
+                  <div className="space-y-3">
+                    {mySubjects.map(subj => {
+                      const scores = students
+                        .map(s => marks[s.id]?.[subj])
+                        .filter(v => v !== null && v !== undefined && v !== "")
+                        .map(Number);
+                      const avg = scores.length
+                        ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
+                        : null;
+                      const g = getGradeInfo(avg);
+                      return (
+                        <div key={subj} className="flex items-center gap-3">
+                          <span className="text-xs font-medium text-[#0F2044]/70 w-32 shrink-0 truncate">{subj}</span>
+                          <div className="flex-1 bg-[#F7F5F0] rounded-full h-2.5">
+                            {avg !== null && (
+                              <div
+                                className="h-2.5 rounded-full transition-all duration-700"
+                                style={{
+                                  width: `${avg}%`,
+                                  backgroundColor: avg >= 70 ? "#10b981" : avg >= 50 ? "#3b82f6" : avg >= 40 ? "#f59e0b" : "#ef4444"
+                                }}
+                              />
+                            )}
+                          </div>
+                          {avg !== null ? (
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className={`text-sm font-bold ${g?.color || "text-[#0F2044]"}`}>{avg}%</span>
+                              {g && <span className={`text-[9px] font-semibold ${g.color}`}>G{g.grade}</span>}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-[#0F2044]/30 shrink-0">No data</span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              ))}
-          </div>
-        </div>
+              )}
+
+              {/* At-risk students */}
+              {ranked.filter(s => s.average < 50).length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <AlertTriangle size={16} className="text-amber-600" />
+                    <h3 className="font-semibold text-amber-800 text-sm">Students Needing Support</h3>
+                  </div>
+                  <div className="space-y-2">
+                    {ranked.filter(s => s.average < 50).map(s => {
+                      const g = getGradeInfo(s.average);
+                      const weakSubjects = mySubjects
+                        .filter(subj => {
+                          const sc = s.subjectMarks[subj];
+                          return sc !== null && sc !== undefined && Number(sc) < 50;
+                        });
+                      return (
+                        <div key={s.id} className="flex items-center justify-between bg-white border border-amber-200 rounded-xl px-4 py-2.5">
+                          <div>
+                            <p className="font-semibold text-[#0F2044] text-sm">{fullName(s)}</p>
+                            {weakSubjects.length > 0 && (
+                              <p className="text-[10px] text-amber-700 mt-0.5">
+                                Struggling: {weakSubjects.join(", ")}
+                              </p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <p className={`font-bold text-base ${g?.color}`}>{s.average}%</p>
+                            <p className={`text-[10px] font-semibold ${g?.color}`}>Grade {g?.grade} · {g?.remark}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
-      {/* At-Risk Alert */}
-      {atRiskCount > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6 flex gap-4">
-          <AlertTriangle className="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-medium text-amber-800">Early Intervention Needed</p>
-            <p className="text-sm text-amber-700 mt-1">
-              {atRiskCount} student{atRiskCount > 1 ? 's are' : ' is'} performing below 60%. 
-              Consider scheduling remedial sessions and notifying parents.
-            </p>
-          </div>
-        </div>
-      )}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

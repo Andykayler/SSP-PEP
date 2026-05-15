@@ -1,165 +1,311 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { db } from "../../../firebase";
+import {
+  collection, query, where, getDocs, addDoc, updateDoc, deleteDoc,
+  doc, serverTimestamp, getDoc,
+} from "firebase/firestore";
 import {
   Calendar, Clock, BookOpen, Eye, Download,
-  X, Users
+  X, Users, Star, Plus, ChevronDown,
+  RefreshCw, AlertCircle, CheckCircle, Loader2, Trash2,
 } from "lucide-react";
-
-// ─── Data ─────────────────────────────────────────────────────────────────────
-
-const TEACHERS = [
-  { id: "T001", name: "Mr. Martin Khumbata", subjects: ["Mathematics", "Physics"] },
-  { id: "T002", name: "Mrs. Esther Chirwa", subjects: ["English"] },
-  { id: "T003", name: "Mr. Patrick Banda", subjects: ["Chemistry"] },
-  { id: "T004", name: "Mr. Joseph Phiri", subjects: ["History"] },
-];
-
-const allLessonPlans = [
-  {
-    id: 1,
-    teacherId: "T001",
-    className: "Form 3A",
-    subject: "Mathematics",
-    date: "2026-04-14",
-    period: "Period 2 (08:30 - 09:20)",
-    topic: "Factorisation of Quadratic Expressions",
-    objectives:
-      "By the end of the lesson, students will factorise quadratic expressions using different methods and apply them to solve real-life problems.",
-    resources: "Textbook Chapter 8, Graph boards, Whiteboard markers",
-    assessment: "Class exercise + Homework from past MANEB papers",
-    week: "12",
-    term: "Term 2",
-    status: "planned",
-  },
-  {
-    id: 2,
-    teacherId: "T001",
-    className: "Form 4B",
-    subject: "Physics",
-    date: "2026-04-15",
-    period: "Period 4 (11:30 - 12:20)",
-    topic: "Applications of Newton's Laws of Motion",
-    objectives:
-      "Students will apply Newton's three laws to solve numerical problems and explain everyday phenomena.",
-    resources: "Demo trolley, weights, Past papers",
-    assessment: "Group activity + Short quiz",
-    week: "12",
-    term: "Term 2",
-    status: "in-progress",
-  },
-  {
-    id: 3,
-    teacherId: "T001",
-    className: "Form 3A",
-    subject: "Mathematics",
-    date: "2026-04-10",
-    period: "Period 1 (07:30 - 08:20)",
-    topic: "Introduction to Quadratic Equations",
-    objectives:
-      "Understand the standard form ax² + bx + c = 0 and identify coefficients.",
-    resources: "Whiteboard, Textbook pg 85-90",
-    assessment: "Oral questions and board work",
-    week: "11",
-    term: "Term 2",
-    status: "completed",
-  },
-  {
-    id: 4,
-    teacherId: "T002",
-    className: "Form 2B",
-    subject: "English",
-    date: "2026-04-14",
-    period: "Period 3 (09:30 - 10:20)",
-    topic: "Narrative Writing: Structure and Technique",
-    objectives:
-      "Students will identify the key elements of narrative writing and produce a structured short story with a clear beginning, climax, and resolution.",
-    resources: "Sample narrative texts, Writing exercise sheets",
-    assessment: "Draft short story submission",
-    week: "12",
-    term: "Term 2",
-    status: "planned",
-  },
-  {
-    id: 5,
-    teacherId: "T002",
-    className: "Form 1A",
-    subject: "English",
-    date: "2026-04-11",
-    period: "Period 2 (08:30 - 09:20)",
-    topic: "Parts of Speech: Nouns and Pronouns",
-    objectives:
-      "Identify and correctly use nouns and pronouns in written and spoken sentences.",
-    resources: "Grammar workbook, Flashcards",
-    assessment: "Fill-in-the-blanks worksheet",
-    week: "11",
-    term: "Term 2",
-    status: "completed",
-  },
-  {
-    id: 6,
-    teacherId: "T003",
-    className: "Form 4A",
-    subject: "Chemistry",
-    date: "2026-04-15",
-    period: "Period 5 (12:30 - 13:20)",
-    topic: "Electrolysis and Its Industrial Applications",
-    objectives:
-      "Students will explain the process of electrolysis and describe its applications in electroplating and extraction of metals.",
-    resources: "Electrolysis apparatus, Copper sulphate solution, Textbook",
-    assessment: "Practical report write-up",
-    week: "12",
-    term: "Term 2",
-    status: "in-progress",
-  },
-  {
-    id: 7,
-    teacherId: "T004",
-    className: "Form 2A",
-    subject: "History",
-    date: "2026-04-13",
-    period: "Period 1 (07:30 - 08:20)",
-    topic: "The Scramble for Africa",
-    objectives:
-      "Students will identify the causes of the Berlin Conference, explain how Africa was partitioned, and assess the impact on African societies.",
-    resources: "Map of Africa 1884, Textbook Chapter 5",
-    assessment: "Map labelling + Short essay",
-    week: "12",
-    term: "Term 2",
-    status: "planned",
-  },
-];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const STATUS_STYLES = {
-  completed: "bg-emerald-100 text-emerald-700",
+  completed:   "bg-emerald-100 text-emerald-700",
   "in-progress": "bg-blue-100 text-blue-700",
-  planned: "bg-amber-100 text-amber-700",
+  planned:     "bg-amber-100 text-amber-700",
 };
-
 const STATUS_LABELS = {
-  completed: "Completed",
+  completed:   "Completed",
   "in-progress": "In progress",
-  planned: "Planned",
+  planned:     "Planned",
 };
 
-function initials(name) {
-  return name
-    .split(" ")
-    .filter((w) => /^[A-Z]/.test(w))
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("");
+const PERIODS = [
+  "Period 1 (07:30 – 08:20)",
+  "Period 2 (08:30 – 09:20)",
+  "Period 3 (09:30 – 10:20)",
+  "Period 4 (10:30 – 11:20)",
+  "Period 5 (11:30 – 12:20)",
+  "Period 6 (13:00 – 13:50)",
+  "Period 7 (14:00 – 14:50)",
+  "Period 8 (15:00 – 15:50)",
+];
+
+const CLASS_NAMES = [
+  "Form 1A","Form 1B","Form 2A","Form 2B",
+  "Form 3A","Form 3B","Form 4A","Form 4B",
+];
+
+const TERMS = ["Term 1","Term 2","Term 3"];
+
+const EMPTY_FORM = {
+  teacherId: "",
+  className: "",
+  subject:   "",
+  date:      "",
+  period:    "",
+  topic:     "",
+  objectives:"",
+  resources: "",
+  assessment:"",
+  week:      "",
+  term:      "Term 2",
+  status:    "planned",
+};
+
+const inputCls =
+  "w-full px-4 py-3 bg-[#F7F5F0] border border-[#0F2044]/10 rounded-2xl focus:outline-none focus:border-[#0F2044]/30 text-sm text-[#0F2044] transition-colors";
+
+function initials(name = "") {
+  return name.split(" ").filter((w) => /^[A-Z]/.test(w)).slice(0, 2).map((w) => w[0]).join("");
 }
 
-function teacherById(id) {
-  return TEACHERS.find((t) => t.id === id);
+function Spinner({ size = 20 }) {
+  return <Loader2 size={size} className="animate-spin text-[#0F2044]/40 inline-block" />;
 }
 
-// ─── View Lesson Plan Modal ───────────────────────────────────────────────────
+function Toast({ message, type = "success", onClose }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 3200);
+    return () => clearTimeout(t);
+  }, [onClose]);
+  return (
+    <div className={`fixed bottom-6 right-6 z-[200] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl text-sm font-medium
+      ${type === "success" ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}`}>
+      {type === "success" ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+      {message}
+    </div>
+  );
+}
 
-function ViewLessonPlanModal({ plan, onClose }) {
+// ─── Field ────────────────────────────────────────────────────────────────────
+
+function Field({ label, required, children, error }) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-[#0F2044]/50 uppercase tracking-wide mb-1.5">
+        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+      </label>
+      {children}
+      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+    </div>
+  );
+}
+
+// ─── Create / Edit Modal ──────────────────────────────────────────────────────
+
+function CreatePlanModal({ onClose, onSave, editingPlan, staffList, headTeacherId }) {
+  const isEdit = !!editingPlan;
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState(
+    editingPlan
+      ? { ...editingPlan }
+      : { ...EMPTY_FORM, teacherId: headTeacherId }
+  );
+  const [errors, setErrors] = useState({});
+
+  // subjects available for the selected teacher
+  const selectedTeacher = staffList.find((t) => t.id === form.teacherId);
+  const subjectOptions  = selectedTeacher?.subjects || [];
+
+  function set(field, value) {
+    setForm((f) => {
+      const updated = { ...f, [field]: value };
+      // reset subject when teacher changes and their subjects don't include current
+      if (field === "teacherId") {
+        const newTeacher = staffList.find((t) => t.id === value);
+        if (!newTeacher?.subjects?.includes(updated.subject)) updated.subject = "";
+      }
+      return updated;
+    });
+    setErrors((e) => ({ ...e, [field]: "" }));
+  }
+
+  function validate() {
+    const required = ["className","subject","date","period","topic","objectives","week","term"];
+    const errs = {};
+    required.forEach((k) => { if (!form[k]?.toString().trim()) errs[k] = "Required."; });
+    return errs;
+  }
+
+  async function handleSave() {
+    const errs = validate();
+    if (Object.keys(errs).length) { setErrors(errs); return; }
+    setSaving(true);
+    try {
+      await onSave(form, editingPlan?.id || null);
+      onClose();
+    } catch (err) {
+      setErrors({ _global: err.code === "permission-denied"
+        ? "Permission denied — check Firestore rules."
+        : "Failed to save. Please try again." });
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[95vh]">
+
+        <div className="px-7 py-5 border-b bg-[#F7F5F0] flex justify-between items-center flex-shrink-0">
+          <div>
+            <h3 className="text-xl font-bold text-[#0F2044]">
+              {isEdit ? "Edit lesson plan" : "New lesson plan"}
+            </h3>
+            <p className="text-xs text-[#0F2044]/50 mt-0.5">
+              {isEdit ? "Update the details below." : "Fill in the details to create a new plan."}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white rounded-2xl transition-colors">
+            <X className="w-5 h-5 text-[#0F2044]/50" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 px-7 py-6 space-y-5">
+
+          {errors._global && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded-xl flex gap-2">
+              <AlertCircle size={15} className="shrink-0 mt-0.5" /> {errors._global}
+            </div>
+          )}
+
+          {/* Teacher */}
+          <Field label="Teacher" required>
+            <div className="relative">
+              <select value={form.teacherId} onChange={(e) => set("teacherId", e.target.value)}
+                className={inputCls + " appearance-none pr-10"}>
+                {staffList.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}{t.id === headTeacherId ? " (you)" : ""}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F2044]/40 pointer-events-none" />
+            </div>
+          </Field>
+
+          {/* Class + Subject */}
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Class" required error={errors.className}>
+              <div className="relative">
+                <select value={form.className} onChange={(e) => set("className", e.target.value)}
+                  className={inputCls + " appearance-none pr-10"}>
+                  <option value="">Select class…</option>
+                  {CLASS_NAMES.map((c) => <option key={c}>{c}</option>)}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F2044]/40 pointer-events-none" />
+              </div>
+            </Field>
+
+            <Field label="Subject" required error={errors.subject}>
+              <div className="relative">
+                <select value={form.subject} onChange={(e) => set("subject", e.target.value)}
+                  className={inputCls + " appearance-none pr-10"}
+                  disabled={!subjectOptions.length}>
+                  <option value="">Select subject…</option>
+                  {subjectOptions.map((s) => <option key={s}>{s}</option>)}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F2044]/40 pointer-events-none" />
+              </div>
+            </Field>
+          </div>
+
+          {/* Topic */}
+          <Field label="Topic" required error={errors.topic}>
+            <input type="text" value={form.topic} onChange={(e) => set("topic", e.target.value)}
+              placeholder="e.g. Factorisation of Quadratic Expressions" className={inputCls} />
+          </Field>
+
+          {/* Objectives */}
+          <Field label="Learning Objectives" required error={errors.objectives}>
+            <textarea value={form.objectives} onChange={(e) => set("objectives", e.target.value)}
+              rows={3} placeholder="By the end of the lesson, students will be able to…"
+              className={inputCls + " resize-none leading-relaxed"} />
+          </Field>
+
+          {/* Date + Period */}
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Date" required error={errors.date}>
+              <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} className={inputCls} />
+            </Field>
+            <Field label="Period" required error={errors.period}>
+              <div className="relative">
+                <select value={form.period} onChange={(e) => set("period", e.target.value)}
+                  className={inputCls + " appearance-none pr-10"}>
+                  <option value="">Select period…</option>
+                  {PERIODS.map((p) => <option key={p}>{p}</option>)}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F2044]/40 pointer-events-none" />
+              </div>
+            </Field>
+          </div>
+
+          {/* Week + Term + Status */}
+          <div className="grid grid-cols-3 gap-4">
+            <Field label="Week" required error={errors.week}>
+              <input type="number" min="1" max="16" value={form.week}
+                onChange={(e) => set("week", e.target.value)} placeholder="e.g. 12" className={inputCls} />
+            </Field>
+            <Field label="Term" required error={errors.term}>
+              <div className="relative">
+                <select value={form.term} onChange={(e) => set("term", e.target.value)}
+                  className={inputCls + " appearance-none pr-10"}>
+                  {TERMS.map((t) => <option key={t}>{t}</option>)}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F2044]/40 pointer-events-none" />
+              </div>
+            </Field>
+            <Field label="Status">
+              <div className="relative">
+                <select value={form.status} onChange={(e) => set("status", e.target.value)}
+                  className={inputCls + " appearance-none pr-10"}>
+                  <option value="planned">Planned</option>
+                  <option value="in-progress">In progress</option>
+                  <option value="completed">Completed</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F2044]/40 pointer-events-none" />
+              </div>
+            </Field>
+          </div>
+
+          {/* Resources */}
+          <Field label="Resources">
+            <input type="text" value={form.resources} onChange={(e) => set("resources", e.target.value)}
+              placeholder="e.g. Textbook Chapter 8, Whiteboard markers" className={inputCls} />
+          </Field>
+
+          {/* Assessment */}
+          <Field label="Assessment">
+            <input type="text" value={form.assessment} onChange={(e) => set("assessment", e.target.value)}
+              placeholder="e.g. Class exercise + Short quiz" className={inputCls} />
+          </Field>
+        </div>
+
+        <div className="px-7 py-5 border-t bg-[#F7F5F0] flex justify-between items-center flex-shrink-0">
+          <button onClick={onClose}
+            className="px-6 py-2.5 border border-[#0F2044]/20 rounded-2xl hover:bg-white transition-colors text-sm font-medium text-[#0F2044]/60">
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex items-center gap-2 px-7 py-2.5 bg-[#0F2044] text-white rounded-2xl hover:bg-[#1a3060] transition-colors text-sm font-semibold disabled:opacity-60">
+            {saving ? <Spinner size={16} /> : <Plus className="w-4 h-4" />}
+            {isEdit ? "Save changes" : "Create plan"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── View Modal ───────────────────────────────────────────────────────────────
+
+function ViewLessonPlanModal({ plan, onClose, onEdit, onDelete, staffList, headTeacherId }) {
   if (!plan) return null;
-  const teacher = teacherById(plan.teacherId);
+  const teacher = staffList.find((t) => t.id === plan.teacherId);
+  const isHT    = plan.teacherId === headTeacherId;
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
@@ -172,14 +318,17 @@ function ViewLessonPlanModal({ plan, onClose }) {
         </div>
 
         <div className="p-8 space-y-7 overflow-y-auto max-h-[80vh]">
-          {/* Teacher pill */}
-          <div className="flex items-center gap-3 px-4 py-3 bg-[#0F2044]/5 rounded-2xl w-fit">
-            <div className="w-8 h-8 rounded-full bg-[#0F2044] flex items-center justify-center text-white text-xs font-bold">
+          {/* Teacher badge */}
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl w-fit ${isHT ? "bg-amber-50 border border-amber-200" : "bg-[#0F2044]/5"}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${isHT ? "bg-gradient-to-br from-amber-400 to-amber-600" : "bg-[#0F2044]"}`}>
               {initials(teacher?.name || "")}
             </div>
             <div>
-              <p className="text-sm font-medium text-[#0F2044]">{teacher?.name}</p>
-              <p className="text-xs text-[#0F2044]/50">{plan.subject}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-medium text-[#0F2044]">{teacher?.name || "Unknown"}</p>
+                {isHT && <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />}
+              </div>
+              <p className="text-xs text-[#0F2044]/50">{isHT ? "Head Teacher · " : ""}{plan.subject}</p>
             </div>
           </div>
 
@@ -191,7 +340,7 @@ function ViewLessonPlanModal({ plan, onClose }) {
             <div className="text-right">
               <p className="text-xs text-[#0F2044]/50 mb-1">Date</p>
               <p className="font-medium text-[#0F2044]">
-                {new Date(plan.date).toLocaleDateString("en-GB")}
+                {plan.date ? new Date(plan.date).toLocaleDateString("en-GB") : "—"}
               </p>
             </div>
           </div>
@@ -209,22 +358,10 @@ function ViewLessonPlanModal({ plan, onClose }) {
           </div>
 
           <div className="grid grid-cols-2 gap-6">
-            <div>
-              <p className="text-xs text-[#0F2044]/50 mb-1">Period</p>
-              <p className="font-medium text-[#0F2044] text-sm">{plan.period}</p>
-            </div>
-            <div>
-              <p className="text-xs text-[#0F2044]/50 mb-1">Week / Term</p>
-              <p className="font-medium text-[#0F2044] text-sm">Week {plan.week} &bull; {plan.term}</p>
-            </div>
-            <div>
-              <p className="text-xs text-[#0F2044]/50 mb-1">Resources</p>
-              <p className="font-medium text-[#0F2044] text-sm">{plan.resources}</p>
-            </div>
-            <div>
-              <p className="text-xs text-[#0F2044]/50 mb-1">Assessment</p>
-              <p className="font-medium text-[#0F2044] text-sm">{plan.assessment}</p>
-            </div>
+            <div><p className="text-xs text-[#0F2044]/50 mb-1">Period</p><p className="font-medium text-[#0F2044] text-sm">{plan.period}</p></div>
+            <div><p className="text-xs text-[#0F2044]/50 mb-1">Week / Term</p><p className="font-medium text-[#0F2044] text-sm">Week {plan.week} · {plan.term}</p></div>
+            <div><p className="text-xs text-[#0F2044]/50 mb-1">Resources</p><p className="font-medium text-[#0F2044] text-sm">{plan.resources || "—"}</p></div>
+            <div><p className="text-xs text-[#0F2044]/50 mb-1">Assessment</p><p className="font-medium text-[#0F2044] text-sm">{plan.assessment || "—"}</p></div>
           </div>
 
           <div>
@@ -234,11 +371,19 @@ function ViewLessonPlanModal({ plan, onClose }) {
             </span>
           </div>
 
-          <div className="pt-4 border-t flex justify-end">
-            <button
-              onClick={onClose}
-              className="px-8 py-3 border border-[#0F2044]/20 rounded-2xl hover:bg-[#F7F5F0] font-medium transition-colors text-sm"
-            >
+          <div className="pt-4 border-t flex justify-between items-center">
+            <div className="flex gap-2">
+              <button onClick={() => onEdit(plan)}
+                className="px-6 py-2.5 border border-[#0F2044]/20 rounded-2xl hover:bg-[#F7F5F0] font-medium transition-colors text-sm text-[#0F2044]/70">
+                Edit plan
+              </button>
+              <button onClick={() => onDelete(plan.id)}
+                className="px-4 py-2.5 border border-red-200 text-red-500 rounded-2xl hover:bg-red-50 font-medium transition-colors text-sm flex items-center gap-1.5">
+                <Trash2 size={14} /> Delete
+              </button>
+            </div>
+            <button onClick={onClose}
+              className="px-8 py-2.5 border border-[#0F2044]/20 rounded-2xl hover:bg-[#F7F5F0] font-medium transition-colors text-sm">
               Close
             </button>
           </div>
@@ -248,69 +393,365 @@ function ViewLessonPlanModal({ plan, onClose }) {
   );
 }
 
+// ─── Plan Row ─────────────────────────────────────────────────────────────────
+
+function PlanRow({ plan, showTeacherName, onView, staffList, headTeacherId }) {
+  const teacher = staffList.find((t) => t.id === plan.teacherId);
+  const isHT    = plan.teacherId === headTeacherId;
+
+  return (
+    <div className="p-6 hover:bg-[#FAFAF8] transition-colors">
+      <div className="flex flex-col lg:flex-row lg:items-start gap-5">
+        <div className="flex-shrink-0 flex items-center gap-3 lg:flex-col lg:items-center lg:w-20 lg:pt-1">
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${isHT ? "bg-gradient-to-br from-amber-400 to-amber-600" : "bg-[#0F2044]"}`}>
+            {initials(teacher?.name || "?")}
+          </div>
+          <p className="text-xs text-[#0F2044]/50 text-center leading-tight hidden lg:block">
+            {teacher?.name?.split(" ").slice(-1)[0] || ""}
+          </p>
+          {showTeacherName && (
+            <p className="text-xs text-[#0F2044]/60 font-medium lg:hidden">{teacher?.name}</p>
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <span className="px-3 py-1 bg-[#F7F5F0] border border-[#0F2044]/10 rounded-xl text-xs font-medium text-[#0F2044]/70">
+              {plan.className} · {plan.subject}
+            </span>
+            <span className={`px-3 py-1 text-xs font-medium rounded-xl ${STATUS_STYLES[plan.status]}`}>
+              {STATUS_LABELS[plan.status]}
+            </span>
+            <span className="text-xs text-[#0F2044]/40 hidden lg:inline">Week {plan.week}</span>
+          </div>
+          <h3 className="font-bold text-lg text-[#0F2044] mb-1 leading-snug">{plan.topic}</h3>
+          <p className="text-sm text-[#0F2044]/60 leading-relaxed line-clamp-2">{plan.objectives}</p>
+          <div className="flex flex-wrap gap-5 mt-3">
+            <span className="flex items-center gap-1.5 text-xs text-[#0F2044]/50">
+              <Calendar className="w-3.5 h-3.5" />
+              {plan.date ? new Date(plan.date).toLocaleDateString("en-GB") : "—"}
+            </span>
+            <span className="flex items-center gap-1.5 text-xs text-[#0F2044]/50">
+              <Clock className="w-3.5 h-3.5" />
+              {plan.period}
+            </span>
+            {showTeacherName && (
+              <span className="text-xs text-[#0F2044]/40 hidden lg:inline">{teacher?.name}</span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-shrink-0 flex items-start">
+          <button onClick={() => onView(plan)}
+            className="flex items-center gap-2 px-5 py-2.5 border border-[#0F2044]/15 rounded-2xl text-sm font-medium hover:bg-[#F7F5F0] hover:border-[#0F2044]/30 transition-colors text-[#0F2044]/70">
+            <Eye className="w-4 h-4" />
+            View plan
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Section Block ────────────────────────────────────────────────────────────
+
+function PlanSection({ label, plans, isHeadTeacher, showTeacherName, onView, staffList, headTeacherId }) {
+  if (!plans.length) return null;
+  return (
+    <div>
+      <div className={`flex items-center gap-2 px-5 py-3 rounded-2xl mb-4 ${isHeadTeacher ? "bg-gradient-to-r from-[#0F2044] to-[#1e3a6e] text-white" : "bg-white border border-[#0F2044]/10 text-[#0F2044]"}`}>
+        {isHeadTeacher
+          ? <Star className="w-4 h-4 fill-amber-400 text-amber-400 flex-shrink-0" />
+          : <Users className="w-4 h-4 flex-shrink-0 opacity-50" />}
+        <span className="text-xs font-semibold tracking-wide uppercase">{label}</span>
+        <span className={`ml-auto text-xs font-bold px-2.5 py-0.5 rounded-full ${isHeadTeacher ? "bg-white/20 text-white" : "bg-[#0F2044]/8 text-[#0F2044]"}`}>
+          {plans.length} plan{plans.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+      <div className="bg-white rounded-3xl border border-[#0F2044]/8 overflow-hidden">
+        <div className="divide-y divide-[#0F2044]/5">
+          {plans.map((plan) => (
+            <PlanRow
+              key={plan.id}
+              plan={plan}
+              showTeacherName={showTeacherName}
+              onView={onView}
+              staffList={staffList}
+              headTeacherId={headTeacherId}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ onAdd }) {
+  return (
+    <div className="bg-white rounded-3xl border border-[#0F2044]/8 py-20 text-center space-y-3">
+      <BookOpen size={32} className="mx-auto text-[#0F2044]/20 mb-2" />
+      <p className="text-[#0F2044]/40 text-sm">No lesson plans match your filters.</p>
+      {onAdd && (
+        <button onClick={onAdd}
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0F2044] text-white rounded-2xl text-sm font-semibold hover:bg-[#1a3060] transition-colors">
+          <Plus className="w-4 h-4" /> Create your first plan
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function ClassPlanningModule() {
-  const [selectedTeacher, setSelectedTeacher] = useState("all");
-  const [selectedStatus, setSelectedStatus] = useState("all");
+export default function ClassPlanningModule({ userId, schoolCode }) {
+  const [plans,         setPlans]         = useState([]);
+  const [staffList,     setStaffList]     = useState([]); // all teachers in the school
+  const [headTeacher,   setHeadTeacher]   = useState(null);
+  const [loading,       setLoading]       = useState(true);
+  const [staffLoading,  setStaffLoading]  = useState(true);
+  const [toast,         setToast]         = useState(null);
+
+  const [activeTab,       setActiveTab]       = useState("all");
+  const [activePill,      setActivePill]      = useState("all");
+  const [selectedStatus,  setSelectedStatus]  = useState("all");
   const [selectedSubject, setSelectedSubject] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [viewingPlan, setViewingPlan] = useState(null);
+  const [searchTerm,      setSearchTerm]      = useState("");
 
-  const allSubjects = [...new Set(allLessonPlans.map((p) => p.subject))].sort();
+  const [viewingPlan,    setViewingPlan]    = useState(null);
+  const [showCreateModal,setShowCreateModal]= useState(false);
+  const [editingPlan,    setEditingPlan]    = useState(null);
 
-  const filtered = allLessonPlans.filter((plan) => {
+  const showToast = (message, type = "success") => setToast({ message, type });
+
+  // ── Load current user (head teacher) profile ─────────────────────────────
+  useEffect(() => {
+    if (!userId) return;
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, "users", userId));
+        if (snap.exists()) {
+          const d = snap.data();
+          setHeadTeacher({
+            id:       userId,
+            name:     d.name || d.displayName || "Head Teacher",
+            subjects: d.assignedSubjects || [],
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load head teacher profile:", err);
+      }
+    })();
+  }, [userId]);
+
+  // ── Load all staff in same school ────────────────────────────────────────
+  useEffect(() => {
+    if (!schoolCode) return;
+    (async () => {
+      setStaffLoading(true);
+      try {
+        const snap = await getDocs(
+          query(collection(db, "users"), where("schoolCode", "==", schoolCode))
+        );
+        const teachers = snap.docs.map((d) => ({
+          id:       d.id,
+          name:     d.data().name || d.data().displayName || "Unknown",
+          subjects: d.data().assignedSubjects || [],
+          role:     d.data().role,
+        }));
+        setStaffList(teachers);
+
+        // Also update headTeacher name/subjects from fresh data
+        const me = teachers.find((t) => t.id === userId);
+        if (me) setHeadTeacher(me);
+      } catch (err) {
+        console.error("Failed to load staff:", err);
+        showToast("Could not load staff list.", "error");
+      } finally {
+        setStaffLoading(false);
+      }
+    })();
+  }, [schoolCode, userId]);
+
+  // ── Load all lesson plans in the school ──────────────────────────────────
+  const fetchPlans = useCallback(async () => {
+    if (!schoolCode) return;
+    setLoading(true);
+    try {
+      const snap = await getDocs(
+        query(
+          collection(db, "lesson_plans"),
+          where("schoolCode", "==", schoolCode)
+        )
+      );
+      const sorted = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => {
+          const dateA = a.date || "";
+          const dateB = b.date || "";
+          if (dateB !== dateA) return dateB.localeCompare(dateA);
+          return (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0);
+        });
+      setPlans(sorted);
+    } catch (err) {
+      console.error("fetchPlans error:", err);
+      showToast(`Could not load lesson plans: ${err.message}`, "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [schoolCode]);
+
+  useEffect(() => { fetchPlans(); }, [fetchPlans]);
+
+  // ── Save (create or update) ───────────────────────────────────────────────
+  async function handleSave(formData, existingId) {
+    const payload = {
+      ...formData,
+      schoolCode,
+      updatedAt: serverTimestamp(),
+    };
+
+    if (existingId) {
+      await updateDoc(doc(db, "lesson_plans", existingId), payload);
+      setPlans((prev) =>
+        prev
+          .map((p) => (p.id === existingId ? { ...p, ...payload } : p))
+          .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+      );
+      showToast("Lesson plan updated.");
+    } else {
+      payload.teacherId = formData.teacherId;
+      payload.createdAt = serverTimestamp();
+      const ref = await addDoc(collection(db, "lesson_plans"), payload);
+      setPlans((prev) => [{ id: ref.id, ...payload }, ...prev]);
+      showToast("Lesson plan created.");
+    }
+  }
+
+  // ── Delete ────────────────────────────────────────────────────────────────
+  async function handleDelete(id) {
+    if (!window.confirm("Delete this lesson plan?")) return;
+    try {
+      await deleteDoc(doc(db, "lesson_plans", id));
+      setPlans((prev) => prev.filter((p) => p.id !== id));
+      setViewingPlan(null);
+      showToast("Lesson plan deleted.");
+    } catch {
+      showToast("Failed to delete.", "error");
+    }
+  }
+
+  function handleEdit(plan) {
+    setViewingPlan(null);
+    setEditingPlan(plan);
+  }
+
+  // ── Derived data ──────────────────────────────────────────────────────────
+  const myPlans    = plans.filter((p) => p.teacherId === userId);
+  const staffPlans = plans.filter((p) => p.teacherId !== userId);
+  const plansInScope =
+    activeTab === "mine"  ? myPlans    :
+    activeTab === "staff" ? staffPlans :
+    plans;
+
+  const allSubjects = [...new Set(plans.map((p) => p.subject))].filter(Boolean).sort();
+
+  // Staff teachers (everyone except the head teacher themselves)
+  const staffOnly = staffList.filter((t) => t.id !== userId);
+
+  function applyFilters(source) {
     const q = searchTerm.toLowerCase();
-    const matchSearch =
-      plan.topic.toLowerCase().includes(q) ||
-      plan.className.toLowerCase().includes(q) ||
-      plan.subject.toLowerCase().includes(q) ||
-      teacherById(plan.teacherId)?.name.toLowerCase().includes(q);
-    const matchTeacher = selectedTeacher === "all" || plan.teacherId === selectedTeacher;
-    const matchStatus = selectedStatus === "all" || plan.status === selectedStatus;
-    const matchSubject = selectedSubject === "all" || plan.subject === selectedSubject;
-    return matchSearch && matchTeacher && matchStatus && matchSubject;
-  });
+    return source.filter((plan) => {
+      const teacher = staffList.find((t) => t.id === plan.teacherId);
+      const matchSearch  = !q || plan.topic?.toLowerCase().includes(q) || plan.className?.toLowerCase().includes(q) || plan.subject?.toLowerCase().includes(q) || teacher?.name?.toLowerCase().includes(q);
+      const matchPill    = activePill === "all" || plan.teacherId === activePill;
+      const matchStatus  = selectedStatus  === "all" || plan.status  === selectedStatus;
+      const matchSubject = selectedSubject === "all" || plan.subject === selectedSubject;
+      return matchSearch && matchPill && matchStatus && matchSubject;
+    });
+  }
 
-  // Summary stats
-  const totalPlans = allLessonPlans.length;
-  const completedCount = allLessonPlans.filter((p) => p.status === "completed").length;
-  const inProgressCount = allLessonPlans.filter((p) => p.status === "in-progress").length;
-  const plannedCount = allLessonPlans.filter((p) => p.status === "planned").length;
+  const filteredInScope = applyFilters(plansInScope);
+  const filteredMine    = filteredInScope.filter((p) => p.teacherId === userId);
+  const filteredStaff   = filteredInScope.filter((p) => p.teacherId !== userId);
+
+  const stats = [
+    { label: "Total plans", value: plansInScope.length,                                          color: "text-[#0F2044]"   },
+    { label: "Completed",   value: plansInScope.filter((p) => p.status === "completed").length,   color: "text-emerald-600" },
+    { label: "In progress", value: plansInScope.filter((p) => p.status === "in-progress").length, color: "text-blue-600"    },
+    { label: "Planned",     value: plansInScope.filter((p) => p.status === "planned").length,     color: "text-amber-600"   },
+  ];
+
+  const tabs = [
+    { id: "all",   label: "All Plans",   count: plans.length    },
+    { id: "mine",  label: "My Plans",    count: myPlans.length  },
+    { id: "staff", label: "Staff Plans", count: staffPlans.length },
+  ];
+
+  const pillTeachers = activeTab === "staff"
+    ? staffOnly
+    : activeTab === "mine"
+    ? (headTeacher ? [headTeacher] : [])
+    : staffList;
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2
-            className="text-3xl font-bold text-[#0F2044]"
-            style={{ fontFamily: "'Playfair Display', serif" }}
-          >
-            Lesson Plans
-          </h2>
+          <h2 className="text-3xl font-bold text-[#0F2044]">Lesson Plans</h2>
           <p className="text-[#0F2044]/60 mt-1">
-            All teaching staff &bull; Term 2, 2026 &bull; {totalPlans} plans total
+            {headTeacher?.name || "Head Teacher"} · {new Date().getFullYear()}
           </p>
         </div>
-
-        <button className="flex items-center gap-2 px-6 py-3.5 border border-[#0F2044]/20 rounded-2xl hover:bg-[#F7F5F0] transition-colors text-sm font-medium text-[#0F2044]">
-          <Download className="w-4 h-4" />
-          Export all plans
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={fetchPlans}
+            className="p-2.5 bg-white border border-[#0F2044]/10 rounded-xl hover:bg-[#F7F5F0] transition-colors text-[#0F2044]/60"
+            title="Refresh"
+          >
+            <RefreshCw size={16} />
+          </button>
+          <button className="flex items-center gap-2 px-5 py-3 border border-[#0F2044]/20 rounded-2xl hover:bg-[#F7F5F0] transition-colors text-sm font-medium text-[#0F2044]">
+            <Download className="w-4 h-4" />
+            Export
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            disabled={staffLoading}
+            className="flex items-center gap-2 px-6 py-3 bg-[#0F2044] text-white rounded-2xl hover:bg-[#1a3060] transition-colors text-sm font-semibold shadow-sm disabled:opacity-50"
+          >
+            <Plus className="w-4 h-4" />
+            New plan
+          </button>
+        </div>
       </div>
 
-      {/* Summary Cards */}
+      {/* Tabs */}
+      <div className="flex gap-1 bg-white border border-[#0F2044]/8 rounded-2xl p-1.5 w-fit">
+        {tabs.map((tab) => (
+          <button key={tab.id}
+            onClick={() => { setActiveTab(tab.id); setActivePill("all"); }}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeTab === tab.id ? "bg-[#0F2044] text-white shadow-sm" : "text-[#0F2044]/55 hover:text-[#0F2044] hover:bg-[#F7F5F0]"}`}>
+            {tab.id === "mine"  && <Star  className="w-3.5 h-3.5" />}
+            {tab.id === "staff" && <Users className="w-3.5 h-3.5" />}
+            {tab.label}
+            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${activeTab === tab.id ? "bg-white/20 text-white" : "bg-[#0F2044]/8 text-[#0F2044]"}`}>
+              {tab.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-        {[
-          { label: "Total plans", value: totalPlans, color: "text-[#0F2044]" },
-          { label: "Completed", value: completedCount, color: "text-emerald-600" },
-          { label: "In progress", value: inProgressCount, color: "text-blue-600" },
-          { label: "Planned", value: plannedCount, color: "text-amber-600" },
-        ].map(({ label, value, color }) => (
+        {stats.map(({ label, value, color }) => (
           <div key={label} className="bg-white rounded-3xl p-6 border border-[#0F2044]/8">
             <p className="text-sm text-[#0F2044]/60">{label}</p>
-            <p className={`text-4xl font-bold mt-2 ${color}`}>{value}</p>
+            <p className={`text-4xl font-bold mt-2 ${color}`}>
+              {loading ? <Spinner /> : value}
+            </p>
           </div>
         ))}
       </div>
@@ -318,46 +759,19 @@ export default function ClassPlanningModule() {
       {/* Filters */}
       <div className="bg-white rounded-3xl p-6 border border-[#0F2044]/8">
         <div className="flex flex-wrap gap-4">
-          {/* Search */}
           <div className="flex-1 relative min-w-[220px]">
             <BookOpen className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F2044]/40" />
-            <input
-              type="text"
-              placeholder="Search topic, class, subject or teacher…"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-4 py-3.5 bg-[#F7F5F0] border border-[#0F2044]/10 rounded-2xl focus:outline-none focus:border-[#0F2044]/30 text-sm"
-            />
+            <input type="text" placeholder="Search topic, class, subject or teacher…"
+              value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-11 pr-4 py-3.5 bg-[#F7F5F0] border border-[#0F2044]/10 rounded-2xl focus:outline-none focus:border-[#0F2044]/30 text-sm" />
           </div>
-
-          {/* Teacher filter */}
-          <select
-            value={selectedTeacher}
-            onChange={(e) => setSelectedTeacher(e.target.value)}
-            className="px-5 py-3.5 bg-white border border-[#0F2044]/10 rounded-2xl focus:outline-none text-sm min-w-[180px]"
-          >
-            <option value="all">All teachers</option>
-            {TEACHERS.map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
-
-          {/* Subject filter */}
-          <select
-            value={selectedSubject}
-            onChange={(e) => setSelectedSubject(e.target.value)}
-            className="px-5 py-3.5 bg-white border border-[#0F2044]/10 rounded-2xl focus:outline-none text-sm min-w-[150px]"
-          >
+          <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)}
+            className="px-5 py-3.5 bg-white border border-[#0F2044]/10 rounded-2xl focus:outline-none text-sm min-w-[150px]">
             <option value="all">All subjects</option>
             {allSubjects.map((s) => <option key={s}>{s}</option>)}
           </select>
-
-          {/* Status filter */}
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="px-5 py-3.5 bg-white border border-[#0F2044]/10 rounded-2xl focus:outline-none text-sm min-w-[140px]"
-          >
+          <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}
+            className="px-5 py-3.5 bg-white border border-[#0F2044]/10 rounded-2xl focus:outline-none text-sm min-w-[140px]">
             <option value="all">All statuses</option>
             <option value="planned">Planned</option>
             <option value="in-progress">In progress</option>
@@ -366,131 +780,109 @@ export default function ClassPlanningModule() {
         </div>
       </div>
 
-      {/* Teacher summary pills — quick jump */}
-      <div className="flex flex-wrap gap-3">
-        <button
-          onClick={() => setSelectedTeacher("all")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-2xl border text-sm font-medium transition-colors
-            ${selectedTeacher === "all"
-              ? "bg-[#0F2044] text-white border-[#0F2044]"
-              : "border-[#0F2044]/15 text-[#0F2044]/70 hover:border-[#0F2044]/30 hover:bg-[#F7F5F0]"
-            }`}
-        >
-          <Users className="w-4 h-4" />
-          All staff
-        </button>
-        {TEACHERS.map((t) => {
-          const count = allLessonPlans.filter((p) => p.teacherId === t.id).length;
-          const active = selectedTeacher === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setSelectedTeacher(active ? "all" : t.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-2xl border text-sm font-medium transition-colors
-                ${active
-                  ? "bg-[#0F2044] text-white border-[#0F2044]"
-                  : "border-[#0F2044]/15 text-[#0F2044]/70 hover:border-[#0F2044]/30 hover:bg-[#F7F5F0]"
-                }`}
-            >
-              <span>{t.name.split(" ").slice(-1)[0]}</span>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${active ? "bg-white/20" : "bg-[#0F2044]/8"}`}>
-                {count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      {/* Teacher pills — only show when there are multiple teachers to filter by */}
+      {activeTab !== "mine" && pillTeachers.length > 1 && (
+        <div className="flex flex-wrap gap-3">
+          <button onClick={() => setActivePill("all")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-2xl border text-sm font-medium transition-colors ${activePill === "all" ? "bg-[#0F2044] text-white border-[#0F2044]" : "border-[#0F2044]/15 text-[#0F2044]/70 hover:border-[#0F2044]/30 hover:bg-[#F7F5F0]"}`}>
+            <Users className="w-4 h-4" /> All staff
+          </button>
+          {pillTeachers.map((t) => {
+            const count  = plansInScope.filter((p) => p.teacherId === t.id).length;
+            const active = activePill === t.id;
+            const isHT   = t.id === userId;
+            return (
+              <button key={t.id} onClick={() => setActivePill(active ? "all" : t.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-2xl border text-sm font-medium transition-colors ${active ? "bg-[#0F2044] text-white border-[#0F2044]" : "border-[#0F2044]/15 text-[#0F2044]/70 hover:border-[#0F2044]/30 hover:bg-[#F7F5F0]"}`}>
+                {isHT && <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />}
+                <span>{t.name.split(" ").slice(-1)[0]}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${active ? "bg-white/20" : "bg-[#0F2044]/8"}`}>{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-      {/* Results label */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-[#0F2044]/50">
-          Showing {filtered.length} of {totalPlans} plans
-          {selectedTeacher !== "all" && ` for ${teacherById(selectedTeacher)?.name}`}
-        </p>
-      </div>
+      <p className="text-sm text-[#0F2044]/50">
+        Showing {filteredInScope.length} of {plansInScope.length} plans
+      </p>
 
-      {/* Plans List */}
-      <div className="bg-white rounded-3xl border border-[#0F2044]/8 overflow-hidden">
-        {filtered.length === 0 ? (
-          <div className="py-20 text-center text-[#0F2044]/40 text-sm">
-            No lesson plans match your filters.
-          </div>
-        ) : (
-          <div className="divide-y divide-[#0F2044]/5">
-            {filtered.map((plan) => {
-              const teacher = teacherById(plan.teacherId);
-              return (
-                <div key={plan.id} className="p-6 hover:bg-[#FAFAF8] transition-colors">
-                  <div className="flex flex-col lg:flex-row lg:items-start gap-5">
-                    {/* Teacher avatar */}
-                    <div className="flex-shrink-0 flex items-center gap-3 lg:flex-col lg:items-center lg:w-20 lg:pt-1">
-                      <div className="w-10 h-10 rounded-full bg-[#0F2044] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                        {initials(teacher?.name || "")}
-                      </div>
-                      <p className="text-xs text-[#0F2044]/50 text-center leading-tight hidden lg:block">
-                        {teacher?.name.split(" ").slice(-1)[0]}
-                      </p>
-                      <p className="text-xs text-[#0F2044]/60 font-medium lg:hidden">{teacher?.name}</p>
-                    </div>
-
-                    {/* Main content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <span className="px-3 py-1 bg-[#F7F5F0] border border-[#0F2044]/10 rounded-xl text-xs font-medium text-[#0F2044]/70">
-                          {plan.className} &bull; {plan.subject}
-                        </span>
-                        <span className={`px-3 py-1 text-xs font-medium rounded-xl ${STATUS_STYLES[plan.status]}`}>
-                          {STATUS_LABELS[plan.status]}
-                        </span>
-                        <span className="text-xs text-[#0F2044]/40 hidden lg:inline">
-                          Week {plan.week}
-                        </span>
-                      </div>
-
-                      <h3 className="font-bold text-lg text-[#0F2044] mb-1 leading-snug">
-                        {plan.topic}
-                      </h3>
-                      <p className="text-sm text-[#0F2044]/60 leading-relaxed line-clamp-2">
-                        {plan.objectives}
-                      </p>
-
-                      <div className="flex flex-wrap gap-5 mt-3">
-                        <span className="flex items-center gap-1.5 text-xs text-[#0F2044]/50">
-                          <Calendar className="w-3.5 h-3.5" />
-                          {new Date(plan.date).toLocaleDateString("en-GB")}
-                        </span>
-                        <span className="flex items-center gap-1.5 text-xs text-[#0F2044]/50">
-                          <Clock className="w-3.5 h-3.5" />
-                          {plan.period}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* View button */}
-                    <div className="flex-shrink-0 flex items-start">
-                      <button
-                        onClick={() => setViewingPlan(plan)}
-                        className="flex items-center gap-2 px-5 py-2.5 border border-[#0F2044]/15 rounded-2xl text-sm font-medium hover:bg-[#F7F5F0] hover:border-[#0F2044]/30 transition-colors text-[#0F2044]/70"
-                      >
-                        <Eye className="w-4 h-4" />
-                        View plan
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      {/* Content */}
+      {loading ? (
+        <div className="bg-white rounded-3xl border border-[#0F2044]/8 py-24 flex flex-col items-center gap-3 text-[#0F2044]/40">
+          <Spinner size={32} />
+          <p className="text-sm">Loading lesson plans…</p>
+        </div>
+      ) : activeTab === "all" ? (
+        <div className="space-y-8">
+          {filteredMine.length === 0 && filteredStaff.length === 0
+            ? <EmptyState />
+            : <>
+                <PlanSection
+                  label={`${headTeacher?.name || "Head Teacher"} — Head Teacher's Plans`}
+                  plans={filteredMine} isHeadTeacher showTeacherName={false}
+                  onView={setViewingPlan} staffList={staffList} headTeacherId={userId}
+                />
+                <PlanSection
+                  label="Teaching Staff Plans"
+                  plans={filteredStaff} isHeadTeacher={false} showTeacherName
+                  onView={setViewingPlan} staffList={staffList} headTeacherId={userId}
+                />
+              </>
+          }
+        </div>
+      ) : activeTab === "mine" ? (
+        <div className="space-y-8">
+          {filteredInScope.length === 0
+            ? <EmptyState onAdd={() => setShowCreateModal(true)} />
+            : <PlanSection
+                label="Your Lesson Plans"
+                plans={filteredInScope} isHeadTeacher showTeacherName={false}
+                onView={setViewingPlan} staffList={staffList} headTeacherId={userId}
+              />
+          }
+        </div>
+      ) : (
+        <div className="space-y-8">
+          {filteredInScope.length === 0
+            ? <EmptyState />
+            : <PlanSection
+                label="Teaching Staff Plans"
+                plans={filteredInScope} isHeadTeacher={false} showTeacherName
+                onView={setViewingPlan} staffList={staffList} headTeacherId={userId}
+              />
+          }
+        </div>
+      )}
 
       <p className="text-center text-xs text-[#0F2044]/40 pt-2">
         Lesson plans are submitted by teaching staff and reviewed by the head teacher.
         Completed plans are automatically included in term reports.
       </p>
 
-      {/* View Modal */}
-      <ViewLessonPlanModal plan={viewingPlan} onClose={() => setViewingPlan(null)} />
+      {/* Modals */}
+      <ViewLessonPlanModal
+        plan={viewingPlan}
+        onClose={() => setViewingPlan(null)}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        staffList={staffList}
+        headTeacherId={userId}
+      />
+
+      {(showCreateModal || editingPlan) && (
+        <CreatePlanModal
+          editingPlan={editingPlan}
+          headTeacherId={userId}
+          staffList={staffList}
+          onClose={() => { setShowCreateModal(false); setEditingPlan(null); }}
+          onSave={handleSave}
+        />
+      )}
+
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
     </div>
   );
 }

@@ -1,84 +1,154 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { auth, db } from "../../firebase";           // adjust path as needed
+import { doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import {
   Users, BookOpen, Calendar, Award, TrendingUp, AlertTriangle,
-  Bell, Settings, LogOut, Menu, X, Home, FileText
+  Bell, Settings, LogOut, Menu, X, Home, FileText,
 } from "lucide-react";
 
-import Studentmodule from "./modules/student";           // Reuse where appropriate
-import ClassModule from "./modules/ClassModule";
-import TimetableModule from "./modules/TimetableModule";
+import Studentmodule    from "./modules/student";
+import ClassModule      from "./modules/ClassModule";
+import TimetableModule  from "./modules/TimetableModule";
 import AttendanceModule from "./modules/AttendanceModule";
 import DisciplineModule from "./modules/DisciplineModule";
 import PerformanceModule from "./modules/PerformanceModule";
-import HomeworkModule from "./modules/homework";
+import HomeworkModule   from "./modules/homework";
 
-// ─── Design System (Consistent with Admin) ─────────────────────────────────
-const colors = {
-  navy: "#0F2044",
-  gold: "#F4B400",
-  ivory: "#F7F5F0",
-  cream: "#FAFAF8",
-};
-
+// ─── icons ───────────────────────────────────────────────────────────────────
 const Icon = {
-  Home: () => <Home className="w-5 h-5" />,
-  MyClasses: () => <BookOpen className="w-5 h-5" />,
-  Timetable: () => <Calendar className="w-5 h-5" />,
-  TakeAttendance: () => <TrendingUp className="w-5 h-5" />,
-  EnterMarks: () => <Award className="w-5 h-5" />,
-  Discipline: () => <AlertTriangle className="w-5 h-5" />,
-  MyStudents: () => <Users className="w-5 h-5" />,
-  Notifications: () => <Bell className="w-5 h-5" />,
-  Reports: () => <FileText className="w-5 h-5" />,
-  Settings: () => <Settings className="w-5 h-5" />,
-  Logout: () => <LogOut className="w-5 h-5" />,
+  Home:         () => <Home          className="w-5 h-5" />,
+  MyClasses:    () => <BookOpen      className="w-5 h-5" />,
+  Timetable:    () => <Calendar      className="w-5 h-5" />,
+  TakeAttendance:() => <TrendingUp   className="w-5 h-5" />,
+  EnterMarks:   () => <Award         className="w-5 h-5" />,
+  Discipline:   () => <AlertTriangle className="w-5 h-5" />,
+  MyStudents:   () => <Users         className="w-5 h-5" />,
+  Notifications:() => <Bell          className="w-5 h-5" />,
+  Reports:      () => <FileText      className="w-5 h-5" />,
+  Settings:     () => <Settings      className="w-5 h-5" />,
+  Logout:       () => <LogOut        className="w-5 h-5" />,
 };
 
-// Sample Data for Teacher
 const teacherStats = [
-  { label: "My Students", value: "187", change: "+3", color: "text-emerald-600" },
-  { label: "Classes Taught", value: "6", change: "", color: "text-blue-600" },
-  { label: "Today’s Attendance", value: "92%", change: "-2%", color: "text-amber-600" },
-  { label: "Pending Marks", value: "3", change: "Classes", color: "text-red-600" },
+  { label: "My Students",       value: "187", change: "+3",     color: "text-emerald-600" },
+  { label: "Classes Taught",    value: "6",   change: "",       color: "text-blue-600"    },
+  { label: "Today's Attendance",value: "92%", change: "-2%",    color: "text-amber-600"   },
+  { label: "Pending Marks",     value: "3",   change: "Classes",color: "text-red-600"     },
 ];
 
 const quickActions = [
-  { title: "Take Attendance", icon: <TrendingUp className="w-8 h-8" />, color: "bg-emerald-600", tab: "attendance" },
-  { title: "Enter Marks", icon: <Award className="w-8 h-8" />, color: "bg-amber-600", tab: "marks" },
-  { title: "Log Discipline", icon: <AlertTriangle className="w-8 h-8" />, color: "bg-red-600", tab: "discipline" },
-  { title: "View Timetable", icon: <Calendar className="w-8 h-8" />, color: "bg-[#0F2044]", tab: "timetable" },
+  { title: "Take Attendance", icon: <TrendingUp  className="w-8 h-8" />, color: "bg-emerald-600", tab: "attendance" },
+  { title: "Enter Marks",     icon: <Award       className="w-8 h-8" />, color: "bg-amber-600",   tab: "marks"      },
+  { title: "Log Discipline",  icon: <AlertTriangle className="w-8 h-8" />, color: "bg-red-600",   tab: "discipline" },
+  { title: "View Timetable",  icon: <Calendar    className="w-8 h-8" />, color: "bg-[#0F2044]",   tab: "timetable"  },
 ];
 
+// ─── tiny spinner ─────────────────────────────────────────────────────────────
+function Spinner() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#F7F5F0]">
+      <div className="flex flex-col items-center gap-4">
+        <svg className="animate-spin w-10 h-10 text-[#0F2044]/30" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+          <path  className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+        <p className="text-[#0F2044]/50 text-sm">Loading your workspace…</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── main component ───────────────────────────────────────────────────────────
 export default function TeacherDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [currentTab, setCurrentTab] = useState("overview");
+  const [currentTab,  setCurrentTab]  = useState("overview");
 
+  // ── auth / profile state ──────────────────────────────────────────────────
+  const [userId,     setUserId]     = useState(null);
+  const [schoolCode, setSchoolCode] = useState(null);
+  const [profile,    setProfile]    = useState(null);   // full user doc
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser) {
+        // Not signed in — you can redirect to login here if needed
+        setAuthLoading(false);
+        return;
+      }
+      try {
+        const snap = await getDoc(doc(db, "users", firebaseUser.uid));
+        if (snap.exists()) {
+          const data = snap.data();
+          setUserId(firebaseUser.uid);
+          setSchoolCode(data.schoolCode);
+          setProfile(data);
+        }
+      } catch (err) {
+        console.error("Failed to load teacher profile:", err);
+      } finally {
+        setAuthLoading(false);
+      }
+    });
+    return unsub;
+  }, []);
+
+  // ── shared props passed to every module ───────────────────────────────────
+  const moduleProps = { userId, schoolCode };
+
+  // ── nav items built AFTER we have the props ────────────────────────────────
   const navItems = [
-    { id: "overview", label: "Overview", icon: Icon.Home },
-    { id: "myclasses", label: "My Classes", icon: Icon.MyClasses, component: <ClassModule /> },
-    { id: "timetable", label: "Timetable", icon: Icon.Timetable, component: <TimetableModule /> },
-    { id: "attendance", label: "Take Attendance", icon: Icon.TakeAttendance, component: <AttendanceModule /> },
-    { id: "marks", label: "Enter Marks", icon: Icon.EnterMarks, component: <PerformanceModule /> },
-    { id: "discipline", label: "Discipline Cases", icon: Icon.Discipline, component: <DisciplineModule /> },
-    { id: "students", label: "My Students", icon: Icon.MyStudents, component: <Studentmodule /> },
-    { id: "Homework", label: "Homework", icon: Icon.Reports, component: <HomeworkModule /> },
-   
+    { id: "overview",    label: "Overview",        icon: Icon.Home },
+    { id: "myclasses",   label: "My Classes",      icon: Icon.MyClasses,
+      component: <ClassModule      {...moduleProps} /> },
+    { id: "timetable",   label: "Timetable",       icon: Icon.Timetable,
+      component: <TimetableModule  {...moduleProps} /> },
+    { id: "attendance",  label: "Take Attendance", icon: Icon.TakeAttendance,
+      component: <AttendanceModule {...moduleProps} /> },
+    { id: "marks",       label: "Enter Marks",     icon: Icon.EnterMarks,
+      component: <PerformanceModule {...moduleProps} /> },
+    { id: "discipline",  label: "Discipline Cases",icon: Icon.Discipline,
+      component: <DisciplineModule {...moduleProps} /> },
+    { id: "students",    label: "My Students",     icon: Icon.MyStudents,
+      component: <Studentmodule   {...moduleProps} /> },
+    { id: "Homework",    label: "Homework",        icon: Icon.Reports,
+      component: <HomeworkModule  {...moduleProps} /> },
   ];
 
-  const currentNavItem = navItems.find(item => item.id === currentTab);
+  const currentNavItem = navItems.find((item) => item.id === currentTab);
+
+  // display name helpers
+  const displayName   = profile?.name  || profile?.displayName || "Teacher";
+  const displayInitials = displayName.split(" ").filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("");
+  const displayRole   = profile?.role === "head_teacher" ? "Head Teacher" : "Class Teacher";
+
+  if (authLoading) return <Spinner />;
+
+  if (!userId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F7F5F0]">
+        <div className="bg-white rounded-3xl p-10 text-center border border-[#0F2044]/10 shadow">
+          <p className="text-[#0F2044] font-semibold text-lg mb-2">Not signed in</p>
+          <p className="text-[#0F2044]/50 text-sm">Please sign in to access your dashboard.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F7F5F0] flex" style={{ fontFamily: "'DM Sans', sans-serif" }}>
       {/* Sidebar */}
-      <div className={`${sidebarOpen ? "translate-x-0" : "-translate-x-full"} 
-                      lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50 
-                      w-72 bg-white border-r border-[#0F2044]/10 shadow-xl transition-transform duration-300 overflow-y-auto`}>
+      <div className={`${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+                      lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50
+                      w-72 bg-white border-r border-[#0F2044]/10 shadow-xl transition-transform duration-300 overflow-y-auto flex flex-col`}>
 
-        <div className="p-6 border-b border-[#0F2044]/8 flex items-center gap-3">
+        {/* Logo */}
+        <div className="p-6 border-b border-[#0F2044]/8 flex items-center gap-3 shrink-0">
           <div className="w-9 h-9 rounded-xl bg-[#F4B400] flex items-center justify-center">
             <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5">
-              <path d="M12 3L2 8l10 5 10-5-10-5z" fill="#0F2044" />
-              <path d="M2 13l10 5 10-5" stroke="#0F2044" strokeWidth="1.8" strokeLinejoin="round" />
+              <path d="M12 3L2 8l10 5 10-5-10-5z" fill="#0F2044"/>
+              <path d="M2 13l10 5 10-5" stroke="#0F2044" strokeWidth="1.8" strokeLinejoin="round"/>
             </svg>
           </div>
           <div>
@@ -87,21 +157,21 @@ export default function TeacherDashboard() {
           </div>
         </div>
 
-        <div className="p-4">
-          <div className="px-3 py-2 text-xs font-bold tracking-widest uppercase text-[#0F2044]/50 mb-2">TEACHER WORKSPACE</div>
+        {/* Nav */}
+        <div className="p-4 flex-1">
+          <div className="px-3 py-2 text-xs font-bold tracking-widest uppercase text-[#0F2044]/50 mb-2">
+            TEACHER WORKSPACE
+          </div>
           <nav className="space-y-1">
             {navItems.map((item) => {
               const isActive = currentTab === item.id;
               return (
                 <button
                   key={item.id}
-                  onClick={() => {
-                    setCurrentTab(item.id);
-                    setSidebarOpen(false);
-                  }}
+                  onClick={() => { setCurrentTab(item.id); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-medium transition-all duration-200 group
-                    ${isActive 
-                      ? "bg-[#0F2044] text-white shadow-md" 
+                    ${isActive
+                      ? "bg-[#0F2044] text-white shadow-md"
                       : "hover:bg-[#0F2044]/5 text-[#0F2044]/70 hover:text-[#0F2044]"
                     }`}
                 >
@@ -113,21 +183,23 @@ export default function TeacherDashboard() {
           </nav>
         </div>
 
-        {/* Teacher Info & Logout */}
-        <div className="absolute bottom-6 left-6 right-6">
-          <div className="bg-[#F7F5F0] border border-[#0F2044]/10 rounded-2xl p-5 text-xs">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-[#0F2044] text-white rounded-2xl flex items-center justify-center font-bold text-lg">MK</div>
+        {/* Teacher info card */}
+        <div className="p-4 shrink-0">
+          <div className="bg-[#F7F5F0] border border-[#0F2044]/10 rounded-2xl p-4 text-xs">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-[#0F2044] text-white rounded-2xl flex items-center justify-center font-bold text-lg">
+                {displayInitials}
+              </div>
               <div>
-                <div className="font-semibold text-[#0F2044]">Mr. Martin Khumbata</div>
-                <div className="text-[#0F2044]/50">Mathematics & Physics • Form 3 & 4</div>
+                <div className="font-semibold text-[#0F2044]">{displayName}</div>
+                <div className="text-[#0F2044]/50">{displayRole}</div>
               </div>
             </div>
-            <button 
-              onClick={() => alert("Logged out successfully")}
-              className="w-full flex items-center justify-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 py-3 rounded-xl text-sm font-medium transition-colors"
+            <button
+              onClick={() => auth.signOut()}
+              className="w-full flex items-center justify-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 py-2.5 rounded-xl text-sm font-medium transition-colors"
             >
-              <Icon.Logout className="w-4 h-4" /> Sign Out
+              <LogOut className="w-4 h-4" /> Sign Out
             </button>
           </div>
         </div>
@@ -152,19 +224,18 @@ export default function TeacherDashboard() {
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
             <button className="p-2.5 hover:bg-[#F7F5F0] rounded-xl relative">
-              <Icon.Notifications />
+              <Bell className="w-5 h-5" />
               <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center">7</span>
             </button>
-
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
-                <div className="text-sm font-semibold text-[#0F2044]">Mr. Martin Khumbata</div>
-                <div className="text-xs text-emerald-600">Mathematics Teacher</div>
+                <div className="text-sm font-semibold text-[#0F2044]">{displayName}</div>
+                <div className="text-xs text-emerald-600">{displayRole}</div>
               </div>
-              <div className="w-9 h-9 bg-[#0F2044] text-white rounded-2xl flex items-center justify-center font-bold text-lg">
-                MK
+              <div className="w-9 h-9 bg-[#0F2044] text-white rounded-2xl flex items-center justify-center font-bold">
+                {displayInitials}
               </div>
             </div>
           </div>
@@ -177,7 +248,7 @@ export default function TeacherDashboard() {
               <div className="mb-10">
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
                   <div>
-                    <p className="text-[#0F2044]/60">Good afternoon, Mr. Khumbata</p>
+                    <p className="text-[#0F2044]/60">Good afternoon, {displayName.split(" ")[0]}</p>
                     <h2 className="text-3xl font-bold text-[#0F2044] tracking-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
                       My Teaching Workspace
                     </h2>
@@ -213,15 +284,15 @@ export default function TeacherDashboard() {
                   </div>
                 </div>
 
-                {/* Recent Activity */}
+                {/* Today + pending */}
                 <div className="grid lg:grid-cols-5 gap-6">
                   <div className="lg:col-span-3 bg-white rounded-3xl p-7 border border-[#0F2044]/8">
-                    <h3 className="font-semibold text-lg mb-6">Today’s Schedule</h3>
+                    <h3 className="font-semibold text-lg mb-6">Today's Schedule</h3>
                     <div className="space-y-4">
                       {[
-                        { time: "08:00", subject: "Mathematics 3A", class: "Form 3A", status: "Completed" },
-                        { time: "09:40", subject: "Physics 4B", class: "Form 4B", status: "In Progress" },
-                        { time: "11:20", subject: "Mathematics 3B", class: "Form 3B", status: "Upcoming" },
+                        { time: "08:00", subject: "Mathematics 3A", class: "Form 3A", status: "Completed"   },
+                        { time: "09:40", subject: "Physics 4B",     class: "Form 4B", status: "In Progress" },
+                        { time: "11:20", subject: "Mathematics 3B", class: "Form 3B", status: "Upcoming"    },
                       ].map((lesson, i) => (
                         <div key={i} className="flex items-center gap-4 bg-[#F7F5F0] p-4 rounded-2xl">
                           <div className="font-mono text-sm w-14 text-[#0F2044]/60">{lesson.time}</div>
@@ -229,7 +300,11 @@ export default function TeacherDashboard() {
                             <div className="font-medium">{lesson.subject}</div>
                             <div className="text-xs text-[#0F2044]/60">{lesson.class}</div>
                           </div>
-                          <div className={`text-xs px-3 py-1 rounded-full ${lesson.status === "Completed" ? "bg-emerald-100 text-emerald-700" : lesson.status === "In Progress" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
+                          <div className={`text-xs px-3 py-1 rounded-full ${
+                            lesson.status === "Completed"   ? "bg-emerald-100 text-emerald-700" :
+                            lesson.status === "In Progress" ? "bg-blue-100 text-blue-700"       :
+                                                              "bg-amber-100 text-amber-700"
+                          }`}>
                             {lesson.status}
                           </div>
                         </div>
@@ -244,10 +319,9 @@ export default function TeacherDashboard() {
                       </h3>
                       <div className="space-y-3 text-sm">
                         <div className="p-3 bg-amber-50 rounded-2xl">Enter marks for Form 3A Mid-term Test</div>
-                        <div className="p-3 bg-red-50 rounded-2xl">Submit attendance for yesterday’s Physics 4B</div>
+                        <div className="p-3 bg-red-50 rounded-2xl">Submit attendance for yesterday's Physics 4B</div>
                       </div>
                     </div>
-
                     <div className="bg-white rounded-3xl p-7 border border-[#0F2044]/8">
                       <h3 className="font-semibold mb-4">Recent Parent Messages</h3>
                       <p className="text-sm text-[#0F2044]/60">3 unread messages from parents regarding student performance.</p>
@@ -258,18 +332,15 @@ export default function TeacherDashboard() {
             </>
           )}
 
-          {/* Dynamic Module Rendering */}
           {currentTab !== "overview" && (
             <div>
               {currentNavItem?.component || (
                 <div className="bg-white rounded-3xl p-12 text-center border border-[#0F2044]/8 min-h-[60vh] flex items-center justify-center">
                   <div>
                     <div className="text-6xl mb-6 opacity-20">📋</div>
-                    <h3 className="text-2xl font-bold text-[#0F2044] mb-2">
-                      {currentNavItem?.label}
-                    </h3>
+                    <h3 className="text-2xl font-bold text-[#0F2044] mb-2">{currentNavItem?.label}</h3>
                     <p className="text-[#0F2044]/50 max-w-md mx-auto">
-                      This module is ready for full implementation including data tables, forms, and export functionality.
+                      This module is ready for full implementation.
                     </p>
                   </div>
                 </div>
@@ -278,7 +349,6 @@ export default function TeacherDashboard() {
           )}
         </main>
 
-        {/* Footer */}
         <footer className="border-t border-[#0F2044]/8 bg-white py-4 px-8 text-xs text-[#0F2044]/40 flex justify-between items-center">
           <div>© 2026 SSP-PEP • Ministry of Education, Malawi</div>
           <div className="flex items-center gap-6">
@@ -289,6 +359,14 @@ export default function TeacherDashboard() {
           </div>
         </footer>
       </div>
+
+      {/* Sidebar overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/30 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
     </div>
   );
 }
