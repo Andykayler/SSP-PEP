@@ -6,6 +6,64 @@ import {
 } from "firebase/firestore";
 import { createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 
+// ─── EMAIL CONFIG ─────────────────────────────────────────────────────────────
+// Replace these with your EmailJS credentials from https://emailjs.com
+const EMAILJS_SERVICE_ID  = "acalink_101";
+const EMAILJS_PUBLIC_KEY  = "0onfJrfekd5sOwhKF";
+// Two templates: one for staff welcome, one for parent/guardian
+const EMAILJS_STAFF_TEMPLATE_ID    = "Acalink_welcomEmail";
+const EMAILJS_GUARDIAN_TEMPLATE_ID = "acalink-guardianwelcom";
+
+// Generic email sender via EmailJS REST API
+// Generic email sender via EmailJS REST API
+async function sendEmail({ templateId, toEmail, toName, params }) {
+  try {
+    const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        service_id: EMAILJS_SERVICE_ID,
+        template_id: templateId,
+        user_id: EMAILJS_PUBLIC_KEY,
+        template_params: {
+          to_name: toName,
+          to_email: toEmail,
+          reply_to: toEmail,
+          
+          // Explicitly map all variables (this is safer)
+          school_name: params.school_name,
+          user_role: params.user_role,
+          login_email: params.login_email,
+          password: params.password,           // ← Most important
+          login_url: params.login_url,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ EmailJS Error:", response.status, errorText);
+      throw new Error(`EmailJS ${response.status}: ${errorText}`);
+    }
+
+    console.log("✅ Email sent successfully to", toEmail);
+    return true;
+  } catch (err) {
+    console.error("❌ Email send failed:", err);
+    return false;
+  }
+}
+
+// Auto-generate a readable password: e.g. "Blue#4829"
+function generatePassword() {
+  const words   = ["Blue","Star","Lake","Gold","Moon","Fire","Wind","Peak","Rock","Dawn"];
+  const word    = words[Math.floor(Math.random() * words.length)];
+  const symbols = ["#","@","!","$"];
+  const sym     = symbols[Math.floor(Math.random() * symbols.length)];
+  const num     = String(Math.floor(1000 + Math.random() * 9000));
+  return `${word}${sym}${num}`;
+}
+
 // ─── Icons ───────────────────────────────────────────────────────────────────
 const IC = {
   home:      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955a1.126 1.126 0 011.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/></svg>,
@@ -32,6 +90,7 @@ const IC = {
   copy:      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75"/></svg>,
   arrowRight:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>,
   info:      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/></svg>,
+  mail:      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -55,13 +114,12 @@ function generateStudentCode() {
   return `STU-${seg()}-${seg()}`;
 }
 
-// ─── Role config ──────────────────────────────────────────────────────────────
+// ─── Role config (Parent removed — parents access via student code portal) ────
 const ROLES = [
   { value: "head_teacher",  label: "Head Teacher",  color: "bg-purple-100 text-purple-800", dot: "bg-purple-500" },
   { value: "class_teacher", label: "Class Teacher", color: "bg-blue-100 text-blue-800",     dot: "bg-blue-500"   },
   { value: "bursar",        label: "Bursar / Fees", color: "bg-amber-100 text-amber-800",   dot: "bg-amber-500"  },
   { value: "librarian",     label: "Librarian",     color: "bg-teal-100 text-teal-800",     dot: "bg-teal-500"   },
-  { value: "parent",        label: "Parent",        color: "bg-green-100 text-green-800",   dot: "bg-green-500"  },
 ];
 const roleMap = Object.fromEntries(ROLES.map(r => [r.value, r]));
 
@@ -170,6 +228,8 @@ function StudentCodeBadge({ code }) {
 }
 
 // ─── MODULE 1: User Management ────────────────────────────────────────────────
+// Password is auto-generated and emailed to the new user.
+// No password field is shown in the form — only Name, Email, Phone.
 function UserManagement({ schoolCode, schoolName }) {
   const [users, setUsers]           = useState([]);
   const [loading, setLoading]       = useState(true);
@@ -180,9 +240,9 @@ function UserManagement({ schoolCode, schoolName }) {
   const [showDelete, setShowDelete] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError]           = useState("");
-  const [form, setForm]             = useState({ name: "", email: "", password: "", role: "", phone: "" });
+  const [successMsg, setSuccessMsg] = useState("");
+  const [form, setForm]             = useState({ name: "", email: "", role: "", phone: "" });
   const [formErrors, setFormErrors] = useState({});
-  const [showPw, setShowPw]         = useState(false);
 
   useEffect(() => { fetchUsers(); }, []);
 
@@ -191,7 +251,7 @@ function UserManagement({ schoolCode, schoolName }) {
     try {
       const q = query(collection(db, "users"), where("schoolCode", "==", schoolCode));
       const snap = await getDocs(q);
-      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => u.role !== "admin"));
+      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => u.role !== "admin" && u.role !== "student"));
     } catch (e) { console.error(e); }
     setLoading(false);
   }
@@ -200,31 +260,64 @@ function UserManagement({ schoolCode, schoolName }) {
     const e = {};
     if (!f.name.trim() || f.name.trim().length < 2) e.name = "Full name required.";
     if (!f.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) e.email = "Valid email required.";
-    if (!showEdit && (!f.password || f.password.length < 6)) e.password = "Password must be at least 6 characters.";
     if (!f.role) e.role = "Select a role.";
     return e;
   }
 
   async function handleAdd(e) {
-    e.preventDefault();
-    const errs = validateForm(form);
-    if (Object.keys(errs).length) { setFormErrors(errs); return; }
-    setActionLoading(true); setError("");
-    try {
-      const cred = await createUserWithEmailAndPassword(auth, form.email.trim(), form.password);
-      await setDoc(doc(db, "users", cred.user.uid), {
-        uid: cred.user.uid, name: form.name.trim(), email: form.email.trim(),
-        role: form.role, phone: form.phone.trim() || "",
-        schoolCode, status: "active", createdAt: serverTimestamp(),
-      });
-      setShowAdd(false);
-      setForm({ name: "", email: "", password: "", role: "", phone: "" });
-      fetchUsers();
-    } catch (err) {
-      setError(err.code === "auth/email-already-in-use" ? "This email is already registered." : "Failed to create user: " + err.message);
-    }
-    setActionLoading(false);
+  e.preventDefault();
+  const errs = validateForm(form);
+  if (Object.keys(errs).length) { setFormErrors(errs); return; }
+
+  setActionLoading(true); 
+  setError(""); 
+  setSuccessMsg("");
+
+  const autoPassword = generatePassword();
+
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, form.email.trim(), autoPassword);
+
+    await setDoc(doc(db, "users", cred.user.uid), {
+      uid: cred.user.uid,
+      name: form.name.trim(),
+      email: form.email.trim(),
+      role: form.role,
+      phone: form.phone.trim() || "",
+      schoolCode,
+      status: "active",
+      mustChangePassword: true,
+      createdAt: serverTimestamp(),
+    });
+
+    // Send email with explicit params
+    const emailSent = await sendEmail({
+      templateId: EMAILJS_STAFF_TEMPLATE_ID,
+      toEmail: form.email.trim(),
+      toName: form.name.trim(),
+      params: {
+        school_name: schoolName,
+        user_role: roleMap[form.role]?.label || form.role,
+        login_email: form.email.trim(),
+        password: autoPassword,          // ← Make sure this is passed clearly
+        login_url: window.location.origin + "/login",   // Better to point to login page
+      },
+    });
+
+    setShowAdd(false);
+    setForm({ name: "", email: "", role: "", phone: "" });
+    
+    setSuccessMsg(`Account created successfully! Login credentials sent to ${form.email.trim()}.`);
+
+  } catch (err) {
+    console.error(err);
+    setError(err.code === "auth/email-already-in-use" 
+      ? "This email is already registered." 
+      : "Failed to create user: " + err.message);
   }
+
+  setActionLoading(false);
+}
 
   async function handleEdit(e) {
     e.preventDefault(); setActionLoading(true); setError("");
@@ -250,11 +343,11 @@ function UserManagement({ schoolCode, schoolName }) {
   }
 
   function openEdit(user) {
-    setForm({ name: user.name || "", email: user.email || "", password: "", role: user.role || "", phone: user.phone || "" });
+    setForm({ name: user.name || "", email: user.email || "", role: user.role || "", phone: user.phone || "" });
     setFormErrors({}); setError(""); setShowEdit(user);
   }
   function openAdd() {
-    setForm({ name: "", email: "", password: "", role: "", phone: "" });
+    setForm({ name: "", email: "", role: "", phone: "" });
     setFormErrors({}); setError(""); setShowAdd(true);
   }
 
@@ -274,6 +367,12 @@ function UserManagement({ schoolCode, schoolName }) {
         </div>
         <Btn onClick={openAdd} variant="gold">{IC.plus} Add User</Btn>
       </div>
+
+      {successMsg && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800">
+          {IC.mail} <span>{successMsg}</span>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <button onClick={() => setRoleFilter("all")} className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${roleFilter === "all" ? "bg-[#0F2044] text-white" : "bg-white border border-[#0F2044]/10 text-[#0F2044]/60 hover:border-[#0F2044]/30"}`}>All ({users.length})</button>
@@ -331,10 +430,18 @@ function UserManagement({ schoolCode, schoolName }) {
           )}
       </div>
 
+      {/* ── Add User Modal — no password field, auto-generated ── */}
       {showAdd && (
-        <Modal title="Add New User" onClose={() => setShowAdd(false)} wide>
+        <Modal title="Add New Staff User" onClose={() => setShowAdd(false)} wide>
           <form onSubmit={handleAdd} className="space-y-4">
             {error && <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">{error}</div>}
+
+            {/* Info banner */}
+            <div className="flex items-start gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800">
+              {IC.mail}
+              <span>A secure auto-generated password will be emailed to the user upon account creation. They can change it after first login.</span>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <Input label="Full Name" required value={form.name} onChange={e => setForm(p => ({...p, name: e.target.value}))} placeholder="Jane Mwale" error={formErrors.name} />
               <Select label="Role" required value={form.role} onChange={e => setForm(p => ({...p, role: e.target.value}))} error={formErrors.role}>
@@ -344,13 +451,10 @@ function UserManagement({ schoolCode, schoolName }) {
             </div>
             <Input label="Email Address" required type="email" value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} placeholder="jane@school.mw" error={formErrors.email} />
             <Input label="Phone Number" type="tel" value={form.phone} onChange={e => setForm(p => ({...p, phone: e.target.value}))} placeholder="+265 9xx xxx xxx" />
-            <div className="relative">
-              <Input label="Password" required type={showPw ? "text" : "password"} value={form.password} onChange={e => setForm(p => ({...p, password: e.target.value}))} placeholder="Min. 6 characters" error={formErrors.password} />
-              <button type="button" onClick={() => setShowPw(p => !p)} className="absolute right-3 top-8 text-[#0F2044]/40 hover:text-[#0F2044]">{showPw ? IC.eyeOff : IC.eye}</button>
-            </div>
+
             <div className="flex justify-end gap-3 pt-2">
               <Btn type="button" variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Btn>
-              <Btn type="submit" variant="gold" loading={actionLoading}>Create User</Btn>
+              <Btn type="submit" variant="gold" loading={actionLoading}>{IC.mail} Create & Send Credentials</Btn>
             </div>
           </form>
         </Modal>
@@ -397,6 +501,12 @@ function UserManagement({ schoolCode, schoolName }) {
 }
 
 // ─── MODULE 2: Student Management ─────────────────────────────────────────────
+// Guardian email is now collected during registration.
+// After a student is registered, the guardian receives an email with:
+//   - The student's unique code (STU-XXXX-XXXX)
+//   - An auto-generated password for the parent portal
+// The parent portal login uses: studentCode + password (not email+password),
+// so multiple children can each have their own parent account linked to their code.
 function StudentManagement({ schoolCode, schoolName }) {
   const [activeTab, setActiveTab] = useState("list"); // list | register | transfer
   const [students, setStudents] = useState([]);
@@ -410,24 +520,22 @@ function StudentManagement({ schoolCode, schoolName }) {
   const [success, setSuccess]   = useState("");
   const [error, setError]       = useState("");
 
-  // Registration form
+  // Registration form — guardianEmail added
   const EMPTY_REG = {
     firstName: "", lastName: "", dob: "", gender: "",
     nationalId: "", guardianName: "", guardianPhone: "",
-    guardianRelation: "", district: "", village: "",
-    classId: "", email: "", password: "",
-    createAccount: false, // whether to create a Firebase Auth account
+    guardianEmail: "", guardianRelation: "",
+    district: "", village: "", classId: "",
   };
-  const [regForm, setRegForm]   = useState(EMPTY_REG);
+  const [regForm, setRegForm]     = useState(EMPTY_REG);
   const [regErrors, setRegErrors] = useState({});
-  const [showPw, setShowPw]     = useState(false);
-  const [newStudentCode, setNewStudentCode] = useState(null); // shown after success
+  const [newStudentResult, setNewStudentResult] = useState(null); // { code, guardianEmail, emailSent }
 
   // Transfer form
-  const [transferCode, setTransferCode] = useState("");
-  const [transferFound, setTransferFound] = useState(null);
+  const [transferCode, setTransferCode]       = useState("");
+  const [transferFound, setTransferFound]     = useState(null);
   const [transferLoading, setTransferLoading] = useState(false);
-  const [transferError, setTransferError] = useState("");
+  const [transferError, setTransferError]     = useState("");
   const [transferSuccess, setTransferSuccess] = useState("");
   const [transferClassId, setTransferClassId] = useState("");
 
@@ -460,9 +568,8 @@ function StudentManagement({ schoolCode, schoolName }) {
     if (!f.guardianName.trim()) e.guardianName = "Guardian name required.";
     if (!f.guardianPhone.trim()) e.guardianPhone = "Guardian phone required.";
     if (!f.classId)          e.classId   = "Select a class.";
-    if (f.createAccount) {
-      if (!f.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) e.email = "Valid email required.";
-      if (!f.password || f.password.length < 6) e.password = "Min 6 characters.";
+    if (f.guardianEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.guardianEmail)) {
+      e.guardianEmail = "Enter a valid email address.";
     }
     return e;
   }
@@ -473,9 +580,11 @@ function StudentManagement({ schoolCode, schoolName }) {
     if (Object.keys(errs).length) { setRegErrors(errs); return; }
     setActionLoading(true); setError(""); setSuccess("");
 
-    const studentCode = generateStudentCode();
-    const fullName = `${regForm.firstName.trim()} ${regForm.lastName.trim()}`;
-    const cls = classes.find(c => c.id === regForm.classId);
+    const studentCode  = generateStudentCode();
+    const fullName     = `${regForm.firstName.trim()} ${regForm.lastName.trim()}`;
+    const cls          = classes.find(c => c.id === regForm.classId);
+    // Auto-generate a parent portal password tied to this student code
+    const parentPassword = generatePassword();
 
     try {
       const studentData = {
@@ -488,6 +597,7 @@ function StudentManagement({ schoolCode, schoolName }) {
         nationalId: regForm.nationalId.trim() || "",
         guardianName: regForm.guardianName.trim(),
         guardianPhone: regForm.guardianPhone.trim(),
+        guardianEmail: regForm.guardianEmail.trim() || "",
         guardianRelation: regForm.guardianRelation.trim() || "Parent/Guardian",
         district: regForm.district,
         village: regForm.village.trim() || "",
@@ -496,38 +606,40 @@ function StudentManagement({ schoolCode, schoolName }) {
         schoolCode,
         schoolName,
         status: "active",
-        hasAccount: regForm.createAccount,
+        // Parent portal auth: stored hashed in production; here stored for demo
+        parentPortalPassword: parentPassword,
         transferHistory: [{ schoolCode, schoolName, joinedAt: new Date().toISOString(), action: "enrolled" }],
         createdAt: serverTimestamp(),
       };
 
-      // Add to students collection
-      const studentRef = await addDoc(collection(db, "students"), studentData);
+      await addDoc(collection(db, "students"), studentData);
 
-      // Optionally create user account
-      if (regForm.createAccount && regForm.email) {
-        const cred = await createUserWithEmailAndPassword(auth, regForm.email.trim(), regForm.password);
-        await setDoc(doc(db, "users", cred.user.uid), {
-          uid: cred.user.uid,
-          name: fullName,
-          email: regForm.email.trim(),
-          role: "student",
-          studentCode,
-          studentId: studentRef.id,
-          schoolCode,
-          status: "active",
-          createdAt: serverTimestamp(),
+      // If guardian email provided, send the student code + parent portal password
+      let emailSent = false;
+      if (regForm.guardianEmail.trim()) {
+        await sendEmail({
+          templateId: EMAILJS_GUARDIAN_TEMPLATE_ID,
+          toEmail: regForm.guardianEmail.trim(),
+          toName: regForm.guardianName.trim(),
+          params: {
+            student_name:   fullName,
+            student_code:   studentCode,
+            school_name:    schoolName,
+            class_name:     cls?.name || "",
+            parent_password: parentPassword,
+            portal_url:     window.location.origin + "/parent-portal",
+            login_note:     `Use Student Code: ${studentCode} and the password above to log into the parent portal.`,
+          },
         });
-        // Link back
-        await updateDoc(doc(db, "students", studentRef.id), { uid: cred.user.uid, email: regForm.email.trim() });
+        emailSent = true;
       }
 
-      setNewStudentCode(studentCode);
+      setNewStudentResult({ code: studentCode, guardianEmail: regForm.guardianEmail.trim(), emailSent });
       setRegForm(EMPTY_REG);
       setRegErrors({});
       fetchStudents();
     } catch (err) {
-      setError(err.code === "auth/email-already-in-use" ? "Email already in use." : "Registration failed: " + err.message);
+      setError("Registration failed: " + err.message);
     }
     setActionLoading(false);
   }
@@ -608,7 +720,7 @@ function StudentManagement({ schoolCode, schoolName }) {
       {/* Sub-tabs */}
       <div className="flex gap-1 p-1 bg-[#0F2044]/5 rounded-2xl w-fit">
         {tabs.map(t => (
-          <button key={t.id} onClick={() => { setActiveTab(t.id); setError(""); setSuccess(""); setNewStudentCode(null); setTransferSuccess(""); setTransferError(""); }}
+          <button key={t.id} onClick={() => { setActiveTab(t.id); setError(""); setSuccess(""); setNewStudentResult(null); setTransferSuccess(""); setTransferError(""); }}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeTab === t.id ? "bg-white text-[#0F2044] shadow-sm" : "text-[#0F2044]/50 hover:text-[#0F2044]"}`}>
             {t.icon}<span className="hidden sm:inline">{t.label}</span>
           </button>
@@ -670,6 +782,7 @@ function StudentManagement({ schoolCode, schoolName }) {
                         <td className="px-5 py-4 hidden lg:table-cell">
                           <div className="text-xs text-[#0F2044]/70">{s.guardianName || "—"}</div>
                           <div className="text-xs text-[#0F2044]/40">{s.guardianPhone || ""}</div>
+                          {s.guardianEmail && <div className="text-xs text-[#0F2044]/30 truncate max-w-[140px]">{s.guardianEmail}</div>}
                         </td>
                         <td className="px-5 py-4 hidden lg:table-cell">
                           <StatusPill active={s.status !== "suspended"} />
@@ -692,7 +805,7 @@ function StudentManagement({ schoolCode, schoolName }) {
       {/* ── TAB: Register Student ── */}
       {activeTab === "register" && (
         <div className="space-y-4 max-w-2xl">
-          {newStudentCode ? (
+          {newStudentResult ? (
             // Success state
             <div className="bg-white rounded-2xl border border-[#0F2044]/8 p-8 text-center space-y-5">
               <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto text-emerald-600">
@@ -700,16 +813,37 @@ function StudentManagement({ schoolCode, schoolName }) {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-[#0F2044] mb-1">Student Registered!</h3>
-                <p className="text-sm text-[#0F2044]/60 mb-4">Save the student code below — it is used to transfer the student between schools.</p>
+                <p className="text-sm text-[#0F2044]/60 mb-4">The student code below is the unique identifier for this student across all schools.</p>
                 <div className="inline-flex flex-col items-center gap-3 p-5 bg-[#F7F5F0] rounded-2xl border border-[#0F2044]/10">
                   <p className="text-xs font-bold uppercase tracking-widest text-[#0F2044]/50">Student Code</p>
-                  <StudentCodeBadge code={newStudentCode} />
-                  <p className="text-xs text-[#0F2044]/40">Share this code with parents for future school transfers</p>
+                  <StudentCodeBadge code={newStudentResult.code} />
+                  <p className="text-xs text-[#0F2044]/40">Used for student transfers and parent portal login</p>
                 </div>
               </div>
+
+              {/* Email status */}
+              {newStudentResult.guardianEmail ? (
+                newStudentResult.emailSent ? (
+                  <div className="flex items-center justify-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-800">
+                    {IC.mail}
+                    <span>Login credentials sent to guardian at <strong>{newStudentResult.guardianEmail}</strong></span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-2 px-4 py-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-800">
+                    {IC.warning}
+                    <span>Email delivery may have failed. Please share the student code manually with the guardian.</span>
+                  </div>
+                )
+              ) : (
+                <div className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-800">
+                  {IC.info}
+                  <span>No guardian email was provided. Share the student code manually with the parent/guardian.</span>
+                </div>
+              )}
+
               <div className="flex justify-center gap-3">
-                <Btn variant="ghost" onClick={() => { setNewStudentCode(null); setActiveTab("list"); }}>View Students</Btn>
-                <Btn variant="gold" onClick={() => setNewStudentCode(null)}>Register Another</Btn>
+                <Btn variant="ghost" onClick={() => { setNewStudentResult(null); setActiveTab("list"); }}>View Students</Btn>
+                <Btn variant="gold" onClick={() => setNewStudentResult(null)}>Register Another</Btn>
               </div>
             </div>
           ) : (
@@ -746,6 +880,21 @@ function StudentManagement({ schoolCode, schoolName }) {
                   <Input label="Guardian Phone" required value={regForm.guardianPhone} onChange={e => setRegForm(p => ({...p, guardianPhone: e.target.value}))} placeholder="+265 9xx xxx xxx" error={regErrors.guardianPhone} />
                   <Input label="Relationship" value={regForm.guardianRelation} onChange={e => setRegForm(p => ({...p, guardianRelation: e.target.value}))} placeholder="Father / Mother / Uncle…" />
                 </div>
+                {/* Guardian email — triggers parent portal account creation */}
+                <div className="mt-4 space-y-1.5">
+                  <Input
+                    label="Guardian Email Address (for parent portal)"
+                    type="email"
+                    value={regForm.guardianEmail}
+                    onChange={e => setRegForm(p => ({...p, guardianEmail: e.target.value}))}
+                    placeholder="guardian@example.com"
+                    error={regErrors.guardianEmail}
+                  />
+                  <p className="text-xs text-[#0F2044]/40 flex items-center gap-1.5">
+                    {IC.info}
+                    If provided, the guardian will receive the student code and a password to access the parent monitoring portal. Leave blank if the guardian has no email.
+                  </p>
+                </div>
               </div>
 
               {/* Academic */}
@@ -756,27 +905,6 @@ function StudentManagement({ schoolCode, schoolName }) {
                   {classes.length === 0 && <option disabled>No classes defined — add them in School Settings</option>}
                   {classes.map(c => <option key={c.id} value={c.id}>{c.name} ({c.level})</option>)}
                 </Select>
-              </div>
-
-              {/* Optional Account */}
-              <div className="border border-[#0F2044]/10 rounded-2xl p-4 space-y-4">
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input type="checkbox" checked={regForm.createAccount} onChange={e => setRegForm(p => ({...p, createAccount: e.target.checked}))}
-                    className="mt-0.5 w-4 h-4 accent-[#0F2044]" />
-                  <div>
-                    <p className="text-sm font-semibold text-[#0F2044]">Create login account for this student</p>
-                    <p className="text-xs text-[#0F2044]/50 mt-0.5">Allows the student (or parent) to log in and view reports, fees, and notices using a student code–linked account.</p>
-                  </div>
-                </label>
-                {regForm.createAccount && (
-                  <div className="space-y-3 pt-2 border-t border-[#0F2044]/8">
-                    <Input label="Email Address" required type="email" value={regForm.email} onChange={e => setRegForm(p => ({...p, email: e.target.value}))} placeholder="student@example.com" error={regErrors.email} />
-                    <div className="relative">
-                      <Input label="Password" required type={showPw ? "text" : "password"} value={regForm.password} onChange={e => setRegForm(p => ({...p, password: e.target.value}))} placeholder="Min. 6 characters" error={regErrors.password} />
-                      <button type="button" onClick={() => setShowPw(p => !p)} className="absolute right-3 top-8 text-[#0F2044]/40 hover:text-[#0F2044]">{showPw ? IC.eyeOff : IC.eye}</button>
-                    </div>
-                  </div>
-                )}
               </div>
 
               <div className="flex justify-end gap-3 pt-2">
@@ -906,7 +1034,9 @@ function StudentManagement({ schoolCode, schoolName }) {
                 ["Guardian", showDetail.guardianName || "—"],
                 ["Relationship", showDetail.guardianRelation || "—"],
                 ["Guardian Phone", showDetail.guardianPhone || "—"],
+                ["Guardian Email", showDetail.guardianEmail || "—"],
                 ["Enrolled", fmtDate(showDetail.createdAt)],
+                ["Parent Portal", showDetail.guardianEmail ? "Email sent ✓" : "No email provided"],
               ].map(([k, v]) => (
                 <div key={k} className="bg-white px-4 py-3">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-[#0F2044]/40 mb-0.5">{k}</p>
@@ -930,12 +1060,6 @@ function StudentManagement({ schoolCode, schoolName }) {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {showDetail.hasAccount && (
-              <div className="flex items-center gap-2 px-4 py-3 bg-[#0F2044]/5 rounded-xl text-xs text-[#0F2044]/70">
-                {IC.idCard}<span>This student has a login account linked to this profile.</span>
               </div>
             )}
           </div>
@@ -1348,7 +1472,7 @@ function Overview({ userData, schoolData, schoolCode, setTab }) {
         <p className="text-xs font-bold uppercase tracking-widest text-[#0F2044]/40 mb-3">Admin Modules</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
-            { tab: "users",         icon: IC.users,    title: "User Management",    desc: "Create and manage staff, teacher, bursar, librarian, and parent accounts" },
+            { tab: "users",         icon: IC.users,    title: "User Management",    desc: "Create and manage staff, teacher, bursar, and librarian accounts" },
             { tab: "students",      icon: IC.students, title: "Student Management", desc: "Register students with unique codes, view profiles, and transfer students between schools" },
             { tab: "settings",      icon: IC.school,   title: "School Settings",    desc: "Update school profile, classes, subjects, and contact information" },
             { tab: "billing",       icon: IC.billing,  title: "Subscription",       desc: "View your current plan and upgrade options" },
@@ -1517,7 +1641,7 @@ export default function AdminDashboard() {
 
         <footer className="border-t border-[#0F2044]/8 bg-white py-3 px-8 text-xs text-[#0F2044]/30 flex justify-between items-center flex-shrink-0">
           <span>© 2026 SSP-PEP · Ministry of Education, Malawi</span>
-          <span>v1.3.0</span>
+          <span>v1.4.0</span>
         </footer>
       </div>
     </div>
