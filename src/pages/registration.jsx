@@ -2,6 +2,7 @@ import { useState } from "react";
 import { db, auth } from "../firebase";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { createUserWithEmailAndPassword } from "firebase/auth";
+import "./registration.css";
 
 const DISTRICTS = [
   "Blantyre", "Lilongwe", "Mzuzu", "Zomba", "Kasungu", "Mangochi",
@@ -24,7 +25,7 @@ const EMPTY = {
   address: "",
   phone: "",
   email: "",
-  password: "",        // Added for auth
+  password: "",
   terms: false,
 };
 
@@ -46,24 +47,6 @@ function validate(form) {
     e.terms = "You must accept the terms to proceed.";
   return e;
 }
-
-function Field({ label, required, error, hint, children }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-gray-500">
-        {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      {children}
-      {error && <p className="text-xs text-red-500">{error}</p>}
-      {hint && !error && <p className="text-xs text-gray-400">{hint}</p>}
-    </div>
-  );
-}
-
-const inputBase = "w-full px-3 py-2 text-sm bg-gray-50 border rounded-lg text-gray-900 placeholder-gray-300 outline-none transition-colors focus:bg-white";
-const inputNormal = "border-gray-200 focus:border-gray-400 focus:ring-2 focus:ring-gray-200";
-const inputErr = "border-red-300 bg-red-50 focus:border-red-400 focus:ring-2 focus:ring-red-100";
 
 export default function SchoolRegistration() {
   const [form, setForm] = useState(EMPTY);
@@ -98,7 +81,6 @@ export default function SchoolRegistration() {
 
   const handleSubmit = async (ev) => {
     ev.preventDefault();
-    console.log("=== FORM SUBMISSION STARTED ===");
 
     const allTouched = Object.fromEntries(Object.keys(form).map((k) => [k, true]));
     setTouched(allTouched);
@@ -106,23 +88,14 @@ export default function SchoolRegistration() {
     const validationErrors = validate(form);
     setErrors(validationErrors);
 
-    if (Object.keys(validationErrors).length > 0 || !code) {
-      console.log("Validation failed", validationErrors);
-      return;
-    }
+    if (Object.keys(validationErrors).length > 0 || !code) return;
 
     setLoading(true);
     setSubmitError(null);
 
     try {
-      console.log("🚀 Creating Firebase Auth user...");
-
-      // 1. Create Authentication User
       const userCredential = await createUserWithEmailAndPassword(auth, form.email.trim(), form.password);
       const uid = userCredential.user.uid;
-      console.log("✅ Auth user created with UID:", uid);
-
-      console.log("🚀 Writing school data to Firestore...");
 
       const schoolData = {
         name: form.schoolName.trim(),
@@ -135,15 +108,12 @@ export default function SchoolRegistration() {
         role: "admin",
         status: "pending",
         createdAt: serverTimestamp(),
-        authUid: uid,                    // Link auth to school
+        authUid: uid,
       };
 
       await setDoc(doc(db, "schools", code), schoolData);
-      console.log("✅ School document created");
-
-      // 2. Create User document
       await setDoc(doc(db, "users", uid), {
-        uid: uid,
+        uid,
         email: form.email.trim(),
         name: form.schoolName.trim(),
         role: "admin",
@@ -151,26 +121,13 @@ export default function SchoolRegistration() {
         district: form.district,
         createdAt: serverTimestamp(),
       });
-      console.log("✅ User document created");
-
-      console.log("🎉 Registration completed successfully!");
 
       setSuccessData({ name: form.schoolName.trim(), code });
       setSuccess(true);
-
     } catch (err) {
-      console.error("❌ REGISTRATION ERROR:", err);
-      console.error("Error Code:", err.code);
-
       let message = "Registration failed. Please try again.";
-
-      if (err.code === "auth/email-already-in-use") {
-        message = "This email is already registered.";
-      } else if (err.code === "permission-denied") {
-        message = "Permission denied. Check Firestore rules.";
-      } else if (err.code === "auth/weak-password") {
-        message = "Password is too weak.";
-      }
+      if (err.code === "auth/email-already-in-use") message = "This email is already registered.";
+      else if (err.code === "auth/weak-password") message = "Password is too weak.";
 
       setSubmitError(message);
     } finally {
@@ -188,19 +145,26 @@ export default function SchoolRegistration() {
     setSubmitError(null);
   };
 
-  // Success Screen (same as before)
+  // Success Screen
   if (success && successData) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-        <div className="bg-white border border-gray-200 rounded-xl w-full max-w-md p-8 text-center">
-          <div className="w-12 h-12 rounded-full bg-green-50 border border-green-200 flex items-center justify-center text-green-600 text-xl mx-auto mb-4">✓</div>
-          <p className="text-base font-medium text-gray-900 mb-1">Registration Successful!</p>
-          <p className="text-sm text-gray-500 mb-3">{successData.name}</p>
-          <div className="inline-flex items-center gap-2.5 px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg mb-4">
-            <span className="font-mono text-sm tracking-wide text-gray-800">{successData.code}</span>
+      <div className="reg-page">
+        <div className="reg-success">
+          <div className="reg-success__icon">🎉</div>
+          <div className="reg-success__tag">REGISTRATION SUCCESSFUL</div>
+          <h2 className="reg-success__title">School Account Created</h2>
+          <p className="reg-success__school">{successData.name}</p>
+
+          <div className="reg-success__code-wrap">
+            <div className="reg-success__code">{successData.code}</div>
           </div>
-          <p className="text-xs text-gray-400 mb-6">Your account has been created. You can now log in with your email and password.</p>
-          <button onClick={reset} className="px-6 py-2 text-sm border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50">
+          <div className="reg-success__code-label">Your School Code</div>
+
+          <p className="reg-success__body">
+            Your account has been created successfully. You can now log in with your email and password.
+          </p>
+
+          <button onClick={reset} className="reg-btn reg-btn--primary">
             Register Another School
           </button>
         </div>
@@ -209,84 +173,160 @@ export default function SchoolRegistration() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="bg-white border border-gray-200 rounded-xl w-full max-w-lg overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <div>
-            <p className="text-sm font-medium text-gray-900">School Registration</p>
-            <p className="text-xs text-gray-400 mt-0.5">Create institution account</p>
+    <div className="reg-page">
+      <div className="reg-page__glow" />
+      <div className="reg-page__glow reg-page__glow--teal" />
+
+      <div className="reg-card">
+        {/* Header */}
+        <div className="reg-card__header">
+          <div className="reg-card__logo">
+            <div className="reg-card__logo-mark">E</div>
+            EduForge
           </div>
-          <span className="text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-1 rounded-md">30-day trial</span>
+          <div className="reg-card__badge">School Registration</div>
         </div>
 
-        <form onSubmit={handleSubmit} noValidate className="px-6 py-5 flex flex-col gap-4">
+        <form onSubmit={handleSubmit} noValidate className="reg-card__body">
           {submitError && (
-            <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+            <div className="reg-submit-error">
               {submitError}
             </div>
           )}
 
-          {/* Existing fields ... */}
-          <Field label="School name" required error={touched.schoolName && errors.schoolName}>
-            <input type="text" value={form.schoolName} placeholder="e.g. Kamuzu Academy" onChange={(e) => change("schoolName", e.target.value)} onBlur={() => blur("schoolName")} className={`${inputBase} ${touched.schoolName && errors.schoolName ? inputErr : inputNormal}`} />
-          </Field>
+          <div className="reg-fields">
+            <div className="reg-field">
+              <label className="reg-label">School Name <span className="reg-label__req">*</span></label>
+              <input
+                type="text"
+                value={form.schoolName}
+                placeholder="e.g. Kamuzu Academy"
+                onChange={(e) => change("schoolName", e.target.value)}
+                onBlur={() => blur("schoolName")}
+                className={`reg-input ${touched.schoolName && errors.schoolName ? "reg-input--error" : ""}`}
+              />
+              {touched.schoolName && errors.schoolName && (
+                <p className="reg-error-msg">{errors.schoolName}</p>
+              )}
+            </div>
 
-          <Field label="District" required error={touched.district && errors.district}>
-            <div className="relative">
-              <select value={form.district} onChange={(e) => change("district", e.target.value)} onBlur={() => blur("district")} className={`${inputBase} appearance-none pr-8 ${touched.district && errors.district ? inputErr : inputNormal}`}>
+            <div className="reg-field">
+              <label className="reg-label">District <span className="reg-label__req">*</span></label>
+              <select
+                value={form.district}
+                onChange={(e) => change("district", e.target.value)}
+                onBlur={() => blur("district")}
+                className={`reg-input ${touched.district && errors.district ? "reg-input--error" : ""}`}
+              >
                 <option value="">Select district…</option>
-                {DISTRICTS.map(d => <option key={d} value={d}>{d}</option>)}
+                {DISTRICTS.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
               </select>
+              {touched.district && errors.district && (
+                <p className="reg-error-msg">{errors.district}</p>
+              )}
             </div>
-          </Field>
 
-          <Field label="Auto-generated school code" hint="System generated">
-            <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg font-mono text-sm">
-              {code || "Select district to generate"}
+            <div className="reg-field">
+              <label className="reg-label">School Code</label>
+              <div className="reg-input reg-input--readonly">
+                {code || "Select district to generate code"}
+              </div>
             </div>
-          </Field>
 
-          <Field label="Physical address" required error={touched.address && errors.address}>
-            <textarea rows={2} value={form.address} placeholder="38 Mtaya, Kaphiri, Lilongwe" onChange={(e) => change("address", e.target.value)} onBlur={() => blur("address")} className={`${inputBase} resize-none ${touched.address && errors.address ? inputErr : inputNormal}`} />
-          </Field>
+            <div className="reg-field">
+              <label className="reg-label">Physical Address <span className="reg-label__req">*</span></label>
+              <textarea
+                rows={3}
+                value={form.address}
+                placeholder="38 Mtaya, Kaphiri, Lilongwe"
+                onChange={(e) => change("address", e.target.value)}
+                onBlur={() => blur("address")}
+                className={`reg-input ${touched.address && errors.address ? "reg-input--error" : ""}`}
+              />
+              {touched.address && errors.address && (
+                <p className="reg-error-msg">{errors.address}</p>
+              )}
+            </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Phone number" required error={touched.phone && errors.phone}>
-              <input type="tel" value={form.phone} placeholder="+265 981 410 178" onChange={(e) => change("phone", e.target.value)} onBlur={() => blur("phone")} className={`${inputBase} ${touched.phone && errors.phone ? inputErr : inputNormal}`} />
-            </Field>
-            <Field label="Email address" required error={touched.email && errors.email}>
-              <input type="email" value={form.email} placeholder="principal@school.mw" onChange={(e) => change("email", e.target.value)} onBlur={() => blur("email")} className={`${inputBase} ${touched.email && errors.email ? inputErr : inputNormal}`} />
-            </Field>
+            <div className="reg-row">
+              <div className="reg-field">
+                <label className="reg-label">Phone Number <span className="reg-label__req">*</span></label>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  placeholder="+265 981 410 178"
+                  onChange={(e) => change("phone", e.target.value)}
+                  onBlur={() => blur("phone")}
+                  className={`reg-input ${touched.phone && errors.phone ? "reg-input--error" : ""}`}
+                />
+                {touched.phone && errors.phone && (
+                  <p className="reg-error-msg">{errors.phone}</p>
+                )}
+              </div>
+
+              <div className="reg-field">
+                <label className="reg-label">Email Address <span className="reg-label__req">*</span></label>
+                <input
+                  type="email"
+                  value={form.email}
+                  placeholder="principal@school.mw"
+                  onChange={(e) => change("email", e.target.value)}
+                  onBlur={() => blur("email")}
+                  className={`reg-input ${touched.email && errors.email ? "reg-input--error" : ""}`}
+                />
+                {touched.email && errors.email && (
+                  <p className="reg-error-msg">{errors.email}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="reg-field">
+              <label className="reg-label">Password <span className="reg-label__req">*</span></label>
+              <input
+                type="password"
+                value={form.password}
+                placeholder="Create password (min 6 characters)"
+                onChange={(e) => change("password", e.target.value)}
+                onBlur={() => blur("password")}
+                className={`reg-input ${touched.password && errors.password ? "reg-input--error" : ""}`}
+              />
+              {touched.password && errors.password && (
+                <p className="reg-error-msg">{errors.password}</p>
+              )}
+            </div>
           </div>
 
-          {/* New Password Field */}
-          <Field label="Password" required error={touched.password && errors.password}>
-            <input 
-              type="password" 
-              value={form.password} 
-              placeholder="Create password (min 6 chars)" 
-              onChange={(e) => change("password", e.target.value)} 
-              onBlur={() => blur("password")} 
-              className={`${inputBase} ${touched.password && errors.password ? inputErr : inputNormal}`} 
+          <div className="reg-terms">
+            <input
+              type="checkbox"
+              checked={form.terms}
+              onChange={(e) => change("terms", e.target.checked)}
+              className="reg-terms__checkbox"
             />
-          </Field>
-
-          <hr className="border-gray-100" />
-
-          <div className="flex items-start gap-2.5">
-            <input type="checkbox" checked={form.terms} onChange={(e) => change("terms", e.target.checked)} className="mt-1 accent-gray-800" />
-            <span className="text-xs text-gray-500">
-              I confirm this information is accurate and I agree to the Terms of Service and Privacy Policy.
+            <span className="reg-terms__text">
+              I confirm this information is accurate and I agree to the{" "}
+              <span className="reg-terms__link">Terms of Service</span> and{" "}
+              <span className="reg-terms__link">Privacy Policy</span>.
             </span>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
-          >
-            {loading ? "Creating Account..." : "Register School & Create Account"}
-          </button>
+          {touched.terms && errors.terms && (
+            <p className="reg-error-msg">{errors.terms}</p>
+          )}
+
+          <div className="reg-card__footer" style={{ borderTop: "none", paddingTop: "8px" }}>
+            <button
+              type="submit"
+              disabled={loading}
+              className="reg-btn reg-btn--primary"
+            >
+              {loading ? "Creating Account..." : "Register School & Create Account"}
+            </button>
+          </div>
         </form>
       </div>
     </div>
