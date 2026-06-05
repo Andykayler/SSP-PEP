@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import "./landing.css";
-
+import { Link } from 'react-router-dom';
 /* ─── useInView hook (scroll-triggered animations) ─────────── */
 const useInView = (threshold = 0.12) => {
   const ref = useRef(null);
@@ -113,8 +113,8 @@ const footerCols = [
   { title: "Company", links: ["About Us", "Blog", "Careers", "Press Kit"] },
   { title: "Support", links: ["Contact", "Documentation", "Terms", "Privacy"] },
 ];
-
 /* ─── NAV ───────────────────────────────────────────────────── */
+
 const Nav = () => {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -144,8 +144,12 @@ const Nav = () => {
         </nav>
 
         <div className="nav-actions">
-          <button className="btn-nav-in">Sign In</button>
-          <button className="btn-nav-cta">Get Started</button>
+          <Link to="/signin">
+            <button className="btn-nav-in">Sign In</button>
+          </Link>
+          <Link to="/register-school">
+            <button className="btn-nav-cta">Get Started</button>
+          </Link>
         </div>
 
         <button
@@ -182,15 +186,23 @@ const Nav = () => {
               {item}
             </a>
           ))}
-          <button className="btn-nav-cta" style={{ marginTop: 12, width: "100%", padding: "11px" }}>
-            Get Started
-          </button>
+          
+          <Link to="/signin" onClick={() => setMenuOpen(false)} style={{ marginTop: 12 }}>
+            <button className="btn-nav-in" style={{ width: "100%", padding: "11px" }}>
+              Sign In
+            </button>
+          </Link>
+
+          <Link to="/register-school" onClick={() => setMenuOpen(false)} style={{ marginTop: 8 }}>
+            <button className="btn-nav-cta" style={{ width: "100%", padding: "11px" }}>
+              Get Started
+            </button>
+          </Link>
         </div>
       )}
     </header>
   );
 };
-
 /* ─── HERO ──────────────────────────────────────────────────── */
 const Hero = () => {
   const [visible, setVisible] = useState(false);
