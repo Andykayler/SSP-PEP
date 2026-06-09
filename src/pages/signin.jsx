@@ -1,3 +1,4 @@
+// src/pages/SignIn.jsx
 import { useState, useEffect, useRef } from "react";
 import { auth, db } from "../firebase";
 import {
@@ -7,6 +8,8 @@ import {
   updatePassword,
 } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
+import Header from "../components/header";
+import { getInitialTheme, applyTheme, toggleTheme as flipTheme } from "../utils/theme";
 import "./signin.css";
 
 const ROLES = {
@@ -17,45 +20,389 @@ const ROLES = {
   librarian:     { label: "Librarian",       redirectTo: "/library" },
 };
 
-export default function SignIn() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPw, setShowPw] = useState(false);
+// ─── Theme toggle ─────────────────────────────────────────────────────────────
+const IconSun = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} width={18} height={18} aria-hidden="true">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 7a5 5 0 100 10A5 5 0 0012 7z" />
+  </svg>
+);
+const IconMoon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} width={18} height={18} aria-hidden="true">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z" />
+  </svg>
+);
+
+function ThemeToggle({ theme, onToggle }) {
+  return (
+    <button
+      type="button"
+      className="signin-theme-toggle"
+      onClick={onToggle}
+      title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+    >
+      {theme === "dark" ? <IconSun /> : <IconMoon />}
+    </button>
+  );
+}
+
+// ─── Icons ────────────────────────────────────────────────────────────────────
+const IconMail = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+  </svg>
+);
+const IconLock = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+  </svg>
+);
+const IconEye = ({ slash }) => slash ? (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+  </svg>
+) : (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+);
+const IconWarn = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ flexShrink: 0 }}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+  </svg>
+);
+const IconCheck = ({ size = 24 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+const IconShield = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+  </svg>
+);
+const IconArrow = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+  </svg>
+);
+const Spinner = () => (
+  <svg className="spinner" width="14" height="14" viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.2" />
+    <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+  </svg>
+);
+
+// ─── Background ───────────────────────────────────────────────────────────────
+const Background = () => (
+  <div className="bg-canvas">
+    <div className="bg-wash" />
+    <div className="bg-wash-2" />
+    <div className="bg-grain" />
+    <div className="bg-grid" />
+    <div className="bg-hatching" />
+  </div>
+);
+
+// ─── Password strength helpers ────────────────────────────────────────────────
+function getStrength(pw) {
+  let score = 0;
+  if (pw.length >= 8)  score++;
+  if (pw.length >= 12) score++;
+  if (/[A-Z]/.test(pw)) score++;
+  if (/[0-9]/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+  return Math.min(score, 4); // 0-4
+}
+const strengthLabels = ["", "Weak", "Fair", "Good", "Strong"];
+const strengthClasses = ["", "active-weak", "active-fair", "active-good", "active-strong"];
+
+// ─── Forgot Password Modal ────────────────────────────────────────────────────
+const ForgotPasswordModal = ({ onClose }) => {
+  const [email, setEmail]     = useState("");
+  const [sent, setSent]       = useState(false);
   const [loading, setLoading] = useState(false);
-  const [authError, setAuthError] = useState("");
-  const [showForgot, setShowForgot] = useState(false);
+  const [err, setErr]         = useState("");
 
-  // Force password change
-  const [mustChangePw, setMustChangePw] = useState(false);
-  const [fbUser, setFbUser] = useState(null);
-  const [redirectTo, setRedirectTo] = useState("");
-  const [userDisplayName, setUserDisplayName] = useState("");
+  const handleSend = async (e) => {
+    e.preventDefault();
+    if (!email) return;
+    setLoading(true); setErr("");
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      setSent(true);
+    } catch {
+      setErr("Could not send reset email. Please check the address.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const emailRef = useRef(null);
+  return (
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-card">
+        <button className="modal-close" onClick={onClose}>✕</button>
+        <div className="modal-header">
+          <p className="modal-tag">Account Recovery</p>
+          <h3 className="modal-title">Reset Password</h3>
+        </div>
+        <div className="modal-body">
+          {sent ? (
+            <div className="modal-success-text">
+              <div className="success-circle"><IconCheck size={26} /></div>
+              <p className="modal-success-title">Reset link sent</p>
+              <p className="modal-success-sub">Check your inbox at <span className="highlight">{email}</span></p>
+              <button className="submit-btn" onClick={onClose} style={{ marginTop: 0 }}>Back to Sign In</button>
+            </div>
+          ) : (
+            <form onSubmit={handleSend}>
+              <p className="modal-desc">Enter the email address for your account and we'll send a password reset link.</p>
+              {err && <p className="modal-inline-error">{err}</p>}
+              <div className="field-group">
+                <label className="field-label">Email Address</label>
+                <div className="field-wrap">
+                  <span className="field-icon"><IconMail /></span>
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.mw" className="field-input" required style={{ paddingRight: 14 }} />
+                </div>
+              </div>
+              <button type="submit" className="submit-btn" disabled={loading || !email} style={{ marginTop: 8 }}>
+                {loading ? <><Spinner /> Sending…</> : "Send Reset Link"}
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
-  useEffect(() => {
-    emailRef.current?.focus();
-  }, []);
+// ─── Force Change Password Screen ─────────────────────────────────────────────
+// Shown when mustChangePassword === true on the user's Firestore document.
+// Updates Firebase Auth password + clears the flag, then redirects.
+const ForceChangePassword = ({ firebaseUser, redirectTo, userDisplayName }) => {
+  const [newPw, setNewPw]         = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [showNew, setShowNew]     = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState("");
+
+  const strength   = getStrength(newPw);
+  const rules = [
+    { label: "At least 8 characters",          met: newPw.length >= 8 },
+    { label: "At least one uppercase letter",  met: /[A-Z]/.test(newPw) },
+    { label: "At least one number",            met: /[0-9]/.test(newPw) },
+    { label: "At least one special character", met: /[^A-Za-z0-9]/.test(newPw) },
+  ];
+
+  const allRulesMet   = rules.every(r => r.met);
+  const passwordsMatch = newPw && confirmPw && newPw === confirmPw;
+  const canSubmit      = allRulesMet && passwordsMatch && !loading;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setAuthError("");
-    if (!email.trim() || !password) return;
+    if (!canSubmit) return;
 
-    setLoading(true);
+    setLoading(true); 
+    setError("");
 
     try {
+      // 1. Update Firebase Auth password
+      await updatePassword(firebaseUser, newPw);
+
+      // 2. Clear the flag in Firestore (NO serverTimestamp needed here)
+      await updateDoc(doc(db, "users", firebaseUser.uid), {
+        mustChangePassword: false,
+        updatedAt: new Date()                    // Use normal Date instead
+      });
+
+      // Success
+      window.location.href = redirectTo;
+
+    } catch (err) {
+      console.error(err);
+      if (err.code === "auth/requires-recent-login") {
+        setError("Your session has expired. Please sign in again.");
+      } else {
+        setError("Failed to update password: " + (err.message || "Unknown error"));
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="change-pw-screen">
+      <div className="change-pw-wrap">
+        <div className="form-badge">
+          <div className="badge-line" />
+          <span className="badge-label">SSP-PEP · Ministry of Education, Malawi</span>
+        </div>
+
+        <div className="change-pw-card">
+          <div className="change-pw-header">
+            <p className="change-pw-tag">Security Required</p>
+            <h2 className="change-pw-title">Set Your <em>Password</em></h2>
+          </div>
+
+          <div className="change-pw-body">
+            <div className="pw-warning">
+              <span className="pw-warning-icon"><IconWarn /></span>
+              <p className="pw-warning-text">
+                You're using a <strong>system-generated password</strong>. You must set a personal password before accessing your dashboard.
+                {userDisplayName && <> Welcome, <strong>{userDisplayName}</strong>.</>}
+              </p>
+            </div>
+
+            <p className="change-pw-desc">
+              Choose a strong password you'll remember. It must meet all the requirements below.
+            </p>
+
+            {error && (
+              <div className="auth-error" style={{ marginBottom: 18 }}>
+                <span className="auth-error-icon"><IconWarn /></span>
+                <p className="auth-error-msg">{error}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit}>
+              {/* New password */}
+              <div className="field-group">
+                <label className="field-label">New Password</label>
+                <div className="field-wrap">
+                  <span className="field-icon"><IconLock /></span>
+                  <input
+                    type={showNew ? "text" : "password"}
+                    value={newPw}
+                    onChange={(e) => { setNewPw(e.target.value); setError(""); }}
+                    placeholder="Create a strong password"
+                    className={`field-input${newPw && !allRulesMet ? " is-error" : newPw && allRulesMet ? " is-valid" : ""}`}
+                    style={{ paddingRight: 42 }}
+                    autoComplete="new-password"
+                  />
+                  <button type="button" className="field-input-right" onClick={() => setShowNew(v => !v)}>
+                    <IconEye slash={showNew} />
+                  </button>
+                </div>
+
+                {/* Strength meter */}
+                {newPw && (
+                  <>
+                    <div className="strength-bar-wrap">
+                      {[1,2,3,4].map(i => (
+                        <div key={i} className={`strength-seg ${i <= strength ? strengthClasses[strength] : ""}`} />
+                      ))}
+                    </div>
+                    <p className="strength-label">{strengthLabels[strength]}</p>
+                  </>
+                )}
+
+                {/* Rules */}
+                <div className="pw-rules">
+                  {rules.map(r => (
+                    <div key={r.label} className={`pw-rule${r.met ? " met" : ""}`}>
+                      <span className="pw-rule-dot" />
+                      {r.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Confirm password */}
+              <div className="field-group" style={{ marginTop: 4 }}>
+                <label className="field-label">Confirm Password</label>
+                <div className="field-wrap">
+                  <span className="field-icon"><IconLock /></span>
+                  <input
+                    type={showConfirm ? "text" : "password"}
+                    value={confirmPw}
+                    onChange={(e) => { setConfirmPw(e.target.value); setError(""); }}
+                    placeholder="Repeat your password"
+                    className={`field-input${confirmPw && !passwordsMatch ? " is-error" : confirmPw && passwordsMatch ? " is-valid" : ""}`}
+                    style={{ paddingRight: 42 }}
+                    autoComplete="new-password"
+                  />
+                  <button type="button" className="field-input-right" onClick={() => setShowConfirm(v => !v)}>
+                    <IconEye slash={showConfirm} />
+                  </button>
+                </div>
+                {confirmPw && !passwordsMatch && (
+                  <p className="field-error"><IconWarn /> Passwords do not match</p>
+                )}
+              </div>
+
+              <button type="submit" className="submit-btn" disabled={!canSubmit}>
+                {loading
+                  ? <><Spinner /> Updating…</>
+                  : <>Set Password & Continue <IconArrow /></>}
+              </button>
+            </form>
+
+            <p className="security-note" style={{ marginTop: 16 }}>
+              <IconShield /> Your password is encrypted and never stored in plain text
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+export default function SignIn() {
+  const [email, setEmail]         = useState("");
+  const [password, setPassword]   = useState("");
+  const [showPw, setShowPw]       = useState(false);
+  const [touched, setTouched]     = useState({ email: false, password: false });
+  const [loading, setLoading]     = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [showForgot, setShowForgot] = useState(false);
+  const [theme, setTheme]         = useState(getInitialTheme);
+
+  // Force-change password state
+  const [mustChangePw, setMustChangePw]     = useState(false);
+  const [fbUser, setFbUser]                 = useState(null);
+  const [redirectTo, setRedirectTo]         = useState("");
+  const [userDisplayName, setUserDisplayName] = useState("");
+
+  const emailRef = useRef(null);
+  useEffect(() => { emailRef.current?.focus(); }, []);
+  useEffect(() => { applyTheme(theme); }, [theme]);
+
+  const handleToggleTheme = () => setTheme((t) => flipTheme(t));
+
+  const emailError =
+    touched.email && (!email.trim()
+      ? "Email address is required"
+      : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      ? "Enter a valid email address" : "");
+
+  const passwordError =
+    touched.password && (!password
+      ? "Password is required"
+      : password.length < 6
+      ? "Must be at least 6 characters" : "");
+
+  const hasErrors = !!emailError || !!passwordError || !email || !password;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setTouched({ email: true, password: true });
+    setAuthError("");
+    if (hasErrors) return;
+
+    setLoading(true);
+    try {
       const credential = await signInWithEmailAndPassword(
-        auth,
-        email.trim().toLowerCase(),
-        password
+        auth, email.trim().toLowerCase(), password
       );
       const uid = credential.user.uid;
 
       const userSnap = await getDoc(doc(db, "users", uid));
       if (!userSnap.exists()) {
         await signOut(auth);
-        setAuthError("No account record found.");
+        setAuthError("No account record found. Please contact your administrator.");
         setLoading(false);
         return;
       }
@@ -70,9 +417,10 @@ export default function SignIn() {
         return;
       }
 
-      const roleConfig = ROLES[userData.role];
+      const roleConfig  = ROLES[userData.role];
       const destination = roleConfig?.redirectTo ?? "/admin";
 
+      // ── Check if this is a system-generated first-time password ──
       if (userData.mustChangePassword === true) {
         setFbUser(credential.user);
         setRedirectTo(destination);
@@ -82,185 +430,126 @@ export default function SignIn() {
         return;
       }
 
+      // Normal login — redirect immediately, no welcome card
       window.location.href = destination;
+
     } catch (err) {
-      const messages = {
-        "auth/user-not-found": "No account found with that email.",
-        "auth/wrong-password": "Incorrect password.",
-        "auth/invalid-credential": "Invalid email or password.",
-        "auth/too-many-requests": "Too many failed attempts. Try again later.",
+      const map = {
+        "auth/user-not-found":         "No account found with that email address.",
+        "auth/wrong-password":         "Incorrect password. Please try again.",
+        "auth/invalid-credential":     "Invalid email or password.",
+        "auth/too-many-requests":      "Too many failed attempts. Please wait and try again.",
+        "auth/user-disabled":          "This account has been disabled. Contact support.",
+        "auth/network-request-failed": "Network error. Check your connection and try again.",
       };
-      setAuthError(messages[err.code] || "Sign in failed. Please try again.");
-    } finally {
+      setAuthError(map[err.code] || "Sign-in failed. Please try again.");
       setLoading(false);
     }
   };
 
-  // Force Change Password Screen
+  // ── Show force-change screen ──
   if (mustChangePw && fbUser) {
-    return <ForceChangePassword firebaseUser={fbUser} redirectTo={redirectTo} userDisplayName={userDisplayName} />;
+    return (
+      <div className="signin-root">
+        <ThemeToggle theme={theme} onToggle={handleToggleTheme} />
+        <Background />
+        <ForceChangePassword
+          firebaseUser={fbUser}
+          redirectTo={redirectTo}
+          userDisplayName={userDisplayName}
+        />
+      </div>
+    );
   }
 
   return (
-    <div className="signin-page">
-      <div className="signin-page__glow" />
-      <div className="signin-page__glow signin-page__glow--teal" />
-
-      <div className="signin-card">
-        <div className="signin-card__header">
-          <div className="signin-card__logo">
-            <div className="signin-card__logo-mark">E</div>
-            EduForge
-          </div>
-          <div className="signin-card__badge">Staff Portal</div>
-        </div>
-
-        <div className="signin-card__body">
-          <h1 className="signin-title">Welcome Back</h1>
-          <p className="signin-subtitle">Sign in to access your dashboard</p>
-
-          {authError && (
-            <div className="signin-error" style={{ marginBottom: "16px", textAlign: "center" }}>
-              {authError}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit}>
-            <div className="signin-field">
-              <label className="signin-label">Email Address</label>
-              <input
-                ref={emailRef}
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@school.mw"
-                className="signin-input"
-                required
-              />
-            </div>
-
-            <div className="signin-field">
-              <label className="signin-label">Password</label>
-              <div style={{ position: "relative" }}>
-                <input
-                  type={showPw ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  className="signin-input"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPw(!showPw)}
-                  style={{
-                    position: "absolute",
-                    right: "12px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "none",
-                    border: "none",
-                    color: "rgba(255,255,255,0.4)",
-                    cursor: "pointer",
-                  }}
-                >
-                  {showPw ? "Hide" : "Show"}
-                </button>
-              </div>
-              <button
-                type="button"
-                className="signin-forgot"
-                onClick={() => setShowForgot(true)}
-              >
-                Forgot password?
-              </button>
-            </div>
-
-            <button type="submit" className="signin-btn" disabled={loading}>
-              {loading ? "Signing in..." : "Sign In"}
-            </button>
-          </form>
-        </div>
-      </div>
-
+    <>
+      <Header />
       {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
-    </div>
-  );
-}
 
-/* ── Forgot Password Modal ───────────────────────────────── */
-function ForgotPasswordModal({ onClose }) {
-  const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
-  const [loading, setLoading] = useState(false);
+      <div className="signin-root">
+        <ThemeToggle theme={theme} onToggle={handleToggleTheme} />
+        <Background />
 
-  const handleSend = async (e) => {
-    e.preventDefault();
-    if (!email) return;
-    setLoading(true);
-    try {
-      await sendPasswordResetEmail(auth, email.trim());
-      setSent(true);
-    } catch {
-      alert("Failed to send reset email.");
-    } finally {
-      setLoading(false);
-    }
-  };
+        <main className="signin-main">
+          <div className="form-wrap">
+            <div className="form-badge">
+              <div className="badge-line" />
+              <span className="badge-label">SSP-PEP · Ministry of Education, Malawi</span>
+            </div>
 
-  return (
-    <div className="signin-modal" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="signin-modal-content">
-        {sent ? (
-          <div style={{ textAlign: "center" }}>
-            <h3 style={{ color: "var(--teal-lt)" }}>Reset Link Sent</h3>
-            <p>Check your inbox at <strong>{email}</strong></p>
-            <button onClick={onClose} className="signin-btn" style={{ marginTop: "20px" }}>
-              Back to Sign In
-            </button>
-          </div>
-        ) : (
-          <form onSubmit={handleSend}>
-            <h3>Reset Password</h3>
-            <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.6)", margin: "12px 0" }}>
-              Enter your email and we'll send you a reset link.
+            <h1 className="form-heading">Staff<br /><em>Portal</em></h1>
+            <p className="form-hint">Authorised personnel only. You'll be directed to your dashboard on sign in.</p>
+
+            {authError && (
+              <div className="auth-error">
+                <span className="auth-error-icon"><IconWarn /></span>
+                <p className="auth-error-msg">{authError}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} noValidate>
+              <div className="field-group">
+                <label className="field-label">Email Address</label>
+                <div className="field-wrap">
+                  <span className="field-icon"><IconMail /></span>
+                  <input
+                    ref={emailRef}
+                    type="email"
+                    value={email}
+                    onChange={(e) => { setEmail(e.target.value); setAuthError(""); }}
+                    onBlur={() => setTouched(p => ({ ...p, email: true }))}
+                    placeholder="your@school.mw"
+                    className={`field-input${emailError ? " is-error" : email && !emailError && touched.email ? " is-valid" : ""}`}
+                    style={{ paddingRight: 14 }}
+                  />
+                </div>
+                {emailError && <p className="field-error"><IconWarn /> {emailError}</p>}
+              </div>
+
+              <div className="field-group">
+                <div className="row-between">
+                  <label className="field-label" style={{ marginBottom: 0 }}>Password</label>
+                  <button type="button" className="forgot-btn" onClick={() => setShowForgot(true)}>Forgot password?</button>
+                </div>
+                <div className="field-wrap">
+                  <span className="field-icon"><IconLock /></span>
+                  <input
+                    type={showPw ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => { setPassword(e.target.value); setAuthError(""); }}
+                    onBlur={() => setTouched(p => ({ ...p, password: true }))}
+                    placeholder="Enter your password"
+                    className={`field-input${passwordError ? " is-error" : password && !passwordError && touched.password ? " is-valid" : ""}`}
+                    style={{ paddingRight: 42 }}
+                  />
+                  <button type="button" className="field-input-right" onClick={() => setShowPw(!showPw)}>
+                    <IconEye slash={showPw} />
+                  </button>
+                </div>
+                {passwordError && <p className="field-error"><IconWarn /> {passwordError}</p>}
+              </div>
+
+              <button type="submit" className="submit-btn" disabled={loading}>
+                {loading ? <><Spinner /> Verifying…</> : <>Sign In <IconArrow /></>}
+              </button>
+            </form>
+
+            <p className="security-note">
+              <IconShield /> 256-bit SSL encrypted · Authorised staff only
             </p>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="your@email.com"
-              className="signin-input"
-              required
-            />
-            <button type="submit" className="signin-btn" disabled={loading} style={{ marginTop: "16px" }}>
-              {loading ? "Sending..." : "Send Reset Link"}
-            </button>
-          </form>
-        )}
-      </div>
-    </div>
-  );
-}
+          </div>
+        </main>
 
-/* ── Force Change Password ───────────────────────────────── */
-function ForceChangePassword({ firebaseUser, redirectTo, userDisplayName }) {
-  // (You can expand this later if needed — kept minimal for now)
-  return (
-    <div className="signin-page">
-      <div className="signin-card" style={{ maxWidth: "460px" }}>
-        <div className="signin-card__body" style={{ textAlign: "center" }}>
-          <h2 style={{ color: "var(--teal-lt)" }}>Security Update Required</h2>
-          <p>Welcome, {userDisplayName || "User"}</p>
-          <p style={{ margin: "16px 0" }}>
-            You are using a temporary password. Please set a new password to continue.
-          </p>
-          {/* You can expand this form if needed */}
-          <button onClick={() => window.location.reload()} className="signin-btn">
-            Reload & Try Again
-          </button>
-        </div>
+        <footer className="signin-footer">
+          <p className="footer-copy">© {new Date().getFullYear()} SSP-PEP · Ministry of Education, Malawi</p>
+          <div className="footer-links">
+            {["Contact", "Privacy Policy", "Help"].map(link => (
+              <a key={link} href="#" className="footer-link">{link}</a>
+            ))}
+          </div>
+        </footer>
       </div>
-    </div>
+    </>
   );
 }
