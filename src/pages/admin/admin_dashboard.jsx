@@ -6,7 +6,6 @@ import {
 } from "firebase/firestore";
 import { createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 
-// ─── EMAIL CONFIG ─────────────────────────────────────────────────────────────
 // Replace these with your EmailJS credentials from https://emailjs.com
 const EMAILJS_SERVICE_ID  = "acalink_101";
 const EMAILJS_PUBLIC_KEY  = "0onfJrfekd5sOwhKF";
