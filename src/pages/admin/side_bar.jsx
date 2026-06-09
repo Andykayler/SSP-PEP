@@ -1,4 +1,4 @@
-import "./admin_dashboard.css";
+import "./sidebar.css";
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 const IC = {

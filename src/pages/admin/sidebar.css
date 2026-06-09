@@ -1,0 +1,565 @@
+/* ============================================================
+   sidebar.css  –  SSP-PEP Admin · Sidebar Component
+   Responsive, scrollable, mobile-drawer + desktop-fixed panel
+   ============================================================ */
+
+/* ── Design tokens (scope to :root so the rest of the app can share them) ── */
+:root {
+  --sb-bg:              #080c18;
+  --sb-bg-gradient:     linear-gradient(180deg, #070a15 0%, #0a0f1e 55%, #0c1228 100%);
+  --sb-border:          rgba(79, 110, 247, 0.13);
+  --sb-border-hover:    rgba(79, 110, 247, 0.26);
+  --sb-accent:          #4f6ef7;
+  --sb-accent-lt:       #7b96ff;
+  --sb-accent-pale:     rgba(79, 110, 247, 0.11);
+  --sb-teal:            #0ea5b0;
+  --sb-teal-lt:         #22d3de;
+  --sb-gold:            #e8a800;
+  --sb-gold-lt:         #f5c842;
+  --sb-text:            #ffffff;
+  --sb-text2:           rgba(255, 255, 255, 0.55);
+  --sb-text3:           rgba(255, 255, 255, 0.22);
+  --sb-danger:          rgba(239, 68, 68, 0.55);
+  --sb-danger-hover-bg: rgba(239, 68, 68, 0.09);
+  --sb-danger-hover:    #ff7070;
+  --sb-radius:          12px;
+  --sb-radius-sm:       8px;
+  --sb-width:           248px;
+  --sb-transition:      0.18s ease;
+  --font-display:       'Bebas Neue', sans-serif;
+  --font-body:          'DM Sans', sans-serif;
+  --font-mono:          'DM Mono', monospace;
+}
+
+/* ── Reset box-sizing for sidebar subtree ── */
+.sidebar *,
+.sidebar *::before,
+.sidebar *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ================================================================
+   OVERLAY  (mobile only – dims the page behind the open drawer)
+   ================================================================ */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 48;
+  background: rgba(4, 6, 14, 0.72);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.sidebar-overlay--visible {
+  opacity: 1;
+}
+
+/* ================================================================
+   SIDEBAR PANEL
+   ================================================================ */
+.sidebar {
+  /* Structure */
+  display: flex;
+  flex-direction: column;
+  width: var(--sb-width);
+  height: 100vh;
+
+  /* Desktop: sticky inside a flex shell */
+  position: sticky;
+  top: 0;
+  flex-shrink: 0;
+  overflow: hidden;           /* scrolling is handled by inner nav */
+
+  /* Visual */
+  background: var(--sb-bg-gradient);
+  border-right: 1px solid var(--sb-border);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+
+  /* Layering */
+  z-index: 50;
+}
+
+/* ================================================================
+   HEADER  –  logo + brand
+   ================================================================ */
+.sidebar__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 18px 16px;
+  border-bottom: 1px solid var(--sb-border);
+  flex-shrink: 0;
+}
+
+.sidebar__logo-mark {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, var(--sb-accent), var(--sb-accent-lt));
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 18px rgba(79, 110, 247, 0.38);
+}
+
+.sidebar__logo-mark svg {
+  width: 18px;
+  height: 18px;
+}
+
+.sidebar__brand-name {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--sb-text);
+  letter-spacing: 2px;
+  line-height: 1;
+}
+
+.sidebar__brand-sub {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 3px;
+  color: var(--sb-text3);
+  text-transform: uppercase;
+  margin-top: 3px;
+}
+
+/* ================================================================
+   NAV  –  scrollable section
+   ================================================================ */
+.sidebar__nav {
+  flex: 1;
+  padding: 10px 10px 6px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Thin scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(79, 110, 247, 0.2) transparent;
+}
+
+.sidebar__nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar__nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar__nav::-webkit-scrollbar-thumb {
+  background: rgba(79, 110, 247, 0.22);
+  border-radius: 4px;
+}
+
+/* Section label */
+.sidebar__nav-label {
+  display: block;
+  padding: 12px 10px 5px;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--sb-text3);
+  user-select: none;
+}
+
+/* Nav item button */
+.sidebar__nav-item {
+  /* Reset */
+  appearance: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+
+  /* Layout */
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--sb-radius);
+  margin-bottom: 2px;
+  text-align: left;
+
+  /* Type */
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--sb-text2);
+
+  /* Motion */
+  transition:
+    background var(--sb-transition),
+    color var(--sb-transition),
+    transform var(--sb-transition);
+
+  /* Overflow guard */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar__nav-item svg {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  opacity: 0.68;
+  transition: opacity var(--sb-transition);
+}
+
+/* span carries the label text */
+.sidebar__nav-item span:not(.sidebar__nav-badge) {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Hover */
+.sidebar__nav-item:hover {
+  background: var(--sb-accent-pale);
+  color: rgba(255, 255, 255, 0.88);
+  transform: translateX(2px);
+}
+
+.sidebar__nav-item:hover svg {
+  opacity: 1;
+}
+
+/* Active */
+.sidebar__nav-item--active {
+  background: linear-gradient(
+    135deg,
+    rgba(79, 110, 247, 0.82),
+    rgba(79, 110, 247, 0.6)
+  );
+  color: #fff;
+  box-shadow:
+    0 4px 18px rgba(79, 110, 247, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform: none;
+}
+
+.sidebar__nav-item--active svg {
+  opacity: 1;
+}
+
+/* Active – no further hover shift */
+.sidebar__nav-item--active:hover {
+  transform: none;
+  background: linear-gradient(
+    135deg,
+    rgba(79, 110, 247, 0.88),
+    rgba(79, 110, 247, 0.68)
+  );
+}
+
+/* Focus ring (keyboard nav) */
+.sidebar__nav-item:focus-visible {
+  outline: 2px solid var(--sb-accent-lt);
+  outline-offset: 2px;
+}
+
+/* Badge (e.g. "NEW" or counts) */
+.sidebar__nav-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(34, 211, 222, 0.13);
+  color: var(--sb-teal-lt);
+  border: 1px solid rgba(34, 211, 222, 0.18);
+  letter-spacing: 0.5px;
+}
+
+/* ================================================================
+   FOOTER  –  school card + sign out
+   ================================================================ */
+.sidebar__footer {
+  flex-shrink: 0;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--sb-border);
+}
+
+.sidebar__school-card {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--sb-border);
+  border-radius: var(--sb-radius);
+  padding: 12px 12px 10px;
+}
+
+.sidebar__school-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.sidebar__school-avatar {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--sb-accent), #6b86ff);
+  border-radius: var(--sb-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: #fff;
+  letter-spacing: 1px;
+}
+
+.sidebar__school-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.82);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar__school-meta {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--sb-text3);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Sign out button */
+.sidebar__signout {
+  /* Reset */
+  appearance: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+
+  /* Layout */
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--sb-radius-sm);
+
+  /* Type */
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--sb-danger);
+
+  /* Motion */
+  transition:
+    background var(--sb-transition),
+    color var(--sb-transition);
+}
+
+.sidebar__signout svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.sidebar__signout:hover {
+  background: var(--sb-danger-hover-bg);
+  color: var(--sb-danger-hover);
+}
+
+.sidebar__signout:focus-visible {
+  outline: 2px solid var(--sb-danger-hover);
+  outline-offset: 2px;
+}
+
+/* ================================================================
+   UTILITY
+   ================================================================ */
+.truncate {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ================================================================
+   RESPONSIVE  –  tablet + mobile drawer behaviour
+   ================================================================ */
+
+/* ── Tablet (≤ 1024px): narrow sidebar, icon-only ── */
+@media (max-width: 1024px) {
+  :root {
+    --sb-width: 68px;
+  }
+
+  .sidebar__brand-name,
+  .sidebar__brand-sub,
+  .sidebar__nav-label,
+  .sidebar__school-name,
+  .sidebar__school-meta,
+  .sidebar__nav-badge {
+    display: none;
+  }
+
+  .sidebar__header {
+    justify-content: center;
+    padding: 18px 0;
+  }
+
+  .sidebar__nav-item {
+    justify-content: center;
+    padding: 10px 0;
+  }
+
+  /* Hide text labels, keep icons */
+  .sidebar__nav-item span:not(.sidebar__nav-badge) {
+    display: none;
+  }
+
+  .sidebar__nav-item svg {
+    width: 20px;
+    height: 20px;
+    opacity: 0.75;
+  }
+
+  .sidebar__school-info {
+    justify-content: center;
+    margin-bottom: 8px;
+  }
+
+  .sidebar__school-avatar {
+    margin: 0 auto;
+  }
+
+  .sidebar__signout {
+    padding: 8px 0;
+  }
+
+  .sidebar__signout span {
+    display: none;
+  }
+}
+
+/* ── Mobile (≤ 768px): off-canvas drawer ── */
+@media (max-width: 768px) {
+  :root {
+    --sb-width: 260px;
+  }
+
+  /* Show overlay as block so it can fade in */
+  .sidebar-overlay {
+    display: block;
+    pointer-events: none;
+  }
+
+  .sidebar-overlay--visible {
+    pointer-events: all;
+  }
+
+  /* Sidebar becomes a fixed drawer, off-screen by default */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100dvh;        /* dynamic viewport height – handles mobile chrome */
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.28s ease;
+    box-shadow: none;
+  }
+
+  .sidebar--open {
+    transform: translateX(0);
+    box-shadow: 8px 0 40px rgba(4, 6, 14, 0.6);
+  }
+
+  /* Restore full labels on mobile drawer */
+  .sidebar__brand-name,
+  .sidebar__brand-sub,
+  .sidebar__nav-label,
+  .sidebar__school-name,
+  .sidebar__school-meta {
+    display: block;
+  }
+
+  .sidebar__nav-badge {
+    display: inline-flex;
+  }
+
+  .sidebar__header {
+    justify-content: flex-start;
+    padding: 20px 18px 16px;
+  }
+
+  .sidebar__nav-item {
+    justify-content: flex-start;
+    padding: 9px 12px;
+  }
+
+  .sidebar__nav-item span:not(.sidebar__nav-badge) {
+    display: inline;
+  }
+
+  .sidebar__nav-item svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .sidebar__school-info {
+    justify-content: flex-start;
+  }
+
+  .sidebar__school-avatar {
+    margin: 0;
+  }
+
+  .sidebar__signout {
+    padding: 7px 10px;
+  }
+
+  .sidebar__signout span {
+    display: inline;
+  }
+}
+
+/* ── Very small screens (≤ 380px): tighten spacing ── */
+@media (max-width: 380px) {
+  :root {
+    --sb-width: 240px;
+  }
+
+  .sidebar__header {
+    padding: 16px 14px 12px;
+  }
+
+  .sidebar__nav {
+    padding: 8px 8px 4px;
+  }
+
+  .sidebar__footer {
+    padding: 8px 10px 10px;
+  }
+}
+
+/* ================================================================
+   REDUCED MOTION  –  respect OS preference
+   ================================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar-overlay,
+  .sidebar__nav-item,
+  .sidebar__signout {
+    transition: none !important;
+  }
+}
