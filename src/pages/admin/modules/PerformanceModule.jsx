@@ -77,23 +77,23 @@ export default function PerformanceModule() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-[#0F2044]" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h2 className="text-3xl font-bold text-app-text" style={{ fontFamily: "'Playfair Display', serif" }}>
             Academic Performance
           </h2>
-          <p className="text-[#0F2044]/60">MANEB-aligned grading • Class rankings • Performance trends</p>
+          <p className="text-app-text/60">MANEB-aligned grading • Class rankings • Performance trends</p>
         </div>
 
         <div className="flex gap-3">
           <select
             value={selectedTerm}
             onChange={(e) => setSelectedTerm(e.target.value)}
-            className="px-5 py-3 bg-white border border-[#0F2044]/15 rounded-2xl focus:border-[#F4B400]"
+            className="px-5 py-3 bg-app-surface border border-app-border rounded-2xl focus:border-[#F4B400]"
           >
             <option value="Term 1 2026">Term 1 2026</option>
             <option value="Term 2 2026">Term 2 2026</option>
             <option value="Term 3 2025">Term 3 2025</option>
           </select>
-          <button className="flex items-center gap-2 px-6 py-3 bg-[#0F2044] text-white rounded-2xl font-medium">
+          <button className="flex items-center gap-2 px-6 py-3 bg-app-primary text-white rounded-2xl font-medium">
             <Download className="w-5 h-5" /> Export Report Card
           </button>
         </div>
@@ -101,38 +101,38 @@ export default function PerformanceModule() {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
-        <div className="bg-white rounded-3xl p-6 border border-[#0F2044]/8">
-          <p className="text-sm text-[#0F2044]/60">Class Average</p>
-          <p className="text-4xl font-bold text-[#0F2044] mt-2">{classAverage.toFixed(1)}%</p>
+        <div className="bg-app-surface rounded-3xl p-6 border border-app-border">
+          <p className="text-sm text-app-text/60">Class Average</p>
+          <p className="text-4xl font-bold text-app-text mt-2">{classAverage.toFixed(1)}%</p>
           <p className="text-xs text-emerald-600 mt-1">↑ 3.2% from last term</p>
         </div>
-        <div className="bg-white rounded-3xl p-6 border border-[#0F2044]/8">
-          <p className="text-sm text-[#0F2044]/60">Top Performer</p>
-          <p className="text-2xl font-bold text-[#0F2044] mt-2">Blessing Mwale</p>
-          <p className="text-sm text-[#0F2044]/60">91.2% • Form 3A</p>
+        <div className="bg-app-surface rounded-3xl p-6 border border-app-border">
+          <p className="text-sm text-app-text/60">Top Performer</p>
+          <p className="text-2xl font-bold text-app-text mt-2">Blessing Mwale</p>
+          <p className="text-sm text-app-text/60">91.2% • Form 3A</p>
         </div>
-        <div className="bg-white rounded-3xl p-6 border border-[#0F2044]/8">
-          <p className="text-sm text-[#0F2044]/60">Pass Rate</p>
+        <div className="bg-app-surface rounded-3xl p-6 border border-app-border">
+          <p className="text-sm text-app-text/60">Pass Rate</p>
           <p className="text-4xl font-bold text-emerald-600 mt-2">94%</p>
-          <p className="text-xs text-[#0F2044]/60">38 out of 40 students</p>
+          <p className="text-xs text-app-text/60">38 out of 40 students</p>
         </div>
-        <div className="bg-white rounded-3xl p-6 border border-[#0F2044]/8">
-          <p className="text-sm text-[#0F2044]/60">At Risk Students</p>
+        <div className="bg-app-surface rounded-3xl p-6 border border-app-border">
+          <p className="text-sm text-app-text/60">At Risk Students</p>
           <p className="text-4xl font-bold text-amber-600 mt-2">3</p>
           <p className="text-xs text-amber-600">Below 60% average</p>
         </div>
       </div>
 
       {/* View Toggle */}
-      <div className="flex border-b border-[#0F2044]/10">
+      <div className="flex border-b border-app-border">
         {["overview", "ranking", "subject"].map((mode) => (
           <button
             key={mode}
             onClick={() => setViewMode(mode)}
             className={`px-8 py-4 font-medium text-sm transition-all border-b-2 ${
               viewMode === mode 
-                ? "border-[#F4B400] text-[#0F2044]" 
-                : "border-transparent text-[#0F2044]/60 hover:text-[#0F2044]"
+                ? "border-[#F4B400] text-app-text" 
+                : "border-transparent text-app-text/60 hover:text-app-text"
             }`}
           >
             {mode === "overview" && "Overview"}
@@ -144,13 +144,13 @@ export default function PerformanceModule() {
 
       {/* Main Content */}
       {viewMode === "overview" && (
-        <div className="bg-white rounded-3xl p-8 border border-[#0F2044]/8">
+        <div className="bg-app-surface rounded-3xl p-8 border border-app-border">
           <div className="flex justify-between mb-6">
             <h3 className="font-semibold text-lg">Student Performance Overview</h3>
             <select
               value={selectedClass}
               onChange={(e) => setSelectedClass(e.target.value)}
-              className="px-4 py-2 border border-[#0F2044]/15 rounded-xl"
+              className="px-4 py-2 border border-app-border rounded-xl"
             >
               <option value="All Classes">All Classes</option>
               <option value="Form 3A">Form 3A</option>
@@ -162,7 +162,7 @@ export default function PerformanceModule() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-[#0F2044]/10">
+                <tr className="border-b border-app-border">
                   <th className="py-4 text-left">Student</th>
                   <th className="py-4 text-left">Class</th>
                   <th className="py-4 text-center">Average</th>
@@ -174,10 +174,10 @@ export default function PerformanceModule() {
                 {filteredStudents.map((student, index) => (
                   <tr key={student.id} className="border-b border-[#0F2044]/5 hover:bg-[#FAFAF8]">
                     <td className="py-5 font-medium">{student.name}</td>
-                    <td className="py-5 text-[#0F2044]/70">{student.class}</td>
+                    <td className="py-5 text-app-text/70">{student.class}</td>
                     <td className="py-5 text-center font-bold text-lg">{student.average}%</td>
                     <td className="py-5 text-center">
-                      <span className="inline-flex items-center justify-center w-7 h-7 bg-[#F4B400]/10 text-[#F4B400] rounded-full text-sm font-bold">
+                      <span className="inline-flex items-center justify-center w-7 h-7 bg-app-warning/10 text-[#F4B400] rounded-full text-sm font-bold">
                         {student.rank}
                       </span>
                     </td>
@@ -195,24 +195,24 @@ export default function PerformanceModule() {
       )}
 
       {viewMode === "ranking" && (
-        <div className="bg-white rounded-3xl p-8 border border-[#0F2044]/8 text-center">
+        <div className="bg-app-surface rounded-3xl p-8 border border-app-border text-center">
           <div className="text-6xl mb-4">🏆</div>
           <h3 className="text-2xl font-bold mb-2">Class Ranking - {selectedTerm}</h3>
-          <p className="text-[#0F2044]/60 mb-8">Full ranking table with subject-wise breakdown will be displayed here</p>
-          <div className="inline-flex px-6 py-3 bg-[#F4B400]/10 text-[#F4B400] rounded-2xl text-sm font-medium">
+          <p className="text-app-text/60 mb-8">Full ranking table with subject-wise breakdown will be displayed here</p>
+          <div className="inline-flex px-6 py-3 bg-app-warning/10 text-[#F4B400] rounded-2xl text-sm font-medium">
             Top 3 students highlighted automatically
           </div>
         </div>
       )}
 
       {viewMode === "subject" && (
-        <div className="bg-white rounded-3xl p-8 border border-[#0F2044]/8">
+        <div className="bg-app-surface rounded-3xl p-8 border border-app-border">
           <h3 className="font-semibold text-lg mb-6">Subject Performance Analysis</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {["Mathematics", "English", "Biology", "History"].map((subject) => (
-              <div key={subject} className="border border-[#0F2044]/10 rounded-3xl p-6">
-                <p className="text-sm text-[#0F2044]/60">{subject}</p>
-                <p className="text-4xl font-bold text-[#0F2044] mt-3">84.6%</p>
+              <div key={subject} className="border border-app-border rounded-3xl p-6">
+                <p className="text-sm text-app-text/60">{subject}</p>
+                <p className="text-4xl font-bold text-app-text mt-3">84.6%</p>
                 <p className="text-xs text-emerald-600 mt-1">Class Average</p>
               </div>
             ))}
@@ -221,11 +221,11 @@ export default function PerformanceModule() {
       )}
 
       {/* Quick Insights */}
-      <div className="bg-[#F7F5F0] border border-[#0F2044]/10 rounded-3xl p-6">
+      <div className="bg-app-bg border border-app-border rounded-3xl p-6">
         <div className="flex items-center gap-2 text-amber-600 mb-3">
           <AlertTriangle className="w-5 h-5" /> <span className="font-medium">At-Risk Students</span>
         </div>
-        <p className="text-sm text-[#0F2044]/70">
+        <p className="text-sm text-app-text/70">
           3 students are currently below 60% average. Consider early intervention and parent notification.
         </p>
       </div>

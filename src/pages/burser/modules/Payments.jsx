@@ -37,8 +37,8 @@ const Modal = ({ title, subtitle, onClose, children, wide }) => (
     style={{ backgroundColor: "rgba(10,22,50,0.55)", backdropFilter: "blur(4px)" }}
     onClick={e => e.target === e.currentTarget && onClose()}
   >
-    <div className={`bg-white rounded-2xl shadow-2xl w-full ${wide ? "max-w-2xl" : "max-w-lg"} overflow-hidden my-auto`}>
-      <div className="bg-[#0F2044] px-6 py-5 flex items-start justify-between gap-4">
+    <div className={`bg-app-surface rounded-2xl shadow-2xl w-full ${wide ? "max-w-2xl" : "max-w-lg"} overflow-hidden my-auto`}>
+      <div className="bg-app-primary px-6 py-5 flex items-start justify-between gap-4">
         <div>
           <h3 className="text-white font-bold text-base leading-tight">{title}</h3>
           {subtitle && <p className="text-white/50 text-xs mt-0.5">{subtitle}</p>}
@@ -55,9 +55,9 @@ const Btn = ({ children, variant = "primary", size = "md", loading, className = 
   const base = "inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed select-none";
   const sizes = { sm: "px-3 py-1.5 text-xs", md: "px-4 py-2.5 text-sm", lg: "px-5 py-3 text-sm" };
   const variants = {
-    primary: "bg-[#0F2044] text-white hover:bg-[#162d5e] active:scale-[0.98]",
-    gold:    "bg-[#F4B400] text-[#0F2044] hover:bg-[#e5a800] active:scale-[0.98]",
-    ghost:   "border border-[#0F2044]/15 text-[#0F2044]/70 hover:bg-[#0F2044]/5 active:scale-[0.98]",
+    primary: "bg-app-primary text-white hover:bg-[#162d5e] active:scale-[0.98]",
+    gold:    "bg-app-warning text-app-text hover:bg-[#e5a800] active:scale-[0.98]",
+    ghost:   "border border-app-border text-app-text/70 hover:bg-app-primary/5 active:scale-[0.98]",
     emerald: "bg-emerald-600 text-white hover:bg-emerald-700 active:scale-[0.98]",
   };
   return (
@@ -141,20 +141,20 @@ function StudentSearch({ students, studentFinancials, onSelect }) {
   return (
     <div ref={ref} className="relative">
       <div className="relative">
-        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#0F2044]/30">{IC.search}</span>
+        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-app-text/30">{IC.search}</span>
         <input
           value={query}
           onChange={e => { setQuery(e.target.value); setOpen(true); setActive(0); }}
           onFocus={() => query.length >= 2 && setOpen(true)}
           onKeyDown={onKey}
           placeholder="Type student name or code…"
-          className="w-full pl-10 pr-4 py-3 text-sm rounded-xl border border-[#0F2044]/15 bg-[#F7F5F0]/60 outline-none focus:border-[#0F2044]/40 focus:bg-white transition-all"
+          className="w-full pl-10 pr-4 py-3 text-sm rounded-xl border border-app-border bg-app-bg/60 outline-none focus:border-[#0F2044]/40 focus:bg-app-surface transition-all"
           autoComplete="off"
         />
       </div>
 
       {open && results.length > 0 && (
-        <ul className="absolute z-30 left-0 right-0 mt-1.5 bg-white border border-[#0F2044]/10 rounded-xl shadow-xl overflow-hidden">
+        <ul className="absolute z-30 left-0 right-0 mt-1.5 bg-app-surface border border-app-border rounded-xl shadow-xl overflow-hidden">
           {results.map((s, i) => {
             const fin = studentFinancials(s.id);
             return (
@@ -162,14 +162,14 @@ function StudentSearch({ students, studentFinancials, onSelect }) {
                 key={s.id}
                 onMouseDown={() => pick(s)}
                 onMouseEnter={() => setActive(i)}
-                className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${i === active ? "bg-[#0F2044]/5" : "hover:bg-[#F7F5F0]"}`}
+                className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${i === active ? "bg-app-primary/5" : "hover:bg-app-bg"}`}
               >
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${avatarColor(s.fullName)}`}>
                   {initials(s.fullName)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-[#0F2044] truncate">{s.fullName}</div>
-                  <div className="text-xs text-[#0F2044]/45 font-mono">{s.studentCode} · {s.className}</div>
+                  <div className="text-sm font-semibold text-app-text truncate">{s.fullName}</div>
+                  <div className="text-xs text-app-text/45 font-mono">{s.studentCode} · {s.className}</div>
                 </div>
                 <div className="text-right flex-shrink-0">
                   <div className={`text-xs font-bold ${fin.balance > 0 ? "text-red-600" : "text-emerald-600"}`}>
@@ -183,7 +183,7 @@ function StudentSearch({ students, studentFinancials, onSelect }) {
       )}
 
       {open && query.length >= 2 && results.length === 0 && (
-        <div className="absolute z-30 left-0 right-0 mt-1.5 bg-white border border-[#0F2044]/10 rounded-xl shadow-xl px-4 py-3 text-sm text-[#0F2044]/50">
+        <div className="absolute z-30 left-0 right-0 mt-1.5 bg-app-surface border border-app-border rounded-xl shadow-xl px-4 py-3 text-sm text-app-text/50">
           No students found for "{query}"
         </div>
       )}
@@ -193,12 +193,12 @@ function StudentSearch({ students, studentFinancials, onSelect }) {
 
 // ─── Stat Card ────────────────────────────────────────────────────────────────
 function StatCard({ label, value, sub, accent }) {
-  const map = { blue: "text-[#0F2044]", emerald: "text-emerald-600", gold: "text-amber-600" };
+  const map = { blue: "text-app-text", emerald: "text-emerald-600", gold: "text-amber-600" };
   return (
-    <div className="bg-white rounded-2xl border border-[#0F2044]/8 p-5">
-      <p className="text-xs font-bold uppercase tracking-wider text-[#0F2044]/35 mb-1">{label}</p>
+    <div className="bg-app-surface rounded-2xl border border-app-border p-5">
+      <p className="text-xs font-bold uppercase tracking-wider text-app-text/35 mb-1">{label}</p>
       <p className={`text-xl font-bold ${map[accent] || map.blue}`}>{value}</p>
-      {sub && <p className="text-xs text-[#0F2044]/40 mt-0.5">{sub}</p>}
+      {sub && <p className="text-xs text-app-text/40 mt-0.5">{sub}</p>}
     </div>
   );
 }
@@ -368,14 +368,14 @@ export default function Payments({ schoolCode, bursarName }) {
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-[#0F2044] tracking-tight">Payments</h2>
-          <p className="text-sm text-[#0F2044]/50 mt-0.5">Record and track fee payments for {academicYear}</p>
+          <h2 className="text-xl font-bold text-app-text tracking-tight">Payments</h2>
+          <p className="text-sm text-app-text/50 mt-0.5">Record and track fee payments for {academicYear}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <select
             value={academicYear}
             onChange={e => setAcademicYear(e.target.value)}
-            className="px-3.5 py-2.5 text-sm rounded-xl border border-[#0F2044]/10 bg-white outline-none"
+            className="px-3.5 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none"
           >
             {ACADEMIC_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
@@ -417,46 +417,46 @@ export default function Payments({ schoolCode, bursarName }) {
       {/* ── Filters ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#0F2044]/30">{IC.search}</span>
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-app-text/30">{IC.search}</span>
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search name, code, receipt…"
-            className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-[#0F2044]/10 bg-white outline-none focus:ring-2 focus:ring-[#0F2044]/15"
+            className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none focus:ring-2 focus:ring-[#0F2044]/15"
           />
           {search && (
-            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0F2044]/30 hover:text-[#0F2044]/70">
+            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/30 hover:text-app-text/70">
               {IC.close}
             </button>
           )}
         </div>
-        <select value={classFilter}  onChange={e => setClassFilter(e.target.value)}  className="px-3.5 py-2.5 text-sm rounded-xl border border-[#0F2044]/10 bg-white outline-none">
+        <select value={classFilter}  onChange={e => setClassFilter(e.target.value)}  className="px-3.5 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none">
           <option value="all">All Classes</option>
           {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <select value={termFilter}   onChange={e => setTermFilter(e.target.value)}   className="px-3.5 py-2.5 text-sm rounded-xl border border-[#0F2044]/10 bg-white outline-none">
+        <select value={termFilter}   onChange={e => setTermFilter(e.target.value)}   className="px-3.5 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none">
           <option value="all">All Terms</option>
           {TERMS.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
-        <select value={methodFilter} onChange={e => setMethodFilter(e.target.value)} className="px-3.5 py-2.5 text-sm rounded-xl border border-[#0F2044]/10 bg-white outline-none">
+        <select value={methodFilter} onChange={e => setMethodFilter(e.target.value)} className="px-3.5 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none">
           <option value="all">All Methods</option>
           {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
       </div>
 
       {/* ── Payments Table ──────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-[#0F2044]/8 overflow-hidden">
+      <div className="bg-app-surface rounded-2xl border border-app-border overflow-hidden">
         {loading ? (
-          <div className="p-16 flex flex-col items-center gap-3 text-[#0F2044]/40">
+          <div className="p-16 flex flex-col items-center gap-3 text-app-text/40">
             <Spinner size="lg" />
             <span className="text-sm">Loading payments…</span>
           </div>
         ) : filtered.length === 0 ? (
           <div className="p-16 flex flex-col items-center gap-3 text-center">
-            <div className="w-14 h-14 bg-[#0F2044]/5 rounded-2xl flex items-center justify-center text-[#0F2044]/30">{IC.payment}</div>
+            <div className="w-14 h-14 bg-app-primary/5 rounded-2xl flex items-center justify-center text-app-text/30">{IC.payment}</div>
             <div>
-              <p className="font-semibold text-[#0F2044]/70">No payments found</p>
-              <p className="text-sm text-[#0F2044]/40 mt-0.5">{search ? "Try adjusting your search." : "Record the first payment to get started."}</p>
+              <p className="font-semibold text-app-text/70">No payments found</p>
+              <p className="text-sm text-app-text/40 mt-0.5">{search ? "Try adjusting your search." : "Record the first payment to get started."}</p>
             </div>
             {!search && <Btn variant="gold" size="sm" onClick={() => openModal()}>{IC.plus} Record Payment</Btn>}
           </div>
@@ -464,42 +464,42 @@ export default function Payments({ schoolCode, bursarName }) {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px]">
               <thead>
-                <tr className="border-b border-[#0F2044]/6 bg-[#F7F5F0]/60">
-                  <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40">Student</th>
-                  <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40 hidden md:table-cell">Receipt</th>
-                  <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40 hidden sm:table-cell">Method</th>
-                  <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40 hidden lg:table-cell">Term</th>
-                  <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40 hidden lg:table-cell">Date</th>
-                  <th className="px-5 py-3.5 text-right text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40">Amount</th>
-                  <th className="px-5 py-3.5 text-center text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40 w-20">Again</th>
+                <tr className="border-b border-[#0F2044]/6 bg-app-bg/60">
+                  <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40">Student</th>
+                  <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden md:table-cell">Receipt</th>
+                  <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden sm:table-cell">Method</th>
+                  <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden lg:table-cell">Term</th>
+                  <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden lg:table-cell">Date</th>
+                  <th className="px-5 py-3.5 text-right text-[10px] font-bold tracking-widest uppercase text-app-text/40">Amount</th>
+                  <th className="px-5 py-3.5 text-center text-[10px] font-bold tracking-widest uppercase text-app-text/40 w-20">Again</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#0F2044]/5">
                 {filtered.map(p => {
                   const student = students.find(s => s.id === p.studentId);
                   return (
-                    <tr key={p.id} className="hover:bg-[#F7F5F0]/60 transition-colors">
+                    <tr key={p.id} className="hover:bg-app-bg/60 transition-colors">
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${avatarColor(p.studentName)}`}>
                             {initials(p.studentName)}
                           </div>
                           <div>
-                            <div className="text-sm font-semibold text-[#0F2044]">{p.studentName}</div>
-                            <div className="text-xs text-[#0F2044]/40 font-mono">{p.className} · {p.studentCode}</div>
+                            <div className="text-sm font-semibold text-app-text">{p.studentName}</div>
+                            <div className="text-xs text-app-text/40 font-mono">{p.className} · {p.studentCode}</div>
                           </div>
                         </div>
                       </td>
                       <td className="px-5 py-3.5 hidden md:table-cell">
-                        <span className="font-mono text-xs bg-[#F7F5F0] text-[#0F2044]/60 px-2 py-1 rounded-lg">{p.receiptNo}</span>
+                        <span className="font-mono text-xs bg-app-bg text-app-text/60 px-2 py-1 rounded-lg">{p.receiptNo}</span>
                       </td>
                       <td className="px-5 py-3.5 hidden sm:table-cell">
                         <span className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-semibold ${METHOD_BADGE[p.method] || "bg-gray-100 text-gray-600"}`}>
                           {p.method}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-xs text-[#0F2044]/55 hidden lg:table-cell">{p.term}</td>
-                      <td className="px-5 py-3.5 text-xs text-[#0F2044]/55 hidden lg:table-cell">{p.paymentDate}</td>
+                      <td className="px-5 py-3.5 text-xs text-app-text/55 hidden lg:table-cell">{p.term}</td>
+                      <td className="px-5 py-3.5 text-xs text-app-text/55 hidden lg:table-cell">{p.paymentDate}</td>
                       <td className="px-5 py-3.5 text-right">
                         <span className="text-sm font-bold text-emerald-700">{fmt(p.amount)}</span>
                       </td>
@@ -509,7 +509,7 @@ export default function Payments({ schoolCode, bursarName }) {
                           <button
                             onClick={() => openModal(student)}
                             title="Record another payment for this student"
-                            className="text-[#0F2044]/30 hover:text-[#F4B400] transition-colors"
+                            className="text-app-text/30 hover:text-[#F4B400] transition-colors"
                           >
                             {IC.plus}
                           </button>
@@ -520,12 +520,12 @@ export default function Payments({ schoolCode, bursarName }) {
                 })}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 border-[#0F2044]/8 bg-[#F7F5F0]/80">
-                  <td colSpan={5} className="px-5 py-3 text-xs font-bold text-[#0F2044]/50 uppercase tracking-wider">
+                <tr className="border-t-2 border-app-border bg-app-bg/80">
+                  <td colSpan={5} className="px-5 py-3 text-xs font-bold text-app-text/50 uppercase tracking-wider">
                     {filtered.length} transaction{filtered.length !== 1 ? "s" : ""}
                     {filtered.length !== payments.length && ` (filtered from ${payments.length})`}
                   </td>
-                  <td className="px-5 py-3 text-right font-bold text-[#0F2044]">
+                  <td className="px-5 py-3 text-right font-bold text-app-text">
                     {fmt(filtered.reduce((s,p) => s+p.amount, 0))}
                   </td>
                   <td />
@@ -554,21 +554,21 @@ export default function Payments({ schoolCode, bursarName }) {
 
             {/* ── Student search ─────────────────────────────────────────── */}
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-[#0F2044]/50 mb-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-app-text/50 mb-2">
                 Student
               </label>
               {selectedStudent ? (
                 /* Selected student card */
-                <div className="flex items-center gap-3 p-4 bg-[#F7F5F0] rounded-2xl border border-[#0F2044]/10">
+                <div className="flex items-center gap-3 p-4 bg-app-bg rounded-2xl border border-app-border">
                   <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 ${avatarColor(selectedStudent.fullName)}`}>
                     {initials(selectedStudent.fullName)}
                   </div>
                   <div className="flex-1">
-                    <p className="font-bold text-[#0F2044] text-sm">{selectedStudent.fullName}</p>
-                    <p className="text-xs text-[#0F2044]/50 font-mono">{selectedStudent.studentCode} · {selectedStudent.className}</p>
+                    <p className="font-bold text-app-text text-sm">{selectedStudent.fullName}</p>
+                    <p className="text-xs text-app-text/50 font-mono">{selectedStudent.studentCode} · {selectedStudent.className}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] text-[#0F2044]/40 uppercase tracking-wider">Balance</p>
+                    <p className="text-[10px] text-app-text/40 uppercase tracking-wider">Balance</p>
                     <p className={`text-base font-bold ${selectedStudent.balance > 0 ? "text-red-600" : "text-emerald-600"}`}>
                       {fmt(selectedStudent.balance)}
                     </p>
@@ -576,7 +576,7 @@ export default function Payments({ schoolCode, bursarName }) {
                   <button
                     type="button"
                     onClick={() => setSelectedStudent(null)}
-                    className="text-[#0F2044]/30 hover:text-[#0F2044]/70 transition-colors ml-1"
+                    className="text-app-text/30 hover:text-app-text/70 transition-colors ml-1"
                     title="Change student"
                   >
                     {IC.close}
@@ -598,16 +598,16 @@ export default function Payments({ schoolCode, bursarName }) {
 
                   {/* Amount */}
                   <div className="col-span-2 sm:col-span-1 flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-[#0F2044]/50">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-app-text/50">
                       Amount (MWK) <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-[#0F2044]/35">MWK</span>
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-app-text/35">MWK</span>
                       <input
                         type="number" min="1" step="1"
                         value={form.amount}
                         onChange={e => { setForm(p => ({...p, amount: e.target.value})); setFormErrors(p => ({...p, amount: ""})); }}
-                        className={`w-full pl-12 pr-4 py-3 text-sm rounded-xl border outline-none transition-all ${formErrors.amount ? "border-red-300 bg-red-50" : "border-[#0F2044]/15 bg-[#F7F5F0]/60 focus:border-[#0F2044]/40 focus:bg-white"}`}
+                        className={`w-full pl-12 pr-4 py-3 text-sm rounded-xl border outline-none transition-all ${formErrors.amount ? "border-red-300 bg-red-50" : "border-app-border bg-app-bg/60 focus:border-[#0F2044]/40 focus:bg-app-surface"}`}
                         placeholder="0"
                         autoFocus
                       />
@@ -618,7 +618,7 @@ export default function Payments({ schoolCode, bursarName }) {
                       <button
                         type="button"
                         onClick={() => setForm(p => ({...p, amount: String(selectedStudent.balance)}))}
-                        className="text-xs text-[#0F2044]/50 hover:text-[#F4B400] transition-colors text-left"
+                        className="text-xs text-app-text/50 hover:text-[#F4B400] transition-colors text-left"
                       >
                         Pay full balance: {fmt(selectedStudent.balance)} →
                       </button>
@@ -627,13 +627,13 @@ export default function Payments({ schoolCode, bursarName }) {
 
                   {/* Method */}
                   <div className="col-span-2 sm:col-span-1 flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-[#0F2044]/50">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-app-text/50">
                       Method <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={form.method}
                       onChange={e => setForm(p => ({...p, method: e.target.value}))}
-                      className="w-full px-3.5 py-3 text-sm rounded-xl border border-[#0F2044]/15 bg-[#F7F5F0]/60 outline-none focus:border-[#0F2044]/40 focus:bg-white"
+                      className="w-full px-3.5 py-3 text-sm rounded-xl border border-app-border bg-app-bg/60 outline-none focus:border-[#0F2044]/40 focus:bg-app-surface"
                     >
                       {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
@@ -641,11 +641,11 @@ export default function Payments({ schoolCode, bursarName }) {
 
                   {/* Term */}
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-[#0F2044]/50">Term</label>
+                    <label className="text-xs font-semibold uppercase tracking-wider text-app-text/50">Term</label>
                     <select
                       value={form.term}
                       onChange={e => setForm(p => ({...p, term: e.target.value}))}
-                      className="w-full px-3.5 py-3 text-sm rounded-xl border border-[#0F2044]/15 bg-[#F7F5F0]/60 outline-none focus:border-[#0F2044]/40 focus:bg-white"
+                      className="w-full px-3.5 py-3 text-sm rounded-xl border border-app-border bg-app-bg/60 outline-none focus:border-[#0F2044]/40 focus:bg-app-surface"
                     >
                       {TERMS.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
@@ -653,36 +653,36 @@ export default function Payments({ schoolCode, bursarName }) {
 
                   {/* Date */}
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-[#0F2044]/50">Date</label>
+                    <label className="text-xs font-semibold uppercase tracking-wider text-app-text/50">Date</label>
                     <input
                       type="date"
                       value={form.date}
                       onChange={e => setForm(p => ({...p, date: e.target.value}))}
-                      className="w-full px-3.5 py-3 text-sm rounded-xl border border-[#0F2044]/15 bg-[#F7F5F0]/60 outline-none focus:border-[#0F2044]/40 focus:bg-white"
+                      className="w-full px-3.5 py-3 text-sm rounded-xl border border-app-border bg-app-bg/60 outline-none focus:border-[#0F2044]/40 focus:bg-app-surface"
                     />
                   </div>
 
                   {/* Reference */}
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-[#0F2044]/50">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-app-text/50">
                       Reference / Txn No.
                     </label>
                     <input
                       value={form.referenceNo}
                       onChange={e => setForm(p => ({...p, referenceNo: e.target.value}))}
                       placeholder="Optional"
-                      className="w-full px-3.5 py-3 text-sm rounded-xl border border-[#0F2044]/15 bg-[#F7F5F0]/60 outline-none focus:border-[#0F2044]/40 focus:bg-white"
+                      className="w-full px-3.5 py-3 text-sm rounded-xl border border-app-border bg-app-bg/60 outline-none focus:border-[#0F2044]/40 focus:bg-app-surface"
                     />
                   </div>
 
                   {/* Notes */}
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-[#0F2044]/50">Notes</label>
+                    <label className="text-xs font-semibold uppercase tracking-wider text-app-text/50">Notes</label>
                     <input
                       value={form.notes}
                       onChange={e => setForm(p => ({...p, notes: e.target.value}))}
                       placeholder="Optional note"
-                      className="w-full px-3.5 py-3 text-sm rounded-xl border border-[#0F2044]/15 bg-[#F7F5F0]/60 outline-none focus:border-[#0F2044]/40 focus:bg-white"
+                      className="w-full px-3.5 py-3 text-sm rounded-xl border border-app-border bg-app-bg/60 outline-none focus:border-[#0F2044]/40 focus:bg-app-surface"
                     />
                   </div>
                 </div>
@@ -692,7 +692,7 @@ export default function Payments({ schoolCode, bursarName }) {
                   <div className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm border ${
                     selectedStudent.balance - Number(form.amount) <= 0
                       ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                      : "bg-[#F7F5F0] border-[#0F2044]/10 text-[#0F2044]/70"
+                      : "bg-app-bg border-app-border text-app-text/70"
                   }`}>
                     <span>Balance after payment</span>
                     <div className="flex items-center gap-2">

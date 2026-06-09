@@ -46,36 +46,36 @@ export default function DisciplineModule() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-[#0F2044]" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h2 className="text-3xl font-bold text-app-text" style={{ fontFamily: "'Playfair Display', serif" }}>
             Discipline Management
           </h2>
-          <p className="text-[#0F2044]/60">Record and track student behavior cases</p>
+          <p className="text-app-text/60">Record and track student behavior cases</p>
         </div>
-        <button className="flex items-center gap-2 bg-[#0F2044] text-white px-6 py-3 rounded-2xl font-medium">
+        <button className="flex items-center gap-2 bg-app-primary text-white px-6 py-3 rounded-2xl font-medium">
           <Plus className="w-5 h-5" /> Log New Offense
         </button>
       </div>
 
-      <div className="bg-white rounded-3xl p-5 border border-[#0F2044]/8">
+      <div className="bg-app-surface rounded-3xl p-5 border border-app-border">
         <input
           type="text"
           placeholder="Search student or offense..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-5 py-3 bg-[#FAFAF8] border border-[#0F2044]/10 rounded-2xl focus:border-[#F4B400]"
+          className="w-full px-5 py-3 bg-[#FAFAF8] border border-app-border rounded-2xl focus:border-[#F4B400]"
         />
       </div>
 
-      <div className="bg-white rounded-3xl border border-[#0F2044]/8 overflow-hidden">
+      <div className="bg-app-surface rounded-3xl border border-app-border overflow-hidden">
         <table className="w-full">
-          <thead className="bg-[#F7F5F0]">
+          <thead className="bg-app-bg">
             <tr>
-              <th className="px-6 py-4 text-left text-xs font-bold tracking-widest text-[#0F2044]/60">DATE</th>
-              <th className="px-6 py-4 text-left text-xs font-bold tracking-widest text-[#0F2044]/60">STUDENT</th>
-              <th className="px-6 py-4 text-left text-xs font-bold tracking-widest text-[#0F2044]/60">CLASS</th>
-              <th className="px-6 py-4 text-left text-xs font-bold tracking-widest text-[#0F2044]/60">OFFENSE</th>
-              <th className="px-6 py-4 text-center text-xs font-bold tracking-widest text-[#0F2044]/60">SEVERITY</th>
-              <th className="px-6 py-4 text-left text-xs font-bold tracking-widest text-[#0F2044]/60">ACTION TAKEN</th>
+              <th className="px-6 py-4 text-left text-xs font-bold tracking-widest text-app-text/60">DATE</th>
+              <th className="px-6 py-4 text-left text-xs font-bold tracking-widest text-app-text/60">STUDENT</th>
+              <th className="px-6 py-4 text-left text-xs font-bold tracking-widest text-app-text/60">CLASS</th>
+              <th className="px-6 py-4 text-left text-xs font-bold tracking-widest text-app-text/60">OFFENSE</th>
+              <th className="px-6 py-4 text-center text-xs font-bold tracking-widest text-app-text/60">SEVERITY</th>
+              <th className="px-6 py-4 text-left text-xs font-bold tracking-widest text-app-text/60">ACTION TAKEN</th>
               <th className="px-6 py-4 text-center">ACTIONS</th>
             </tr>
           </thead>
@@ -94,9 +94,9 @@ export default function DisciplineModule() {
                     {record.severity}
                   </span>
                 </td>
-                <td className="px-6 py-5 text-sm text-[#0F2044]/70">{record.action}</td>
+                <td className="px-6 py-5 text-sm text-app-text/70">{record.action}</td>
                 <td className="px-6 py-5 text-center">
-                  <button className="p-2 hover:bg-[#F4B400]/10 text-[#F4B400] rounded-xl">
+                  <button className="p-2 hover:bg-app-warning/10 text-[#F4B400] rounded-xl">
                     <Eye className="w-4 h-4" />
                   </button>
                 </td>

@@ -1,24 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,300;1,9..144,700&family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap');
-
+/* Landing page — uses global design tokens; local layout overrides below */
 :root {
-  --bg:           #f0f4ff;
-  --bg-card:      #f7f9ff;
-  --dark:         #0f1629;
-  --dark-mid:     #1a2540;
-  --dark-soft:    #2a3a5c;
-  --accent:       #4f6ef7;
-  --accent-lt:    #7b96ff;
-  --accent-pale:  #edf0ff;
-  --teal:         #0ea5b0;
-  --teal-lt:      #22d3de;
-  --teal-pale:    #e0f9fa;
-  --font-display: 'Fraunces', Georgia, serif;
-  --font-body:    'Instrument Sans', 'Helvetica Neue', sans-serif;
-  --font-mono:    'DM Mono', monospace;
-  --radius-sm:    8px;
-  --radius-md:    12px;
-  --radius-lg:    18px;
-  --radius-xl:    28px;
   --vh: 1vh;
 }
 
@@ -30,7 +11,7 @@ html, body {
   width: 100%;
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
-  background: var(--dark);
+  background: var(--bg-primary);
 }
 
 a { text-decoration: none; color: inherit; }
@@ -40,7 +21,7 @@ a { text-decoration: none; color: inherit; }
   position: fixed;
   inset: 0;
   overflow: hidden;
-  background: var(--dark);
+  background: var(--bg-primary);
 }
 
 .slide {
@@ -262,7 +243,7 @@ a { text-decoration: none; color: inherit; }
 
 /* ── SLIDE 1: HERO ────────────────────────────────────── */
 #slide-hero {
-  background: var(--dark);
+  background: var(--bg-primary);
   position: relative;
   overflow: hidden;
 }
@@ -645,7 +626,7 @@ a { text-decoration: none; color: inherit; }
 
 /* ── SLIDE 4: CTA ─────────────────────────────────────── */
 #slide-cta {
-  background: var(--dark);
+  background: var(--bg-primary);
   position: relative; overflow: hidden;
 }
 
@@ -799,7 +780,7 @@ a { text-decoration: none; color: inherit; }
 }
 
 .pricing-card--accent {
-  background: var(--dark);
+  background: var(--bg-primary);
   border-color: rgba(79,110,247,0.3);
   box-shadow: 0 4px 32px rgba(79,110,247,0.12);
 }

@@ -15,30 +15,30 @@ function HomeworkCard({ homework, onViewDetails, onEdit, onRemindParents }) {
   const submissionRate = Math.round((homework.submitted / homework.totalStudents) * 100);
 
   return (
-    <div className="bg-white rounded-3xl border border-[#0F2044]/8 overflow-hidden hover:shadow-md transition-all">
-      <div className="px-6 py-5 border-b flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#F7F5F0]">
+    <div className="bg-app-surface rounded-3xl border border-app-border overflow-hidden hover:shadow-md transition-all">
+      <div className="px-6 py-5 border-b flex flex-col md:flex-row md:items-center justify-between gap-4 bg-app-bg">
         <div className="flex-1">
           <div className="flex items-center gap-3">
-            <div className="font-semibold text-xl text-[#0F2044]">{homework.title}</div>
-            <div className="px-3 py-1 text-xs font-medium bg-white rounded-2xl border border-[#0F2044]/20 flex items-center gap-1">
+            <div className="font-semibold text-xl text-app-text">{homework.title}</div>
+            <div className="px-3 py-1 text-xs font-medium bg-app-surface rounded-2xl border border-app-border flex items-center gap-1">
               <BookOpen className="w-3 h-3" />
               {homework.className} • {homework.subject}
             </div>
           </div>
-          <p className="text-sm text-[#0F2044]/70 mt-2 line-clamp-2">{homework.description}</p>
+          <p className="text-sm text-app-text/70 mt-2 line-clamp-2">{homework.description}</p>
         </div>
 
         <div className="flex items-center gap-8">
           <div>
-            <p className="text-xs text-[#0F2044]/60">DUE</p>
-            <div className={`flex items-center gap-1.5 font-medium ${daysLeft <= 2 ? 'text-red-600' : 'text-[#0F2044]'}`}>
+            <p className="text-xs text-app-text/60">DUE</p>
+            <div className={`flex items-center gap-1.5 font-medium ${daysLeft <= 2 ? 'text-red-600' : 'text-app-text'}`}>
               <Calendar className="w-4 h-4" />
               {new Date(homework.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
             </div>
           </div>
 
           <div>
-            <p className="text-xs text-[#0F2044]/60">SUBMITTED</p>
+            <p className="text-xs text-app-text/60">SUBMITTED</p>
             <div className="flex items-center gap-2">
               <div className="font-semibold text-lg">{homework.submitted}/{homework.totalStudents}</div>
               <div className="text-xs px-3 py-1 bg-green-100 text-green-700 rounded-2xl font-medium">
@@ -50,7 +50,7 @@ function HomeworkCard({ homework, onViewDetails, onEdit, onRemindParents }) {
       </div>
 
       <div className="p-6 flex items-center justify-between">
-        <div className="flex items-center gap-4 text-sm text-[#0F2044]/60">
+        <div className="flex items-center gap-4 text-sm text-app-text/60">
           <div className="flex items-center gap-1">
             <Clock className="w-4 h-4" />
             Assigned {new Date(homework.dateAssigned).toLocaleDateString('en-GB')}
@@ -66,14 +66,14 @@ function HomeworkCard({ homework, onViewDetails, onEdit, onRemindParents }) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => onViewDetails(homework)}
-            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium border border-[#0F2044]/20 hover:bg-[#F7F5F0] rounded-2xl transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium border border-app-border hover:bg-app-bg rounded-2xl transition-colors"
           >
             <Eye className="w-4 h-4" /> Details
           </button>
           
           <button
             onClick={() => onEdit(homework)}
-            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium border border-[#0F2044]/20 hover:bg-[#F7F5F0] rounded-2xl transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium border border-app-border hover:bg-app-bg rounded-2xl transition-colors"
           >
             <Edit2 className="w-4 h-4" /> Edit
           </button>
@@ -127,11 +127,11 @@ function NewHomeworkModal({ isOpen, onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-hidden">
+      <div className="bg-app-surface rounded-3xl max-w-lg w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-5 border-b flex items-center justify-between bg-[#F7F5F0]">
-          <h3 className="text-2xl font-semibold text-[#0F2044]">Assign New Homework</h3>
-          <button onClick={onClose} className="p-2 hover:bg-white rounded-2xl">
+        <div className="px-6 py-5 border-b flex items-center justify-between bg-app-bg">
+          <h3 className="text-2xl font-semibold text-app-text">Assign New Homework</h3>
+          <button onClick={onClose} className="p-2 hover:bg-app-surface rounded-2xl">
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -139,22 +139,22 @@ function NewHomeworkModal({ isOpen, onClose, onSave }) {
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-[#0F2044]/60 block mb-1">CLASS</label>
+              <label className="text-xs font-medium text-app-text/60 block mb-1">CLASS</label>
               <select
                 value={formData.className}
                 onChange={(e) => setFormData({ ...formData, className: e.target.value })}
-                className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-2xl focus:outline-none focus:border-[#0F2044]"
+                className="w-full px-4 py-3 border border-app-border rounded-2xl focus:outline-none focus:border-[#0F2044]"
               >
                 {classes.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
 
             <div>
-              <label className="text-xs font-medium text-[#0F2044]/60 block mb-1">SUBJECT</label>
+              <label className="text-xs font-medium text-app-text/60 block mb-1">SUBJECT</label>
               <select
                 value={formData.subject}
                 onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-2xl focus:outline-none focus:border-[#0F2044]"
+                className="w-full px-4 py-3 border border-app-border rounded-2xl focus:outline-none focus:border-[#0F2044]"
               >
                 {subjects.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -162,46 +162,46 @@ function NewHomeworkModal({ isOpen, onClose, onSave }) {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-[#0F2044]/60 block mb-1">HOMEWORK TITLE</label>
+            <label className="text-xs font-medium text-app-text/60 block mb-1">HOMEWORK TITLE</label>
             <input
               type="text"
               placeholder="e.g. Quadratic Equations Exercise"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-2xl focus:outline-none focus:border-[#0F2044]"
+              className="w-full px-4 py-3 border border-app-border rounded-2xl focus:outline-none focus:border-[#0F2044]"
               required
             />
           </div>
 
           <div>
-            <label className="text-xs font-medium text-[#0F2044]/60 block mb-1">DESCRIPTION / INSTRUCTIONS</label>
+            <label className="text-xs font-medium text-app-text/60 block mb-1">DESCRIPTION / INSTRUCTIONS</label>
             <textarea
               rows={4}
               placeholder="Detailed instructions, page numbers, MANEB-style requirements..."
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-3xl focus:outline-none focus:border-[#0F2044] resize-none"
+              className="w-full px-4 py-3 border border-app-border rounded-3xl focus:outline-none focus:border-[#0F2044] resize-none"
               required
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-[#0F2044]/60 block mb-1">DUE DATE</label>
+              <label className="text-xs font-medium text-app-text/60 block mb-1">DUE DATE</label>
               <input
                 type="date"
                 value={formData.dueDate}
                 onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-2xl focus:outline-none focus:border-[#0F2044]"
+                className="w-full px-4 py-3 border border-app-border rounded-2xl focus:outline-none focus:border-[#0F2044]"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-[#0F2044]/60 block mb-1">TOTAL STUDENTS</label>
+              <label className="text-xs font-medium text-app-text/60 block mb-1">TOTAL STUDENTS</label>
               <input
                 type="number"
                 value={formData.totalStudents}
                 onChange={(e) => setFormData({ ...formData, totalStudents: parseInt(e.target.value) })}
-                className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-2xl focus:outline-none focus:border-[#0F2044]"
+                className="w-full px-4 py-3 border border-app-border rounded-2xl focus:outline-none focus:border-[#0F2044]"
               />
             </div>
           </div>
@@ -210,13 +210,13 @@ function NewHomeworkModal({ isOpen, onClose, onSave }) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-4 text-sm font-medium border border-[#0F2044]/20 rounded-2xl hover:bg-[#F7F5F0]"
+              className="flex-1 py-4 text-sm font-medium border border-app-border rounded-2xl hover:bg-app-bg"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 py-4 bg-[#0F2044] text-white rounded-2xl hover:bg-[#1A2F5C] font-medium flex items-center justify-center gap-2"
+              className="flex-1 py-4 bg-app-primary text-white rounded-2xl hover:bg-[#1A2F5C] font-medium flex items-center justify-center gap-2"
             >
               <Save className="w-5 h-5" />
               Assign Homework
@@ -253,13 +253,13 @@ function SubmissionTable({ homework, submissions, onMarkSubmitted, onClose }) {
   };
 
   return (
-    <div className="bg-white rounded-3xl border border-[#0F2044]/8 p-6">
+    <div className="bg-app-surface rounded-3xl border border-app-border p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="font-semibold text-xl">{homework.title}</h3>
-          <p className="text-[#0F2044]/60">{homework.className} • {homework.subject}</p>
+          <p className="text-app-text/60">{homework.className} • {homework.subject}</p>
         </div>
-        <button onClick={onClose} className="text-[#0F2044]/50 hover:text-[#0F2044]">
+        <button onClick={onClose} className="text-app-text/50 hover:text-app-text">
           ✕
         </button>
       </div>
@@ -267,18 +267,18 @@ function SubmissionTable({ homework, submissions, onMarkSubmitted, onClose }) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[#0F2044]/10">
-              <th className="py-4 text-left font-medium text-[#0F2044]/60">ADMISSION NO.</th>
-              <th className="py-4 text-left font-medium text-[#0F2044]/60">STUDENT NAME</th>
-              <th className="py-4 text-center font-medium text-[#0F2044]/60">STATUS</th>
-              <th className="py-4 text-center font-medium text-[#0F2044]/60">SUBMITTED ON</th>
-              <th className="py-4 text-center font-medium text-[#0F2044]/60">ACTION</th>
+            <tr className="border-b border-app-border">
+              <th className="py-4 text-left font-medium text-app-text/60">ADMISSION NO.</th>
+              <th className="py-4 text-left font-medium text-app-text/60">STUDENT NAME</th>
+              <th className="py-4 text-center font-medium text-app-text/60">STATUS</th>
+              <th className="py-4 text-center font-medium text-app-text/60">SUBMITTED ON</th>
+              <th className="py-4 text-center font-medium text-app-text/60">ACTION</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {studentSubmissions.map(student => (
               <tr key={student.id} className="hover:bg-[#FAFAF8]">
-                <td className="py-5 font-mono text-[#0F2044]/70">{student.admissionNo}</td>
+                <td className="py-5 font-mono text-app-text/70">{student.admissionNo}</td>
                 <td className="py-5 font-medium">{student.studentName}</td>
                 <td className="py-5 text-center">
                   {student.submitted ? (
@@ -291,7 +291,7 @@ function SubmissionTable({ homework, submissions, onMarkSubmitted, onClose }) {
                     </span>
                   )}
                 </td>
-                <td className="py-5 text-center text-[#0F2044]/60">
+                <td className="py-5 text-center text-app-text/60">
                   {student.submittedDate || "—"}
                 </td>
                 <td className="py-5 text-center">
@@ -315,13 +315,13 @@ function SubmissionTable({ homework, submissions, onMarkSubmitted, onClose }) {
       <div className="mt-6 flex justify-end gap-3">
         <button
           onClick={onClose}
-          className="px-8 py-3 text-sm font-medium border border-[#0F2044]/20 rounded-2xl hover:bg-[#F7F5F0]"
+          className="px-8 py-3 text-sm font-medium border border-app-border rounded-2xl hover:bg-app-bg"
         >
           Close
         </button>
         <button
           onClick={() => alert("Submission report exported as PDF")}
-          className="px-8 py-3 bg-[#0F2044] text-white rounded-2xl text-sm font-medium flex items-center gap-2"
+          className="px-8 py-3 bg-app-primary text-white rounded-2xl text-sm font-medium flex items-center gap-2"
         >
           <Download className="w-4 h-4" /> Export Report
         </button>
@@ -406,15 +406,15 @@ export default function HomeworkModule() {
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-[#0F2044]" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h2 className="text-3xl font-bold text-app-text" style={{ fontFamily: "'Playfair Display', serif" }}>
             Homework &amp; Assignments
           </h2>
-          <p className="text-[#0F2044]/60">Mr. Martin Khumbata • Mathematics &amp; Physics Teacher</p>
+          <p className="text-app-text/60">Mr. Martin Khumbata • Mathematics &amp; Physics Teacher</p>
         </div>
 
         <button
           onClick={() => setShowNewModal(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-[#0F2044] hover:bg-[#1A2F5C] text-white rounded-2xl font-medium transition-colors"
+          className="flex items-center gap-2 px-6 py-3 bg-app-primary hover:bg-[#1A2F5C] text-white rounded-2xl font-medium transition-colors"
         >
           <Plus className="w-5 h-5" />
           Assign New Homework
@@ -422,7 +422,7 @@ export default function HomeworkModule() {
       </div>
 
       {/* TABS */}
-      <div className="bg-white rounded-3xl p-1 border border-[#0F2044]/8 inline-flex">
+      <div className="bg-app-surface rounded-3xl p-1 border border-app-border inline-flex">
         {[
           { id: "assigned", label: "Assigned", count: assignedHomework.length },
           { id: "overdue", label: "Overdue", count: overdueHomework.length },
@@ -433,13 +433,13 @@ export default function HomeworkModule() {
             onClick={() => setActiveTab(tab.id)}
             className={`px-7 py-3 text-sm font-medium rounded-2xl transition-all flex items-center gap-2 ${
               activeTab === tab.id 
-                ? "bg-[#0F2044] text-white shadow-md" 
-                : "hover:bg-[#FAFAF8] text-[#0F2044]/70"
+                ? "bg-app-primary text-white shadow-md" 
+                : "hover:bg-[#FAFAF8] text-app-text/70"
             }`}
           >
             {tab.label}
             {tab.count !== undefined && (
-              <span className={`text-xs px-2.5 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-white/20' : 'bg-[#0F2044]/10'}`}>
+              <span className={`text-xs px-2.5 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-app-surface/20' : 'bg-app-primary/10'}`}>
                 {tab.count}
               </span>
             )}
@@ -461,7 +461,7 @@ export default function HomeworkModule() {
               />
             ))
           ) : (
-            <div className="bg-white rounded-3xl py-20 text-center text-[#0F2044]/50">
+            <div className="bg-app-surface rounded-3xl py-20 text-center text-app-text/50">
               No homework assigned yet. Click “Assign New Homework” above.
             </div>
           )}
@@ -470,7 +470,7 @@ export default function HomeworkModule() {
 
       {/* OVERDUE TAB */}
       {activeTab === "overdue" && (
-        <div className="bg-white rounded-3xl border border-red-200 overflow-hidden">
+        <div className="bg-app-surface rounded-3xl border border-red-200 overflow-hidden">
           <div className="px-6 py-4 bg-red-50 border-b flex items-center justify-between">
             <div className="font-semibold flex items-center gap-2 text-red-700">
               <AlertCircle className="w-5 h-5" /> Overdue Assignments
@@ -493,16 +493,16 @@ export default function HomeworkModule() {
 
       {/* ALL SUBMISSIONS TAB */}
       {activeTab === "submissions" && (
-        <div className="bg-white rounded-3xl p-8 text-center">
-          <FileText className="w-12 h-12 mx-auto text-[#0F2044]/30 mb-4" />
+        <div className="bg-app-surface rounded-3xl p-8 text-center">
+          <FileText className="w-12 h-12 mx-auto text-app-text/30 mb-4" />
           <h3 className="font-semibold text-xl mb-2">All Submissions Overview</h3>
-          <p className="text-[#0F2044]/60 max-w-md mx-auto">
+          <p className="text-app-text/60 max-w-md mx-auto">
             This tab shows a combined view of all homework submissions across classes. 
             You can filter by class or student and export full reports.
           </p>
           <button 
             onClick={() => alert("Full submission report would open here in production")}
-            className="mt-8 px-8 py-3 bg-[#0F2044] text-white rounded-2xl font-medium"
+            className="mt-8 px-8 py-3 bg-app-primary text-white rounded-2xl font-medium"
           >
             View Complete Submission Dashboard
           </button>
@@ -510,7 +510,7 @@ export default function HomeworkModule() {
       )}
 
       {/* FOOTER NOTE */}
-      <div className="text-center text-xs text-[#0F2044]/50">
+      <div className="text-center text-xs text-app-text/50">
         Parents receive automatic push notifications and optional SMS when homework is assigned or becomes overdue.
         <br />
         All data is stored securely and follows MANEB record-keeping standards.

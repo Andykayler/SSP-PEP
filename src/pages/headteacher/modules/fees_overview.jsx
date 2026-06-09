@@ -87,16 +87,16 @@ export default function FeesOverview() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-[#0F2044]" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h2 className="text-3xl font-bold text-app-text" style={{ fontFamily: "'Playfair Display', serif" }}>
             Fee Tracking & Payments
           </h2>
-          <p className="text-[#0F2044]/60">Term 2 • 2026 • Lilongwe Secondary School</p>
+          <p className="text-app-text/60">Term 2 • 2026 • Lilongwe Secondary School</p>
         </div>
         <div className="flex gap-3">
-          <button className="flex items-center gap-3 bg-[#0F2044] text-white px-6 py-3.5 rounded-2xl hover:bg-[#1a2a5c]">
+          <button className="flex items-center gap-3 bg-app-primary text-white px-6 py-3.5 rounded-2xl hover:bg-[#1a2a5c]">
             <Send className="w-5 h-5" /> Send Reminders
           </button>
-          <button className="flex items-center gap-3 border border-[#0F2044]/20 px-6 py-3.5 rounded-2xl hover:bg-[#F7F5F0]">
+          <button className="flex items-center gap-3 border border-app-border px-6 py-3.5 rounded-2xl hover:bg-app-bg">
             <Download className="w-5 h-5" /> Export Statement
           </button>
         </div>
@@ -104,20 +104,20 @@ export default function FeesOverview() {
 
       {/* School Financial Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-3xl p-8 border border-[#0F2044]/8">
+        <div className="bg-app-surface rounded-3xl p-8 border border-app-border">
           <div className="flex justify-between">
             <div>
-              <p className="text-sm text-[#0F2044]/60">Total Due This Term</p>
-              <p className="text-4xl font-bold text-[#0F2044] mt-3">MK {totalDue.toLocaleString()}</p>
+              <p className="text-sm text-app-text/60">Total Due This Term</p>
+              <p className="text-4xl font-bold text-app-text mt-3">MK {totalDue.toLocaleString()}</p>
             </div>
             <DollarSign className="w-12 h-12 text-[#F4B400]" />
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl p-8 border border-[#0F2044]/8">
+        <div className="bg-app-surface rounded-3xl p-8 border border-app-border">
           <div className="flex justify-between">
             <div>
-              <p className="text-sm text-[#0F2044]/60">Total Collected</p>
+              <p className="text-sm text-app-text/60">Total Collected</p>
               <p className="text-4xl font-bold text-emerald-600 mt-3">MK {totalPaid.toLocaleString()}</p>
             </div>
             <CheckCircle className="w-12 h-12 text-emerald-600" />
@@ -125,10 +125,10 @@ export default function FeesOverview() {
           <p className="text-xs text-emerald-600 mt-4">Collection Rate: {Math.round((totalPaid / totalDue) * 100)}%</p>
         </div>
 
-        <div className="bg-white rounded-3xl p-8 border border-[#0F2044]/8">
+        <div className="bg-app-surface rounded-3xl p-8 border border-app-border">
           <div className="flex justify-between">
             <div>
-              <p className="text-sm text-[#0F2044]/60">Outstanding Balance</p>
+              <p className="text-sm text-app-text/60">Outstanding Balance</p>
               <p className="text-4xl font-bold text-red-600 mt-3">MK {totalBalance.toLocaleString()}</p>
             </div>
             <AlertTriangle className="w-12 h-12 text-red-600" />
@@ -136,8 +136,8 @@ export default function FeesOverview() {
           <p className="text-xs text-red-600 mt-4">{arrearsCount} students in arrears</p>
         </div>
 
-        <div className="bg-white rounded-3xl p-8 border border-[#0F2044]/8 flex flex-col justify-center">
-          <p className="text-sm text-[#0F2044]/60">Payment Methods Used</p>
+        <div className="bg-app-surface rounded-3xl p-8 border border-app-border flex flex-col justify-center">
+          <p className="text-sm text-app-text/60">Payment Methods Used</p>
           <div className="flex gap-6 mt-4">
             <div className="flex items-center gap-2">
               <CreditCard className="w-6 h-6 text-[#F4B400]" />
@@ -152,12 +152,12 @@ export default function FeesOverview() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-3xl p-6 border border-[#0F2044]/8 flex flex-col sm:flex-row gap-4">
+      <div className="bg-app-surface rounded-3xl p-6 border border-app-border flex flex-col sm:flex-row gap-4">
         <div className="flex-1 relative">
           <input
             type="text"
             placeholder="Search student name or admission number..."
-            className="w-full pl-6 pr-6 py-4 bg-[#F7F5F0] border border-[#0F2044]/10 rounded-2xl focus:outline-none"
+            className="w-full pl-6 pr-6 py-4 bg-app-bg border border-app-border rounded-2xl focus:outline-none"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -166,7 +166,7 @@ export default function FeesOverview() {
         <select 
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-6 py-4 bg-white border border-[#0F2044]/10 rounded-2xl focus:outline-none min-w-[180px]"
+          className="px-6 py-4 bg-app-surface border border-app-border rounded-2xl focus:outline-none min-w-[180px]"
         >
           <option value="All">All Students</option>
           <option value="Paid">Paid</option>
@@ -176,9 +176,9 @@ export default function FeesOverview() {
       </div>
 
       {/* Fees Table */}
-      <div className="bg-white rounded-3xl overflow-hidden border border-[#0F2044]/8">
+      <div className="bg-app-surface rounded-3xl overflow-hidden border border-app-border">
         <table className="w-full">
-          <thead className="bg-[#F7F5F0]">
+          <thead className="bg-app-bg">
             <tr>
               <th className="text-left p-6">Adm. No.</th>
               <th className="text-left p-6">Student Name</th>
@@ -194,7 +194,7 @@ export default function FeesOverview() {
           </thead>
           <tbody className="divide-y divide-[#0F2044]/5">
             {filteredFees.map((student) => (
-              <tr key={student.id} className="hover:bg-[#F7F5F0]/70 transition-colors">
+              <tr key={student.id} className="hover:bg-app-bg/70 transition-colors">
                 <td className="p-6 font-mono text-sm">{student.id}</td>
                 <td className="p-6 font-medium">{student.name}</td>
                 <td className="p-6">{student.form}</td>
@@ -210,7 +210,7 @@ export default function FeesOverview() {
                     MK {student.balance.toLocaleString()}
                   </span>
                 </td>
-                <td className="p-6 text-center text-sm text-[#0F2044]/70">{student.lastPayment}</td>
+                <td className="p-6 text-center text-sm text-app-text/70">{student.lastPayment}</td>
                 <td className="p-6 text-center text-sm">{student.paymentMethod}</td>
                 <td className="p-6 text-center">
                   <span className={`inline-block px-5 py-1 rounded-full text-xs font-medium
@@ -227,23 +227,23 @@ export default function FeesOverview() {
       </div>
 
       {/* Quick Actions for Bursar */}
-      <div className="bg-white rounded-3xl p-8 border border-[#0F2044]/8">
+      <div className="bg-app-surface rounded-3xl p-8 border border-app-border">
         <h3 className="font-semibold text-lg mb-6">Quick Bursar Actions</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <button className="p-8 border border-[#0F2044]/10 rounded-3xl hover:border-[#F4B400] hover:bg-[#F7F5F0] transition-all text-left">
+          <button className="p-8 border border-app-border rounded-3xl hover:border-[#F4B400] hover:bg-app-bg transition-all text-left">
             <CreditCard className="w-10 h-10 text-[#F4B400] mb-4" />
             <div className="font-medium">Record New Payment</div>
-            <div className="text-sm text-[#0F2044]/60 mt-1">Via Airtel Money, Mpamba or Bank</div>
+            <div className="text-sm text-app-text/60 mt-1">Via Airtel Money, Mpamba or Bank</div>
           </button>
-          <button className="p-8 border border-[#0F2044]/10 rounded-3xl hover:border-[#F4B400] hover:bg-[#F7F5F0] transition-all text-left">
+          <button className="p-8 border border-app-border rounded-3xl hover:border-[#F4B400] hover:bg-app-bg transition-all text-left">
             <Send className="w-10 h-10 text-red-600 mb-4" />
             <div className="font-medium">Send Bulk Reminders</div>
-            <div className="text-sm text-[#0F2044]/60 mt-1">To parents with arrears</div>
+            <div className="text-sm text-app-text/60 mt-1">To parents with arrears</div>
           </button>
-          <button className="p-8 border border-[#0F2044]/10 rounded-3xl hover:border-[#F4B400] hover:bg-[#F7F5F0] transition-all text-left">
-            <Download className="w-10 h-10 text-[#0F2044] mb-4" />
+          <button className="p-8 border border-app-border rounded-3xl hover:border-[#F4B400] hover:bg-app-bg transition-all text-left">
+            <Download className="w-10 h-10 text-app-text mb-4" />
             <div className="font-medium">Generate Financial Report</div>
-            <div className="text-sm text-[#0F2044]/60 mt-1">For Head Teacher & SMC</div>
+            <div className="text-sm text-app-text/60 mt-1">For Head Teacher & SMC</div>
           </button>
         </div>
       </div>

@@ -111,8 +111,8 @@ export default function AttendanceOverview({ schoolCode }) {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-[#0F2044]">Attendance Overview</h2>
-          <p className="text-[#0F2044]/60">School-wide attendance report</p>
+          <h2 className="text-2xl font-bold text-app-text">Attendance Overview</h2>
+          <p className="text-app-text/60">School-wide attendance report</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -120,11 +120,11 @@ export default function AttendanceOverview({ schoolCode }) {
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-4 py-2.5 border border-[#0F2044]/15 rounded-xl text-sm focus:border-[#0F2044]"
+            className="px-4 py-2.5 border border-app-border rounded-xl text-sm focus:border-[#0F2044]"
           />
           <button 
             onClick={fetchData} 
-            className="p-2.5 border border-[#0F2044]/15 rounded-xl hover:bg-[#F7F5F0] transition-colors"
+            className="p-2.5 border border-app-border rounded-xl hover:bg-app-bg transition-colors"
           >
             {IC.refresh}
           </button>
@@ -133,22 +133,22 @@ export default function AttendanceOverview({ schoolCode }) {
 
       {/* Overall Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white border border-[#0F2044]/8 rounded-2xl p-5">
-          <p className="text-xs uppercase tracking-wider text-[#0F2044]/50">Present Today</p>
+        <div className="bg-app-surface border border-app-border rounded-2xl p-5">
+          <p className="text-xs uppercase tracking-wider text-app-text/50">Present Today</p>
           <p className="text-4xl font-bold text-emerald-600 mt-1">{overallPresent}</p>
         </div>
-        <div className="bg-white border border-[#0F2044]/8 rounded-2xl p-5">
-          <p className="text-xs uppercase tracking-wider text-[#0F2044]/50">Attendance Rate</p>
-          <p className="text-4xl font-bold text-[#0F2044] mt-1">
+        <div className="bg-app-surface border border-app-border rounded-2xl p-5">
+          <p className="text-xs uppercase tracking-wider text-app-text/50">Attendance Rate</p>
+          <p className="text-4xl font-bold text-app-text mt-1">
             {totalStudents > 0 ? Math.round((overallPresent / totalStudents) * 100) : 0}%
           </p>
         </div>
       </div>
 
       {/* Class-wise Table */}
-      <div className="bg-white rounded-2xl border border-[#0F2044]/8 overflow-hidden">
-        <div className="px-6 py-4 bg-[#F7F5F0] border-b flex items-center justify-between">
-          <h3 className="font-semibold text-[#0F2044]">
+      <div className="bg-app-surface rounded-2xl border border-app-border overflow-hidden">
+        <div className="px-6 py-4 bg-app-bg border-b flex items-center justify-between">
+          <h3 className="font-semibold text-app-text">
             {new Date(selectedDate).toLocaleDateString('en-GB', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
           </h3>
         </div>
@@ -159,23 +159,23 @@ export default function AttendanceOverview({ schoolCode }) {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[#0F2044]/5">
-                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-[#0F2044]/50">Class</th>
-                <th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-[#0F2044]/50">Total Students</th>
+                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-app-text/50">Class</th>
+                <th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-app-text/50">Total Students</th>
                 <th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-emerald-600">Present</th>
                 <th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-amber-600">Late</th>
                 <th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-red-600">Absent</th>
-                <th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-[#0F2044]">Rate</th>
+                <th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-app-text">Rate</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#0F2044]/5">
               {classSummary.map(cls => (
-                <tr key={cls.id} className="hover:bg-[#F7F5F0]/60 transition-colors">
-                  <td className="px-6 py-4 font-medium text-[#0F2044]">{cls.name}</td>
+                <tr key={cls.id} className="hover:bg-app-bg/60 transition-colors">
+                  <td className="px-6 py-4 font-medium text-app-text">{cls.name}</td>
                   <td className="px-6 py-4 text-right text-sm">{cls.totalStudents}</td>
                   <td className="px-6 py-4 text-right text-emerald-600 font-medium">{cls.present}</td>
                   <td className="px-6 py-4 text-right text-amber-600 font-medium">{cls.late}</td>
                   <td className="px-6 py-4 text-right text-red-600 font-medium">{cls.absent}</td>
-                  <td className="px-6 py-4 text-right font-semibold text-[#0F2044]">
+                  <td className="px-6 py-4 text-right font-semibold text-app-text">
                     {cls.attendanceRate}%
                   </td>
                 </tr>

@@ -36,7 +36,7 @@ function getGradeInfo(score) {
 
 function GradeBadge({ score, small = false }) {
   const g = getGradeInfo(score);
-  if (!g) return <span className="text-[#0F2044]/30 text-xs">—</span>;
+  if (!g) return <span className="text-app-text/30 text-xs">—</span>;
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border font-bold
       ${small ? "text-[10px]" : "text-xs"} ${g.bg} ${g.color} ${g.border}`}>
@@ -46,7 +46,7 @@ function GradeBadge({ score, small = false }) {
 }
 
 function Spinner({ size = 20 }) {
-  return <Loader2 size={size} className="animate-spin text-[#0F2044]/40 inline-block" />;
+  return <Loader2 size={size} className="animate-spin text-app-text/40 inline-block" />;
 }
 
 function Toast({ message, type = "success", onClose }) {
@@ -91,9 +91,9 @@ function ScoreCell({ value, onCommit, disabled }) {
           onBlur={handleBlur}
           placeholder="—"
           className={`w-16 text-center rounded-xl border py-1.5 text-sm font-semibold outline-none transition-all
-            ${disabled ? "bg-[#F7F5F0] text-[#0F2044]/30 border-transparent cursor-not-allowed"
-            : editing ? "border-[#F4B400] bg-white shadow-sm text-[#0F2044]"
-            : g ? `${g.bg} ${g.color} ${g.border}` : "border-[#0F2044]/10 bg-white text-[#0F2044]/40"}
+            ${disabled ? "bg-app-bg text-app-text/30 border-transparent cursor-not-allowed"
+            : editing ? "border-[#F4B400] bg-app-surface shadow-sm text-app-text"
+            : g ? `${g.bg} ${g.color} ${g.border}` : "border-app-border bg-app-surface text-app-text/40"}
           `}
         />
         {!editing && g && (
@@ -313,8 +313,8 @@ export default function PerformanceModule({ userId, schoolCode }) {
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-[#0F2044]">Student Performance</h2>
-          <p className="text-sm text-[#0F2044]/55 mt-0.5">
+          <h2 className="text-2xl font-bold text-app-text">Student Performance</h2>
+          <p className="text-sm text-app-text/55 mt-0.5">
             {isLoading
               ? "Loading assignments…"
               : noAssignment
@@ -326,7 +326,7 @@ export default function PerformanceModule({ userId, schoolCode }) {
           <button
             onClick={fetchStudents}
             disabled={isLoading}
-            className="p-2.5 bg-white border border-[#0F2044]/10 rounded-xl hover:bg-[#F7F5F0] transition-colors text-[#0F2044]/60 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="p-2.5 bg-app-surface border border-app-border rounded-xl hover:bg-app-bg transition-colors text-app-text/60 disabled:opacity-40 disabled:cursor-not-allowed"
             title="Refresh"
           >
             <RefreshCw size={16} />
@@ -335,7 +335,7 @@ export default function PerformanceModule({ userId, schoolCode }) {
             <button
               onClick={saveAllMarks}
               disabled={saving}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#F4B400] text-[#0F2044] rounded-2xl hover:brightness-105 transition-all font-bold text-sm disabled:opacity-60"
+              className="flex items-center gap-2 px-5 py-2.5 bg-app-warning text-app-text rounded-2xl hover:brightness-105 transition-all font-bold text-sm disabled:opacity-60"
             >
               {saving ? <Spinner size={15} /> : <Save size={15} />}
               Save marks
@@ -361,35 +361,35 @@ export default function PerformanceModule({ userId, schoolCode }) {
       {/* ── Controls ── */}
       <div className="flex flex-wrap gap-3 items-end">
         <div>
-          <label className="text-[10px] font-bold tracking-widest text-[#0F2044]/45 block mb-1">CLASS</label>
+          <label className="text-[10px] font-bold tracking-widest text-app-text/45 block mb-1">CLASS</label>
           <select
             value={selectedClassId}
             onChange={e => { setSelectedClassId(e.target.value); setDirty(false); }}
             disabled={isLoading || classes.length === 0}
-            className="px-4 py-2.5 bg-white border border-[#0F2044]/12 rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044] font-medium disabled:opacity-50"
+            className="px-4 py-2.5 bg-app-surface border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text font-medium disabled:opacity-50"
           >
             {classes.length === 0 && <option value="">No classes</option>}
             {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
         <div>
-          <label className="text-[10px] font-bold tracking-widest text-[#0F2044]/45 block mb-1">TERM</label>
+          <label className="text-[10px] font-bold tracking-widest text-app-text/45 block mb-1">TERM</label>
           <select
             value={selectedTerm}
             onChange={e => setSelectedTerm(e.target.value)}
-            className="px-4 py-2.5 bg-white border border-[#0F2044]/12 rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044]"
+            className="px-4 py-2.5 bg-app-surface border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
           >
             {TERMS.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
         <div className="relative flex-1 min-w-[180px]">
-          <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#0F2044]/35" />
+          <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-app-text/35" />
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search students…"
-            className="w-full pl-9 pr-4 py-2.5 bg-white border border-[#0F2044]/10 rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/30 text-[#0F2044]"
+            className="w-full pl-9 pr-4 py-2.5 bg-app-surface border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/30 text-app-text"
           />
         </div>
         <div className="flex gap-1 ml-auto">
@@ -402,7 +402,7 @@ export default function PerformanceModule({ userId, schoolCode }) {
               key={id}
               onClick={() => setViewMode(id)}
               className={`flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold rounded-xl transition-all
-                ${viewMode === id ? "bg-[#0F2044] text-white" : "bg-white border border-[#0F2044]/10 text-[#0F2044]/60 hover:border-[#0F2044]/25"}`}
+                ${viewMode === id ? "bg-app-primary text-white" : "bg-app-surface border border-app-border text-app-text/60 hover:border-[#0F2044]/25"}`}
             >
               <Icon size={13} />{label}
             </button>
@@ -414,15 +414,15 @@ export default function PerformanceModule({ userId, schoolCode }) {
       {ranked.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: "Class average", value: classAvg !== null ? `${classAvg}%` : "—", sub: classAvg !== null ? getGradeInfo(classAvg)?.remark : "", color: "text-[#0F2044]" },
+            { label: "Class average", value: classAvg !== null ? `${classAvg}%` : "—", sub: classAvg !== null ? getGradeInfo(classAvg)?.remark : "", color: "text-app-text" },
             { label: "Distinctions (G1–G2)", value: topPass, sub: `≥70%`, color: "text-emerald-700" },
             { label: "Needs support (G8)", value: needsHelp, sub: "40–49%", color: "text-amber-600" },
             { label: "Failing (G9)", value: atRisk, sub: "<40%", color: "text-red-600" },
           ].map(c => (
-            <div key={c.label} className="bg-white rounded-2xl border border-[#0F2044]/8 p-4">
-              <p className="text-[11px] text-[#0F2044]/50 mb-1">{c.label}</p>
+            <div key={c.label} className="bg-app-surface rounded-2xl border border-app-border p-4">
+              <p className="text-[11px] text-app-text/50 mb-1">{c.label}</p>
               <p className={`text-2xl font-bold ${c.color}`}>{c.value}</p>
-              <p className="text-[10px] text-[#0F2044]/40 mt-0.5">{c.sub}</p>
+              <p className="text-[10px] text-app-text/40 mt-0.5">{c.sub}</p>
             </div>
           ))}
         </div>
@@ -430,7 +430,7 @@ export default function PerformanceModule({ userId, schoolCode }) {
 
       {/* ── MANEB scale reference ── */}
       <details className="group">
-        <summary className="text-[11px] text-[#0F2044]/45 cursor-pointer select-none hover:text-[#0F2044]/70 transition-colors flex items-center gap-1.5">
+        <summary className="text-[11px] text-app-text/45 cursor-pointer select-none hover:text-app-text/70 transition-colors flex items-center gap-1.5">
           <ChevronDown size={12} className="group-open:rotate-180 transition-transform" />
           MANEB Grade Scale Reference
         </summary>
@@ -445,17 +445,17 @@ export default function PerformanceModule({ userId, schoolCode }) {
       </details>
 
       {isLoading && (
-        <div className="bg-white rounded-2xl border border-[#0F2044]/8 py-16 flex flex-col items-center gap-3">
+        <div className="bg-app-surface rounded-2xl border border-app-border py-16 flex flex-col items-center gap-3">
           <Spinner size={28} />
-          <p className="text-sm text-[#0F2044]/40">Loading…</p>
+          <p className="text-sm text-app-text/40">Loading…</p>
         </div>
       )}
 
       {noStudents && !isLoading && (
-        <div className="bg-white rounded-2xl border border-[#0F2044]/8 py-16 text-center">
-          <Users size={28} className="mx-auto mb-3 text-[#0F2044]/20" />
-          <p className="text-sm text-[#0F2044]/40 font-medium">No students found in {selectedClass?.name || "this class"}</p>
-          <p className="text-xs text-[#0F2044]/30 mt-1">Students need to be enrolled in this class first.</p>
+        <div className="bg-app-surface rounded-2xl border border-app-border py-16 text-center">
+          <Users size={28} className="mx-auto mb-3 text-app-text/20" />
+          <p className="text-sm text-app-text/40 font-medium">No students found in {selectedClass?.name || "this class"}</p>
+          <p className="text-xs text-app-text/30 mt-1">Students need to be enrolled in this class first.</p>
         </div>
       )}
 
@@ -463,13 +463,13 @@ export default function PerformanceModule({ userId, schoolCode }) {
         <>
           {/* ════ MARKS VIEW ════ */}
           {viewMode === "marks" && (
-            <div className="bg-white rounded-2xl border border-[#0F2044]/8 overflow-hidden">
-              <div className="px-5 py-3.5 border-b border-[#0F2044]/8 flex items-center justify-between bg-[#F7F5F0]">
+            <div className="bg-app-surface rounded-2xl border border-app-border overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-app-border flex items-center justify-between bg-app-bg">
                 <div>
-                  <h3 className="font-semibold text-[#0F2044] text-sm">
+                  <h3 className="font-semibold text-app-text text-sm">
                     Enter / Edit CA Marks — {selectedClass?.name || ""} · {selectedTerm}
                   </h3>
-                  <p className="text-[10px] text-[#0F2044]/45 mt-0.5">
+                  <p className="text-[10px] text-app-text/45 mt-0.5">
                     Marks are out of 100. MANEB grade is auto-calculated per subject.
                   </p>
                 </div>
@@ -483,19 +483,19 @@ export default function PerformanceModule({ userId, schoolCode }) {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-[#0F2044]/8 bg-white">
-                      <th className="px-5 py-3 text-left text-[11px] font-bold tracking-wide text-[#0F2044]/50 sticky left-0 bg-white">
+                    <tr className="border-b border-app-border bg-app-surface">
+                      <th className="px-5 py-3 text-left text-[11px] font-bold tracking-wide text-app-text/50 sticky left-0 bg-app-surface">
                         STUDENT
                       </th>
                       {mySubjects.map(subj => (
-                        <th key={subj} className="px-3 py-3 text-center text-[11px] font-bold tracking-wide text-[#0F2044]/50 whitespace-nowrap">
+                        <th key={subj} className="px-3 py-3 text-center text-[11px] font-bold tracking-wide text-app-text/50 whitespace-nowrap">
                           {subj}
                         </th>
                       ))}
-                      <th className="px-3 py-3 text-center text-[11px] font-bold tracking-wide text-[#0F2044]/50">
+                      <th className="px-3 py-3 text-center text-[11px] font-bold tracking-wide text-app-text/50">
                         AVERAGE
                       </th>
-                      <th className="px-3 py-3 text-center text-[11px] font-bold tracking-wide text-[#0F2044]/50">
+                      <th className="px-3 py-3 text-center text-[11px] font-bold tracking-wide text-app-text/50">
                         RANK
                       </th>
                     </tr>
@@ -506,9 +506,9 @@ export default function PerformanceModule({ userId, schoolCode }) {
                       const avgGrade = getGradeInfo(avg);
                       return (
                         <tr key={student.id} className="hover:bg-[#FAFAF8] transition-colors">
-                          <td className="px-5 py-3 sticky left-0 bg-white">
-                            <p className="font-semibold text-[#0F2044] text-sm">{fullName(student)}</p>
-                            <p className="text-[10px] text-[#0F2044]/40">{student.studentCode || student.id}</p>
+                          <td className="px-5 py-3 sticky left-0 bg-app-surface">
+                            <p className="font-semibold text-app-text text-sm">{fullName(student)}</p>
+                            <p className="text-[10px] text-app-text/40">{student.studentCode || student.id}</p>
                           </td>
                           {mySubjects.map(subj => (
                             <ScoreCell
@@ -520,7 +520,7 @@ export default function PerformanceModule({ userId, schoolCode }) {
                           <td className="px-3 py-3 text-center">
                             {avg !== null ? (
                               <div className="flex flex-col items-center gap-0.5">
-                                <span className={`font-bold text-base ${avgGrade?.color || "text-[#0F2044]"}`}>
+                                <span className={`font-bold text-base ${avgGrade?.color || "text-app-text"}`}>
                                   {avg}%
                                 </span>
                                 {avgGrade && (
@@ -529,18 +529,18 @@ export default function PerformanceModule({ userId, schoolCode }) {
                                   </span>
                                 )}
                               </div>
-                            ) : <span className="text-[#0F2044]/25 text-xs">—</span>}
+                            ) : <span className="text-app-text/25 text-xs">—</span>}
                           </td>
                           <td className="px-3 py-3 text-center">
                             {student.rank ? (
                               <span className={`inline-flex items-center justify-center w-7 h-7 rounded-xl text-xs font-bold
-                                ${student.rank === 1 ? "bg-[#F4B400] text-[#0F2044]"
+                                ${student.rank === 1 ? "bg-app-warning text-app-text"
                                 : student.rank === 2 ? "bg-gray-200 text-gray-700"
                                 : student.rank === 3 ? "bg-amber-100 text-amber-700"
-                                : "bg-[#F7F5F0] text-[#0F2044]/50"}`}>
+                                : "bg-app-bg text-app-text/50"}`}>
                                 {student.rank}
                               </span>
-                            ) : <span className="text-[#0F2044]/20 text-xs">—</span>}
+                            ) : <span className="text-app-text/20 text-xs">—</span>}
                           </td>
                         </tr>
                       );
@@ -549,13 +549,13 @@ export default function PerformanceModule({ userId, schoolCode }) {
                 </table>
               </div>
 
-              <div className="px-5 py-3 border-t border-[#0F2044]/8 bg-[#F7F5F0] flex items-center justify-between">
-                <p className="text-[10px] text-[#0F2044]/45">
+              <div className="px-5 py-3 border-t border-app-border bg-app-bg flex items-center justify-between">
+                <p className="text-[10px] text-app-text/45">
                   {students.length} student{students.length !== 1 ? "s" : ""} · {mySubjects.length} subject{mySubjects.length !== 1 ? "s" : ""} · CA contributes 40% to final MSCE grade                </p>
                 <button
                   onClick={saveAllMarks}
                   disabled={!dirty || saving}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-[#F4B400] text-[#0F2044] text-xs font-bold rounded-xl
+                  className="flex items-center gap-1.5 px-4 py-2 bg-app-warning text-app-text text-xs font-bold rounded-xl
                     disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-105 transition-all"
                 >
                   {saving ? <Spinner size={13} /> : <Save size={13} />}
@@ -567,18 +567,18 @@ export default function PerformanceModule({ userId, schoolCode }) {
 
           {/* ════ RANKING VIEW ════ */}
           {viewMode === "ranking" && (
-            <div className="bg-white rounded-2xl border border-[#0F2044]/8 overflow-hidden">
-              <div className="px-5 py-4 border-b border-[#0F2044]/8 bg-[#F7F5F0]">
-                <h3 className="font-semibold text-[#0F2044] text-sm">
+            <div className="bg-app-surface rounded-2xl border border-app-border overflow-hidden">
+              <div className="px-5 py-4 border-b border-app-border bg-app-bg">
+                <h3 className="font-semibold text-app-text text-sm">
                   Class Ranking — {selectedClass?.name || ""} · {selectedTerm}
                 </h3>
-                <p className="text-[10px] text-[#0F2044]/45 mt-0.5">
+                <p className="text-[10px] text-app-text/45 mt-0.5">
                   Ranked by overall average across all taught subjects
                 </p>
               </div>
               <div className="p-4 space-y-2">
                 {ranked.length === 0 && (
-                  <p className="text-center text-sm text-[#0F2044]/40 py-10">
+                  <p className="text-center text-sm text-app-text/40 py-10">
                     No marks entered yet. Enter marks in the Marks view first.
                   </p>
                 )}
@@ -588,17 +588,17 @@ export default function PerformanceModule({ userId, schoolCode }) {
                     <div
                       key={student.id}
                       className={`flex items-center gap-4 p-4 rounded-2xl border transition-all
-                        ${student.rank <= 3 ? "border-[#F4B400]/30 bg-[#F4B400]/4" : "border-[#0F2044]/8 bg-white"}`}
+                        ${student.rank <= 3 ? "border-[#F4B400]/30 bg-app-warning/4" : "border-app-border bg-app-surface"}`}
                     >
                       <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm shrink-0
-                        ${student.rank === 1 ? "bg-[#F4B400] text-[#0F2044]"
+                        ${student.rank === 1 ? "bg-app-warning text-app-text"
                         : student.rank === 2 ? "bg-gray-300 text-gray-800"
                         : student.rank === 3 ? "bg-amber-200 text-amber-800"
-                        : "bg-[#F7F5F0] text-[#0F2044]/50"}`}>
+                        : "bg-app-bg text-app-text/50"}`}>
                         {student.rank}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-[#0F2044] text-sm truncate">{fullName(student)}</p>
+                        <p className="font-semibold text-app-text text-sm truncate">{fullName(student)}</p>
                         <div className="flex flex-wrap gap-1 mt-1">
                           {mySubjects.map(subj => {
                             const score = student.subjectMarks[subj];
@@ -613,7 +613,7 @@ export default function PerformanceModule({ userId, schoolCode }) {
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className={`text-xl font-bold ${g?.color || "text-[#0F2044]"}`}>
+                        <p className={`text-xl font-bold ${g?.color || "text-app-text"}`}>
                           {student.average}%
                         </p>
                         {g && (
@@ -633,8 +633,8 @@ export default function PerformanceModule({ userId, schoolCode }) {
           {viewMode === "analytics" && (
             <div className="space-y-4">
               {/* Grade distribution */}
-              <div className="bg-white rounded-2xl border border-[#0F2044]/8 p-5">
-                <h3 className="font-semibold text-[#0F2044] text-sm mb-4">Grade Distribution — {selectedClass?.name || ""}</h3>
+              <div className="bg-app-surface rounded-2xl border border-app-border p-5">
+                <h3 className="font-semibold text-app-text text-sm mb-4">Grade Distribution — {selectedClass?.name || ""}</h3>
                 <div className="space-y-2.5">
                   {MANEB_GRADES.map(g => {
                     const count = ranked.filter(s => {
@@ -647,14 +647,14 @@ export default function PerformanceModule({ userId, schoolCode }) {
                         <span className={`text-[10px] font-bold w-20 shrink-0 ${g.color}`}>
                           G{g.grade} {g.remark}
                         </span>
-                        <div className="flex-1 bg-[#F7F5F0] rounded-full h-2">
+                        <div className="flex-1 bg-app-bg rounded-full h-2">
                           <div
                             className={`h-2 rounded-full transition-all duration-500 ${g.bg.replace("bg-", "bg-").replace("-50", "-400").replace("-100", "-500")}`}
                             style={{ width: `${pct}%`, backgroundColor: g.grade <= 2 ? "#10b981" : g.grade <= 6 ? "#3b82f6" : g.grade <= 8 ? "#f59e0b" : "#ef4444" }}
                           />
                         </div>
-                        <span className="text-[11px] font-semibold text-[#0F2044]/60 w-12 text-right">
-                          {count} <span className="text-[#0F2044]/30">({pct}%)</span>
+                        <span className="text-[11px] font-semibold text-app-text/60 w-12 text-right">
+                          {count} <span className="text-app-text/30">({pct}%)</span>
                         </span>
                       </div>
                     );
@@ -664,8 +664,8 @@ export default function PerformanceModule({ userId, schoolCode }) {
 
               {/* Per-subject average */}
               {mySubjects.length > 0 && (
-                <div className="bg-white rounded-2xl border border-[#0F2044]/8 p-5">
-                  <h3 className="font-semibold text-[#0F2044] text-sm mb-4">Subject Averages</h3>
+                <div className="bg-app-surface rounded-2xl border border-app-border p-5">
+                  <h3 className="font-semibold text-app-text text-sm mb-4">Subject Averages</h3>
                   <div className="space-y-3">
                     {mySubjects.map(subj => {
                       const scores = students
@@ -678,8 +678,8 @@ export default function PerformanceModule({ userId, schoolCode }) {
                       const g = getGradeInfo(avg);
                       return (
                         <div key={subj} className="flex items-center gap-3">
-                          <span className="text-xs font-medium text-[#0F2044]/70 w-32 shrink-0 truncate">{subj}</span>
-                          <div className="flex-1 bg-[#F7F5F0] rounded-full h-2.5">
+                          <span className="text-xs font-medium text-app-text/70 w-32 shrink-0 truncate">{subj}</span>
+                          <div className="flex-1 bg-app-bg rounded-full h-2.5">
                             {avg !== null && (
                               <div
                                 className="h-2.5 rounded-full transition-all duration-700"
@@ -692,11 +692,11 @@ export default function PerformanceModule({ userId, schoolCode }) {
                           </div>
                           {avg !== null ? (
                             <div className="flex items-center gap-1.5 shrink-0">
-                              <span className={`text-sm font-bold ${g?.color || "text-[#0F2044]"}`}>{avg}%</span>
+                              <span className={`text-sm font-bold ${g?.color || "text-app-text"}`}>{avg}%</span>
                               {g && <span className={`text-[9px] font-semibold ${g.color}`}>G{g.grade}</span>}
                             </div>
                           ) : (
-                            <span className="text-xs text-[#0F2044]/30 shrink-0">No data</span>
+                            <span className="text-xs text-app-text/30 shrink-0">No data</span>
                           )}
                         </div>
                       );
@@ -721,9 +721,9 @@ export default function PerformanceModule({ userId, schoolCode }) {
                           return sc !== null && sc !== undefined && Number(sc) < 50;
                         });
                       return (
-                        <div key={s.id} className="flex items-center justify-between bg-white border border-amber-200 rounded-xl px-4 py-2.5">
+                        <div key={s.id} className="flex items-center justify-between bg-app-surface border border-amber-200 rounded-xl px-4 py-2.5">
                           <div>
-                            <p className="font-semibold text-[#0F2044] text-sm">{fullName(s)}</p>
+                            <p className="font-semibold text-app-text text-sm">{fullName(s)}</p>
                             {weakSubjects.length > 0 && (
                               <p className="text-[10px] text-amber-700 mt-0.5">
                                 Struggling: {weakSubjects.join(", ")}

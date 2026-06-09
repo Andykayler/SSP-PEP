@@ -28,8 +28,8 @@ const Spinner = () => (
 const Modal = ({ title, onClose, children, wide }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 overflow-y-auto"
     style={{ backgroundColor: "rgba(15,32,68,0.45)", backdropFilter: "blur(3px)" }}>
-    <div className={`bg-white rounded-2xl shadow-2xl w-full ${wide ? "max-w-2xl" : "max-w-md"} overflow-hidden my-auto`}>
-      <div className="bg-[#0F2044] px-6 py-4 flex items-center justify-between">
+    <div className={`bg-app-surface rounded-2xl shadow-2xl w-full ${wide ? "max-w-2xl" : "max-w-md"} overflow-hidden my-auto`}>
+      <div className="bg-app-primary px-6 py-4 flex items-center justify-between">
         <h3 className="text-white font-semibold text-base">{title}</h3>
         <button onClick={onClose} className="text-white/60 hover:text-white transition-colors">{IC.close}</button>
       </div>
@@ -40,10 +40,10 @@ const Modal = ({ title, onClose, children, wide }) => (
 
 const Input = ({ label, required, error, prefix, ...props }) => (
   <div className="flex flex-col gap-1.5">
-    {label && <label className="text-xs font-semibold text-[#0F2044]/60 uppercase tracking-wider">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>}
+    {label && <label className="text-xs font-semibold text-app-text/60 uppercase tracking-wider">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>}
     <div className="relative">
-      {prefix && <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#0F2044]/40">{prefix}</span>}
-      <input {...props} className={`w-full ${prefix ? "pl-10" : "px-3.5"} pr-3.5 py-2.5 text-sm rounded-xl border outline-none transition-all ${error ? "border-red-300 bg-red-50" : "border-[#0F2044]/15 bg-[#F7F5F0]/60 focus:border-[#0F2044]/40 focus:bg-white"}`} />
+      {prefix && <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-app-text/40">{prefix}</span>}
+      <input {...props} className={`w-full ${prefix ? "pl-10" : "px-3.5"} pr-3.5 py-2.5 text-sm rounded-xl border outline-none transition-all ${error ? "border-red-300 bg-red-50" : "border-app-border bg-app-bg/60 focus:border-[#0F2044]/40 focus:bg-app-surface"}`} />
     </div>
     {error && <p className="text-xs text-red-600">{error}</p>}
   </div>
@@ -51,8 +51,8 @@ const Input = ({ label, required, error, prefix, ...props }) => (
 
 const Select = ({ label, required, error, children, ...props }) => (
   <div className="flex flex-col gap-1.5">
-    {label && <label className="text-xs font-semibold text-[#0F2044]/60 uppercase tracking-wider">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>}
-    <select {...props} className={`w-full px-3.5 py-2.5 text-sm rounded-xl border outline-none transition-all appearance-none ${error ? "border-red-300 bg-red-50" : "border-[#0F2044]/15 bg-[#F7F5F0]/60 focus:border-[#0F2044]/40 focus:bg-white"}`}>
+    {label && <label className="text-xs font-semibold text-app-text/60 uppercase tracking-wider">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>}
+    <select {...props} className={`w-full px-3.5 py-2.5 text-sm rounded-xl border outline-none transition-all appearance-none ${error ? "border-red-300 bg-red-50" : "border-app-border bg-app-bg/60 focus:border-[#0F2044]/40 focus:bg-app-surface"}`}>
       {children}
     </select>
     {error && <p className="text-xs text-red-600">{error}</p>}
@@ -63,9 +63,9 @@ const Btn = ({ children, variant = "primary", size = "md", loading, className = 
   const base = "inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all disabled:opacity-50";
   const sizes = { sm: "px-3 py-1.5 text-xs", md: "px-4 py-2.5 text-sm", lg: "px-6 py-3 text-sm" };
   const variants = {
-    primary: "bg-[#0F2044] text-white hover:bg-[#0F2044]/90",
-    gold:    "bg-[#F4B400] text-[#0F2044] hover:brightness-105",
-    ghost:   "border border-[#0F2044]/15 text-[#0F2044]/70 hover:bg-[#0F2044]/5",
+    primary: "bg-app-primary text-white hover:bg-app-primary/90",
+    gold:    "bg-app-warning text-app-text hover:brightness-105",
+    ghost:   "border border-app-border text-app-text/70 hover:bg-app-primary/5",
     danger:  "bg-red-600 text-white hover:bg-red-700",
   };
   return <button {...props} disabled={loading || props.disabled} className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}>{loading ? <Spinner /> : children}</button>;
@@ -275,9 +275,9 @@ export default function FeeStructure({ schoolCode, schoolName }) {
           {ACADEMIC_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
         </Select>
 
-        <div className="col-span-2 flex items-center gap-3 px-3.5 py-2.5 bg-[#F7F5F0]/60 border border-[#0F2044]/15 rounded-xl">
+        <div className="col-span-2 flex items-center gap-3 px-3.5 py-2.5 bg-app-bg/60 border border-app-border rounded-xl">
           <input type="checkbox" id="mandatory" checked={form.mandatory} onChange={e => setForm(p => ({ ...p, mandatory: e.target.checked }))} className="w-4 h-4 accent-[#0F2044]" />
-          <label htmlFor="mandatory" className="text-sm text-[#0F2044]/70 cursor-pointer">Mandatory fee (required for all students in this class)</label>
+          <label htmlFor="mandatory" className="text-sm text-app-text/70 cursor-pointer">Mandatory fee (required for all students in this class)</label>
         </div>
 
         <div className="col-span-2">
@@ -298,16 +298,16 @@ export default function FeeStructure({ schoolCode, schoolName }) {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-[#0F2044]">Fee Structures</h2>
-          <p className="text-sm text-[#0F2044]/50 mt-0.5">Define fee templates based on classes created in School Settings</p>
+          <h2 className="text-xl font-bold text-app-text">Fee Structures</h2>
+          <p className="text-sm text-app-text/50 mt-0.5">Define fee templates based on classes created in School Settings</p>
         </div>
 
         <div className="flex gap-3 flex-wrap">
-          <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className="px-3.5 py-2.5 text-sm rounded-xl border border-[#0F2044]/10 bg-white outline-none focus:border-[#0F2044]/30 appearance-none">
+          <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className="px-3.5 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none focus:border-[#0F2044]/30 appearance-none">
             {ACADEMIC_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
 
-          <select value={selectedClassFilter} onChange={e => setSelectedClassFilter(e.target.value)} className="px-3.5 py-2.5 text-sm rounded-xl border border-[#0F2044]/10 bg-white outline-none focus:border-[#0F2044]/30 appearance-none">
+          <select value={selectedClassFilter} onChange={e => setSelectedClassFilter(e.target.value)} className="px-3.5 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none focus:border-[#0F2044]/30 appearance-none">
             <option value="all">All Classes</option>
             {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
@@ -329,61 +329,61 @@ export default function FeeStructure({ schoolCode, schoolName }) {
       {totalByClass.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {totalByClass.map(({ cls, total, count }) => (
-            <div key={cls} className="bg-white rounded-2xl border border-[#0F2044]/8 p-4">
-              <p className="text-xs font-bold text-[#0F2044]/40 uppercase tracking-wider mb-1">{cls}</p>
-              <p className="text-lg font-bold text-[#0F2044]">{fmt(total)}</p>
-              <p className="text-xs text-[#0F2044]/40">{count} fee{count !== 1 ? "s" : ""}</p>
+            <div key={cls} className="bg-app-surface rounded-2xl border border-app-border p-4">
+              <p className="text-xs font-bold text-app-text/40 uppercase tracking-wider mb-1">{cls}</p>
+              <p className="text-lg font-bold text-app-text">{fmt(total)}</p>
+              <p className="text-xs text-app-text/40">{count} fee{count !== 1 ? "s" : ""}</p>
             </div>
           ))}
         </div>
       )}
 
       {loading ? (
-        <div className="bg-white rounded-2xl border border-[#0F2044]/8 p-12 flex justify-center"><Spinner /></div>
+        <div className="bg-app-surface rounded-2xl border border-app-border p-12 flex justify-center"><Spinner /></div>
       ) : Object.keys(grouped).length === 0 ? (
-        <div className="bg-white rounded-2xl border border-[#0F2044]/8 p-12 text-center">
-          <div className="w-14 h-14 bg-[#0F2044]/5 rounded-2xl flex items-center justify-center mx-auto mb-4 text-[#0F2044]/30">{IC.fees}</div>
-          <p className="font-semibold text-[#0F2044] mb-1">No fee structures found</p>
-          <p className="text-sm text-[#0F2044]/50 mb-4">Create fee templates for your classes</p>
+        <div className="bg-app-surface rounded-2xl border border-app-border p-12 text-center">
+          <div className="w-14 h-14 bg-app-primary/5 rounded-2xl flex items-center justify-center mx-auto mb-4 text-app-text/30">{IC.fees}</div>
+          <p className="font-semibold text-app-text mb-1">No fee structures found</p>
+          <p className="text-sm text-app-text/50 mb-4">Create fee templates for your classes</p>
           <Btn onClick={() => setShowAdd(true)} variant="gold">{IC.plus} Add First Fee</Btn>
         </div>
       ) : (
         <div className="space-y-6">
           {Object.entries(grouped).map(([className, fees]) => (
-            <div key={className} className="bg-white rounded-2xl border border-[#0F2044]/8 overflow-hidden">
-              <div className="px-5 py-4 bg-[#F7F5F0] border-b flex items-center justify-between">
-                <div className="font-semibold text-[#0F2044]">{className}</div>
-                <div className="text-sm text-[#0F2044]/50">
-                  {fees.length} fees • Total: <span className="font-semibold text-[#0F2044]">{fmt(fees.reduce((sum, f) => sum + (f.amount || 0), 0))}</span>
+            <div key={className} className="bg-app-surface rounded-2xl border border-app-border overflow-hidden">
+              <div className="px-5 py-4 bg-app-bg border-b flex items-center justify-between">
+                <div className="font-semibold text-app-text">{className}</div>
+                <div className="text-sm text-app-text/50">
+                  {fees.length} fees • Total: <span className="font-semibold text-app-text">{fmt(fees.reduce((sum, f) => sum + (f.amount || 0), 0))}</span>
                 </div>
               </div>
 
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[#0F2044]/5">
-                    <th className="px-5 py-3 text-left text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40">Fee Name</th>
-                    <th className="px-5 py-3 text-left text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40 hidden sm:table-cell">Category</th>
-                    <th className="px-5 py-3 text-left text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40 hidden md:table-cell">Term</th>
-                    <th className="px-5 py-3 text-right text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40">Amount</th>
-                    <th className="px-5 py-3 text-right text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40">Actions</th>
+                    <th className="px-5 py-3 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40">Fee Name</th>
+                    <th className="px-5 py-3 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden sm:table-cell">Category</th>
+                    <th className="px-5 py-3 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden md:table-cell">Term</th>
+                    <th className="px-5 py-3 text-right text-[10px] font-bold tracking-widest uppercase text-app-text/40">Amount</th>
+                    <th className="px-5 py-3 text-right text-[10px] font-bold tracking-widest uppercase text-app-text/40">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#0F2044]/5">
                   {fees.map(fee => (
-                    <tr key={fee.id} className="hover:bg-[#F7F5F0]/60 transition-colors">
+                    <tr key={fee.id} className="hover:bg-app-bg/60 transition-colors">
                       <td className="px-5 py-4">
-                        <div className="font-medium text-[#0F2044]">{fee.name}</div>
-                        {fee.description && <div className="text-xs text-[#0F2044]/50 mt-0.5">{fee.description}</div>}
+                        <div className="font-medium text-app-text">{fee.name}</div>
+                        {fee.description && <div className="text-xs text-app-text/50 mt-0.5">{fee.description}</div>}
                         {fee.mandatory && <span className="inline-block mt-1 text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">Mandatory</span>}
                       </td>
                       <td className="px-5 py-4 hidden sm:table-cell">
-                        <span className="text-xs px-2.5 py-1 bg-[#0F2044]/5 rounded-lg">{fee.category}</span>
+                        <span className="text-xs px-2.5 py-1 bg-app-primary/5 rounded-lg">{fee.category}</span>
                       </td>
-                      <td className="px-5 py-4 text-xs text-[#0F2044]/60 hidden md:table-cell">{fee.term}</td>
-                      <td className="px-5 py-4 text-right font-semibold text-[#0F2044]">{fmt(fee.amount)}</td>
+                      <td className="px-5 py-4 text-xs text-app-text/60 hidden md:table-cell">{fee.term}</td>
+                      <td className="px-5 py-4 text-right font-semibold text-app-text">{fmt(fee.amount)}</td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex gap-1 justify-end">
-                          <button onClick={() => openEdit(fee)} className="p-2 hover:bg-[#0F2044]/5 rounded-lg transition-colors" title="Edit">{IC.edit}</button>
+                          <button onClick={() => openEdit(fee)} className="p-2 hover:bg-app-primary/5 rounded-lg transition-colors" title="Edit">{IC.edit}</button>
                           <button onClick={() => setShowDelete(fee)} className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors" title="Delete">{IC.trash}</button>
                         </div>
                       </td>

@@ -12,7 +12,7 @@ import {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function Spinner({ size = 20 }) {
-  return <Loader2 size={size} className="animate-spin text-[#0F2044]/40 inline-block" />;
+  return <Loader2 size={size} className="animate-spin text-app-text/40 inline-block" />;
 }
 
 function fullName(s) {
@@ -318,12 +318,12 @@ export default function AttendanceModule({ userId, schoolCode }) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2
-            className="text-3xl font-bold text-[#0F2044]"
+            className="text-3xl font-bold text-app-text"
             style={{ fontFamily: "'Playfair Display', serif" }}
           >
             Take Attendance
           </h2>
-          <p className="text-[#0F2044]/60 mt-1">
+          <p className="text-app-text/60 mt-1">
             {isLoading
               ? "Loading…"
               : noAssignment
@@ -340,7 +340,7 @@ export default function AttendanceModule({ userId, schoolCode }) {
               fetchStudents();
             }}
             disabled={isLoading}
-            className="p-2.5 bg-white border border-[#0F2044]/10 rounded-xl hover:bg-[#F7F5F0] transition-colors text-[#0F2044]/60 disabled:opacity-40"
+            className="p-2.5 bg-app-surface border border-app-border rounded-xl hover:bg-app-bg transition-colors text-app-text/60 disabled:opacity-40"
             title="Refresh"
           >
             <RefreshCw size={16} />
@@ -348,14 +348,14 @@ export default function AttendanceModule({ userId, schoolCode }) {
           <button
             onClick={handleExport}
             disabled={filtered.length === 0 || isLoading}
-            className="flex items-center gap-2 px-4 py-2.5 border border-[#0F2044]/20 hover:border-[#0F2044] rounded-2xl text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-[#0F2044]"
+            className="flex items-center gap-2 px-4 py-2.5 border border-app-border hover:border-[#0F2044] rounded-2xl text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-app-text"
           >
             <Download size={15} /> Export
           </button>
           <button
             onClick={handleSave}
             disabled={saving || isLoading || students.length === 0}
-            className="flex items-center gap-2 bg-[#0F2044] hover:bg-black text-white px-6 py-2.5 rounded-2xl font-medium disabled:opacity-60 transition-all text-sm"
+            className="flex items-center gap-2 bg-app-primary hover:bg-black text-white px-6 py-2.5 rounded-2xl font-medium disabled:opacity-60 transition-all text-sm"
           >
             {saving ? <Spinner size={16} /> : <Save size={16} />}
             {saving ? "Saving…" : "Save Attendance"}
@@ -401,7 +401,7 @@ export default function AttendanceModule({ userId, schoolCode }) {
             { label: "Present",  value: presentCount,  Icon: CheckCircle, color: "text-emerald-600", cardBg: "bg-emerald-50 border-emerald-100" },
             { label: "Absent",   value: absentCount,   Icon: XCircle,     color: "text-red-600",     cardBg: "bg-red-50 border-red-100" },
             { label: "Late",     value: lateCount,     Icon: Clock,       color: "text-amber-500",   cardBg: "bg-amber-50 border-amber-100" },
-            { label: "Total",    value: students.length, Icon: Users,     color: "text-[#0F2044]",   cardBg: "bg-white border-[#0F2044]/8" },
+            { label: "Total",    value: students.length, Icon: Users,     color: "text-app-text",   cardBg: "bg-app-surface border-app-border" },
           ].map(({ label, value, Icon, color, cardBg }) => (
             <div key={label} className={`rounded-3xl p-5 border ${cardBg}`}>
               <div className="flex items-center gap-3">
@@ -410,7 +410,7 @@ export default function AttendanceModule({ userId, schoolCode }) {
                   <p className={`text-2xl font-bold ${color}`}>
                     {isLoading ? <Spinner size={18} /> : value}
                   </p>
-                  <p className="text-xs text-[#0F2044]/50">{label}</p>
+                  <p className="text-xs text-app-text/50">{label}</p>
                 </div>
               </div>
             </div>
@@ -420,10 +420,10 @@ export default function AttendanceModule({ userId, schoolCode }) {
 
       {/* ── Filters ──────────────────────────────────────────────────────────── */}
       {!noAssignment && (
-        <div className="bg-white rounded-3xl p-5 border border-[#0F2044]/8 flex flex-col md:flex-row gap-4 items-end">
+        <div className="bg-app-surface rounded-3xl p-5 border border-app-border flex flex-col md:flex-row gap-4 items-end">
           {/* Class selector */}
           <div className="flex-1">
-            <label className="block text-[10px] font-bold tracking-widest text-[#0F2044]/50 mb-1.5">CLASS</label>
+            <label className="block text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5">CLASS</label>
             <div className="relative">
               <select
                 value={filterClassId}
@@ -432,20 +432,20 @@ export default function AttendanceModule({ userId, schoolCode }) {
                   setSaveStatus("");
                 }}
                 disabled={isLoading || classes.length === 0}
-                className="w-full appearance-none pl-4 pr-10 py-3 bg-white border border-[#0F2044]/15 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044] disabled:opacity-50"
+                className="w-full appearance-none pl-4 pr-10 py-3 bg-app-surface border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text disabled:opacity-50"
               >
                 {classes.length === 0 && <option value="">No classes</option>}
                 {classes.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0F2044]/40 pointer-events-none" />
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
             </div>
           </div>
 
           {/* Date picker */}
           <div className="flex-1">
-            <label className="block text-[10px] font-bold tracking-widest text-[#0F2044]/50 mb-1.5">DATE</label>
+            <label className="block text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5">DATE</label>
             <input
               type="date"
               value={selectedDate}
@@ -453,21 +453,21 @@ export default function AttendanceModule({ userId, schoolCode }) {
                 setSelectedDate(e.target.value);
                 setSaveStatus("");
               }}
-              className="w-full px-4 py-3 border border-[#0F2044]/15 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044]"
+              className="w-full px-4 py-3 border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
             />
           </div>
 
           {/* Search */}
           <div className="flex-1">
-            <label className="block text-[10px] font-bold tracking-widest text-[#0F2044]/50 mb-1.5">SEARCH</label>
+            <label className="block text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5">SEARCH</label>
             <div className="relative">
-              <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#0F2044]/40" />
+              <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-app-text/40" />
               <input
                 type="text"
                 placeholder="Name or student code…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-[#FAFAF8] border border-[#0F2044]/10 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/30"
+                className="w-full pl-10 pr-4 py-3 bg-[#FAFAF8] border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/30"
               />
             </div>
           </div>
@@ -493,14 +493,14 @@ export default function AttendanceModule({ userId, schoolCode }) {
       )}
 
       {/* ── Attendance table ─────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-3xl border border-[#0F2044]/8 overflow-hidden">
+      <div className="bg-app-surface rounded-3xl border border-app-border overflow-hidden">
 
         {/* Table header bar */}
-        <div className="px-6 py-4 bg-[#F7F5F0] border-b border-[#0F2044]/8 flex justify-between items-center">
-          <div className="font-semibold text-[#0F2044] text-sm">
+        <div className="px-6 py-4 bg-app-bg border-b border-app-border flex justify-between items-center">
+          <div className="font-semibold text-app-text text-sm">
             {selectedClass ? `${selectedClass.name} · Roll Call` : "Roll Call"}
           </div>
-          <div className="text-xs text-[#0F2044]/50">
+          <div className="text-xs text-app-text/50">
             {isLoading
               ? "Loading…"
               : unmarkedCount > 0
@@ -512,14 +512,14 @@ export default function AttendanceModule({ userId, schoolCode }) {
         </div>
 
         {isLoading ? (
-          <div className="py-24 flex flex-col items-center gap-3 text-[#0F2044]/40">
+          <div className="py-24 flex flex-col items-center gap-3 text-app-text/40">
             <Spinner size={28} />
             <p className="text-sm">Loading attendance…</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="py-24 flex flex-col items-center gap-3 text-[#0F2044]/30">
+          <div className="py-24 flex flex-col items-center gap-3 text-app-text/30">
             <Users size={36} />
-            <p className="text-sm font-medium text-[#0F2044]/40">
+            <p className="text-sm font-medium text-app-text/40">
               {students.length === 0
                 ? `No students enrolled in ${selectedClass?.name || "this class"} yet.`
                 : "No students match your search."}
@@ -527,7 +527,7 @@ export default function AttendanceModule({ userId, schoolCode }) {
           </div>
         ) : (
           <table className="w-full">
-            <thead className="bg-[#F7F5F0] border-b border-[#0F2044]/8">
+            <thead className="bg-app-bg border-b border-app-border">
               <tr>
                 {[
                   ["Student",      "text-left",   ""],
@@ -539,7 +539,7 @@ export default function AttendanceModule({ userId, schoolCode }) {
                 ].map(([label, align, hidden]) => (
                   <th
                     key={label}
-                    className={`px-5 py-3.5 ${align} text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40 ${hidden}`}
+                    className={`px-5 py-3.5 ${align} text-[10px] font-bold tracking-widest uppercase text-app-text/40 ${hidden}`}
                   >
                     {label}
                   </th>
@@ -571,15 +571,15 @@ export default function AttendanceModule({ userId, schoolCode }) {
                           {initials(name)}
                         </div>
                         <div>
-                          <div className="text-sm font-semibold text-[#0F2044]">{name}</div>
-                          <div className="text-xs text-[#0F2044]/40">{student.dob || ""}</div>
+                          <div className="text-sm font-semibold text-app-text">{name}</div>
+                          <div className="text-xs text-app-text/40">{student.dob || ""}</div>
                         </div>
                       </div>
                     </td>
 
                     {/* Student code */}
                     <td className="px-5 py-3.5 hidden md:table-cell">
-                      <span className="font-mono text-xs font-bold text-[#0F2044]/70 bg-[#F7F5F0] px-2.5 py-1 rounded-lg border border-[#0F2044]/10 tracking-widest">
+                      <span className="font-mono text-xs font-bold text-app-text/70 bg-app-bg px-2.5 py-1 rounded-lg border border-app-border tracking-widest">
                         {student.studentCode}
                       </span>
                     </td>
@@ -594,7 +594,7 @@ export default function AttendanceModule({ userId, schoolCode }) {
                           {status}
                         </span>
                       ) : (
-                        <span className="inline-block text-xs font-medium px-3 py-1.5 rounded-xl bg-[#F7F5F0] text-[#0F2044]/35">
+                        <span className="inline-block text-xs font-medium px-3 py-1.5 rounded-xl bg-app-bg text-app-text/35">
                           Unmarked
                         </span>
                       )}
@@ -602,7 +602,7 @@ export default function AttendanceModule({ userId, schoolCode }) {
 
                     {/* Time */}
                     <td className="px-5 py-3.5 text-center hidden sm:table-cell">
-                      <span className="text-xs text-[#0F2044]/60 font-mono">
+                      <span className="text-xs text-app-text/60 font-mono">
                         {record.time || "—"}
                       </span>
                     </td>
@@ -614,7 +614,7 @@ export default function AttendanceModule({ userId, schoolCode }) {
                         placeholder="Add remark…"
                         value={record.remark || ""}
                         onChange={(e) => updateRemark(student.id, e.target.value)}
-                        className="w-full bg-transparent border border-transparent focus:border-[#0F2044]/20 focus:bg-[#F7F5F0] rounded-xl px-3 py-1.5 text-xs outline-none transition-all placeholder:text-[#0F2044]/25 text-[#0F2044]/70"
+                        className="w-full bg-transparent border border-transparent focus:border-app-border focus:bg-app-bg rounded-xl px-3 py-1.5 text-xs outline-none transition-all placeholder:text-app-text/25 text-app-text/70"
                       />
                     </td>
 
@@ -657,7 +657,7 @@ export default function AttendanceModule({ userId, schoolCode }) {
         </div>
       )}
 
-      <p className="text-center text-xs text-[#0F2044]/40 pt-1">
+      <p className="text-center text-xs text-app-text/40 pt-1">
         Attendance is saved per class per date and synced with the Admin Dashboard.
         Past records can be reloaded by selecting a previous date.
       </p>

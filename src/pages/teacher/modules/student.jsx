@@ -11,7 +11,7 @@ import {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function Spinner({ size = 20 }) {
-  return <Loader2 size={size} className="animate-spin text-[#0F2044]/40 inline-block" />;
+  return <Loader2 size={size} className="animate-spin text-app-text/40 inline-block" />;
 }
 
 function initials(name = "") {
@@ -175,12 +175,12 @@ export default function Studentmodule({ userId, schoolCode }) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2
-            className="text-3xl font-bold text-[#0F2044]"
+            className="text-3xl font-bold text-app-text"
             style={{ fontFamily: "'Playfair Display', serif" }}
           >
             My Students
           </h2>
-          <p className="text-[#0F2044]/60 mt-1">
+          <p className="text-app-text/60 mt-1">
             {isLoading
               ? "Loading your assignments…"
               : noAssignment
@@ -193,7 +193,7 @@ export default function Studentmodule({ userId, schoolCode }) {
           <button
             onClick={fetchStudents}
             disabled={isLoading}
-            className="p-2.5 bg-white border border-[#0F2044]/10 rounded-xl hover:bg-[#F7F5F0] transition-colors text-[#0F2044]/60 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="p-2.5 bg-app-surface border border-app-border rounded-xl hover:bg-app-bg transition-colors text-app-text/60 disabled:opacity-40 disabled:cursor-not-allowed"
             title="Refresh"
           >
             <RefreshCw size={16} />
@@ -221,16 +221,16 @@ export default function Studentmodule({ userId, schoolCode }) {
 
       {/* ── Filters (only shown when classes exist) ────────────────────────── */}
       {!noAssignment && (
-        <div className="bg-white rounded-3xl p-5 border border-[#0F2044]/8 flex flex-col md:flex-row gap-4">
+        <div className="bg-app-surface rounded-3xl p-5 border border-app-border flex flex-col md:flex-row gap-4">
           {/* Search */}
           <div className="flex-1 relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#0F2044]/40 w-4 h-4" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-app-text/40 w-4 h-4" />
             <input
               type="text"
               placeholder="Search by name or student code…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-4 py-3 bg-[#FAFAF8] border border-[#0F2044]/10 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/30"
+              className="w-full pl-11 pr-4 py-3 bg-[#FAFAF8] border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/30"
             />
           </div>
 
@@ -240,21 +240,21 @@ export default function Studentmodule({ userId, schoolCode }) {
               value={filterClassId}
               onChange={(e) => setFilterClassId(e.target.value)}
               disabled={isLoading || classes.length === 0}
-              className="appearance-none pl-4 pr-10 py-3 bg-white border border-[#0F2044]/15 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044] min-w-[160px] disabled:opacity-50"
+              className="appearance-none pl-4 pr-10 py-3 bg-app-surface border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text min-w-[160px] disabled:opacity-50"
             >
               {classes.length === 0 && <option value="">No classes</option>}
               {classes.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
-            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0F2044]/40 pointer-events-none" />
+            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
           </div>
 
           {/* Export */}
           <button
             onClick={handleExport}
             disabled={filtered.length === 0 || isLoading}
-            className="flex items-center gap-2 px-5 py-3 border border-[#0F2044]/20 hover:border-[#0F2044] rounded-2xl text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-5 py-3 border border-app-border hover:border-[#0F2044] rounded-2xl text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Download size={15} /> Export CSV
           </button>
@@ -262,16 +262,16 @@ export default function Studentmodule({ userId, schoolCode }) {
       )}
 
       {/* ── Table ─────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-3xl border border-[#0F2044]/8 overflow-hidden">
+      <div className="bg-app-surface rounded-3xl border border-app-border overflow-hidden">
         {isLoading ? (
-          <div className="py-24 flex flex-col items-center gap-3 text-[#0F2044]/40">
+          <div className="py-24 flex flex-col items-center gap-3 text-app-text/40">
             <Spinner size={28} />
             <p className="text-sm">Loading students…</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="py-24 flex flex-col items-center gap-3 text-[#0F2044]/30">
+          <div className="py-24 flex flex-col items-center gap-3 text-app-text/30">
             <Users size={36} />
-            <p className="text-sm font-medium text-[#0F2044]/40">
+            <p className="text-sm font-medium text-app-text/40">
               {students.length === 0
                 ? `No students enrolled in ${selectedClass?.name || "this class"} yet.`
                 : "No students match your search."}
@@ -279,7 +279,7 @@ export default function Studentmodule({ userId, schoolCode }) {
           </div>
         ) : (
           <table className="w-full">
-            <thead className="bg-[#F7F5F0] border-b border-[#0F2044]/8">
+            <thead className="bg-app-bg border-b border-app-border">
               <tr>
                 {[
                   ["Student",      "text-left",   ""],
@@ -291,7 +291,7 @@ export default function Studentmodule({ userId, schoolCode }) {
                 ].map(([label, align, hidden]) => (
                   <th
                     key={label}
-                    className={`px-6 py-4 ${align} text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40 ${hidden}`}
+                    className={`px-6 py-4 ${align} text-[10px] font-bold tracking-widest uppercase text-app-text/40 ${hidden}`}
                   >
                     {label}
                   </th>
@@ -313,15 +313,15 @@ export default function Studentmodule({ userId, schoolCode }) {
                           {initials(name)}
                         </div>
                         <div>
-                          <div className="text-sm font-semibold text-[#0F2044]">{name}</div>
-                          <div className="text-xs text-[#0F2044]/40">{student.dob || "—"}</div>
+                          <div className="text-sm font-semibold text-app-text">{name}</div>
+                          <div className="text-xs text-app-text/40">{student.dob || "—"}</div>
                         </div>
                       </div>
                     </td>
 
                     {/* Student code */}
                     <td className="px-6 py-4 hidden md:table-cell">
-                      <span className="font-mono text-xs font-bold text-[#0F2044]/70 bg-[#F7F5F0] px-2.5 py-1 rounded-lg border border-[#0F2044]/10 tracking-widest">
+                      <span className="font-mono text-xs font-bold text-app-text/70 bg-app-bg px-2.5 py-1 rounded-lg border border-app-border tracking-widest">
                         {student.studentCode}
                       </span>
                     </td>
@@ -335,8 +335,8 @@ export default function Studentmodule({ userId, schoolCode }) {
 
                     {/* Guardian */}
                     <td className="px-6 py-4 hidden lg:table-cell">
-                      <div className="text-xs text-[#0F2044]/70 font-medium">{student.guardianName || "—"}</div>
-                      <div className="text-xs text-[#0F2044]/40">{student.guardianPhone || ""}</div>
+                      <div className="text-xs text-app-text/70 font-medium">{student.guardianName || "—"}</div>
+                      <div className="text-xs text-app-text/40">{student.guardianPhone || ""}</div>
                     </td>
 
                     {/* Status */}
@@ -351,7 +351,7 @@ export default function Studentmodule({ userId, schoolCode }) {
                       <div className="flex justify-center gap-2">
                         <button
                           onClick={() => setViewStudent(student)}
-                          className="flex items-center gap-1 text-xs bg-[#0F2044]/5 hover:bg-[#0F2044]/10 text-[#0F2044]/70 hover:text-[#0F2044] px-3 py-2 rounded-xl transition-colors"
+                          className="flex items-center gap-1 text-xs bg-app-primary/5 hover:bg-app-primary/10 text-app-text/70 hover:text-app-text px-3 py-2 rounded-xl transition-colors"
                         >
                           <TrendingUp size={13} /> View
                         </button>
@@ -371,7 +371,7 @@ export default function Studentmodule({ userId, schoolCode }) {
         )}
       </div>
 
-      <p className="text-center text-xs text-[#0F2044]/40 pt-1">
+      <p className="text-center text-xs text-app-text/40 pt-1">
         Showing students enrolled in your assigned classes only. To enrol or transfer
         a student, contact the School Administrator.
       </p>
@@ -382,9 +382,9 @@ export default function Studentmodule({ userId, schoolCode }) {
           className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           onClick={(e) => e.target === e.currentTarget && setViewStudent(null)}
         >
-          <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+          <div className="bg-app-surface rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
             {/* Modal header */}
-            <div className="bg-[#0F2044] px-7 py-5 flex items-start justify-between gap-4">
+            <div className="bg-app-primary px-7 py-5 flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-bold ${viewStudent.gender === "Female" ? "bg-pink-200 text-pink-800" : "bg-blue-200 text-blue-800"}`}>
                   {initials(fullName(viewStudent))}
@@ -408,12 +408,12 @@ export default function Studentmodule({ userId, schoolCode }) {
 
             <div className="p-7 space-y-5">
               {/* Student code + status */}
-              <div className="flex items-center justify-between p-4 bg-[#F7F5F0] rounded-2xl border border-[#0F2044]/8">
+              <div className="flex items-center justify-between p-4 bg-app-bg rounded-2xl border border-app-border">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/40 mb-1">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40 mb-1">
                     Student Code
                   </p>
-                  <span className="font-mono text-sm font-bold text-[#0F2044] tracking-widest">
+                  <span className="font-mono text-sm font-bold text-app-text tracking-widest">
                     {viewStudent.studentCode}
                   </span>
                 </div>
@@ -423,29 +423,29 @@ export default function Studentmodule({ userId, schoolCode }) {
               </div>
 
               {/* Details grid */}
-              <div className="grid grid-cols-2 gap-px bg-[#0F2044]/5 rounded-2xl overflow-hidden text-sm">
+              <div className="grid grid-cols-2 gap-px bg-app-primary/5 rounded-2xl overflow-hidden text-sm">
                 {[
                   ["Date of Birth", viewStudent.dob        || "—"],
                   ["District",      viewStudent.district   || "—"],
                   ["Village",       viewStudent.village    || "—"],
                   ["National ID",   viewStudent.nationalId || "—"],
                 ].map(([k, v]) => (
-                  <div key={k} className="bg-white px-4 py-3">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#0F2044]/40 mb-0.5">{k}</p>
-                    <p className="font-medium text-[#0F2044]">{v}</p>
+                  <div key={k} className="bg-app-surface px-4 py-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-app-text/40 mb-0.5">{k}</p>
+                    <p className="font-medium text-app-text">{v}</p>
                   </div>
                 ))}
               </div>
 
               {/* Guardian */}
-              <div className="p-4 bg-[#F7F5F0] rounded-2xl border border-[#0F2044]/8 space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/40">
+              <div className="p-4 bg-app-bg rounded-2xl border border-app-border space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40">
                   Guardian / Parent
                 </p>
-                <p className="text-sm font-semibold text-[#0F2044]">
+                <p className="text-sm font-semibold text-app-text">
                   {viewStudent.guardianName || "—"}
                 </p>
-                <p className="text-xs text-[#0F2044]/50">
+                <p className="text-xs text-app-text/50">
                   {viewStudent.guardianRelation || "Parent/Guardian"} · {viewStudent.guardianPhone || "—"}
                 </p>
               </div>
@@ -453,7 +453,7 @@ export default function Studentmodule({ userId, schoolCode }) {
               <div className="flex justify-end pt-1">
                 <button
                   onClick={() => setViewStudent(null)}
-                  className="px-6 py-2.5 border border-[#0F2044]/15 rounded-xl hover:bg-[#F7F5F0] text-sm font-medium transition-colors text-[#0F2044]/70"
+                  className="px-6 py-2.5 border border-app-border rounded-xl hover:bg-app-bg text-sm font-medium transition-colors text-app-text/70"
                 >
                   Close
                 </button>

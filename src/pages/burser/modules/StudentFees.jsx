@@ -36,8 +36,8 @@ const Modal = ({ title, subtitle, onClose, children, wide }) => (
     style={{ backgroundColor: "rgba(10,22,50,0.55)", backdropFilter: "blur(4px)" }}
     onClick={e => e.target === e.currentTarget && onClose()}
   >
-    <div className={`bg-white rounded-2xl shadow-2xl w-full ${wide ? "max-w-2xl" : "max-w-lg"} overflow-hidden my-auto`}>
-      <div className="bg-[#0F2044] px-6 py-5 flex items-start justify-between gap-4">
+    <div className={`bg-app-surface rounded-2xl shadow-2xl w-full ${wide ? "max-w-2xl" : "max-w-lg"} overflow-hidden my-auto`}>
+      <div className="bg-app-primary px-6 py-5 flex items-start justify-between gap-4">
         <div>
           <h3 className="text-white font-bold text-base leading-tight">{title}</h3>
           {subtitle && <p className="text-white/50 text-xs mt-0.5">{subtitle}</p>}
@@ -54,9 +54,9 @@ const Btn = ({ children, variant = "primary", size = "md", loading, className = 
   const base = "inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed select-none";
   const sizes = { sm: "px-3 py-1.5 text-xs", md: "px-4 py-2.5 text-sm", lg: "px-5 py-3 text-sm" };
   const variants = {
-    primary: "bg-[#0F2044] text-white hover:bg-[#162d5e] active:scale-[0.98]",
-    gold:    "bg-[#F4B400] text-[#0F2044] hover:bg-[#e5a800] active:scale-[0.98]",
-    ghost:   "border border-[#0F2044]/15 text-[#0F2044]/70 hover:bg-[#0F2044]/5 active:scale-[0.98]",
+    primary: "bg-app-primary text-white hover:bg-[#162d5e] active:scale-[0.98]",
+    gold:    "bg-app-warning text-app-text hover:bg-[#e5a800] active:scale-[0.98]",
+    ghost:   "border border-app-border text-app-text/70 hover:bg-app-primary/5 active:scale-[0.98]",
     danger:  "bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 active:scale-[0.98]",
   };
   return (
@@ -101,7 +101,7 @@ function StatusPill({ percentage, balance, totalCharged }) {
 function ProgressBar({ percentage }) {
   const color = percentage === 0 ? "bg-red-400" : percentage >= 100 ? "bg-emerald-500" : "bg-amber-400";
   return (
-    <div className="w-full bg-[#0F2044]/8 rounded-full h-1.5 overflow-hidden">
+    <div className="w-full bg-app-primary/8 rounded-full h-1.5 overflow-hidden">
       <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${Math.min(percentage, 100)}%` }} />
     </div>
   );
@@ -116,10 +116,10 @@ function SummaryCard({ label, value, sub, accent }) {
     emerald: "from-emerald-600 to-emerald-400",
   };
   return (
-    <div className="bg-white rounded-2xl border border-[#0F2044]/8 p-5 flex flex-col gap-1">
-      <span className="text-xs font-semibold text-[#0F2044]/40 uppercase tracking-wider">{label}</span>
+    <div className="bg-app-surface rounded-2xl border border-app-border p-5 flex flex-col gap-1">
+      <span className="text-xs font-semibold text-app-text/40 uppercase tracking-wider">{label}</span>
       <span className={`text-xl font-bold bg-gradient-to-r ${accentMap[accent] || accentMap.blue} bg-clip-text text-transparent`}>{value}</span>
-      {sub && <span className="text-xs text-[#0F2044]/40">{sub}</span>}
+      {sub && <span className="text-xs text-app-text/40">{sub}</span>}
     </div>
   );
 }
@@ -146,13 +146,13 @@ function FeePreviewRows({ studentIds, students, feeStructures, studentFees, assi
   return (
     <div className="space-y-3">
       {/* Summary row */}
-      <div className="flex items-center gap-3 p-3 bg-[#0F2044]/4 rounded-xl text-sm">
-        <span className="font-semibold text-[#0F2044]">{totalNew} fee record(s)</span>
-        <span className="text-[#0F2044]/40">·</span>
-        <span className="font-bold text-[#0F2044]">{fmt(totalAmt)} total</span>
+      <div className="flex items-center gap-3 p-3 bg-app-primary/4 rounded-xl text-sm">
+        <span className="font-semibold text-app-text">{totalNew} fee record(s)</span>
+        <span className="text-app-text/40">·</span>
+        <span className="font-bold text-app-text">{fmt(totalAmt)} total</span>
         {totalSkipped > 0 && (
           <>
-            <span className="text-[#0F2044]/40">·</span>
+            <span className="text-app-text/40">·</span>
             <span className="text-amber-600 text-xs">{totalSkipped} already assigned, skipped</span>
           </>
         )}
@@ -160,21 +160,21 @@ function FeePreviewRows({ studentIds, students, feeStructures, studentFees, assi
 
       {/* Per student preview (compact when many students) */}
       {studentIds.length <= 5 && previews.map(({ student, fees, skipped }) => (
-        <div key={student?.id} className="border border-[#0F2044]/10 rounded-xl overflow-hidden">
-          <div className="px-4 py-2.5 bg-[#F7F5F0] flex items-center justify-between">
-            <span className="text-xs font-bold text-[#0F2044]">{student?.fullName}</span>
+        <div key={student?.id} className="border border-app-border rounded-xl overflow-hidden">
+          <div className="px-4 py-2.5 bg-app-bg flex items-center justify-between">
+            <span className="text-xs font-bold text-app-text">{student?.fullName}</span>
             {skipped > 0 && <span className="text-xs text-amber-600">{skipped} skipped</span>}
           </div>
           {fees.length === 0 ? (
-            <div className="px-4 py-2 text-xs text-[#0F2044]/40">All fees already assigned.</div>
+            <div className="px-4 py-2 text-xs text-app-text/40">All fees already assigned.</div>
           ) : (
             <table className="w-full text-xs">
               <tbody>
                 {fees.map(fee => (
                   <tr key={fee.id} className="border-t border-[#0F2044]/5">
-                    <td className="px-4 py-2 text-[#0F2044]/70">{fee.name}</td>
-                    <td className="px-4 py-2 text-[#0F2044]/50">{fee.category}</td>
-                    <td className="px-4 py-2 text-right font-semibold text-[#0F2044]">{fmt(fee.amount)}</td>
+                    <td className="px-4 py-2 text-app-text/70">{fee.name}</td>
+                    <td className="px-4 py-2 text-app-text/50">{fee.category}</td>
+                    <td className="px-4 py-2 text-right font-semibold text-app-text">{fmt(fee.amount)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -184,7 +184,7 @@ function FeePreviewRows({ studentIds, students, feeStructures, studentFees, assi
       ))}
 
       {studentIds.length > 5 && (
-        <p className="text-xs text-[#0F2044]/50 text-center py-2">
+        <p className="text-xs text-app-text/50 text-center py-2">
           Preview hidden for bulk ({studentIds.length} students). Fees will be applied based on each student's class.
         </p>
       )}
@@ -405,14 +405,14 @@ export default function StudentFees({ schoolCode, schoolName }) {
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-[#0F2044] tracking-tight">Student Fee Enrollment</h2>
-          <p className="text-sm text-[#0F2044]/50 mt-0.5">Assign a term to automatically apply fee structures to students.</p>
+          <h2 className="text-xl font-bold text-app-text tracking-tight">Student Fee Enrollment</h2>
+          <p className="text-sm text-app-text/50 mt-0.5">Assign a term to automatically apply fee structures to students.</p>
         </div>
         <div className="flex items-center gap-2">
           <select
             value={academicYear}
             onChange={e => setAcademicYear(e.target.value)}
-            className="px-3.5 py-2.5 text-sm rounded-xl border border-[#0F2044]/10 bg-white outline-none focus:ring-2 focus:ring-[#0F2044]/20"
+            className="px-3.5 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none focus:ring-2 focus:ring-[#0F2044]/20"
           >
             {ACADEMIC_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
@@ -433,15 +433,15 @@ export default function StudentFees({ schoolCode, schoolName }) {
       {/* ── Filters & Bulk Action Bar ───────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
         <div className="relative flex-1 min-w-0">
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#0F2044]/30">{IC.search}</span>
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-app-text/30">{IC.search}</span>
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search by name or code…"
-            className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-[#0F2044]/10 bg-white outline-none focus:ring-2 focus:ring-[#0F2044]/20"
+            className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none focus:ring-2 focus:ring-[#0F2044]/20"
           />
           {search && (
-            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0F2044]/30 hover:text-[#0F2044]/70">
+            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/30 hover:text-app-text/70">
               {IC.close}
             </button>
           )}
@@ -450,7 +450,7 @@ export default function StudentFees({ schoolCode, schoolName }) {
         <select
           value={classFilter}
           onChange={e => setClassFilter(e.target.value)}
-          className="px-3.5 py-2.5 text-sm rounded-xl border border-[#0F2044]/10 bg-white outline-none focus:ring-2 focus:ring-[#0F2044]/20"
+          className="px-3.5 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none focus:ring-2 focus:ring-[#0F2044]/20"
         >
           <option value="all">All Classes</option>
           {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -459,7 +459,7 @@ export default function StudentFees({ schoolCode, schoolName }) {
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}
-          className="px-3.5 py-2.5 text-sm rounded-xl border border-[#0F2044]/10 bg-white outline-none focus:ring-2 focus:ring-[#0F2044]/20"
+          className="px-3.5 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none focus:ring-2 focus:ring-[#0F2044]/20"
         >
           <option value="all">All Statuses</option>
           <option value="paid">Fully Paid</option>
@@ -471,7 +471,7 @@ export default function StudentFees({ schoolCode, schoolName }) {
         <select
           value={sortKey}
           onChange={e => setSortKey(e.target.value)}
-          className="px-3.5 py-2.5 text-sm rounded-xl border border-[#0F2044]/10 bg-white outline-none focus:ring-2 focus:ring-[#0F2044]/20"
+          className="px-3.5 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none focus:ring-2 focus:ring-[#0F2044]/20"
         >
           <option value="name">Sort: Name</option>
           <option value="balance">Sort: Balance ↓</option>
@@ -486,25 +486,25 @@ export default function StudentFees({ schoolCode, schoolName }) {
       </div>
 
       {/* ── Student Table ───────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-[#0F2044]/8 overflow-hidden">
+      <div className="bg-app-surface rounded-2xl border border-app-border overflow-hidden">
         {loading ? (
-          <div className="p-16 flex flex-col items-center justify-center gap-3 text-[#0F2044]/40">
+          <div className="p-16 flex flex-col items-center justify-center gap-3 text-app-text/40">
             <Spinner size="lg" />
             <span className="text-sm">Loading student records…</span>
           </div>
         ) : filtered.length === 0 ? (
           <div className="p-16 flex flex-col items-center justify-center gap-2 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-[#0F2044]/5 flex items-center justify-center text-[#0F2044]/30 mb-1">
+            <div className="w-12 h-12 rounded-2xl bg-app-primary/5 flex items-center justify-center text-app-text/30 mb-1">
               {IC.info}
             </div>
-            <p className="font-semibold text-[#0F2044]/60">No students found</p>
-            <p className="text-sm text-[#0F2044]/35">Try adjusting your search or filters.</p>
+            <p className="font-semibold text-app-text/60">No students found</p>
+            <p className="text-sm text-app-text/35">Try adjusting your search or filters.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[700px]">
               <thead>
-                <tr className="border-b border-[#0F2044]/6 bg-[#F7F5F0]/60">
+                <tr className="border-b border-[#0F2044]/6 bg-app-bg/60">
                   <th className="px-5 py-3.5 w-10">
                     <input
                       type="checkbox"
@@ -513,13 +513,13 @@ export default function StudentFees({ schoolCode, schoolName }) {
                       className="rounded border-[#0F2044]/30 accent-[#0F2044] cursor-pointer"
                     />
                   </th>
-                  <th className="px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider text-[#0F2044]/40">Student</th>
-                  <th className="px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider text-[#0F2044]/40 hidden md:table-cell">Class</th>
-                  <th className="px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider text-[#0F2044]/40 hidden lg:table-cell">Terms Assigned</th>
-                  <th className="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-[#0F2044]/40">Charged</th>
-                  <th className="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-[#0F2044]/40">Paid</th>
-                  <th className="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-[#0F2044]/40">Balance</th>
-                  <th className="px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-[#0F2044]/40">Status</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider text-app-text/40">Student</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider text-app-text/40 hidden md:table-cell">Class</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider text-app-text/40 hidden lg:table-cell">Terms Assigned</th>
+                  <th className="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-app-text/40">Charged</th>
+                  <th className="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-app-text/40">Paid</th>
+                  <th className="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-app-text/40">Balance</th>
+                  <th className="px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-app-text/40">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#0F2044]/5">
@@ -530,7 +530,7 @@ export default function StudentFees({ schoolCode, schoolName }) {
                   return (
                     <tr
                       key={s.id}
-                      className={`transition-colors ${isSelected ? "bg-[#0F2044]/3" : "hover:bg-[#F7F5F0]/60"}`}
+                      className={`transition-colors ${isSelected ? "bg-app-primary/3" : "hover:bg-app-bg/60"}`}
                     >
                       {/* Checkbox */}
                       <td className="px-5 py-4 w-10">
@@ -549,24 +549,24 @@ export default function StudentFees({ schoolCode, schoolName }) {
                             {initials(s.fullName)}
                           </div>
                           <div>
-                            <div className="font-semibold text-[#0F2044] text-sm leading-tight">{s.fullName}</div>
-                            <div className="text-xs text-[#0F2044]/45 font-mono">{s.studentCode}</div>
+                            <div className="font-semibold text-app-text text-sm leading-tight">{s.fullName}</div>
+                            <div className="text-xs text-app-text/45 font-mono">{s.studentCode}</div>
                           </div>
                         </div>
                       </td>
 
                       {/* Class */}
-                      <td className="px-4 py-4 text-sm text-[#0F2044]/55 hidden md:table-cell">
-                        {s.className || <span className="text-[#0F2044]/25">—</span>}
+                      <td className="px-4 py-4 text-sm text-app-text/55 hidden md:table-cell">
+                        {s.className || <span className="text-app-text/25">—</span>}
                       </td>
 
                       {/* Terms Assigned */}
                       <td className="px-4 py-4 hidden lg:table-cell">
                         <div className="flex flex-wrap gap-1">
                           {s.assignedTerms.length === 0
-                            ? <span className="text-xs text-[#0F2044]/25">None</span>
+                            ? <span className="text-xs text-app-text/25">None</span>
                             : s.assignedTerms.map(t => (
-                                <span key={t} className="px-2 py-0.5 rounded-md bg-[#0F2044]/8 text-[#0F2044]/60 text-xs font-medium">{t}</span>
+                                <span key={t} className="px-2 py-0.5 rounded-md bg-app-primary/8 text-app-text/60 text-xs font-medium">{t}</span>
                               ))
                           }
                         </div>
@@ -574,7 +574,7 @@ export default function StudentFees({ schoolCode, schoolName }) {
 
                       {/* Financials */}
                       <td className="px-4 py-4 text-right">
-                        <span className="text-sm font-medium text-[#0F2044]/70">{fmt(s.totalCharged)}</span>
+                        <span className="text-sm font-medium text-app-text/70">{fmt(s.totalCharged)}</span>
                       </td>
                       <td className="px-4 py-4 text-right">
                         <span className="text-sm font-semibold text-emerald-600">{fmt(s.totalPaid)}</span>
@@ -592,7 +592,7 @@ export default function StudentFees({ schoolCode, schoolName }) {
                           {s.totalCharged > 0 && <ProgressBar percentage={s.percentage} />}
                           {/* Show a subtle "assigned" indicator instead of an action button */}
                           {hasAssignment && (
-                            <span className="inline-flex items-center gap-1 text-xs text-[#0F2044]/35 font-medium mt-0.5">
+                            <span className="inline-flex items-center gap-1 text-xs text-app-text/35 font-medium mt-0.5">
                               {IC.check} Enrolled
                             </span>
                           )}
@@ -608,13 +608,13 @@ export default function StudentFees({ schoolCode, schoolName }) {
 
         {/* Table footer */}
         {!loading && filtered.length > 0 && (
-          <div className="px-5 py-3 border-t border-[#0F2044]/5 flex items-center justify-between text-xs text-[#0F2044]/40">
+          <div className="px-5 py-3 border-t border-[#0F2044]/5 flex items-center justify-between text-xs text-app-text/40">
             <span>
               Showing {filtered.length} of {enriched.length} student{enriched.length !== 1 ? "s" : ""}
-              {someSelected && <span className="ml-2 text-[#0F2044]/60 font-semibold">· {selectedIds.size} selected</span>}
+              {someSelected && <span className="ml-2 text-app-text/60 font-semibold">· {selectedIds.size} selected</span>}
             </span>
             {someSelected && (
-              <button onClick={() => setSelectedIds(new Set())} className="text-[#0F2044]/50 hover:text-[#0F2044] transition-colors">
+              <button onClick={() => setSelectedIds(new Set())} className="text-app-text/50 hover:text-app-text transition-colors">
                 Clear selection
               </button>
             )}
@@ -644,17 +644,17 @@ export default function StudentFees({ schoolCode, schoolName }) {
 
             {/* Scope toggle — switch between all-filtered and selected-only */}
             {someSelected && (
-              <div className="flex items-center gap-2 p-3 bg-[#0F2044]/4 rounded-xl text-sm">
-                <span className="text-[#0F2044]/60 text-xs font-semibold uppercase tracking-wide mr-1">Apply to:</span>
+              <div className="flex items-center gap-2 p-3 bg-app-primary/4 rounded-xl text-sm">
+                <span className="text-app-text/60 text-xs font-semibold uppercase tracking-wide mr-1">Apply to:</span>
                 <button
                   onClick={() => setBulkMode("all")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${bulkMode === "all" ? "bg-[#0F2044] text-white" : "text-[#0F2044]/60 hover:bg-[#0F2044]/10"}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${bulkMode === "all" ? "bg-app-primary text-white" : "text-app-text/60 hover:bg-app-primary/10"}`}
                 >
                   All {filtered.length} shown
                 </button>
                 <button
                   onClick={() => setBulkMode("selected")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${bulkMode === "selected" ? "bg-[#0F2044] text-white" : "text-[#0F2044]/60 hover:bg-[#0F2044]/10"}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${bulkMode === "selected" ? "bg-app-primary text-white" : "text-app-text/60 hover:bg-app-primary/10"}`}
                 >
                   {selectedIds.size} selected only
                 </button>
@@ -663,7 +663,7 @@ export default function StudentFees({ schoolCode, schoolName }) {
 
             {/* Term selector */}
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-[#0F2044]/50 mb-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-app-text/50 mb-2">
                 Select Term to Assign
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -673,8 +673,8 @@ export default function StudentFees({ schoolCode, schoolName }) {
                     onClick={() => setAssignTerm(t)}
                     className={`py-2.5 text-sm font-semibold rounded-xl border transition-all ${
                       assignTerm === t
-                        ? "bg-[#0F2044] text-white border-[#0F2044]"
-                        : "border-[#0F2044]/15 text-[#0F2044]/60 hover:bg-[#0F2044]/5"
+                        ? "bg-app-primary text-white border-[#0F2044]"
+                        : "border-app-border text-app-text/60 hover:bg-app-primary/5"
                     }`}
                   >
                     {t}
@@ -686,7 +686,7 @@ export default function StudentFees({ schoolCode, schoolName }) {
             {/* Fee preview */}
             {modalStudentIds.length > 0 && (
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#0F2044]/50 mb-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-app-text/50 mb-2">
                   Fee Preview — {assignTerm}
                 </label>
                 <FeePreviewRows

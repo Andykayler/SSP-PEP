@@ -33,7 +33,7 @@ function getGradeInfo(score) {
 }
 
 function Spinner({ size = 20 }) {
-  return <Loader2 size={size} className="animate-spin text-[#0F2044]/40 inline-block" />;
+  return <Loader2 size={size} className="animate-spin text-app-text/40 inline-block" />;
 }
 
 function fullName(s) {
@@ -49,8 +49,8 @@ function StudentModal({ student, subjects, onClose }) {
       className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
-        <div className="bg-[#0F2044] px-7 py-5 flex items-start justify-between">
+      <div className="bg-app-surface rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+        <div className="bg-app-primary px-7 py-5 flex items-start justify-between">
           <div>
             <h3 className="text-white font-bold text-lg">{fullName(student)}</h3>
             <p className="text-white/50 text-xs mt-0.5">
@@ -64,10 +64,10 @@ function StudentModal({ student, subjects, onClose }) {
 
         <div className="p-7 space-y-5">
           {/* Average */}
-          <div className={`flex items-center justify-between p-4 rounded-2xl border ${g ? `${g.bg} ${g.border}` : "bg-[#F7F5F0] border-[#0F2044]/8"}`}>
+          <div className={`flex items-center justify-between p-4 rounded-2xl border ${g ? `${g.bg} ${g.border}` : "bg-app-bg border-app-border"}`}>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/50 mb-0.5">Overall Average</p>
-              <p className={`text-3xl font-bold ${g?.color || "text-[#0F2044]"}`}>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/50 mb-0.5">Overall Average</p>
+              <p className={`text-3xl font-bold ${g?.color || "text-app-text"}`}>
                 {student.average !== null ? `${student.average}%` : "—"}
               </p>
             </div>
@@ -81,7 +81,7 @@ function StudentModal({ student, subjects, onClose }) {
 
           {/* Per-subject marks */}
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/50 mb-3">Subject Marks</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/50 mb-3">Subject Marks</p>
             <div className="space-y-2">
               {subjects.map(subj => {
                 const score = student.subjectMarks?.[subj];
@@ -89,8 +89,8 @@ function StudentModal({ student, subjects, onClose }) {
                 const hasScore = score !== null && score !== undefined && score !== "";
                 return (
                   <div key={subj} className="flex items-center gap-3">
-                    <span className="text-xs text-[#0F2044]/70 font-medium w-32 shrink-0 truncate">{subj}</span>
-                    <div className="flex-1 bg-[#F7F5F0] rounded-full h-2">
+                    <span className="text-xs text-app-text/70 font-medium w-32 shrink-0 truncate">{subj}</span>
+                    <div className="flex-1 bg-app-bg rounded-full h-2">
                       {hasScore && (
                         <div
                           className="h-2 rounded-full transition-all duration-500"
@@ -102,11 +102,11 @@ function StudentModal({ student, subjects, onClose }) {
                       )}
                     </div>
                     {hasScore ? (
-                      <span className={`text-xs font-bold w-20 text-right ${sg?.color || "text-[#0F2044]"}`}>
+                      <span className={`text-xs font-bold w-20 text-right ${sg?.color || "text-app-text"}`}>
                         {score}% {sg ? `· G${sg.grade}` : ""}
                       </span>
                     ) : (
-                      <span className="text-xs text-[#0F2044]/30 w-20 text-right">No data</span>
+                      <span className="text-xs text-app-text/30 w-20 text-right">No data</span>
                     )}
                   </div>
                 );
@@ -116,30 +116,30 @@ function StudentModal({ student, subjects, onClose }) {
 
           {/* Class rank */}
           {student.rank && (
-            <div className="flex items-center gap-3 bg-[#F7F5F0] rounded-2xl p-4">
+            <div className="flex items-center gap-3 bg-app-bg rounded-2xl p-4">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm
-                ${student.rank === 1 ? "bg-[#F4B400] text-[#0F2044]"
+                ${student.rank === 1 ? "bg-app-warning text-app-text"
                 : student.rank === 2 ? "bg-gray-200 text-gray-700"
                 : student.rank === 3 ? "bg-amber-100 text-amber-700"
-                : "bg-white text-[#0F2044]/50 border border-[#0F2044]/10"}`}>
+                : "bg-app-surface text-app-text/50 border border-app-border"}`}>
                 {student.rank}
               </div>
-              <p className="text-sm text-[#0F2044]/70">
-                Ranked <strong className="text-[#0F2044]">#{student.rank}</strong> in {student.className}
+              <p className="text-sm text-app-text/70">
+                Ranked <strong className="text-app-text">#{student.rank}</strong> in {student.className}
               </p>
             </div>
           )}
 
           {/* Teacher */}
           {student.teacherName && (
-            <p className="text-xs text-[#0F2044]/40 text-center">
+            <p className="text-xs text-app-text/40 text-center">
               Marks submitted by: {student.teacherName}
             </p>
           )}
 
           <button
             onClick={onClose}
-            className="w-full py-3 border border-[#0F2044]/15 rounded-2xl hover:bg-[#F7F5F0] text-sm font-medium transition-colors"
+            className="w-full py-3 border border-app-border rounded-2xl hover:bg-app-bg text-sm font-medium transition-colors"
           >
             Close
           </button>
@@ -349,19 +349,19 @@ export default function PerformanceModule({ schoolCode }) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2
-            className="text-3xl font-bold text-[#0F2044]"
+            className="text-3xl font-bold text-app-text"
             style={{ fontFamily: "'Playfair Display', serif" }}
           >
             Student Performance
           </h2>
-          <p className="text-[#0F2044]/60 mt-1">
+          <p className="text-app-text/60 mt-1">
             Continuous Assessment · MANEB grade scale (1–9) · {selectedTerm}
           </p>
         </div>
         <button
           onClick={fetchData}
           disabled={isLoading}
-          className="p-2.5 bg-white border border-[#0F2044]/10 rounded-xl hover:bg-[#F7F5F0] transition-colors text-[#0F2044]/60 disabled:opacity-40"
+          className="p-2.5 bg-app-surface border border-app-border rounded-xl hover:bg-app-bg transition-colors text-app-text/60 disabled:opacity-40"
           title="Refresh"
         >
           <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
@@ -379,7 +379,7 @@ export default function PerformanceModule({ schoolCode }) {
       {/* ── Summary cards ────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "School average",     value: isLoading ? null : classAvg !== null ? `${classAvg}%` : "—", color: "text-[#0F2044]",   bg: "bg-white border-[#0F2044]/8",        sub: classAvg !== null ? getGradeInfo(classAvg)?.remark : "" },
+          { label: "School average",     value: isLoading ? null : classAvg !== null ? `${classAvg}%` : "—", color: "text-app-text",   bg: "bg-app-surface border-app-border",        sub: classAvg !== null ? getGradeInfo(classAvg)?.remark : "" },
           { label: "Distinctions (≥70%)",value: isLoading ? null : distinctions,                              color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-100",    sub: "Grade 1 or 2" },
           { label: "School pass rate",   value: isLoading ? null : passRate !== null ? `${passRate}%` : "—", color: "text-blue-700",    bg: "bg-blue-50 border-blue-100",          sub: "Scoring ≥40%" },
           { label: "Failing students",   value: isLoading ? null : failing,                                   color: "text-red-600",     bg: "bg-red-50 border-red-100",            sub: "Grade 9 (<40%)" },
@@ -388,55 +388,55 @@ export default function PerformanceModule({ schoolCode }) {
             <p className={`text-2xl font-bold ${color}`}>
               {isLoading ? <Spinner size={20} /> : value}
             </p>
-            <p className="text-xs text-[#0F2044]/50 mt-1">{label}</p>
-            {sub && <p className="text-[10px] text-[#0F2044]/35 mt-0.5">{sub}</p>}
+            <p className="text-xs text-app-text/50 mt-1">{label}</p>
+            {sub && <p className="text-[10px] text-app-text/35 mt-0.5">{sub}</p>}
           </div>
         ))}
       </div>
 
       {/* ── Controls ─────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-3xl p-5 border border-[#0F2044]/8 flex flex-col md:flex-row gap-4 items-end">
+      <div className="bg-app-surface rounded-3xl p-5 border border-app-border flex flex-col md:flex-row gap-4 items-end">
         {/* Class filter */}
         <div>
-          <label className="block text-[10px] font-bold tracking-widest text-[#0F2044]/50 mb-1.5">CLASS</label>
+          <label className="block text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5">CLASS</label>
           <div className="relative">
             <select
               value={selectedClassId}
               onChange={e => setSelectedClassId(e.target.value)}
               disabled={isLoading}
-              className="appearance-none pl-4 pr-10 py-3 bg-white border border-[#0F2044]/15 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044] min-w-[160px] disabled:opacity-50"
+              className="appearance-none pl-4 pr-10 py-3 bg-app-surface border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text min-w-[160px] disabled:opacity-50"
             >
               <option value="all">All classes</option>
               {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0F2044]/40 pointer-events-none" />
+            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
           </div>
         </div>
 
         {/* Term */}
         <div>
-          <label className="block text-[10px] font-bold tracking-widest text-[#0F2044]/50 mb-1.5">TERM</label>
+          <label className="block text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5">TERM</label>
           <div className="relative">
             <select
               value={selectedTerm}
               onChange={e => setSelectedTerm(e.target.value)}
-              className="appearance-none pl-4 pr-10 py-3 bg-white border border-[#0F2044]/15 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044]"
+              className="appearance-none pl-4 pr-10 py-3 bg-app-surface border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
             >
               {TERMS.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
-            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0F2044]/40 pointer-events-none" />
+            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
           </div>
         </div>
 
         {/* Search */}
         <div className="flex-1 relative">
-          <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#0F2044]/35" />
+          <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-app-text/35" />
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search student, class…"
-            className="w-full pl-9 pr-4 py-3 bg-[#FAFAF8] border border-[#0F2044]/10 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/30"
+            className="w-full pl-9 pr-4 py-3 bg-[#FAFAF8] border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/30"
           />
         </div>
 
@@ -450,7 +450,7 @@ export default function PerformanceModule({ schoolCode }) {
               key={id}
               onClick={() => setViewMode(id)}
               className={`flex items-center gap-1.5 px-4 py-3 text-xs font-semibold rounded-xl transition-all
-                ${viewMode === id ? "bg-[#0F2044] text-white" : "bg-white border border-[#0F2044]/10 text-[#0F2044]/60 hover:border-[#0F2044]/25"}`}
+                ${viewMode === id ? "bg-app-primary text-white" : "bg-app-surface border border-app-border text-app-text/60 hover:border-[#0F2044]/25"}`}
             >
               <Icon size={13} />{label}
             </button>
@@ -460,7 +460,7 @@ export default function PerformanceModule({ schoolCode }) {
 
       {/* ── MANEB scale reference ─────────────────────────────────────────────── */}
       <details className="group">
-        <summary className="text-[11px] text-[#0F2044]/45 cursor-pointer select-none hover:text-[#0F2044]/70 transition-colors flex items-center gap-1.5">
+        <summary className="text-[11px] text-app-text/45 cursor-pointer select-none hover:text-app-text/70 transition-colors flex items-center gap-1.5">
           <ChevronDown size={12} className="group-open:rotate-180 transition-transform" />
           MANEB Grade Scale Reference
         </summary>
@@ -476,20 +476,20 @@ export default function PerformanceModule({ schoolCode }) {
 
       {/* ── Loading ───────────────────────────────────────────────────────────── */}
       {isLoading && (
-        <div className="bg-white rounded-2xl border border-[#0F2044]/8 py-20 flex flex-col items-center gap-3">
+        <div className="bg-app-surface rounded-2xl border border-app-border py-20 flex flex-col items-center gap-3">
           <Spinner size={28} />
-          <p className="text-sm text-[#0F2044]/40">Loading performance data…</p>
+          <p className="text-sm text-app-text/40">Loading performance data…</p>
         </div>
       )}
 
       {/* ── No data notice ────────────────────────────────────────────────────── */}
       {!isLoading && noData && (
-        <div className="bg-white rounded-2xl border border-[#0F2044]/8 py-20 flex flex-col items-center gap-3">
-          <Users size={32} className="text-[#0F2044]/20" />
-          <p className="text-sm font-medium text-[#0F2044]/40">
+        <div className="bg-app-surface rounded-2xl border border-app-border py-20 flex flex-col items-center gap-3">
+          <Users size={32} className="text-app-text/20" />
+          <p className="text-sm font-medium text-app-text/40">
             No marks have been submitted for {selectedTerm} yet.
           </p>
-          <p className="text-xs text-[#0F2044]/30">Teachers submit CA marks from their Performance module.</p>
+          <p className="text-xs text-app-text/30">Teachers submit CA marks from their Performance module.</p>
         </div>
       )}
 
@@ -497,21 +497,21 @@ export default function PerformanceModule({ schoolCode }) {
         <>
           {/* ════ RANKING VIEW ════ */}
           {viewMode === "ranking" && (
-            <div className="bg-white rounded-2xl border border-[#0F2044]/8 overflow-hidden">
-              <div className="px-6 py-4 bg-[#F7F5F0] border-b border-[#0F2044]/8 flex justify-between items-center">
+            <div className="bg-app-surface rounded-2xl border border-app-border overflow-hidden">
+              <div className="px-6 py-4 bg-app-bg border-b border-app-border flex justify-between items-center">
                 <div>
-                  <h3 className="font-semibold text-[#0F2044] text-sm">
+                  <h3 className="font-semibold text-app-text text-sm">
                     {selectedClassId === "all" ? "School-wide Ranking" : `${classes.find(c => c.id === selectedClassId)?.name || ""} Ranking`}
                     {" · "}{selectedTerm}
                   </h3>
-                  <p className="text-[10px] text-[#0F2044]/45 mt-0.5">Ranked by average across all submitted subjects</p>
+                  <p className="text-[10px] text-app-text/45 mt-0.5">Ranked by average across all submitted subjects</p>
                 </div>
-                <span className="text-xs text-[#0F2044]/50">{ranked.length} student{ranked.length !== 1 ? "s" : ""}</span>
+                <span className="text-xs text-app-text/50">{ranked.length} student{ranked.length !== 1 ? "s" : ""}</span>
               </div>
 
               {ranked.length === 0 ? (
                 <div className="py-16 text-center">
-                  <p className="text-sm text-[#0F2044]/40">No marks match your search.</p>
+                  <p className="text-sm text-app-text/40">No marks match your search.</p>
                 </div>
               ) : (
                 <div className="divide-y divide-[#0F2044]/5">
@@ -521,21 +521,21 @@ export default function PerformanceModule({ schoolCode }) {
                     return (
                       <div
                         key={student.id}
-                        className={`flex items-center gap-4 px-6 py-4 hover:bg-[#FAFAF8] transition-colors ${overallRank <= 3 ? "bg-[#F4B400]/3" : ""}`}
+                        className={`flex items-center gap-4 px-6 py-4 hover:bg-[#FAFAF8] transition-colors ${overallRank <= 3 ? "bg-app-warning/3" : ""}`}
                       >
                         {/* Rank badge */}
                         <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm shrink-0
-                          ${overallRank === 1 ? "bg-[#F4B400] text-[#0F2044]"
+                          ${overallRank === 1 ? "bg-app-warning text-app-text"
                           : overallRank === 2 ? "bg-gray-200 text-gray-700"
                           : overallRank === 3 ? "bg-amber-100 text-amber-700"
-                          : "bg-[#F7F5F0] text-[#0F2044]/50"}`}>
+                          : "bg-app-bg text-app-text/50"}`}>
                           {overallRank}
                         </div>
 
                         {/* Name + class */}
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-[#0F2044] text-sm truncate">{fullName(student)}</p>
-                          <p className="text-xs text-[#0F2044]/40">{student.className}</p>
+                          <p className="font-semibold text-app-text text-sm truncate">{fullName(student)}</p>
+                          <p className="text-xs text-app-text/40">{student.className}</p>
                         </div>
 
                         {/* Subject chips */}
@@ -554,7 +554,7 @@ export default function PerformanceModule({ schoolCode }) {
 
                         {/* Average */}
                         <div className="text-right shrink-0">
-                          <p className={`text-xl font-bold ${g?.color || "text-[#0F2044]"}`}>
+                          <p className={`text-xl font-bold ${g?.color || "text-app-text"}`}>
                             {student.average}%
                           </p>
                           {g && <p className={`text-[10px] font-semibold ${g.color}`}>G{g.grade} · {g.remark}</p>}
@@ -563,7 +563,7 @@ export default function PerformanceModule({ schoolCode }) {
                         {/* View button */}
                         <button
                           onClick={() => setViewingStudent(student)}
-                          className="flex items-center gap-1 text-xs bg-[#0F2044]/5 hover:bg-[#0F2044]/10 text-[#0F2044]/60 hover:text-[#0F2044] px-3 py-2 rounded-xl transition-colors shrink-0"
+                          className="flex items-center gap-1 text-xs bg-app-primary/5 hover:bg-app-primary/10 text-app-text/60 hover:text-app-text px-3 py-2 rounded-xl transition-colors shrink-0"
                         >
                           <Eye size={12} /> View
                         </button>
@@ -580,8 +580,8 @@ export default function PerformanceModule({ schoolCode }) {
             <div className="space-y-5">
 
               {/* Grade distribution */}
-              <div className="bg-white rounded-2xl border border-[#0F2044]/8 p-6">
-                <h3 className="font-semibold text-[#0F2044] text-sm mb-4">
+              <div className="bg-app-surface rounded-2xl border border-app-border p-6">
+                <h3 className="font-semibold text-app-text text-sm mb-4">
                   Grade Distribution — {selectedClassId === "all" ? "All Classes" : classes.find(c => c.id === selectedClassId)?.name || ""}
                 </h3>
                 <div className="space-y-2.5">
@@ -591,7 +591,7 @@ export default function PerformanceModule({ schoolCode }) {
                     return (
                       <div key={g.grade} className="flex items-center gap-3">
                         <span className={`text-[10px] font-bold w-24 shrink-0 ${g.color}`}>G{g.grade} {g.remark}</span>
-                        <div className="flex-1 bg-[#F7F5F0] rounded-full h-2.5">
+                        <div className="flex-1 bg-app-bg rounded-full h-2.5">
                           <div
                             className="h-2.5 rounded-full transition-all duration-500"
                             style={{
@@ -600,8 +600,8 @@ export default function PerformanceModule({ schoolCode }) {
                             }}
                           />
                         </div>
-                        <span className="text-[11px] font-semibold text-[#0F2044]/60 w-16 text-right">
-                          {count} <span className="text-[#0F2044]/30">({pct}%)</span>
+                        <span className="text-[11px] font-semibold text-app-text/60 w-16 text-right">
+                          {count} <span className="text-app-text/30">({pct}%)</span>
                         </span>
                       </div>
                     );
@@ -611,8 +611,8 @@ export default function PerformanceModule({ schoolCode }) {
 
               {/* Per-class averages */}
               {selectedClassId === "all" && (
-                <div className="bg-white rounded-2xl border border-[#0F2044]/8 p-6">
-                  <h3 className="font-semibold text-[#0F2044] text-sm mb-4">Class Averages Comparison</h3>
+                <div className="bg-app-surface rounded-2xl border border-app-border p-6">
+                  <h3 className="font-semibold text-app-text text-sm mb-4">Class Averages Comparison</h3>
                   <div className="space-y-3">
                     {classes.map(cls => {
                       const clsStudents = studentsWithMarks.filter(s => s.classId === cls.id);
@@ -622,8 +622,8 @@ export default function PerformanceModule({ schoolCode }) {
                       const g = getGradeInfo(avg);
                       return (
                         <div key={cls.id} className="flex items-center gap-3">
-                          <span className="text-xs font-semibold text-[#0F2044]/70 w-24 shrink-0">{cls.name}</span>
-                          <div className="flex-1 bg-[#F7F5F0] rounded-full h-3">
+                          <span className="text-xs font-semibold text-app-text/70 w-24 shrink-0">{cls.name}</span>
+                          <div className="flex-1 bg-app-bg rounded-full h-3">
                             {avg !== null && (
                               <div
                                 className="h-3 rounded-full transition-all duration-700"
@@ -636,12 +636,12 @@ export default function PerformanceModule({ schoolCode }) {
                           </div>
                           {avg !== null ? (
                             <div className="flex items-center gap-1.5 shrink-0">
-                              <span className={`text-sm font-bold ${g?.color || "text-[#0F2044]"}`}>{avg}%</span>
+                              <span className={`text-sm font-bold ${g?.color || "text-app-text"}`}>{avg}%</span>
                               {g && <span className={`text-[9px] font-semibold ${g.color}`}>G{g.grade}</span>}
-                              <span className="text-[10px] text-[#0F2044]/40">({clsStudents.length} students)</span>
+                              <span className="text-[10px] text-app-text/40">({clsStudents.length} students)</span>
                             </div>
                           ) : (
-                            <span className="text-xs text-[#0F2044]/30 shrink-0">No data</span>
+                            <span className="text-xs text-app-text/30 shrink-0">No data</span>
                           )}
                         </div>
                       );
@@ -652,8 +652,8 @@ export default function PerformanceModule({ schoolCode }) {
 
               {/* Per-subject averages (school-wide or filtered class) */}
               {allSubjects.length > 0 && (
-                <div className="bg-white rounded-2xl border border-[#0F2044]/8 p-6">
-                  <h3 className="font-semibold text-[#0F2044] text-sm mb-4">Subject Averages</h3>
+                <div className="bg-app-surface rounded-2xl border border-app-border p-6">
+                  <h3 className="font-semibold text-app-text text-sm mb-4">Subject Averages</h3>
                   <div className="space-y-3">
                     {allSubjects.map(subj => {
                       const scope  = selectedClassId === "all" ? enrichedStudents : enrichedStudents.filter(s => s.classId === selectedClassId);
@@ -667,8 +667,8 @@ export default function PerformanceModule({ schoolCode }) {
                       const g = getGradeInfo(avg);
                       return (
                         <div key={subj} className="flex items-center gap-3">
-                          <span className="text-xs font-medium text-[#0F2044]/70 w-32 shrink-0 truncate">{subj}</span>
-                          <div className="flex-1 bg-[#F7F5F0] rounded-full h-2.5">
+                          <span className="text-xs font-medium text-app-text/70 w-32 shrink-0 truncate">{subj}</span>
+                          <div className="flex-1 bg-app-bg rounded-full h-2.5">
                             {avg !== null && (
                               <div
                                 className="h-2.5 rounded-full transition-all duration-700"
@@ -681,12 +681,12 @@ export default function PerformanceModule({ schoolCode }) {
                           </div>
                           {avg !== null ? (
                             <div className="flex items-center gap-2 shrink-0">
-                              <span className={`text-sm font-bold ${g?.color || "text-[#0F2044]"}`}>{avg}%</span>
+                              <span className={`text-sm font-bold ${g?.color || "text-app-text"}`}>{avg}%</span>
                               {g && <span className={`text-[9px] font-semibold ${g.color}`}>G{g.grade}</span>}
-                              <span className="text-[10px] text-[#0F2044]/35">({scores.length} entries)</span>
+                              <span className="text-[10px] text-app-text/35">({scores.length} entries)</span>
                             </div>
                           ) : (
-                            <span className="text-xs text-[#0F2044]/30 shrink-0">No data</span>
+                            <span className="text-xs text-app-text/30 shrink-0">No data</span>
                           )}
                         </div>
                       );
@@ -718,12 +718,12 @@ export default function PerformanceModule({ schoolCode }) {
                         return (
                           <div
                             key={s.id}
-                            className="flex items-center justify-between bg-white border border-amber-200 rounded-xl px-4 py-3 cursor-pointer hover:bg-amber-50/50 transition-colors"
+                            className="flex items-center justify-between bg-app-surface border border-amber-200 rounded-xl px-4 py-3 cursor-pointer hover:bg-amber-50/50 transition-colors"
                             onClick={() => setViewingStudent(s)}
                           >
                             <div>
-                              <p className="font-semibold text-[#0F2044] text-sm">{fullName(s)}</p>
-                              <p className="text-[10px] text-[#0F2044]/50">{s.className}</p>
+                              <p className="font-semibold text-app-text text-sm">{fullName(s)}</p>
+                              <p className="text-[10px] text-app-text/50">{s.className}</p>
                               {weakSubjects.length > 0 && (
                                 <p className="text-[10px] text-amber-700 mt-0.5">
                                   Struggling: {weakSubjects.join(", ")}
@@ -746,7 +746,7 @@ export default function PerformanceModule({ schoolCode }) {
         </>
       )}
 
-      <p className="text-center text-xs text-[#0F2044]/40 pt-1">
+      <p className="text-center text-xs text-app-text/40 pt-1">
         Showing CA marks submitted by teachers. Select a class or term to filter.
         Marks are read-only — teachers manage entry from their Performance module.
       </p>

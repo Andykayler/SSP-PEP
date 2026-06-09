@@ -7,16 +7,8 @@ import {
 import { createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 
 import Sidebar, { NAV_ITEMS } from "./side_bar";
+import { getInitialTheme, applyTheme, toggleTheme as flipTheme } from "../../utils/theme";
 import "./admin_dashboard.css";
-
-// ─── THEME HELPERS ────────────────────────────────────────────────────────────
-function getInitialTheme() {
-  return localStorage.getItem("acalink-theme") || "dark";
-}
-function applyTheme(t) {
-  document.documentElement.setAttribute("data-theme", t);
-  localStorage.setItem("acalink-theme", t);
-}
 
 // ─── EMAIL CONFIG ─────────────────────────────────────────────────────────────
 const EMAILJS_SERVICE_ID           = "acalink_101";
@@ -1424,12 +1416,10 @@ export default function AdminDashboard() {
 
   // ── Theme state ──
   const [theme, setTheme] = useState(getInitialTheme);
-  useEffect(() => { applyTheme(theme); }, []);
+  useEffect(() => { applyTheme(theme); }, [theme]);
 
-  function toggleTheme() {
-    const next = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-    applyTheme(next);
+  function handleToggleTheme() {
+    setTheme((t) => flipTheme(t));
   }
 
   useEffect(() => {
@@ -1519,7 +1509,7 @@ export default function AdminDashboard() {
 
             {/* ── Theme toggle button ── */}
             <button
-              onClick={toggleTheme}
+              onClick={handleToggleTheme}
               title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
               className="theme-toggle-btn"
             >

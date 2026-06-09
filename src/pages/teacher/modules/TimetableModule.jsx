@@ -71,27 +71,27 @@ export default function TimetableModule() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-[#0F2044]" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h2 className="text-3xl font-bold text-app-text" style={{ fontFamily: "'Playfair Display', serif" }}>
             My Timetable
           </h2>
-          <p className="text-[#0F2044]/60">Mr. Martin Khumbata • Mathematics & Physics Teacher</p>
+          <p className="text-app-text/60">Mr. Martin Khumbata • Mathematics & Physics Teacher</p>
         </div>
 
-        <button className="flex items-center gap-2 px-6 py-3 border border-[#0F2044]/20 hover:bg-[#F7F5F0] rounded-2xl text-sm font-medium transition-colors">
+        <button className="flex items-center gap-2 px-6 py-3 border border-app-border hover:bg-app-bg rounded-2xl text-sm font-medium transition-colors">
           <Download className="w-5 h-5" /> Download Weekly Schedule
         </button>
       </div>
 
       {/* Day Selector */}
-      <div className="bg-white rounded-3xl p-2 border border-[#0F2044]/8 inline-flex">
+      <div className="bg-app-surface rounded-3xl p-2 border border-app-border inline-flex">
         {days.map(day => (
           <button
             key={day}
             onClick={() => setSelectedDay(day)}
             className={`px-6 py-3 text-sm font-medium rounded-2xl transition-all ${
               selectedDay === day 
-                ? "bg-[#0F2044] text-white shadow-md" 
-                : "hover:bg-[#FAFAF8] text-[#0F2044]/70"
+                ? "bg-app-primary text-white shadow-md" 
+                : "hover:bg-[#FAFAF8] text-app-text/70"
             }`}
           >
             {day}
@@ -100,10 +100,10 @@ export default function TimetableModule() {
       </div>
 
       {/* Timetable */}
-      <div className="bg-white rounded-3xl border border-[#0F2044]/8 overflow-hidden">
-        <div className="px-6 py-4 bg-[#F7F5F0] border-b flex items-center justify-between">
-          <div className="font-semibold text-[#0F2044]">{selectedDay}'s Schedule</div>
-          <div className="text-xs text-[#0F2044]/50">
+      <div className="bg-app-surface rounded-3xl border border-app-border overflow-hidden">
+        <div className="px-6 py-4 bg-app-bg border-b flex items-center justify-between">
+          <div className="font-semibold text-app-text">{selectedDay}'s Schedule</div>
+          <div className="text-xs text-app-text/50">
             {filteredTimetable.length} period{filteredTimetable.length !== 1 ? 's' : ''}
           </div>
         </div>
@@ -114,28 +114,28 @@ export default function TimetableModule() {
               <div key={entry.id} className="p-6 hover:bg-[#FAFAF8] transition-colors flex flex-col md:flex-row md:items-center gap-6">
                 <div className="flex-shrink-0">
                   <div className="flex items-center gap-3">
-                    <Clock className="w-5 h-5 text-[#0F2044]/60" />
-                    <div className="font-mono text-lg font-semibold text-[#0F2044]">{entry.time}</div>
+                    <Clock className="w-5 h-5 text-app-text/60" />
+                    <div className="font-mono text-lg font-semibold text-app-text">{entry.time}</div>
                   </div>
                 </div>
 
                 <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <p className="text-xs text-[#0F2044]/60">CLASS</p>
+                    <p className="text-xs text-app-text/60">CLASS</p>
                     <p className="font-medium">{entry.className}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-[#0F2044]/60">SUBJECT</p>
-                    <p className="font-medium text-[#0F2044]">{entry.subject}</p>
+                    <p className="text-xs text-app-text/60">SUBJECT</p>
+                    <p className="font-medium text-app-text">{entry.subject}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-[#0F2044]/60">ROOM</p>
+                    <p className="text-xs text-app-text/60">ROOM</p>
                     <p className="font-medium font-mono">{entry.room}</p>
                   </div>
                 </div>
 
                 {entry.notes && (
-                  <div className="md:w-64 text-sm text-[#0F2044]/70 italic">
+                  <div className="md:w-64 text-sm text-app-text/70 italic">
                     {entry.notes}
                   </div>
                 )}
@@ -152,13 +152,13 @@ export default function TimetableModule() {
             ))}
           </div>
         ) : (
-          <div className="py-20 text-center text-[#0F2044]/50">
+          <div className="py-20 text-center text-app-text/50">
             No classes scheduled for {selectedDay}.
           </div>
         )}
       </div>
 
-      <div className="text-center text-xs text-[#0F2044]/50">
+      <div className="text-center text-xs text-app-text/50">
         This is your personal teaching schedule. Changes should be requested through the School Administrator.
       </div>
     </div>

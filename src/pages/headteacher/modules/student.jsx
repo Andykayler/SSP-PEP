@@ -56,7 +56,7 @@ function StatusBadge({ value, type }) {
 function Spinner({ size = 5 }) {
   return (
     <svg
-      className={`animate-spin w-${size} h-${size} text-[#0F2044]/40`}
+      className={`animate-spin w-${size} h-${size} text-app-text/40`}
       viewBox="0 0 24 24"
       fill="none"
     >
@@ -100,14 +100,14 @@ function ViewModal({ student, onClose, onNotify }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl w-full max-w-md p-8 my-4">
+      <div className="bg-app-surface rounded-3xl w-full max-w-md p-8 my-4">
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h3 className="text-xl font-bold text-[#0F2044]">{name}</h3>
-            <p className="text-sm text-[#0F2044]/50 mt-0.5">{admNo} &bull; {form}</p>
+            <h3 className="text-xl font-bold text-app-text">{name}</h3>
+            <p className="text-sm text-app-text/50 mt-0.5">{admNo} &bull; {form}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-[#F7F5F0] rounded-xl">
-            <X className="w-5 h-5 text-[#0F2044]/40" />
+          <button onClick={onClose} className="p-1.5 hover:bg-app-bg rounded-xl">
+            <X className="w-5 h-5 text-app-text/40" />
           </button>
         </div>
 
@@ -117,8 +117,8 @@ function ViewModal({ student, onClose, onNotify }) {
               key={label}
               className="flex justify-between items-center border-b border-[#0F2044]/5 pb-3 last:border-0 last:pb-0"
             >
-              <span className="text-xs text-[#0F2044]/50">{label}</span>
-              <span className="text-sm text-[#0F2044] font-medium">{value}</span>
+              <span className="text-xs text-app-text/50">{label}</span>
+              <span className="text-sm text-app-text font-medium">{value}</span>
             </div>
           ))}
         </div>
@@ -126,13 +126,13 @@ function ViewModal({ student, onClose, onNotify }) {
         <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-3 border border-[#0F2044]/20 rounded-2xl text-sm font-medium hover:bg-[#F7F5F0] transition-colors"
+            className="flex-1 py-3 border border-app-border rounded-2xl text-sm font-medium hover:bg-app-bg transition-colors"
           >
             Close
           </button>
           <button
             onClick={() => { onClose(); onNotify([student]); }}
-            className="flex-1 py-3 bg-[#0F2044] text-white rounded-2xl text-sm font-medium hover:bg-[#1a3060] transition-colors flex items-center justify-center gap-2"
+            className="flex-1 py-3 bg-app-primary text-white rounded-2xl text-sm font-medium hover:bg-[#1a3060] transition-colors flex items-center justify-center gap-2"
           >
             <Bell className="w-4 h-4" />
             Notify parent
@@ -206,12 +206,12 @@ function NotificationModal({ targets, schoolCode, senderName, onClose }) {
   if (sent) {
     return (
       <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-3xl w-full max-w-sm p-10 text-center">
+        <div className="bg-app-surface rounded-3xl w-full max-w-sm p-10 text-center">
           <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Check className="w-8 h-8 text-emerald-600" />
           </div>
-          <h3 className="text-lg font-bold text-[#0F2044] mb-1">Notification sent</h3>
-          <p className="text-sm text-[#0F2044]/50">
+          <h3 className="text-lg font-bold text-app-text mb-1">Notification sent</h3>
+          <p className="text-sm text-app-text/50">
             {isAll ? "All parents have been notified." : `${recipientLabel} has been notified.`}
           </p>
         </div>
@@ -221,14 +221,14 @@ function NotificationModal({ targets, schoolCode, senderName, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl w-full max-w-lg p-8 my-4">
+      <div className="bg-app-surface rounded-3xl w-full max-w-lg p-8 my-4">
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h3 className="text-xl font-bold text-[#0F2044]">Send notification</h3>
-            <p className="text-sm text-[#0F2044]/50 mt-0.5">To: {recipientLabel}</p>
+            <h3 className="text-xl font-bold text-app-text">Send notification</h3>
+            <p className="text-sm text-app-text/50 mt-0.5">To: {recipientLabel}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-[#F7F5F0] rounded-xl">
-            <X className="w-5 h-5 text-[#0F2044]/40" />
+          <button onClick={onClose} className="p-1.5 hover:bg-app-bg rounded-xl">
+            <X className="w-5 h-5 text-app-text/40" />
           </button>
         </div>
 
@@ -242,11 +242,11 @@ function NotificationModal({ targets, schoolCode, senderName, onClose }) {
 
           {/* Type */}
           <div>
-            <label className="text-xs text-[#0F2044]/50 block mb-1.5">Notification type</label>
+            <label className="text-xs text-app-text/50 block mb-1.5">Notification type</label>
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
-              className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-xl focus:outline-none focus:border-[#0F2044]/40 text-sm bg-white"
+              className="w-full px-4 py-3 border border-app-border rounded-xl focus:outline-none focus:border-[#0F2044]/40 text-sm bg-app-surface"
             >
               {NOTIFICATION_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
@@ -256,32 +256,32 @@ function NotificationModal({ targets, schoolCode, senderName, onClose }) {
 
           {/* Subject */}
           <div>
-            <label className="text-xs text-[#0F2044]/50 block mb-1.5">Subject</label>
+            <label className="text-xs text-app-text/50 block mb-1.5">Subject</label>
             <input
               type="text"
               placeholder="e.g. Sports Day — Friday 2nd May"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-xl focus:outline-none focus:border-[#0F2044]/40 text-sm"
+              className="w-full px-4 py-3 border border-app-border rounded-xl focus:outline-none focus:border-[#0F2044]/40 text-sm"
             />
           </div>
 
           {/* Message */}
           <div>
-            <label className="text-xs text-[#0F2044]/50 block mb-1.5">Message</label>
+            <label className="text-xs text-app-text/50 block mb-1.5">Message</label>
             <textarea
               placeholder="Type your message here…"
               rows={5}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-xl focus:outline-none focus:border-[#0F2044]/40 text-sm resize-none"
+              className="w-full px-4 py-3 border border-app-border rounded-xl focus:outline-none focus:border-[#0F2044]/40 text-sm resize-none"
             />
-            <p className="text-xs text-[#0F2044]/30 mt-1 text-right">{message.length} characters</p>
+            <p className="text-xs text-app-text/30 mt-1 text-right">{message.length} characters</p>
           </div>
 
           {/* Channel */}
           <div>
-            <label className="text-xs text-[#0F2044]/50 block mb-2">Send via</label>
+            <label className="text-xs text-app-text/50 block mb-2">Send via</label>
             <div className="flex gap-3">
               {[
                 { key: "sms",   label: "SMS"   },
@@ -293,8 +293,8 @@ function NotificationModal({ targets, schoolCode, senderName, onClose }) {
                   onClick={() => setChannel(key)}
                   className={`flex-1 py-2.5 rounded-xl border text-sm font-medium transition-colors
                     ${channel === key
-                      ? "bg-[#0F2044] text-white border-[#0F2044]"
-                      : "border-[#0F2044]/15 text-[#0F2044]/60 hover:border-[#0F2044]/30"
+                      ? "bg-app-primary text-white border-[#0F2044]"
+                      : "border-app-border text-app-text/60 hover:border-[#0F2044]/30"
                     }`}
                 >
                   {label}
@@ -308,14 +308,14 @@ function NotificationModal({ targets, schoolCode, senderName, onClose }) {
           <button
             onClick={onClose}
             disabled={sending}
-            className="flex-1 py-3.5 border border-[#0F2044]/20 rounded-2xl text-sm font-medium hover:bg-[#F7F5F0] transition-colors disabled:opacity-50"
+            className="flex-1 py-3.5 border border-app-border rounded-2xl text-sm font-medium hover:bg-app-bg transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={handleSend}
             disabled={sending}
-            className="flex-1 py-3.5 bg-[#0F2044] text-white rounded-2xl text-sm font-medium hover:bg-[#1a3060] transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+            className="flex-1 py-3.5 bg-app-primary text-white rounded-2xl text-sm font-medium hover:bg-[#1a3060] transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
           >
             {sending ? <Spinner size={4} /> : <BellRing className="w-4 h-4" />}
             {sending ? "Sending…" : "Send notification"}
@@ -399,12 +399,12 @@ export default function StudentManagement({ schoolCode, senderName }) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2
-            className="text-2xl font-bold text-[#0F2044]"
+            className="text-2xl font-bold text-app-text"
             style={{ fontFamily: "'Playfair Display', serif" }}
           >
             Student Records
           </h2>
-          <p className="text-[#0F2044]/60 text-sm mt-0.5">
+          <p className="text-app-text/60 text-sm mt-0.5">
             {loading ? "Loading…" : `${students.length} students enrolled`} &bull; Term 2, 2026
           </p>
         </div>
@@ -413,7 +413,7 @@ export default function StudentManagement({ schoolCode, senderName }) {
           <button
             onClick={fetchStudents}
             disabled={loading}
-            className="p-2.5 border border-[#0F2044]/15 rounded-xl text-[#0F2044]/50 hover:bg-[#F7F5F0] hover:text-[#0F2044] transition-colors disabled:opacity-40"
+            className="p-2.5 border border-app-border rounded-xl text-app-text/50 hover:bg-app-bg hover:text-app-text transition-colors disabled:opacity-40"
             title="Refresh"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -421,7 +421,7 @@ export default function StudentManagement({ schoolCode, senderName }) {
           <button
             onClick={() => setNotifyTargets("all")}
             disabled={students.length === 0 || loading}
-            className="flex items-center gap-2 bg-[#0F2044] text-white px-5 py-2.5 rounded-xl font-medium text-sm hover:bg-[#1a3060] transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 bg-app-primary text-white px-5 py-2.5 rounded-xl font-medium text-sm hover:bg-[#1a3060] transition-colors disabled:opacity-50"
           >
             <BellRing className="w-4 h-4" />
             Notify all parents
@@ -441,15 +441,15 @@ export default function StudentManagement({ schoolCode, senderName }) {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Total students", value: students.length, color: "text-[#0F2044]" },
-          { label: "Boarding",       value: boardingCount,    color: "text-[#0F2044]" },
+          { label: "Total students", value: students.length, color: "text-app-text" },
+          { label: "Boarding",       value: boardingCount,    color: "text-app-text" },
           { label: "Fees paid",      value: feesPaidCount,    color: "text-emerald-600" },
           { label: "Fees pending",   value: feesPendingCount, color: "text-red-600" },
         ].map(({ label, value, color }) => (
-          <div key={label} className="bg-white rounded-xl p-4 border border-[#0F2044]/8">
-            <p className="text-xs text-[#0F2044]/60">{label}</p>
+          <div key={label} className="bg-app-surface rounded-xl p-4 border border-app-border">
+            <p className="text-xs text-app-text/60">{label}</p>
             {loading
-              ? <div className="mt-2 h-8 w-10 bg-[#0F2044]/8 rounded-lg animate-pulse" />
+              ? <div className="mt-2 h-8 w-10 bg-app-primary/8 rounded-lg animate-pulse" />
               : <p className={`text-2xl font-bold mt-1 ${color}`}>{value}</p>
             }
           </div>
@@ -457,15 +457,15 @@ export default function StudentManagement({ schoolCode, senderName }) {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl p-4 border border-[#0F2044]/8">
+      <div className="bg-app-surface rounded-xl p-4 border border-app-border">
         <div className="flex flex-wrap gap-3 items-center">
           {/* Search */}
           <div className="flex-1 relative min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F2044]/40" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-app-text/40" />
             <input
               type="text"
               placeholder="Search by name or student code…"
-              className="w-full pl-9 pr-3 py-2 bg-[#F7F5F0] border border-[#0F2044]/10 rounded-lg focus:outline-none focus:border-[#0F2044]/30 text-sm"
+              className="w-full pl-9 pr-3 py-2 bg-app-bg border border-app-border rounded-lg focus:outline-none focus:border-[#0F2044]/30 text-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -475,7 +475,7 @@ export default function StudentManagement({ schoolCode, senderName }) {
           <select
             value={filterForm}
             onChange={(e) => setFilterForm(e.target.value)}
-            className="px-4 py-2 bg-white border border-[#0F2044]/10 rounded-lg focus:outline-none text-sm min-w-[120px]"
+            className="px-4 py-2 bg-app-surface border border-app-border rounded-lg focus:outline-none text-sm min-w-[120px]"
           >
             <option value="All">All forms</option>
             {FORMS.map((f) => <option key={f}>{f}</option>)}
@@ -485,7 +485,7 @@ export default function StudentManagement({ schoolCode, senderName }) {
           <select
             value={filterBoarding}
             onChange={(e) => setFilterBoarding(e.target.value)}
-            className="px-4 py-2 bg-white border border-[#0F2044]/10 rounded-lg focus:outline-none text-sm min-w-[120px]"
+            className="px-4 py-2 bg-app-surface border border-app-border rounded-lg focus:outline-none text-sm min-w-[120px]"
           >
             <option value="All">All boarding</option>
             <option value="Yes">Boarding</option>
@@ -496,7 +496,7 @@ export default function StudentManagement({ schoolCode, senderName }) {
           <select
             value={filterFee}
             onChange={(e) => setFilterFee(e.target.value)}
-            className="px-4 py-2 bg-white border border-[#0F2044]/10 rounded-lg focus:outline-none text-sm min-w-[120px]"
+            className="px-4 py-2 bg-app-surface border border-app-border rounded-lg focus:outline-none text-sm min-w-[120px]"
           >
             <option value="All">All fee status</option>
             <option value="Paid">Paid</option>
@@ -507,7 +507,7 @@ export default function StudentManagement({ schoolCode, senderName }) {
           {!loading && filtered.length > 0 && filtered.length < students.length && (
             <button
               onClick={() => setNotifyTargets(filtered)}
-              className="flex items-center gap-2 px-4 py-2 border border-[#0F2044]/20 rounded-lg text-sm font-medium hover:bg-[#F7F5F0] transition-colors text-[#0F2044]/70"
+              className="flex items-center gap-2 px-4 py-2 border border-app-border rounded-lg text-sm font-medium hover:bg-app-bg transition-colors text-app-text/70"
             >
               <Bell className="w-3.5 h-3.5" />
               Notify {filtered.length} filtered
@@ -517,31 +517,31 @@ export default function StudentManagement({ schoolCode, senderName }) {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl overflow-hidden border border-[#0F2044]/8">
+      <div className="bg-app-surface rounded-xl overflow-hidden border border-app-border">
         <div className="overflow-x-auto">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <Spinner size={8} />
-              <p className="text-sm text-[#0F2044]/40">Loading students…</p>
+              <p className="text-sm text-app-text/40">Loading students…</p>
             </div>
           ) : (
             <table className="w-full">
-              <thead className="bg-[#F7F5F0] border-b border-[#0F2044]/8">
+              <thead className="bg-app-bg border-b border-app-border">
                 <tr>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-[#0F2044]/60 uppercase tracking-wide">Code</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-[#0F2044]/60 uppercase tracking-wide">Student</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-[#0F2044]/60 uppercase tracking-wide">Class</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-[#0F2044]/60 uppercase tracking-wide">Parent / Guardian</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-[#0F2044]/60 uppercase tracking-wide">Contact</th>
-                  <th className="text-center px-4 py-3 text-xs font-medium text-[#0F2044]/60 uppercase tracking-wide">Boarding</th>
-                  {/* <th className="text-center px-4 py-3 text-xs font-medium text-[#0F2044]/60 uppercase tracking-wide">Fees</th> */}
-                  <th className="text-center px-4 py-3 text-xs font-medium text-[#0F2044]/60 uppercase tracking-wide">Actions</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-app-text/60 uppercase tracking-wide">Code</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-app-text/60 uppercase tracking-wide">Student</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-app-text/60 uppercase tracking-wide">Class</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-app-text/60 uppercase tracking-wide">Parent / Guardian</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-app-text/60 uppercase tracking-wide">Contact</th>
+                  <th className="text-center px-4 py-3 text-xs font-medium text-app-text/60 uppercase tracking-wide">Boarding</th>
+                  {/* <th className="text-center px-4 py-3 text-xs font-medium text-app-text/60 uppercase tracking-wide">Fees</th> */}
+                  <th className="text-center px-4 py-3 text-xs font-medium text-app-text/60 uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#0F2044]/5">
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-12 text-[#0F2044]/40 text-sm">
+                    <td colSpan={8} className="text-center py-12 text-app-text/40 text-sm">
                       {students.length === 0 ? "No students enrolled yet." : "No students match your filters."}
                     </td>
                   </tr>
@@ -556,24 +556,24 @@ export default function StudentManagement({ schoolCode, senderName }) {
                     const email    = student.guardianEmail || student.parentEmail || null;
 
                     return (
-                      <tr key={student.id} className="hover:bg-[#F7F5F0]/70 transition-colors">
-                        <td className="px-4 py-3 font-mono text-xs text-[#0F2044]/60">{code}</td>
+                      <tr key={student.id} className="hover:bg-app-bg/70 transition-colors">
+                        <td className="px-4 py-3 font-mono text-xs text-app-text/60">{code}</td>
                         <td className="px-4 py-3">
-                          <p className="font-medium text-sm text-[#0F2044]">{fullName}</p>
-                          <p className="text-xs text-[#0F2044]/50 mt-0.5">{student.gender || "—"}</p>
+                          <p className="font-medium text-sm text-app-text">{fullName}</p>
+                          <p className="text-xs text-app-text/50 mt-0.5">{student.gender || "—"}</p>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="inline-block px-2.5 py-1 bg-[#0F2044]/5 rounded-full text-xs font-medium text-[#0F2044]/70">
+                          <span className="inline-block px-2.5 py-1 bg-app-primary/5 rounded-full text-xs font-medium text-app-text/70">
                             {cls}{stream}
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <p className="text-sm text-[#0F2044]">{guardian}</p>
-                          <p className="text-xs text-[#0F2044]/40 mt-0.5">{student.guardianRelation || ""}</p>
+                          <p className="text-sm text-app-text">{guardian}</p>
+                          <p className="text-xs text-app-text/40 mt-0.5">{student.guardianRelation || ""}</p>
                         </td>
                         <td className="px-4 py-3">
-                          <p className="text-sm font-mono text-[#0F2044]/70">{phone}</p>
-                          {email && <p className="text-xs text-[#0F2044]/40 mt-0.5">{email}</p>}
+                          <p className="text-sm font-mono text-app-text/70">{phone}</p>
+                          {email && <p className="text-xs text-app-text/40 mt-0.5">{email}</p>}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <StatusBadge value={student.boarding || "No"} type="boarding" />
@@ -581,21 +581,21 @@ export default function StudentManagement({ schoolCode, senderName }) {
                         {/* <td className="px-4 py-3 text-center">
                           {student.feeStatus
                             ? <StatusBadge value={student.feeStatus} type="feeStatus" />
-                            : <span className="text-xs text-[#0F2044]/30">—</span>
+                            : <span className="text-xs text-app-text/30">—</span>
                           }
                         </td> */}
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               onClick={() => setViewStudent(student)}
-                              className="p-1.5 hover:bg-[#F7F5F0] rounded-lg text-[#0F2044]/50 hover:text-[#0F2044] transition-colors"
+                              className="p-1.5 hover:bg-app-bg rounded-lg text-app-text/50 hover:text-app-text transition-colors"
                               title="View profile"
                             >
                               <Eye className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => setNotifyTargets([student])}
-                              className="p-1.5 hover:bg-amber-50 rounded-lg text-[#0F2044]/50 hover:text-amber-600 transition-colors"
+                              className="p-1.5 hover:bg-amber-50 rounded-lg text-app-text/50 hover:text-amber-600 transition-colors"
                               title="Notify parent"
                             >
                               <Bell className="w-4 h-4" />

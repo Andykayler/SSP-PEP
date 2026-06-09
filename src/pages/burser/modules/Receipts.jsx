@@ -22,9 +22,9 @@ const Btn = ({ children, variant = "primary", size = "md", loading, className = 
   const base = "inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all disabled:opacity-50";
   const sizes = { sm: "px-3 py-1.5 text-xs", md: "px-4 py-2.5 text-sm", lg: "px-6 py-3 text-sm" };
   const variants = {
-    primary: "bg-[#0F2044] text-white hover:bg-[#0F2044]/90",
-    gold:    "bg-[#F4B400] text-[#0F2044] hover:brightness-105",
-    ghost:   "border border-[#0F2044]/15 text-[#0F2044]/70 hover:bg-[#0F2044]/5",
+    primary: "bg-app-primary text-white hover:bg-app-primary/90",
+    gold:    "bg-app-warning text-app-text hover:brightness-105",
+    ghost:   "border border-app-border text-app-text/70 hover:bg-app-primary/5",
     teal:    "bg-teal-600 text-white hover:bg-teal-700",
   };
   return <button {...props} disabled={loading || props.disabled} className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}>{loading ? <Spinner /> : children}</button>;
@@ -111,8 +111,8 @@ function PrintableReceipt({ payment, schoolName, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6"
       style={{ backgroundColor: "rgba(15,32,68,0.45)", backdropFilter: "blur(3px)" }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden my-auto">
-        <div className="bg-[#0F2044] px-6 py-4 flex items-center justify-between">
+      <div className="bg-app-surface rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden my-auto">
+        <div className="bg-app-primary px-6 py-4 flex items-center justify-between">
           <h3 className="text-white font-semibold text-base">Receipt Preview</h3>
           <button onClick={onClose} className="text-white/60 hover:text-white">{IC.close}</button>
         </div>
@@ -217,11 +217,11 @@ export default function Receipts({ schoolCode, schoolName }) {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-[#0F2044]">Receipts</h2>
-          <p className="text-sm text-[#0F2044]/50 mt-0.5">View and reprint payment receipts</p>
+          <h2 className="text-xl font-bold text-app-text">Receipts</h2>
+          <p className="text-sm text-app-text/50 mt-0.5">View and reprint payment receipts</p>
         </div>
         <div className="flex gap-3">
-          <select value={academicYear} onChange={e => setAcademicYear(e.target.value)} className="px-3.5 py-2.5 text-sm rounded-xl border border-[#0F2044]/10 bg-white outline-none appearance-none">
+          <select value={academicYear} onChange={e => setAcademicYear(e.target.value)} className="px-3.5 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none appearance-none">
             {ACADEMIC_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
@@ -230,59 +230,59 @@ export default function Receipts({ schoolCode, schoolName }) {
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#0F2044]/30">{IC.search}</span>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by receipt no., student name or code…" className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-[#0F2044]/10 bg-white outline-none focus:border-[#0F2044]/30 transition-all" />
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-app-text/30">{IC.search}</span>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by receipt no., student name or code…" className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none focus:border-[#0F2044]/30 transition-all" />
         </div>
-        <select value={classFilter} onChange={e => setClassFilter(e.target.value)} className="px-3.5 py-2.5 text-sm rounded-xl border border-[#0F2044]/10 bg-white outline-none appearance-none">
+        <select value={classFilter} onChange={e => setClassFilter(e.target.value)} className="px-3.5 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none appearance-none">
           <option value="all">All Classes</option>
           {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-[#0F2044]/8 overflow-hidden">
+      <div className="bg-app-surface rounded-2xl border border-app-border overflow-hidden">
         {loading ? (
           <div className="p-12 flex justify-center"><Spinner /></div>
         ) : filtered.length === 0 ? (
           <div className="p-12 text-center">
-            <div className="w-14 h-14 bg-[#0F2044]/5 rounded-2xl flex items-center justify-center mx-auto mb-4 text-[#0F2044]/30">{IC.print}</div>
-            <p className="font-semibold text-[#0F2044] mb-1">No receipts found</p>
-            <p className="text-sm text-[#0F2044]/50">Receipts are generated when payments are recorded</p>
+            <div className="w-14 h-14 bg-app-primary/5 rounded-2xl flex items-center justify-center mx-auto mb-4 text-app-text/30">{IC.print}</div>
+            <p className="font-semibold text-app-text mb-1">No receipts found</p>
+            <p className="text-sm text-app-text/50">Receipts are generated when payments are recorded</p>
           </div>
         ) : (
           <table className="w-full">
             <thead>
               <tr className="border-b border-[#0F2044]/5">
-                <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40">Receipt No.</th>
-                <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40">Student</th>
-                <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40 hidden sm:table-cell">Method</th>
-                <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40 hidden md:table-cell">Date</th>
-                <th className="px-5 py-3.5 text-right text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40">Amount</th>
-                <th className="px-5 py-3.5 text-right text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40">Print</th>
+                <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40">Receipt No.</th>
+                <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40">Student</th>
+                <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden sm:table-cell">Method</th>
+                <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden md:table-cell">Date</th>
+                <th className="px-5 py-3.5 text-right text-[10px] font-bold tracking-widest uppercase text-app-text/40">Amount</th>
+                <th className="px-5 py-3.5 text-right text-[10px] font-bold tracking-widest uppercase text-app-text/40">Print</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#0F2044]/5">
               {filtered.map(p => (
-                <tr key={p.id} className="hover:bg-[#F7F5F0]/60 transition-colors">
+                <tr key={p.id} className="hover:bg-app-bg/60 transition-colors">
                   <td className="px-5 py-3.5">
-                    <span className="font-mono text-xs font-bold text-[#0F2044] bg-[#F7F5F0] px-2.5 py-1 rounded-lg">{p.receiptNo}</span>
+                    <span className="font-mono text-xs font-bold text-app-text bg-app-bg px-2.5 py-1 rounded-lg">{p.receiptNo}</span>
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-[#0F2044] text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">{initials(p.studentName)}</div>
+                      <div className="w-7 h-7 rounded-lg bg-app-primary text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">{initials(p.studentName)}</div>
                       <div>
-                        <p className="text-sm font-semibold text-[#0F2044]">{p.studentName}</p>
-                        <p className="text-xs text-[#0F2044]/40">{p.className}</p>
+                        <p className="text-sm font-semibold text-app-text">{p.studentName}</p>
+                        <p className="text-xs text-app-text/40">{p.className}</p>
                       </div>
                     </div>
                   </td>
                   <td className="px-5 py-3.5 hidden sm:table-cell">
                     <span className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-semibold ${methodBadge[p.method] || "bg-gray-100 text-gray-700"}`}>{p.method}</span>
                   </td>
-                  <td className="px-5 py-3.5 text-xs text-[#0F2044]/60 hidden md:table-cell">{p.paymentDate}</td>
+                  <td className="px-5 py-3.5 text-xs text-app-text/60 hidden md:table-cell">{p.paymentDate}</td>
                   <td className="px-5 py-3.5 text-right font-bold text-emerald-700">{fmt(p.amount)}</td>
                   <td className="px-5 py-3.5 text-right">
-                    <button onClick={() => setPreviewPayment(p)} className="p-2 rounded-lg hover:bg-[#0F2044]/5 text-[#0F2044]/50 hover:text-[#0F2044] transition-colors" title="View & Print">
+                    <button onClick={() => setPreviewPayment(p)} className="p-2 rounded-lg hover:bg-app-primary/5 text-app-text/50 hover:text-app-text transition-colors" title="View & Print">
                       {IC.print}
                     </button>
                   </td>

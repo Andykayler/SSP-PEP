@@ -35,17 +35,17 @@ const TYPE_META = {
   Boarding: { icon: Users,         bg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-200", dot: "#6366f1" },
   Finance:  { icon: DollarSign,    bg: "bg-amber-50",  text: "text-amber-700",  border: "border-amber-200",  dot: "#f59e0b" },
   Events:   { icon: Calendar,      bg: "bg-emerald-50",text: "text-emerald-700",border: "border-emerald-200",dot: "#10b981" },
-  General:  { icon: Megaphone,     bg: "bg-[#F7F5F0]", text: "text-[#0F2044]/70",border:"border-[#0F2044]/15",dot:"#0F2044" },
+  General:  { icon: Megaphone,     bg: "bg-app-bg", text: "text-app-text/70",border:"border-app-border",dot:"#0F2044" },
 };
 
 const PRIORITY_META = {
-  Normal: { bg: "bg-[#F7F5F0]",  text: "text-[#0F2044]/60", label: "Normal" },
+  Normal: { bg: "bg-app-bg",  text: "text-app-text/60", label: "Normal" },
   High:   { bg: "bg-amber-100",  text: "text-amber-700",    label: "High" },
   Urgent: { bg: "bg-red-100",    text: "text-red-700",      label: "Urgent" },
 };
 
 function Spinner({ size = 20 }) {
-  return <Loader2 size={size} className="animate-spin text-[#0F2044]/40 inline-block" />;
+  return <Loader2 size={size} className="animate-spin text-app-text/40 inline-block" />;
 }
 
 function Toast({ message, type = "success", onClose }) {
@@ -73,11 +73,11 @@ function ViewModal({ announcement: a, onClose, onDelete }) {
       className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden">
+      <div className="bg-app-surface rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="bg-[#0F2044] px-7 py-5 flex items-start justify-between">
+        <div className="bg-app-primary px-7 py-5 flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-app-surface/10 flex items-center justify-center shrink-0">
               <TypeIcon size={16} className="text-white" />
             </div>
             <div>
@@ -102,26 +102,26 @@ function ViewModal({ announcement: a, onClose, onDelete }) {
           </div>
 
           {/* Message */}
-          <div className="bg-[#F7F5F0] rounded-2xl p-4">
-            <p className="text-sm text-[#0F2044]/80 leading-relaxed whitespace-pre-wrap">{a.message}</p>
+          <div className="bg-app-bg rounded-2xl p-4">
+            <p className="text-sm text-app-text/80 leading-relaxed whitespace-pre-wrap">{a.message}</p>
           </div>
 
           {/* Details */}
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/40 mb-0.5">Audience</p>
-              <p className="font-medium text-[#0F2044]">{a.audience}</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40 mb-0.5">Audience</p>
+              <p className="font-medium text-app-text">{a.audience}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/40 mb-0.5">Posted by</p>
-              <p className="font-medium text-[#0F2044]">{a.postedBy}</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40 mb-0.5">Posted by</p>
+              <p className="font-medium text-app-text">{a.postedBy}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/40 mb-0.5">Date</p>
-              <p className="font-medium text-[#0F2044]">{a.displayDate}</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40 mb-0.5">Date</p>
+              <p className="font-medium text-app-text">{a.displayDate}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/40 mb-0.5">Views</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40 mb-0.5">Views</p>
               <p className="font-medium text-emerald-700">{a.readCount ?? 0}</p>
             </div>
           </div>
@@ -136,7 +136,7 @@ function ViewModal({ announcement: a, onClose, onDelete }) {
             </button>
             <button
               onClick={onClose}
-              className="flex-1 py-2.5 border border-[#0F2044]/15 rounded-xl hover:bg-[#F7F5F0] text-sm font-medium transition-colors"
+              className="flex-1 py-2.5 border border-app-border rounded-xl hover:bg-app-bg text-sm font-medium transition-colors"
             >
               Close
             </button>
@@ -180,12 +180,12 @@ function ComposeModal({ onClose, onSend, postedBy, saving }) {
       className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto"
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden my-4">
+      <div className="bg-app-surface rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden my-4">
         {/* Header */}
-        <div className="bg-[#0F2044] px-7 py-5 flex items-center justify-between">
+        <div className="bg-app-primary px-7 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#F4B400] flex items-center justify-center">
-              <Megaphone size={16} className="text-[#0F2044]" />
+            <div className="w-9 h-9 rounded-xl bg-app-warning flex items-center justify-center">
+              <Megaphone size={16} className="text-app-text" />
             </div>
             <div>
               <h3 className="text-white font-bold">New Announcement</h3>
@@ -200,7 +200,7 @@ function ComposeModal({ onClose, onSend, postedBy, saving }) {
         <div className="p-7 space-y-5">
           {/* Type pills */}
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/50 mb-2">Category</label>
+            <label className="block text-[10px] font-bold uppercase tracking-widest text-app-text/50 mb-2">Category</label>
             <div className="flex flex-wrap gap-2">
               {TYPES.map(t => {
                 const m = TYPE_META[t];
@@ -210,7 +210,7 @@ function ComposeModal({ onClose, onSend, postedBy, saving }) {
                     key={t}
                     onClick={() => set("type", t)}
                     className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all
-                      ${form.type === t ? `${m.bg} ${m.text} ${m.border}` : "bg-white border-[#0F2044]/10 text-[#0F2044]/50 hover:border-[#0F2044]/25"}`}
+                      ${form.type === t ? `${m.bg} ${m.text} ${m.border}` : "bg-app-surface border-app-border text-app-text/50 hover:border-[#0F2044]/25"}`}
                   >
                     <Icon size={12} /> {t}
                   </button>
@@ -221,7 +221,7 @@ function ComposeModal({ onClose, onSend, postedBy, saving }) {
 
           {/* Title */}
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/50 mb-2">
+            <label className="block text-[10px] font-bold uppercase tracking-widest text-app-text/50 mb-2">
               Title <span className="text-red-500">*</span>
             </label>
             <input
@@ -229,15 +229,15 @@ function ComposeModal({ onClose, onSend, postedBy, saving }) {
               value={form.title}
               onChange={e => set("title", e.target.value)}
               placeholder="e.g. Parent-Teacher Meeting Notice"
-              className={`w-full px-4 py-3 border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044] transition-colors
-                ${errors.title ? "border-red-300 bg-red-50" : "border-[#0F2044]/15"}`}
+              className={`w-full px-4 py-3 border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text transition-colors
+                ${errors.title ? "border-red-300 bg-red-50" : "border-app-border"}`}
             />
             {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title}</p>}
           </div>
 
           {/* Message */}
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/50 mb-2">
+            <label className="block text-[10px] font-bold uppercase tracking-widest text-app-text/50 mb-2">
               Message <span className="text-red-500">*</span>
             </label>
             <textarea
@@ -245,14 +245,14 @@ function ComposeModal({ onClose, onSend, postedBy, saving }) {
               value={form.message}
               onChange={e => set("message", e.target.value)}
               placeholder="Write your announcement here. Be clear and concise — parents read on mobile."
-              className={`w-full px-4 py-3 border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044] resize-none transition-colors leading-relaxed
-                ${errors.message ? "border-red-300 bg-red-50" : "border-[#0F2044]/15"}`}
+              className={`w-full px-4 py-3 border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text resize-none transition-colors leading-relaxed
+                ${errors.message ? "border-red-300 bg-red-50" : "border-app-border"}`}
             />
             <div className="flex justify-between mt-1">
               {errors.message
                 ? <p className="text-red-500 text-xs">{errors.message}</p>
                 : <span />}
-              <p className={`text-[10px] ${charCount > 500 ? "text-amber-600" : "text-[#0F2044]/30"}`}>
+              <p className={`text-[10px] ${charCount > 500 ? "text-amber-600" : "text-app-text/30"}`}>
                 {charCount} chars
               </p>
             </div>
@@ -261,20 +261,20 @@ function ComposeModal({ onClose, onSend, postedBy, saving }) {
           {/* Audience + Priority */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/50 mb-2">Audience</label>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-app-text/50 mb-2">Audience</label>
               <div className="relative">
                 <select
                   value={form.audience}
                   onChange={e => set("audience", e.target.value)}
-                  className="w-full appearance-none pl-4 pr-10 py-3 border border-[#0F2044]/15 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044] bg-white"
+                  className="w-full appearance-none pl-4 pr-10 py-3 border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text bg-app-surface"
                 >
                   {AUDIENCES.map(a => <option key={a} value={a}>{a}</option>)}
                 </select>
-                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0F2044]/40 pointer-events-none" />
+                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
               </div>
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/50 mb-2">Priority</label>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-app-text/50 mb-2">Priority</label>
               <div className="flex gap-2">
                 {PRIORITIES.map(p => {
                   const m = PRIORITY_META[p];
@@ -285,7 +285,7 @@ function ComposeModal({ onClose, onSend, postedBy, saving }) {
                       className={`flex-1 py-3 rounded-2xl text-xs font-bold border transition-all
                         ${form.priority === p
                           ? `${m.bg} ${m.text} border-transparent`
-                          : "bg-white border-[#0F2044]/10 text-[#0F2044]/50 hover:border-[#0F2044]/20"}`}
+                          : "bg-app-surface border-app-border text-app-text/50 hover:border-app-border"}`}
                     >
                       {p}
                     </button>
@@ -298,28 +298,28 @@ function ComposeModal({ onClose, onSend, postedBy, saving }) {
           {/* Preview strip */}
           {form.title && (
             <div className={`p-4 rounded-2xl border ${TYPE_META[form.type]?.bg} ${TYPE_META[form.type]?.border}`}>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/40 mb-1">Preview</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40 mb-1">Preview</p>
               <p className={`font-semibold text-sm ${TYPE_META[form.type]?.text}`}>{form.title}</p>
               {form.message && (
-                <p className="text-xs text-[#0F2044]/60 mt-1 line-clamp-2">{form.message}</p>
+                <p className="text-xs text-app-text/60 mt-1 line-clamp-2">{form.message}</p>
               )}
-              <p className="text-[10px] text-[#0F2044]/40 mt-2">→ {form.audience}</p>
+              <p className="text-[10px] text-app-text/40 mt-2">→ {form.audience}</p>
             </div>
           )}
 
           {/* Footer */}
-          <div className="flex gap-3 pt-2 border-t border-[#0F2044]/8">
+          <div className="flex gap-3 pt-2 border-t border-app-border">
             <button
               onClick={onClose}
               disabled={saving}
-              className="flex-1 py-3 border border-[#0F2044]/15 rounded-2xl font-medium text-sm hover:bg-[#F7F5F0] transition-colors disabled:opacity-40"
+              className="flex-1 py-3 border border-app-border rounded-2xl font-medium text-sm hover:bg-app-bg transition-colors disabled:opacity-40"
             >
               Cancel
             </button>
             <button
               onClick={handleSend}
               disabled={saving}
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#F4B400] text-[#0F2044] rounded-2xl font-bold text-sm hover:brightness-105 transition-all disabled:opacity-60"
+              className="flex-1 flex items-center justify-center gap-2 py-3 bg-app-warning text-app-text rounded-2xl font-bold text-sm hover:brightness-105 transition-all disabled:opacity-60"
             >
               {saving ? <Spinner size={15} /> : <Send size={15} />}
               {saving ? "Sending…" : "Send Announcement"}
@@ -432,23 +432,23 @@ export default function AnnouncementsModule({ schoolCode, userId, userName }) {
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-[#0F2044]" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h2 className="text-3xl font-bold text-app-text" style={{ fontFamily: "'Playfair Display', serif" }}>
             Announcements
           </h2>
-          <p className="text-[#0F2044]/60 mt-1">Communicate with parents, students and staff</p>
+          <p className="text-app-text/60 mt-1">Communicate with parents, students and staff</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={loadAnnouncements}
             disabled={loading}
-            className="p-2.5 bg-white border border-[#0F2044]/10 rounded-xl hover:bg-[#F7F5F0] transition-colors text-[#0F2044]/60 disabled:opacity-40"
+            className="p-2.5 bg-app-surface border border-app-border rounded-xl hover:bg-app-bg transition-colors text-app-text/60 disabled:opacity-40"
             title="Refresh"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
           </button>
           <button
             onClick={() => setShowCompose(true)}
-            className="flex items-center gap-2 bg-[#F4B400] text-[#0F2044] px-5 py-2.5 rounded-2xl hover:brightness-105 font-bold text-sm transition-all"
+            className="flex items-center gap-2 bg-app-warning text-app-text px-5 py-2.5 rounded-2xl hover:brightness-105 font-bold text-sm transition-all"
           >
             <Plus size={16} /> New Announcement
           </button>
@@ -465,7 +465,7 @@ export default function AnnouncementsModule({ schoolCode, userId, userName }) {
       {/* ── Summary cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { label: "Total Announcements", value: loading ? null : totalThisTerm,       color: "text-[#0F2044]",   bg: "bg-white border-[#0F2044]/8" },
+          { label: "Total Announcements", value: loading ? null : totalThisTerm,       color: "text-app-text",   bg: "bg-app-surface border-app-border" },
           { label: "Total Parent Reach",  value: loading ? null : totalReach,          color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-100" },
           { label: "High / Urgent",       value: loading ? null : highPriorityCount,   color: "text-red-600",     bg: "bg-red-50 border-red-100" },
         ].map(({ label, value, color, bg }) => (
@@ -473,7 +473,7 @@ export default function AnnouncementsModule({ schoolCode, userId, userName }) {
             <p className={`text-3xl font-bold ${color}`}>
               {loading ? <Loader2 size={22} className="animate-spin opacity-30" /> : value}
             </p>
-            <p className="text-xs text-[#0F2044]/50 mt-1">{label}</p>
+            <p className="text-xs text-app-text/50 mt-1">{label}</p>
           </div>
         ))}
       </div>
@@ -486,8 +486,8 @@ export default function AnnouncementsModule({ schoolCode, userId, userName }) {
             onClick={() => setFilterType(type)}
             className={`px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all
               ${filterType === type
-                ? "bg-[#0F2044] text-white"
-                : "bg-white border border-[#0F2044]/10 text-[#0F2044]/60 hover:bg-[#F7F5F0]"}`}
+                ? "bg-app-primary text-white"
+                : "bg-app-surface border border-app-border text-app-text/60 hover:bg-app-bg"}`}
           >
             {type}
           </button>
@@ -495,30 +495,30 @@ export default function AnnouncementsModule({ schoolCode, userId, userName }) {
       </div>
 
       {/* ── List ── */}
-      <div className="bg-white rounded-3xl overflow-hidden border border-[#0F2044]/8">
-        <div className="px-6 py-4 bg-[#F7F5F0] border-b border-[#0F2044]/8 flex items-center justify-between">
-          <h3 className="font-semibold text-[#0F2044] text-sm">
+      <div className="bg-app-surface rounded-3xl overflow-hidden border border-app-border">
+        <div className="px-6 py-4 bg-app-bg border-b border-app-border flex items-center justify-between">
+          <h3 className="font-semibold text-app-text text-sm">
             {filterType === "All" ? "All Announcements" : `${filterType} Announcements`}
           </h3>
-          <span className="text-xs text-[#0F2044]/50">{filtered.length} item{filtered.length !== 1 ? "s" : ""}</span>
+          <span className="text-xs text-app-text/50">{filtered.length} item{filtered.length !== 1 ? "s" : ""}</span>
         </div>
 
         {loading && (
           <div className="py-20 flex flex-col items-center gap-3">
             <Spinner size={26} />
-            <p className="text-sm text-[#0F2044]/40">Loading announcements…</p>
+            <p className="text-sm text-app-text/40">Loading announcements…</p>
           </div>
         )}
 
         {!loading && filtered.length === 0 && (
           <div className="py-20 flex flex-col items-center gap-3 text-center px-4">
-            <Megaphone size={32} className="text-[#0F2044]/20" />
-            <p className="text-sm font-medium text-[#0F2044]/40">
+            <Megaphone size={32} className="text-app-text/20" />
+            <p className="text-sm font-medium text-app-text/40">
               {filterType === "All" ? "No announcements yet." : `No ${filterType} announcements yet.`}
             </p>
             <button
               onClick={() => setShowCompose(true)}
-              className="mt-2 px-5 py-2.5 bg-[#F4B400] text-[#0F2044] font-bold text-sm rounded-2xl hover:brightness-105 transition-all"
+              className="mt-2 px-5 py-2.5 bg-app-warning text-app-text font-bold text-sm rounded-2xl hover:brightness-105 transition-all"
             >
               Create First Announcement
             </button>
@@ -558,15 +558,15 @@ export default function AnnouncementsModule({ schoolCode, userId, userName }) {
                           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${tm.bg} ${tm.text} ${tm.border}`}>
                             {a.type}
                           </span>
-                          <span className="text-[10px] text-[#0F2044]/35">{a.displayDate}</span>
+                          <span className="text-[10px] text-app-text/35">{a.displayDate}</span>
                         </div>
 
-                        <h4 className="font-bold text-[#0F2044] text-sm mb-1">{a.title}</h4>
-                        <p className="text-xs text-[#0F2044]/60 leading-relaxed line-clamp-2">{a.message}</p>
+                        <h4 className="font-bold text-app-text text-sm mb-1">{a.title}</h4>
+                        <p className="text-xs text-app-text/60 leading-relaxed line-clamp-2">{a.message}</p>
 
-                        <div className="flex flex-wrap items-center gap-3 mt-2 text-[10px] text-[#0F2044]/45">
-                          <span>→ <span className="font-semibold text-[#0F2044]/60">{a.audience}</span></span>
-                          <span>by <span className="font-semibold text-[#0F2044]/60">{a.postedBy}</span></span>
+                        <div className="flex flex-wrap items-center gap-3 mt-2 text-[10px] text-app-text/45">
+                          <span>→ <span className="font-semibold text-app-text/60">{a.audience}</span></span>
+                          <span>by <span className="font-semibold text-app-text/60">{a.postedBy}</span></span>
                           {a.readCount > 0 && (
                             <span className="text-emerald-600 font-semibold">{a.readCount} reached</span>
                           )}
@@ -578,7 +578,7 @@ export default function AnnouncementsModule({ schoolCode, userId, userName }) {
                     <div className="flex items-center gap-2 shrink-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => setViewing(a)}
-                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-[#F7F5F0] hover:bg-[#0F2044]/8 text-[#0F2044]/60 hover:text-[#0F2044] rounded-xl transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-app-bg hover:bg-app-primary/8 text-app-text/60 hover:text-app-text rounded-xl transition-colors"
                       >
                         <Eye size={12} /> View
                       </button>
@@ -599,7 +599,7 @@ export default function AnnouncementsModule({ schoolCode, userId, userName }) {
         )}
       </div>
 
-      <p className="text-center text-xs text-[#0F2044]/40">
+      <p className="text-center text-xs text-app-text/40">
         Announcements are stored and visible to all staff with access to this school.
       </p>
 

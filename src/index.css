@@ -1,1 +1,16 @@
 @import "tailwindcss";
+
+/* Tailwind theme bridge — maps utilities to design-system CSS variables */
+@theme inline {
+  --color-app-bg: var(--bg-primary);
+  --color-app-surface: var(--card-bg);
+  --color-app-text: var(--text-primary);
+  --color-app-muted: var(--text-secondary);
+  --color-app-border: var(--border-color);
+  --color-app-primary: var(--primary);
+  --color-app-accent: var(--primary-light);
+  --color-app-success: var(--success);
+  --color-app-warning: var(--warning);
+  --color-app-danger: var(--danger);
+  --color-app-warning: var(--warning);
+}

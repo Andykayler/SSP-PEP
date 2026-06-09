@@ -1,79 +1,48 @@
 import { useState, useEffect } from "react";
-import { auth, db } from "../../firebase";           // adjust path as needed
+import { auth, db } from "../../firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
-import {
-  Users, BookOpen, Calendar, Award, TrendingUp, AlertTriangle,
-  Bell, Settings, LogOut, Menu, X, Home, FileText,
-} from "lucide-react";
+import { Users, BookOpen, Calendar, Award, TrendingUp, AlertTriangle, Home, FileText } from "lucide-react";
 
-import Studentmodule    from "./modules/student";
-import ClassModule      from "./modules/ClassModule";
-import TimetableModule  from "./modules/TimetableModule";
+import DashboardShell from "../../components/DashboardShell";
+import Studentmodule from "./modules/student";
+import ClassModule from "./modules/ClassModule";
+import TimetableModule from "./modules/TimetableModule";
 import AttendanceModule from "./modules/AttendanceModule";
 import DisciplineModule from "./modules/DisciplineModule";
 import PerformanceModule from "./modules/PerformanceModule";
-import HomeworkModule   from "./modules/homework";
-
-// ─── icons ───────────────────────────────────────────────────────────────────
-const Icon = {
-  Home:         () => <Home          className="w-5 h-5" />,
-  MyClasses:    () => <BookOpen      className="w-5 h-5" />,
-  Timetable:    () => <Calendar      className="w-5 h-5" />,
-  TakeAttendance:() => <TrendingUp   className="w-5 h-5" />,
-  EnterMarks:   () => <Award         className="w-5 h-5" />,
-  Discipline:   () => <AlertTriangle className="w-5 h-5" />,
-  MyStudents:   () => <Users         className="w-5 h-5" />,
-  Notifications:() => <Bell          className="w-5 h-5" />,
-  Reports:      () => <FileText      className="w-5 h-5" />,
-  Settings:     () => <Settings      className="w-5 h-5" />,
-  Logout:       () => <LogOut        className="w-5 h-5" />,
-};
+import HomeworkModule from "./modules/homework";
+import "../admin/admin_dashboard.css";
 
 const teacherStats = [
-  { label: "My Students",       value: "187", change: "+3",     color: "text-emerald-600" },
-  { label: "Classes Taught",    value: "6",   change: "",       color: "text-blue-600"    },
-  { label: "Today's Attendance",value: "92%", change: "-2%",    color: "text-amber-600"   },
-  { label: "Pending Marks",     value: "3",   change: "Classes",color: "text-red-600"     },
+  { label: "My Students", value: "187", change: "+3", variant: "" },
+  { label: "Classes Taught", value: "6", change: "Active", variant: "teal" },
+  { label: "Today's Attendance", value: "92%", change: "-2%", variant: "gold" },
+  { label: "Pending Marks", value: "3", change: "Classes", variant: "" },
 ];
 
 const quickActions = [
-  { title: "Take Attendance", icon: <TrendingUp  className="w-8 h-8" />, color: "bg-emerald-600", tab: "attendance" },
-  { title: "Enter Marks",     icon: <Award       className="w-8 h-8" />, color: "bg-amber-600",   tab: "marks"      },
-  { title: "Log Discipline",  icon: <AlertTriangle className="w-8 h-8" />, color: "bg-red-600",   tab: "discipline" },
-  { title: "View Timetable",  icon: <Calendar    className="w-8 h-8" />, color: "bg-[#0F2044]",   tab: "timetable"  },
+  { label: "Take Attendance", icon: <TrendingUp width={22} height={22} />, tab: "attendance", variant: "teal" },
+  { label: "Enter Marks", icon: <Award width={22} height={22} />, tab: "marks", variant: "gold" },
+  { label: "Log Discipline", icon: <AlertTriangle width={22} height={22} />, tab: "discipline", variant: "purple" },
+  { label: "View Timetable", icon: <Calendar width={22} height={22} />, tab: "timetable", variant: "navy" },
 ];
 
-// ─── tiny spinner ─────────────────────────────────────────────────────────────
-function Spinner() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F7F5F0]">
-      <div className="flex flex-col items-center gap-4">
-        <svg className="animate-spin w-10 h-10 text-[#0F2044]/30" viewBox="0 0 24 24" fill="none">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-          <path  className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-        </svg>
-        <p className="text-[#0F2044]/50 text-sm">Loading your workspace…</p>
-      </div>
-    </div>
-  );
+function greeting() {
+  const h = new Date().getHours();
+  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
-// ─── main component ───────────────────────────────────────────────────────────
 export default function TeacherDashboard() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [currentTab,  setCurrentTab]  = useState("overview");
-
-  // ── auth / profile state ──────────────────────────────────────────────────
-  const [userId,     setUserId]     = useState(null);
+  const [currentTab, setCurrentTab] = useState("overview");
+  const [userId, setUserId] = useState(null);
   const [schoolCode, setSchoolCode] = useState(null);
-  const [profile,    setProfile]    = useState(null);   // full user doc
+  const [profile, setProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
-        // Not signed in — you can redirect to login here if needed
         setAuthLoading(false);
         return;
       }
@@ -94,279 +63,174 @@ export default function TeacherDashboard() {
     return unsub;
   }, []);
 
-  // ── shared props passed to every module ───────────────────────────────────
   const moduleProps = { userId, schoolCode };
+  const displayName = profile?.name || profile?.displayName || "Teacher";
+  const displayRole = profile?.role === "head_teacher" ? "Head Teacher" : "Class Teacher";
 
-  // ── nav items built AFTER we have the props ────────────────────────────────
   const navItems = [
-    { id: "overview",    label: "Overview",        icon: Icon.Home },
-    { id: "myclasses",   label: "My Classes",      icon: Icon.MyClasses,
-      component: <ClassModule      {...moduleProps} /> },
-    { id: "timetable",   label: "Timetable",       icon: Icon.Timetable,
-      component: <TimetableModule  {...moduleProps} /> },
-    { id: "attendance",  label: "Take Attendance", icon: Icon.TakeAttendance,
-      component: <AttendanceModule {...moduleProps} /> },
-    { id: "marks",       label: "Enter Marks",     icon: Icon.EnterMarks,
-      component: <PerformanceModule {...moduleProps} /> },
-    { id: "discipline",  label: "Discipline Cases",icon: Icon.Discipline,
-      component: <DisciplineModule {...moduleProps} /> },
-    { id: "students",    label: "My Students",     icon: Icon.MyStudents,
-      component: <Studentmodule   {...moduleProps} /> },
-    { id: "Homework",    label: "Homework",        icon: Icon.Reports,
-      component: <HomeworkModule  {...moduleProps} /> },
+    { id: "overview", label: "Overview", icon: <Home className="w-5 h-5" /> },
+    { id: "myclasses", label: "My Classes", icon: <BookOpen className="w-5 h-5" />, component: <ClassModule {...moduleProps} /> },
+    { id: "timetable", label: "Timetable", icon: <Calendar className="w-5 h-5" />, component: <TimetableModule {...moduleProps} /> },
+    { id: "attendance", label: "Take Attendance", icon: <TrendingUp className="w-5 h-5" />, component: <AttendanceModule {...moduleProps} /> },
+    { id: "marks", label: "Enter Marks", icon: <Award className="w-5 h-5" />, component: <PerformanceModule {...moduleProps} /> },
+    { id: "discipline", label: "Discipline Cases", icon: <AlertTriangle className="w-5 h-5" />, component: <DisciplineModule {...moduleProps} /> },
+    { id: "students", label: "My Students", icon: <Users className="w-5 h-5" />, component: <Studentmodule {...moduleProps} /> },
+    { id: "Homework", label: "Homework", icon: <FileText className="w-5 h-5" />, component: <HomeworkModule {...moduleProps} /> },
   ];
 
   const currentNavItem = navItems.find((item) => item.id === currentTab);
 
-  // display name helpers
-  const displayName   = profile?.name  || profile?.displayName || "Teacher";
-  const displayInitials = displayName.split(" ").filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("");
-  const displayRole   = profile?.role === "head_teacher" ? "Head Teacher" : "Class Teacher";
-
-  if (authLoading) return <Spinner />;
+  if (authLoading) {
+    return (
+      <div className="page-loading">
+        <div className="page-loading__spinner" />
+        <p className="page-loading__text">Loading your workspace…</p>
+      </div>
+    );
+  }
 
   if (!userId) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F7F5F0]">
-        <div className="bg-white rounded-3xl p-10 text-center border border-[#0F2044]/10 shadow">
-          <p className="text-[#0F2044] font-semibold text-lg mb-2">Not signed in</p>
-          <p className="text-[#0F2044]/50 text-sm">Please sign in to access your dashboard.</p>
+      <div className="page-loading">
+        <div className="cc" style={{ padding: "40px 32px", maxWidth: 400, textAlign: "center" }}>
+          <p className="module-title" style={{ fontSize: "1.2rem", marginBottom: 8 }}>Not signed in</p>
+          <p className="module-sub">Please sign in to access your dashboard.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F5F0] flex" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-      {/* Sidebar */}
-      <div className={`${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-                      lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50
-                      w-72 bg-white border-r border-[#0F2044]/10 shadow-xl transition-transform duration-300 overflow-y-auto flex flex-col`}>
-
-        {/* Logo */}
-        <div className="p-6 border-b border-[#0F2044]/8 flex items-center gap-3 shrink-0">
-          <div className="w-9 h-9 rounded-xl bg-[#F4B400] flex items-center justify-center">
-            <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5">
-              <path d="M12 3L2 8l10 5 10-5-10-5z" fill="#0F2044"/>
-              <path d="M2 13l10 5 10-5" stroke="#0F2044" strokeWidth="1.8" strokeLinejoin="round"/>
-            </svg>
+    <DashboardShell
+      navItems={navItems}
+      currentTab={currentTab}
+      onTabChange={setCurrentTab}
+      title={currentTab === "overview" ? "Teacher Dashboard" : currentNavItem?.label}
+      subtitle={`${displayRole} · Term 2 · 2026 Academic Year`}
+      roleLabel={displayRole}
+      userName={displayName}
+      schoolName={profile?.schoolName || ""}
+      schoolCode={schoolCode || ""}
+      portalLabel="Teacher Portal"
+      navSectionLabel="Teacher Workspace"
+      footerVersion="Teacher Portal v1.2.4"
+      onSignOut={() => auth.signOut()}
+    >
+      {currentTab === "overview" ? (
+        <div className="space-y-8">
+          <div className="overview-hero">
+            <div>
+              <div className="overview-hero__greeting">{greeting()}</div>
+              <h2 className="overview-hero__name">
+                <span className="overview-hero__name-gradient">{displayName.split(" ")[0]}</span>
+              </h2>
+              <p className="overview-hero__school">My Teaching Workspace</p>
+            </div>
+            <div>
+              <span className="overview-hero__plan overview-hero__plan--active">{displayRole}</span>
+              {schoolCode && <div className="overview-hero__code">{schoolCode}</div>}
+            </div>
           </div>
+
           <div>
-            <div className="font-bold text-xl text-[#0F2044] tracking-tight">SSP-PEP</div>
-            <div className="text-[10px] text-[#0F2044]/50 -mt-1">Teacher Portal</div>
+            <div className="sec-eyebrow">At a glance</div>
+            <div className="stat-strip">
+              {teacherStats.map((stat, i) => (
+                <div key={i} className="stat-card">
+                  <div className="stat-card__top">
+                    <div className={`stat-card__icon${stat.variant ? ` stat-card__icon--${stat.variant}` : ""}`}>
+                      <Award width={16} height={16} />
+                    </div>
+                    <span className="stat-card__label">{stat.label}</span>
+                  </div>
+                  <div className="stat-card__value">{stat.value}</div>
+                  <div className="stat-card__sub">{stat.change}</div>
+                  <div className="stat-card__bar">
+                    <div className={`stat-card__bar-fill${stat.variant ? ` stat-card__bar-fill--${stat.variant}` : ""}`} style={{ width: `${60 + i * 8}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Nav */}
-        <div className="p-4 flex-1">
-          <div className="px-3 py-2 text-xs font-bold tracking-widest uppercase text-[#0F2044]/50 mb-2">
-            TEACHER WORKSPACE
-          </div>
-          <nav className="space-y-1">
-            {navItems.map((item) => {
-              const isActive = currentTab === item.id;
-              return (
+          <div>
+            <div className="sec-eyebrow">Quick actions</div>
+            <div className="quick-actions-grid">
+              {quickActions.map((action) => (
                 <button
-                  key={item.id}
-                  onClick={() => { setCurrentTab(item.id); setSidebarOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-medium transition-all duration-200 group
-                    ${isActive
-                      ? "bg-[#0F2044] text-white shadow-md"
-                      : "hover:bg-[#0F2044]/5 text-[#0F2044]/70 hover:text-[#0F2044]"
-                    }`}
+                  key={action.tab}
+                  type="button"
+                  className={`quick-action-btn quick-action-btn--${action.variant}`}
+                  onClick={() => setCurrentTab(action.tab)}
                 >
-                  <item.icon className={`w-5 h-5 transition-colors ${isActive ? "text-white" : "text-[#0F2044]/60 group-hover:text-[#0F2044]"}`} />
-                  <span>{item.label}</span>
+                  <span className="quick-action-btn__icon">{action.icon}</span>
+                  <span className="quick-action-btn__label">{action.label}</span>
                 </button>
-              );
-            })}
-          </nav>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid-2" style={{ gridTemplateColumns: "minmax(0, 3fr) minmax(0, 2fr)" }}>
+            <div className="cc">
+              <div className="cc__head">
+                <div className="cc__head-left">
+                  <Calendar width={18} height={18} />
+                  <h3>Today&apos;s Schedule</h3>
+                </div>
+              </div>
+              <div className="cc__body">
+                {[
+                  { time: "08:00", subject: "Mathematics 3A", class: "Form 3A", status: "Completed" },
+                  { time: "09:40", subject: "Physics 4B", class: "Form 4B", status: "In Progress" },
+                  { time: "11:20", subject: "Mathematics 3B", class: "Form 3B", status: "Upcoming" },
+                ].map((lesson, i) => (
+                  <div key={i} className="cc-row">
+                    <div className="cc-row__rank" style={{ borderRadius: 8, fontFamily: "var(--font-mono)", fontSize: 10 }}>{lesson.time}</div>
+                    <div className="cc-row__info">
+                      <div className="cc-row__name">{lesson.subject}</div>
+                      <div className="cc-row__meta">{lesson.class}</div>
+                    </div>
+                    <div className="cc-row__right">
+                      <span className={`status-pill status-pill--${lesson.status === "Completed" ? "active" : "suspended"}`} style={lesson.status === "Upcoming" ? { background: "var(--warning-pale)", color: "var(--warning-light)", border: "1px solid rgba(232,168,0,0.2)" } : undefined}>
+                        {lesson.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="cc">
+                <div className="cc__head">
+                  <div className="cc__head-left">
+                    <AlertTriangle width={18} height={18} />
+                    <h3>Pending Actions</h3>
+                  </div>
+                </div>
+                <div className="cc__body" style={{ padding: "12px 20px" }}>
+                  <div className="alert alert--warning" style={{ marginBottom: 8 }}>Enter marks for Form 3A Mid-term Test</div>
+                  <div className="alert alert--error">Submit attendance for yesterday&apos;s Physics 4B</div>
+                </div>
+              </div>
+              <div className="cc">
+                <div className="cc__head"><h3>Recent Parent Messages</h3></div>
+                <div className="cc__body" style={{ padding: "16px 20px" }}>
+                  <p className="module-sub">3 unread messages from parents regarding student performance.</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-
-        {/* Teacher info card */}
-        <div className="p-4 shrink-0">
-          <div className="bg-[#F7F5F0] border border-[#0F2044]/10 rounded-2xl p-4 text-xs">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-[#0F2044] text-white rounded-2xl flex items-center justify-center font-bold text-lg">
-                {displayInitials}
-              </div>
-              <div>
-                <div className="font-semibold text-[#0F2044]">{displayName}</div>
-                <div className="text-[#0F2044]/50">{displayRole}</div>
-              </div>
-            </div>
-            <button
-              onClick={() => auth.signOut()}
-              className="w-full flex items-center justify-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 py-2.5 rounded-xl text-sm font-medium transition-colors"
-            >
-              <LogOut className="w-4 h-4" /> Sign Out
-            </button>
+      ) : (
+        currentNavItem?.component || (
+          <div className="empty-state">
+            <div className="empty-state__icon">📋</div>
+            <div className="empty-state__title">{currentNavItem?.label}</div>
+            <p className="empty-state__sub">This module is ready for full implementation.</p>
           </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Navbar */}
-        <header className="bg-white border-b border-[#0F2044]/10 px-6 py-4 flex items-center justify-between sticky top-0 z-40">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="lg:hidden p-2 text-[#0F2044] hover:bg-[#F7F5F0] rounded-xl"
-            >
-              {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-            <div>
-              <h1 className="text-2xl font-bold text-[#0F2044]" style={{ fontFamily: "'Playfair Display', serif" }}>
-                {currentTab === "overview" ? "Teacher Dashboard" : currentNavItem?.label}
-              </h1>
-              <p className="text-sm text-[#0F2044]/50">Term 2 • 2026 Academic Year</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <button className="p-2.5 hover:bg-[#F7F5F0] rounded-xl relative">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center">7</span>
-            </button>
-            <div className="flex items-center gap-3">
-              <div className="text-right hidden sm:block">
-                <div className="text-sm font-semibold text-[#0F2044]">{displayName}</div>
-                <div className="text-xs text-emerald-600">{displayRole}</div>
-              </div>
-              <div className="w-9 h-9 bg-[#0F2044] text-white rounded-2xl flex items-center justify-center font-bold">
-                {displayInitials}
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* Main Content Area */}
-        <main className="flex-1 p-6 lg:p-8 overflow-auto bg-[#F7F5F0]">
-          {currentTab === "overview" && (
-            <>
-              <div className="mb-10">
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
-                  <div>
-                    <p className="text-[#0F2044]/60">Good afternoon, {displayName.split(" ")[0]}</p>
-                    <h2 className="text-3xl font-bold text-[#0F2044] tracking-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
-                      My Teaching Workspace
-                    </h2>
-                  </div>
-                  <div className="text-sm text-[#0F2044]/50">Last updated: Today at 14:05</div>
-                </div>
-
-                {/* Stats */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
-                  {teacherStats.map((stat, i) => (
-                    <div key={i} className="bg-white rounded-3xl p-6 border border-[#0F2044]/8 shadow-sm hover:shadow transition-all">
-                      <div className="text-sm text-[#0F2044]/60 mb-1">{stat.label}</div>
-                      <div className="text-4xl font-bold text-[#0F2044] tabular-nums tracking-tighter">{stat.value}</div>
-                      <div className={`text-xs mt-2 ${stat.color}`}>{stat.change} this week</div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Quick Actions */}
-                <div className="mb-10">
-                  <h3 className="uppercase text-xs font-bold tracking-widest text-[#0F2044]/50 mb-4">Quick Actions</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {quickActions.map((action, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setCurrentTab(action.tab)}
-                        className={`${action.color} text-white hover:brightness-105 active:scale-[0.985] transition-all h-28 rounded-3xl flex flex-col items-center justify-center gap-3 shadow-lg`}
-                      >
-                        <div className="opacity-90">{action.icon}</div>
-                        <span className="font-semibold text-sm text-center">{action.title}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Today + pending */}
-                <div className="grid lg:grid-cols-5 gap-6">
-                  <div className="lg:col-span-3 bg-white rounded-3xl p-7 border border-[#0F2044]/8">
-                    <h3 className="font-semibold text-lg mb-6">Today's Schedule</h3>
-                    <div className="space-y-4">
-                      {[
-                        { time: "08:00", subject: "Mathematics 3A", class: "Form 3A", status: "Completed"   },
-                        { time: "09:40", subject: "Physics 4B",     class: "Form 4B", status: "In Progress" },
-                        { time: "11:20", subject: "Mathematics 3B", class: "Form 3B", status: "Upcoming"    },
-                      ].map((lesson, i) => (
-                        <div key={i} className="flex items-center gap-4 bg-[#F7F5F0] p-4 rounded-2xl">
-                          <div className="font-mono text-sm w-14 text-[#0F2044]/60">{lesson.time}</div>
-                          <div className="flex-1">
-                            <div className="font-medium">{lesson.subject}</div>
-                            <div className="text-xs text-[#0F2044]/60">{lesson.class}</div>
-                          </div>
-                          <div className={`text-xs px-3 py-1 rounded-full ${
-                            lesson.status === "Completed"   ? "bg-emerald-100 text-emerald-700" :
-                            lesson.status === "In Progress" ? "bg-blue-100 text-blue-700"       :
-                                                              "bg-amber-100 text-amber-700"
-                          }`}>
-                            {lesson.status}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-white rounded-3xl p-7 border border-[#0F2044]/8">
-                      <h3 className="font-semibold mb-5 flex items-center gap-2">
-                        <AlertTriangle className="w-5 h-5 text-amber-600" /> Pending Actions
-                      </h3>
-                      <div className="space-y-3 text-sm">
-                        <div className="p-3 bg-amber-50 rounded-2xl">Enter marks for Form 3A Mid-term Test</div>
-                        <div className="p-3 bg-red-50 rounded-2xl">Submit attendance for yesterday's Physics 4B</div>
-                      </div>
-                    </div>
-                    <div className="bg-white rounded-3xl p-7 border border-[#0F2044]/8">
-                      <h3 className="font-semibold mb-4">Recent Parent Messages</h3>
-                      <p className="text-sm text-[#0F2044]/60">3 unread messages from parents regarding student performance.</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {currentTab !== "overview" && (
-            <div>
-              {currentNavItem?.component || (
-                <div className="bg-white rounded-3xl p-12 text-center border border-[#0F2044]/8 min-h-[60vh] flex items-center justify-center">
-                  <div>
-                    <div className="text-6xl mb-6 opacity-20">📋</div>
-                    <h3 className="text-2xl font-bold text-[#0F2044] mb-2">{currentNavItem?.label}</h3>
-                    <p className="text-[#0F2044]/50 max-w-md mx-auto">
-                      This module is ready for full implementation.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </main>
-
-        <footer className="border-t border-[#0F2044]/8 bg-white py-4 px-8 text-xs text-[#0F2044]/40 flex justify-between items-center">
-          <div>© 2026 SSP-PEP • Ministry of Education, Malawi</div>
-          <div className="flex items-center gap-6">
-            <span>Teacher Portal v1.2.4</span>
-            <span className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" /> Online
-            </span>
-          </div>
-        </footer>
-      </div>
-
-      {/* Sidebar overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/30 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
+        )
       )}
-    </div>
+    </DashboardShell>
   );
 }

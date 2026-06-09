@@ -45,6 +45,9 @@ export default function Sidebar({
   onClose,
   currentTab,
   onTabChange,
+  navItems     = NAV_ITEMS,
+  navSectionLabel = "Admin Modules",
+  portalLabel  = "System Admin",
   schoolName   = "Your School",
   schoolDistrict = "",
   schoolCode   = "",
@@ -78,15 +81,15 @@ export default function Sidebar({
           </div>
           <div>
             <div className="sidebar__brand-name">SSP-PEP</div>
-            <div className="sidebar__brand-sub">System Admin</div>
+            <div className="sidebar__brand-sub">{portalLabel}</div>
           </div>
         </div>
 
         {/* ── Navigation ── */}
         <nav className="sidebar__nav">
-          <span className="sidebar__nav-label">Admin Modules</span>
+          <span className="sidebar__nav-label">{navSectionLabel}</span>
 
-          {NAV_ITEMS.map(item => {
+          {navItems.map(item => {
             const active = currentTab === item.id;
             return (
               <button
@@ -117,7 +120,7 @@ export default function Sidebar({
                 {schoolCode && (
                   <div
                     className="sidebar__school-meta"
-                    style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, color: "rgba(255,255,255,0.2)" }}
+                    style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 1.5, color: "var(--text-muted)" }}
                   >
                     {schoolCode}
                   </div>

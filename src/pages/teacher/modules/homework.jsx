@@ -14,7 +14,7 @@ import {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function Spinner({ size = 20 }) {
-  return <Loader2 size={size} className="animate-spin text-[#0F2044]/40 inline-block" />;
+  return <Loader2 size={size} className="animate-spin text-app-text/40 inline-block" />;
 }
 
 function fmt(dateStr) {
@@ -54,11 +54,11 @@ function HomeworkCard({ hw, onView, onEdit, onDelete }) {
     : 0;
 
   return (
-    <div className="bg-white rounded-2xl border border-[#0F2044]/8 overflow-hidden hover:border-[#0F2044]/20 transition-all group">
-      <div className="px-6 py-4 bg-[#F7F5F0] border-b border-[#0F2044]/8 flex flex-col md:flex-row md:items-center justify-between gap-3">
+    <div className="bg-app-surface rounded-2xl border border-app-border overflow-hidden hover:border-app-border transition-all group">
+      <div className="px-6 py-4 bg-app-bg border-b border-app-border flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-1.5">
-            <span className="text-xs px-2.5 py-0.5 bg-white border border-[#0F2044]/10 rounded-lg text-[#0F2044]/70 font-medium flex items-center gap-1">
+            <span className="text-xs px-2.5 py-0.5 bg-app-surface border border-app-border rounded-lg text-app-text/70 font-medium flex items-center gap-1">
               <BookOpen size={10} /> {hw.className} · {hw.subject}
             </span>
             {overdue && (
@@ -68,23 +68,23 @@ function HomeworkCard({ hw, onView, onEdit, onDelete }) {
               <span className="text-xs px-2.5 py-0.5 bg-amber-100 text-amber-700 rounded-lg font-semibold">Due soon</span>
             )}
           </div>
-          <h3 className="font-semibold text-[#0F2044] truncate">{hw.title}</h3>
+          <h3 className="font-semibold text-app-text truncate">{hw.title}</h3>
           {hw.description && (
-            <p className="text-xs text-[#0F2044]/55 mt-0.5 line-clamp-1">{hw.description}</p>
+            <p className="text-xs text-app-text/55 mt-0.5 line-clamp-1">{hw.description}</p>
           )}
         </div>
 
         <div className="flex items-center gap-6 shrink-0">
           <div>
-            <p className="text-[10px] font-bold tracking-widest text-[#0F2044]/40 mb-0.5">DUE</p>
-            <p className={`text-sm font-semibold flex items-center gap-1 ${overdue ? "text-red-600" : urgent ? "text-amber-600" : "text-[#0F2044]"}`}>
+            <p className="text-[10px] font-bold tracking-widest text-app-text/40 mb-0.5">DUE</p>
+            <p className={`text-sm font-semibold flex items-center gap-1 ${overdue ? "text-red-600" : urgent ? "text-amber-600" : "text-app-text"}`}>
               <Calendar size={13} /> {fmt(hw.dueDate)}
             </p>
           </div>
           <div>
-            <p className="text-[10px] font-bold tracking-widests text-[#0F2044]/40 mb-0.5">SUBMITTED</p>
+            <p className="text-[10px] font-bold tracking-widests text-app-text/40 mb-0.5">SUBMITTED</p>
             <div className="flex items-center gap-1.5">
-              <span className="text-sm font-semibold text-[#0F2044]">{hw.submitted || 0}/{hw.totalStudents || 0}</span>
+              <span className="text-sm font-semibold text-app-text">{hw.submitted || 0}/{hw.totalStudents || 0}</span>
               <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-lg font-medium">{submissionRate}%</span>
             </div>
           </div>
@@ -92,7 +92,7 @@ function HomeworkCard({ hw, onView, onEdit, onDelete }) {
       </div>
 
       <div className="px-6 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-4 text-xs text-[#0F2044]/50">
+        <div className="flex items-center gap-4 text-xs text-app-text/50">
           <span className="flex items-center gap-1">
             <Clock size={11} /> Assigned {fmt(hw.dateAssigned)}
           </span>
@@ -106,7 +106,7 @@ function HomeworkCard({ hw, onView, onEdit, onDelete }) {
         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={() => onView(hw)}
-            className="flex items-center gap-1 text-xs bg-[#0F2044]/5 hover:bg-[#0F2044]/10 text-[#0F2044]/70 px-3 py-1.5 rounded-xl transition-colors"
+            className="flex items-center gap-1 text-xs bg-app-primary/5 hover:bg-app-primary/10 text-app-text/70 px-3 py-1.5 rounded-xl transition-colors"
           >
             <Eye size={13} /> View
           </button>
@@ -205,8 +205,8 @@ function HomeworkFormModal({ hw, myClasses, mySubjects, schoolCode, schoolClasse
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl w-full max-w-lg max-h-[94vh] overflow-hidden shadow-2xl flex flex-col">
-        <div className="bg-[#0F2044] px-7 py-5 flex items-center justify-between shrink-0">
+      <div className="bg-app-surface rounded-3xl w-full max-w-lg max-h-[94vh] overflow-hidden shadow-2xl flex flex-col">
+        <div className="bg-app-primary px-7 py-5 flex items-center justify-between shrink-0">
           <h3 className="text-white font-bold text-lg">
             {isEdit ? "Edit Homework" : "Assign New Homework"}
           </h3>
@@ -225,33 +225,33 @@ function HomeworkFormModal({ hw, myClasses, mySubjects, schoolCode, schoolClasse
           <div className="grid grid-cols-2 gap-4">
             {/* Class */}
             <div>
-              <label className="text-[10px] font-bold tracking-widest text-[#0F2044]/50 mb-1.5 block uppercase">Class</label>
+              <label className="text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5 block uppercase">Class</label>
               <div className="relative">
                 <select
                   value={form.className}
                   onChange={(e) => set("className", e.target.value)}
-                  className="appearance-none w-full pl-4 pr-9 py-3 border border-[#0F2044]/15 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 bg-white text-[#0F2044]"
+                  className="appearance-none w-full pl-4 pr-9 py-3 border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 bg-app-surface text-app-text"
                 >
                   {myClasses.length === 0 && <option value="">No classes assigned</option>}
                   {myClasses.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0F2044]/40 pointer-events-none" />
+                <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
               </div>
             </div>
 
             {/* Subject */}
             <div>
-              <label className="text-[10px] font-bold tracking-widest text-[#0F2044]/50 mb-1.5 block uppercase">Subject</label>
+              <label className="text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5 block uppercase">Subject</label>
               <div className="relative">
                 <select
                   value={form.subject}
                   onChange={(e) => set("subject", e.target.value)}
-                  className="appearance-none w-full pl-4 pr-9 py-3 border border-[#0F2044]/15 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 bg-white text-[#0F2044]"
+                  className="appearance-none w-full pl-4 pr-9 py-3 border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 bg-app-surface text-app-text"
                 >
                   {mySubjects.length === 0 && <option value="">No subjects assigned</option>}
                   {mySubjects.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
-                <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0F2044]/40 pointer-events-none" />
+                <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
               </div>
             </div>
           </div>
@@ -259,7 +259,7 @@ function HomeworkFormModal({ hw, myClasses, mySubjects, schoolCode, schoolClasse
           {/* Auto-resolved student count display */}
           <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all
             ${studentCount === null && !studentCountLoading
-              ? "bg-[#F7F5F0] border-[#0F2044]/10"
+              ? "bg-app-bg border-app-border"
               : studentCount === 0
               ? "bg-amber-50 border-amber-200"
               : "bg-emerald-50 border-emerald-200"}`}>
@@ -270,11 +270,11 @@ function HomeworkFormModal({ hw, myClasses, mySubjects, schoolCode, schoolClasse
                 : <Users size={14} className={studentCount === 0 ? "text-amber-600" : "text-emerald-600"} />}
             </div>
             <div>
-              <p className="text-[10px] font-bold tracking-widest text-[#0F2044]/50 uppercase">Students in class</p>
+              <p className="text-[10px] font-bold tracking-widest text-app-text/50 uppercase">Students in class</p>
               {studentCountLoading ? (
-                <p className="text-sm text-[#0F2044]/50">Counting students…</p>
+                <p className="text-sm text-app-text/50">Counting students…</p>
               ) : studentCount === null ? (
-                <p className="text-sm text-[#0F2044]/50">Select a class above</p>
+                <p className="text-sm text-app-text/50">Select a class above</p>
               ) : studentCount === 0 ? (
                 <p className="text-sm font-semibold text-amber-700">No students enrolled in {form.className}</p>
               ) : (
@@ -286,66 +286,66 @@ function HomeworkFormModal({ hw, myClasses, mySubjects, schoolCode, schoolClasse
           </div>
 
           <div>
-            <label className="text-[10px] font-bold tracking-widests text-[#0F2044]/50 mb-1.5 block uppercase">Title *</label>
+            <label className="text-[10px] font-bold tracking-widests text-app-text/50 mb-1.5 block uppercase">Title *</label>
             <input
               type="text"
               placeholder="e.g. Quadratic Equations Exercise"
               value={form.title}
               onChange={(e) => set("title", e.target.value)}
-              className="w-full px-4 py-3 border border-[#0F2044]/15 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044]"
+              className="w-full px-4 py-3 border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
             />
           </div>
 
           <div>
-            <label className="text-[10px] font-bold tracking-widest text-[#0F2044]/50 mb-1.5 block uppercase">Description / Instructions</label>
+            <label className="text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5 block uppercase">Description / Instructions</label>
             <textarea
               rows={3}
               placeholder="Detailed instructions, page numbers, requirements…"
               value={form.description}
               onChange={(e) => set("description", e.target.value)}
-              className="w-full px-4 py-3 border border-[#0F2044]/15 rounded-2xl text-sm resize-y focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044]"
+              className="w-full px-4 py-3 border border-app-border rounded-2xl text-sm resize-y focus:outline-none focus:border-[#0F2044]/40 text-app-text"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[10px] font-bold tracking-widest text-[#0F2044]/50 mb-1.5 block uppercase">Due Date *</label>
+              <label className="text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5 block uppercase">Due Date *</label>
               <input
                 type="date"
                 value={form.dueDate}
                 onChange={(e) => set("dueDate", e.target.value)}
-                className="w-full px-4 py-3 border border-[#0F2044]/15 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044]"
+                className="w-full px-4 py-3 border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
               />
             </div>
 
             {/* Submitted count — only shown when editing */}
             {isEdit && (
               <div>
-                <label className="text-[10px] font-bold tracking-widest text-[#0F2044]/50 mb-1.5 block uppercase">Submitted Count</label>
+                <label className="text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5 block uppercase">Submitted Count</label>
                 <input
                   type="number"
                   min={0}
                   max={studentCount ?? undefined}
                   value={form.submitted}
                   onChange={(e) => set("submitted", parseInt(e.target.value) || 0)}
-                  className="w-full px-4 py-3 border border-[#0F2044]/15 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044]"
+                  className="w-full px-4 py-3 border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
                 />
               </div>
             )}
           </div>
         </div>
 
-        <div className="px-7 py-5 border-t border-[#0F2044]/8 flex gap-3 shrink-0">
+        <div className="px-7 py-5 border-t border-app-border flex gap-3 shrink-0">
           <button
             onClick={onClose}
-            className="flex-1 py-3 border border-[#0F2044]/15 rounded-2xl font-medium text-[#0F2044]/60 hover:bg-[#F7F5F0] transition-colors text-sm"
+            className="flex-1 py-3 border border-app-border rounded-2xl font-medium text-app-text/60 hover:bg-app-bg transition-colors text-sm"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving || studentCountLoading}
-            className="flex-1 py-3 bg-[#0F2044] hover:bg-black disabled:opacity-60 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition-all text-sm"
+            className="flex-1 py-3 bg-app-primary hover:bg-black disabled:opacity-60 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition-all text-sm"
           >
             {saving ? <Spinner size={15} /> : <Save size={15} />}
             {isEdit ? "Update" : "Assign Homework"}
@@ -370,12 +370,12 @@ function ViewModal({ hw, onClose }) {
       className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
-        <div className="bg-[#0F2044] px-7 py-5 flex items-start justify-between gap-4">
+      <div className="bg-app-surface rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+        <div className="bg-app-primary px-7 py-5 flex items-start justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-1.5">
-              <span className="text-xs px-2.5 py-0.5 bg-white/15 text-white/80 rounded-lg font-medium">{hw.className}</span>
-              <span className="text-xs px-2.5 py-0.5 bg-white/15 text-white/80 rounded-lg font-medium">{hw.subject}</span>
+              <span className="text-xs px-2.5 py-0.5 bg-app-surface/15 text-white/80 rounded-lg font-medium">{hw.className}</span>
+              <span className="text-xs px-2.5 py-0.5 bg-app-surface/15 text-white/80 rounded-lg font-medium">{hw.subject}</span>
               {overdue && <span className="text-xs px-2.5 py-0.5 bg-red-400/30 text-red-200 rounded-lg font-semibold">Overdue</span>}
             </div>
             <h3 className="text-white font-bold text-lg leading-tight">{hw.title}</h3>
@@ -386,40 +386,40 @@ function ViewModal({ hw, onClose }) {
         </div>
 
         <div className="p-7 space-y-5">
-          <div className="p-4 bg-[#F7F5F0] rounded-2xl border border-[#0F2044]/8">
+          <div className="p-4 bg-app-bg rounded-2xl border border-app-border">
             <div className="flex justify-between items-center mb-2">
-              <p className="text-[10px] font-bold tracking-widest text-[#0F2044]/40 uppercase">Submission Progress</p>
-              <span className="text-sm font-bold text-[#0F2044]">{submissionRate}%</span>
+              <p className="text-[10px] font-bold tracking-widest text-app-text/40 uppercase">Submission Progress</p>
+              <span className="text-sm font-bold text-app-text">{submissionRate}%</span>
             </div>
-            <div className="w-full bg-[#0F2044]/10 rounded-full h-2 mb-2">
+            <div className="w-full bg-app-primary/10 rounded-full h-2 mb-2">
               <div className="bg-emerald-500 h-2 rounded-full transition-all" style={{ width: `${submissionRate}%` }} />
             </div>
-            <p className="text-xs text-[#0F2044]/50">{hw.submitted || 0} of {hw.totalStudents || 0} submitted</p>
+            <p className="text-xs text-app-text/50">{hw.submitted || 0} of {hw.totalStudents || 0} submitted</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-px bg-[#0F2044]/5 rounded-2xl overflow-hidden text-sm">
+          <div className="grid grid-cols-2 gap-px bg-app-primary/5 rounded-2xl overflow-hidden text-sm">
             {[
               ["Assigned",  fmt(hw.dateAssigned)],
               ["Due Date",  fmt(hw.dueDate)],
               ["Class",     hw.className || "—"],
               ["Subject",   hw.subject   || "—"],
             ].map(([k, v]) => (
-              <div key={k} className="bg-white px-4 py-3">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[#0F2044]/40 mb-0.5">{k}</p>
-                <p className="font-medium text-[#0F2044]">{v}</p>
+              <div key={k} className="bg-app-surface px-4 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-app-text/40 mb-0.5">{k}</p>
+                <p className="font-medium text-app-text">{v}</p>
               </div>
             ))}
           </div>
 
           {hw.description && (
-            <div className="p-4 bg-[#F7F5F0] rounded-2xl border border-[#0F2044]/8">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/40 mb-1.5">Instructions</p>
-              <p className="text-sm text-[#0F2044]/70 leading-relaxed">{hw.description}</p>
+            <div className="p-4 bg-app-bg rounded-2xl border border-app-border">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40 mb-1.5">Instructions</p>
+              <p className="text-sm text-app-text/70 leading-relaxed">{hw.description}</p>
             </div>
           )}
 
           <div className="flex justify-end pt-1">
-            <button onClick={onClose} className="px-6 py-2.5 border border-[#0F2044]/15 rounded-xl hover:bg-[#F7F5F0] text-sm font-medium transition-colors text-[#0F2044]/70">
+            <button onClick={onClose} className="px-6 py-2.5 border border-app-border rounded-xl hover:bg-app-bg text-sm font-medium transition-colors text-app-text/70">
               Close
             </button>
           </div>
@@ -589,10 +589,10 @@ export default function HomeworkModule({ userId, schoolCode }) {
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-[#0F2044]" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h2 className="text-3xl font-bold text-app-text" style={{ fontFamily: "'Playfair Display', serif" }}>
             Homework &amp; Assignments
           </h2>
-          <p className="text-[#0F2044]/60 mt-1">
+          <p className="text-app-text/60 mt-1">
             {assignLoading
               ? "Loading your assignments…"
               : noAssignment
@@ -604,7 +604,7 @@ export default function HomeworkModule({ userId, schoolCode }) {
           <button
             onClick={fetchHomework}
             disabled={isLoading}
-            className="p-2.5 bg-white border border-[#0F2044]/10 rounded-xl hover:bg-[#F7F5F0] transition-colors text-[#0F2044]/60 disabled:opacity-40"
+            className="p-2.5 bg-app-surface border border-app-border rounded-xl hover:bg-app-bg transition-colors text-app-text/60 disabled:opacity-40"
             title="Refresh"
           >
             <RefreshCw size={16} />
@@ -613,7 +613,7 @@ export default function HomeworkModule({ userId, schoolCode }) {
             <button
               onClick={() => setShowNew(true)}
               disabled={isLoading}
-              className="flex items-center gap-2 bg-[#0F2044] hover:bg-black text-white px-5 py-2.5 rounded-2xl font-medium text-sm transition-all disabled:opacity-40"
+              className="flex items-center gap-2 bg-app-primary hover:bg-black text-white px-5 py-2.5 rounded-2xl font-medium text-sm transition-all disabled:opacity-40"
             >
               <Plus size={15} /> Assign Homework
             </button>
@@ -638,7 +638,7 @@ export default function HomeworkModule({ userId, schoolCode }) {
       {/* ── Tabs + Filters ── */}
       {!noAssignment && (
         <div className="flex flex-col sm:flex-row gap-3">
-          <div className="bg-white rounded-2xl p-1 border border-[#0F2044]/8 inline-flex shrink-0">
+          <div className="bg-app-surface rounded-2xl p-1 border border-app-border inline-flex shrink-0">
             {[
               { id: "active",  label: "Active",  count: activeList.length  },
               { id: "overdue", label: "Overdue", count: overdueList.length },
@@ -648,12 +648,12 @@ export default function HomeworkModule({ userId, schoolCode }) {
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-5 py-2 text-sm font-medium rounded-xl transition-all flex items-center gap-2 ${
                   activeTab === tab.id
-                    ? tab.id === "overdue" ? "bg-red-600 text-white" : "bg-[#0F2044] text-white"
-                    : "text-[#0F2044]/60 hover:bg-[#FAFAF8]"
+                    ? tab.id === "overdue" ? "bg-red-600 text-white" : "bg-app-primary text-white"
+                    : "text-app-text/60 hover:bg-[#FAFAF8]"
                 }`}
               >
                 {tab.label}
-                <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === tab.id ? "bg-white/20" : "bg-[#0F2044]/8"}`}>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === tab.id ? "bg-app-surface/20" : "bg-app-primary/8"}`}>
                   {tab.count}
                 </span>
               </button>
@@ -661,13 +661,13 @@ export default function HomeworkModule({ userId, schoolCode }) {
           </div>
 
           <div className="relative flex-1">
-            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#0F2044]/35" />
+            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-app-text/35" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by title, class, or subject…"
-              className="w-full pl-9 pr-4 py-2.5 bg-white border border-[#0F2044]/10 rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/30 text-[#0F2044]"
+              className="w-full pl-9 pr-4 py-2.5 bg-app-surface border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/30 text-app-text"
             />
           </div>
 
@@ -676,12 +676,12 @@ export default function HomeworkModule({ userId, schoolCode }) {
               <select
                 value={classFilter}
                 onChange={(e) => setClassFilter(e.target.value)}
-                className="appearance-none pl-4 pr-9 py-2.5 bg-white border border-[#0F2044]/15 rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044] min-w-[140px]"
+                className="appearance-none pl-4 pr-9 py-2.5 bg-app-surface border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text min-w-[140px]"
               >
                 <option value="all">All classes</option>
                 {myClasses.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
-              <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0F2044]/40 pointer-events-none" />
+              <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
             </div>
           )}
         </div>
@@ -690,14 +690,14 @@ export default function HomeworkModule({ userId, schoolCode }) {
       {/* ── List ── */}
       <div className="space-y-3">
         {isLoading ? (
-          <div className="bg-white rounded-2xl border border-[#0F2044]/8 py-24 flex flex-col items-center gap-3 text-[#0F2044]/40">
+          <div className="bg-app-surface rounded-2xl border border-app-border py-24 flex flex-col items-center gap-3 text-app-text/40">
             <Spinner size={28} />
             <p className="text-sm">Loading homework…</p>
           </div>
         ) : displayList.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-[#0F2044]/8 py-24 flex flex-col items-center gap-3 text-[#0F2044]/30">
+          <div className="bg-app-surface rounded-2xl border border-app-border py-24 flex flex-col items-center gap-3 text-app-text/30">
             <FileText size={36} />
-            <p className="text-sm font-medium text-[#0F2044]/40">
+            <p className="text-sm font-medium text-app-text/40">
               {homework.length === 0
                 ? "No homework assigned yet. Create your first one."
                 : activeTab === "overdue"
@@ -718,7 +718,7 @@ export default function HomeworkModule({ userId, schoolCode }) {
         )}
       </div>
 
-      <p className="text-center text-xs text-[#0F2044]/40 pt-1">
+      <p className="text-center text-xs text-app-text/40 pt-1">
         Homework is scoped to your assigned classes and subjects only.
       </p>
 

@@ -3,32 +3,31 @@
    Responsive, scrollable, mobile-drawer + desktop-fixed panel
    ============================================================ */
 
-/* ── Design tokens (scope to :root so the rest of the app can share them) ── */
-:root {
-  --sb-bg:              #080c18;
-  --sb-bg-gradient:     linear-gradient(180deg, #070a15 0%, #0a0f1e 55%, #0c1228 100%);
-  --sb-border:          rgba(79, 110, 247, 0.13);
-  --sb-border-hover:    rgba(79, 110, 247, 0.26);
-  --sb-accent:          #4f6ef7;
-  --sb-accent-lt:       #7b96ff;
-  --sb-accent-pale:     rgba(79, 110, 247, 0.11);
-  --sb-teal:            #0ea5b0;
-  --sb-teal-lt:         #22d3de;
-  --sb-gold:            #e8a800;
-  --sb-gold-lt:         #f5c842;
-  --sb-text:            #ffffff;
-  --sb-text2:           rgba(255, 255, 255, 0.55);
-  --sb-text3:           rgba(255, 255, 255, 0.22);
-  --sb-danger:          rgba(239, 68, 68, 0.55);
-  --sb-danger-hover-bg: rgba(239, 68, 68, 0.09);
-  --sb-danger-hover:    #ff7070;
-  --sb-radius:          12px;
-  --sb-radius-sm:       8px;
+/* Sidebar tokens — mapped to global design system */
+:root,
+[data-theme="dark"],
+[data-theme="light"] {
+  --sb-bg:              var(--bg-primary);
+  --sb-bg-gradient:     var(--sidebar-bg);
+  --sb-border:          var(--border-color);
+  --sb-border-hover:    var(--border-strong);
+  --sb-accent:          var(--primary);
+  --sb-accent-lt:       var(--primary-light);
+  --sb-accent-pale:     var(--primary-pale);
+  --sb-teal:            var(--secondary);
+  --sb-teal-lt:         var(--secondary-light);
+  --sb-gold:            var(--warning);
+  --sb-gold-lt:         var(--warning-light);
+  --sb-text:            var(--text-primary);
+  --sb-text2:           var(--text-secondary);
+  --sb-text3:           var(--text-muted);
+  --sb-danger:          var(--danger-light);
+  --sb-danger-hover-bg: var(--danger-pale);
+  --sb-danger-hover:    var(--danger);
+  --sb-radius:          var(--r-md);
+  --sb-radius-sm:       var(--r-sm);
   --sb-width:           248px;
-  --sb-transition:      0.18s ease;
-  --font-display:       'Bebas Neue', sans-serif;
-  --font-body:          'DM Sans', sans-serif;
-  --font-mono:          'DM Mono', monospace;
+  --sb-transition:      var(--transition-base);
 }
 
 /* ── Reset box-sizing for sidebar subtree ── */

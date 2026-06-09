@@ -24,16 +24,16 @@ function initials(name = "") {
 
 function Spinner() {
   return (
-    <svg className="animate-spin w-5 h-5 text-[#0F2044]/40" viewBox="0 0 24 24" fill="none">
+    <svg className="animate-spin w-5 h-5 text-app-text/40" viewBox="0 0 24 24" fill="none">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
     </svg>
   );
 }
 
-function Tag({ label, color = "bg-[#0F2044]/8 text-[#0F2044]/70" }) {
+function Tag({ label, color = "bg-app-primary/8 text-app-text/70" }) {
   return (
-    <span className={`inline-block px-2.5 py-0.5 rounded-lg text-xs font-medium border border-[#0F2044]/10 ${color}`}>
+    <span className={`inline-block px-2.5 py-0.5 rounded-lg text-xs font-medium border border-app-border ${color}`}>
       {label}
     </span>
   );
@@ -63,7 +63,7 @@ function CheckboxGroup({ items, selected = [], onChange }) {
 
   if (items.length === 0) {
     return (
-      <p className="text-center text-[#0F2044]/40 py-8 italic">Nothing available to assign</p>
+      <p className="text-center text-app-text/40 py-8 italic">Nothing available to assign</p>
     );
   }
 
@@ -76,8 +76,8 @@ function CheckboxGroup({ items, selected = [], onChange }) {
             key={item}
             className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl border cursor-pointer transition-all select-none
               ${isSelected
-                ? "border-[#0F2044] bg-[#0F2044]/5 text-[#0F2044] font-medium"
-                : "border-[#0F2044]/10 hover:border-[#0F2044]/30 hover:bg-[#F7F5F0] text-[#0F2044]/70"
+                ? "border-[#0F2044] bg-app-primary/5 text-app-text font-medium"
+                : "border-app-border hover:border-[#0F2044]/30 hover:bg-app-bg text-app-text/70"
               }`}
           >
             <input
@@ -124,8 +124,8 @@ function AssignModal({ member, allClasses, onSave, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden">
-        <div className="bg-[#0F2044] px-8 py-6 flex items-center justify-between">
+      <div className="bg-app-surface rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden">
+        <div className="bg-app-primary px-8 py-6 flex items-center justify-between">
           <div>
             <h3 className="text-white font-bold text-xl">Assign Classes & Subjects</h3>
             <p className="text-white/70 mt-1">{member.name}</p>
@@ -135,13 +135,13 @@ function AssignModal({ member, allClasses, onSave, onClose }) {
           </button>
         </div>
 
-        <div className="flex border-b border-[#0F2044]/10">
+        <div className="flex border-b border-app-border">
           <button
             onClick={() => setActiveTab("classes")}
             className={`flex-1 py-4 text-sm font-semibold transition-colors ${
               activeTab === "classes"
-                ? "border-b-4 border-[#0F2044] text-[#0F2044]"
-                : "text-[#0F2044]/50 hover:text-[#0F2044]"
+                ? "border-b-4 border-[#0F2044] text-app-text"
+                : "text-app-text/50 hover:text-app-text"
             }`}
           >
             Classes ({assignedClasses.length})
@@ -150,8 +150,8 @@ function AssignModal({ member, allClasses, onSave, onClose }) {
             onClick={() => setActiveTab("subjects")}
             className={`flex-1 py-4 text-sm font-semibold transition-colors ${
               activeTab === "subjects"
-                ? "border-b-4 border-[#0F2044] text-[#0F2044]"
-                : "text-[#0F2044]/50 hover:text-[#0F2044]"
+                ? "border-b-4 border-[#0F2044] text-app-text"
+                : "text-app-text/50 hover:text-app-text"
             }`}
           >
             Subjects ({assignedSubjects.length})
@@ -166,7 +166,7 @@ function AssignModal({ member, allClasses, onSave, onClose }) {
           )}
           {activeTab === "classes" ? (
             <div>
-              <p className="text-sm text-[#0F2044]/60 mb-4">
+              <p className="text-sm text-app-text/60 mb-4">
                 Select classes this staff member will be responsible for:
               </p>
               <CheckboxGroup
@@ -177,7 +177,7 @@ function AssignModal({ member, allClasses, onSave, onClose }) {
             </div>
           ) : (
             <div>
-              <p className="text-sm text-[#0F2044]/60 mb-4">
+              <p className="text-sm text-app-text/60 mb-4">
                 Select subjects this staff member teaches:
               </p>
               <CheckboxGroup
@@ -192,14 +192,14 @@ function AssignModal({ member, allClasses, onSave, onClose }) {
         <div className="px-8 py-6 border-t flex gap-4">
           <button
             onClick={onClose}
-            className="flex-1 py-3.5 border border-[#0F2044]/20 rounded-2xl font-medium text-[#0F2044]/70 hover:bg-[#F7F5F0] transition-colors"
+            className="flex-1 py-3.5 border border-app-border rounded-2xl font-medium text-app-text/70 hover:bg-app-bg transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 py-3.5 bg-[#F4B400] hover:brightness-105 disabled:opacity-70 text-[#0F2044] font-bold rounded-2xl flex items-center justify-center gap-2 transition-all"
+            className="flex-1 py-3.5 bg-app-warning hover:brightness-105 disabled:opacity-70 text-app-text font-bold rounded-2xl flex items-center justify-center gap-2 transition-all"
           >
             {saving ? <Spinner /> : <Check className="w-5 h-5" />}
             Save Assignments
@@ -295,12 +295,12 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-[#0F2044]">Staff Management</h2>
-          <p className="text-[#0F2044]/60">View staff and assign classes & subjects</p>
+          <h2 className="text-2xl font-bold text-app-text">Staff Management</h2>
+          <p className="text-app-text/60">View staff and assign classes & subjects</p>
         </div>
         <button
           onClick={fetchAllData}
-          className="flex items-center gap-2 px-5 py-2.5 bg-white border border-[#0F2044]/10 rounded-2xl hover:bg-[#F7F5F0] transition-colors"
+          className="flex items-center gap-2 px-5 py-2.5 bg-app-surface border border-app-border rounded-2xl hover:bg-app-bg transition-colors"
         >
           <RefreshCw className="w-4 h-4" />
           Refresh
@@ -309,25 +309,25 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Total Staff", value: stats.total, color: "text-[#0F2044]" },
+          { label: "Total Staff", value: stats.total, color: "text-app-text" },
           { label: "Teachers", value: stats.total, color: "text-blue-600" },
           { label: "Active", value: stats.active, color: "text-emerald-600" },
           { label: "Forms Covered", value: stats.covered, color: "text-purple-600" },
         ].map((stat) => (
-          <div key={stat.label} className="bg-white rounded-2xl p-6 border border-[#0F2044]/8">
+          <div key={stat.label} className="bg-app-surface rounded-2xl p-6 border border-app-border">
             <p className={`text-4xl font-bold ${stat.color}`}>{stat.value}</p>
-            <p className="text-sm text-[#0F2044]/50 mt-1">{stat.label}</p>
+            <p className="text-sm text-app-text/50 mt-1">{stat.label}</p>
           </div>
         ))}
       </div>
 
-      <div className="flex bg-[#F7F5F0] p-1 rounded-2xl w-fit">
+      <div className="flex bg-app-bg p-1 rounded-2xl w-fit">
         {["staff", "assignments"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-6 py-3 rounded-xl font-semibold transition-all ${
-              activeTab === tab ? "bg-white shadow-sm" : "text-[#0F2044]/60"
+              activeTab === tab ? "bg-app-surface shadow-sm" : "text-app-text/60"
             }`}
           >
             {tab === "staff" ? "Staff List" : "Class Assignments"}
@@ -351,8 +351,8 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
                 onClick={() => setRoleFilter(role)}
                 className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
                   roleFilter === role
-                    ? "bg-[#0F2044] text-white"
-                    : "bg-white border border-[#0F2044]/10 text-[#0F2044]/70 hover:border-[#0F2044]/30"
+                    ? "bg-app-primary text-white"
+                    : "bg-app-surface border border-app-border text-app-text/70 hover:border-[#0F2044]/30"
                 }`}
               >
                 {role === "all" ? "All Staff" : role === "head_teacher" ? "Head Teachers" : "Class Teachers"}
@@ -362,48 +362,48 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
           </div>
 
           <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#0F2044]/40" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-app-text/40" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name or email..."
-              className="w-full pl-12 pr-4 py-3.5 bg-white border border-[#0F2044]/10 rounded-2xl focus:border-[#0F2044]/40 outline-none"
+              className="w-full pl-12 pr-4 py-3.5 bg-app-surface border border-app-border rounded-2xl focus:border-[#0F2044]/40 outline-none"
             />
           </div>
 
-          <div className="bg-white rounded-3xl border border-[#0F2044]/8 overflow-hidden">
+          <div className="bg-app-surface rounded-3xl border border-app-border overflow-hidden">
             {loading ? (
               <div className="py-24 flex flex-col items-center gap-4">
                 <Spinner />
-                <p className="text-[#0F2044]/60">Loading staff...</p>
+                <p className="text-app-text/60">Loading staff...</p>
               </div>
             ) : filteredStaff.length === 0 ? (
-              <div className="py-24 text-center text-[#0F2044]/50">No staff found</div>
+              <div className="py-24 text-center text-app-text/50">No staff found</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b bg-[#F7F5F0]">
-                      <th className="px-6 py-5 text-left text-xs font-bold text-[#0F2044]/50">STAFF</th>
-                      <th className="px-6 py-5 text-left text-xs font-bold text-[#0F2044]/50">ROLE</th>
-                      <th className="px-6 py-5 text-left text-xs font-bold text-[#0F2044]/50">CLASSES</th>
-                      <th className="px-6 py-5 text-left text-xs font-bold text-[#0F2044]/50">SUBJECTS</th>
-                      <th className="px-6 py-5 text-left text-xs font-bold text-[#0F2044]/50">STATUS</th>
-                      <th className="px-6 py-5 text-right text-xs font-bold text-[#0F2044]/50">ACTIONS</th>
+                    <tr className="border-b bg-app-bg">
+                      <th className="px-6 py-5 text-left text-xs font-bold text-app-text/50">STAFF</th>
+                      <th className="px-6 py-5 text-left text-xs font-bold text-app-text/50">ROLE</th>
+                      <th className="px-6 py-5 text-left text-xs font-bold text-app-text/50">CLASSES</th>
+                      <th className="px-6 py-5 text-left text-xs font-bold text-app-text/50">SUBJECTS</th>
+                      <th className="px-6 py-5 text-left text-xs font-bold text-app-text/50">STATUS</th>
+                      <th className="px-6 py-5 text-right text-xs font-bold text-app-text/50">ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#0F2044]/5">
                     {filteredStaff.map((member) => (
-                      <tr key={member.id} className="hover:bg-[#F7F5F0]/60 transition-colors">
+                      <tr key={member.id} className="hover:bg-app-bg/60 transition-colors">
                         <td className="px-6 py-5">
                           <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-[#0F2044] text-white rounded-2xl flex items-center justify-center font-bold text-sm">
+                            <div className="w-10 h-10 bg-app-primary text-white rounded-2xl flex items-center justify-center font-bold text-sm">
                               {initials(member.name)}
                             </div>
                             <div>
                               <p className="font-semibold">{member.name}</p>
-                              <p className="text-xs text-[#0F2044]/50">{member.email}</p>
+                              <p className="text-xs text-app-text/50">{member.email}</p>
                             </div>
                           </div>
                         </td>
@@ -418,7 +418,7 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
                               ))}
                             </div>
                           ) : (
-                            <span className="text-[#0F2044]/40">—</span>
+                            <span className="text-app-text/40">—</span>
                           )}
                         </td>
                         <td className="px-6 py-5">
@@ -432,7 +432,7 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
                               )}
                             </div>
                           ) : (
-                            <span className="text-[#0F2044]/40">—</span>
+                            <span className="text-app-text/40">—</span>
                           )}
                         </td>
                         <td className="px-6 py-5">
@@ -442,14 +442,14 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
                           <div className="flex gap-2 justify-end">
                             <button
                               onClick={() => setModal({ mode: "view", member })}
-                              className="p-2 hover:bg-[#F7F5F0] rounded-xl text-[#0F2044]/60 hover:text-[#0F2044]"
+                              className="p-2 hover:bg-app-bg rounded-xl text-app-text/60 hover:text-app-text"
                               title="View"
                             >
                               <Eye size={20} />
                             </button>
                             <button
                               onClick={() => setModal({ mode: "assign", member })}
-                              className="p-2 hover:bg-blue-50 rounded-xl text-[#0F2044]/60 hover:text-blue-600"
+                              className="p-2 hover:bg-blue-50 rounded-xl text-app-text/60 hover:text-blue-600"
                               title="Assign classes & subjects"
                             >
                               <BookOpen size={20} />
@@ -471,23 +471,23 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
           {loading ? (
             <div className="col-span-2 py-24 flex flex-col items-center gap-4">
               <Spinner />
-              <p className="text-[#0F2044]/60">Loading classes...</p>
+              <p className="text-app-text/60">Loading classes...</p>
             </div>
           ) : allClasses.length === 0 ? (
-            <div className="col-span-2 bg-white rounded-3xl p-16 text-center border border-[#0F2044]/8">
-              <LayoutGrid className="w-16 h-16 mx-auto text-[#0F2044]/20 mb-4" />
+            <div className="col-span-2 bg-app-surface rounded-3xl p-16 text-center border border-app-border">
+              <LayoutGrid className="w-16 h-16 mx-auto text-app-text/20 mb-4" />
               <p className="text-xl font-semibold">No classes found</p>
-              <p className="text-[#0F2044]/60 mt-2">Create classes in the Admin Dashboard first</p>
+              <p className="text-app-text/60 mt-2">Create classes in the Admin Dashboard first</p>
             </div>
           ) : (
             allClasses.map((cls) => {
               const assigned = staff.filter((t) => t.assignedClasses?.includes(cls.name));
               return (
-                <div key={cls.id} className="bg-white rounded-3xl border border-[#0F2044]/8 overflow-hidden">
-                  <div className="px-6 py-5 bg-[#F7F5F0] border-b flex justify-between items-center">
+                <div key={cls.id} className="bg-app-surface rounded-3xl border border-app-border overflow-hidden">
+                  <div className="px-6 py-5 bg-app-bg border-b flex justify-between items-center">
                     <div>
                       <h3 className="font-bold text-lg">{cls.name}</h3>
-                      <p className="text-xs text-[#0F2044]/50">{cls.subjects?.length || 0} subjects</p>
+                      <p className="text-xs text-app-text/50">{cls.subjects?.length || 0} subjects</p>
                     </div>
                     <span className="text-blue-600 font-semibold text-sm">
                       {assigned.length} teacher{assigned.length !== 1 ? "s" : ""}
@@ -501,12 +501,12 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
                           className="flex items-center justify-between py-4 border-b last:border-0 group"
                         >
                           <div className="flex items-center gap-4">
-                            <div className="w-9 h-9 bg-[#0F2044] text-white rounded-2xl flex items-center justify-center text-sm font-bold">
+                            <div className="w-9 h-9 bg-app-primary text-white rounded-2xl flex items-center justify-center text-sm font-bold">
                               {initials(teacher.name)}
                             </div>
                             <div>
                               <p className="font-medium">{teacher.name}</p>
-                              <p className="text-xs text-[#0F2044]/50">
+                              <p className="text-xs text-app-text/50">
                                 {teacher.assignedSubjects?.length || 0} subjects
                               </p>
                             </div>
@@ -521,7 +521,7 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
                         </div>
                       ))
                     ) : (
-                      <p className="text-center py-12 text-[#0F2044]/40 italic">
+                      <p className="text-center py-12 text-app-text/40 italic">
                         No teachers assigned yet
                       </p>
                     )}

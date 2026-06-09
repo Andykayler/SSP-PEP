@@ -21,10 +21,10 @@ function LessonPlanCard({ plan, onView, onEdit, onDelete }) {
   };
 
   return (
-    <div className="bg-white rounded-3xl border border-[#0F2044]/8 overflow-hidden hover:shadow-md transition-all">
-      <div className="px-6 py-5 border-b bg-[#F7F5F0] flex items-center justify-between">
+    <div className="bg-app-surface rounded-3xl border border-app-border overflow-hidden hover:shadow-md transition-all">
+      <div className="px-6 py-5 border-b bg-app-bg flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="px-4 py-1.5 bg-white border border-[#0F2044]/20 rounded-2xl text-sm font-medium">
+          <div className="px-4 py-1.5 bg-app-surface border border-app-border rounded-2xl text-sm font-medium">
             {plan.className} • {plan.subject}
           </div>
           <div className={`px-4 py-1 text-xs font-medium rounded-2xl ${statusStyles[plan.status]}`}>
@@ -32,50 +32,50 @@ function LessonPlanCard({ plan, onView, onEdit, onDelete }) {
           </div>
         </div>
 
-        <div className="text-xs text-[#0F2044]/60 font-mono">
+        <div className="text-xs text-app-text/60 font-mono">
           Week {plan.week} • {plan.term}
         </div>
       </div>
 
       <div className="p-6 space-y-5">
         <div>
-          <h3 className="font-semibold text-2xl text-[#0F2044] leading-tight">{plan.topic}</h3>
-          <p className="text-[#0F2044]/70 mt-2 text-[15px]">{plan.objectives}</p>
+          <h3 className="font-semibold text-2xl text-app-text leading-tight">{plan.topic}</h3>
+          <p className="text-app-text/70 mt-2 text-[15px]">{plan.objectives}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-sm">
           <div>
-            <p className="text-xs text-[#0F2044]/60 mb-1">DATE & PERIOD</p>
+            <p className="text-xs text-app-text/60 mb-1">DATE & PERIOD</p>
             <div className="flex items-center gap-2 font-medium">
-              <Calendar className="w-4 h-4 text-[#0F2044]/70" />
+              <Calendar className="w-4 h-4 text-app-text/70" />
               {new Date(plan.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
-              <span className="text-[#0F2044]/50">•</span>
-              <Clock className="w-4 h-4 text-[#0F2044]/70" />
+              <span className="text-app-text/50">•</span>
+              <Clock className="w-4 h-4 text-app-text/70" />
               {plan.period}
             </div>
           </div>
 
           <div>
-            <p className="text-xs text-[#0F2044]/60 mb-1">RESOURCES</p>
-            <p className="font-medium text-[#0F2044]">{plan.resources}</p>
+            <p className="text-xs text-app-text/60 mb-1">RESOURCES</p>
+            <p className="font-medium text-app-text">{plan.resources}</p>
           </div>
 
           <div>
-            <p className="text-xs text-[#0F2044]/60 mb-1">ASSESSMENT</p>
-            <p className="font-medium text-[#0F2044]">{plan.assessment}</p>
+            <p className="text-xs text-app-text/60 mb-1">ASSESSMENT</p>
+            <p className="font-medium text-app-text">{plan.assessment}</p>
           </div>
         </div>
 
         <div className="flex gap-3 pt-2">
           <button
             onClick={() => onView(plan)}
-            className="flex-1 flex items-center justify-center gap-2 py-3 border border-[#0F2044]/20 hover:bg-[#F7F5F0] rounded-2xl text-sm font-medium transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 py-3 border border-app-border hover:bg-app-bg rounded-2xl text-sm font-medium transition-colors"
           >
             <Eye className="w-4 h-4" /> View Full Plan
           </button>
           <button
             onClick={() => onEdit(plan)}
-            className="flex-1 flex items-center justify-center gap-2 py-3 border border-[#0F2044]/20 hover:bg-[#F7F5F0] rounded-2xl text-sm font-medium transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 py-3 border border-app-border hover:bg-app-bg rounded-2xl text-sm font-medium transition-colors"
           >
             <Edit2 className="w-4 h-4" /> Edit
           </button>
@@ -126,11 +126,11 @@ function NewLessonPlanModal({ isOpen, onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[95vh] overflow-hidden shadow-2xl">
+      <div className="bg-app-surface rounded-3xl w-full max-w-2xl max-h-[95vh] overflow-hidden shadow-2xl">
         {/* Modal Header */}
-        <div className="px-6 py-5 border-b bg-[#F7F5F0] flex items-center justify-between">
-          <h3 className="text-2xl font-semibold text-[#0F2044]">New Lesson Plan</h3>
-          <button onClick={onClose} className="p-2 hover:bg-white rounded-2xl transition-colors">
+        <div className="px-6 py-5 border-b bg-app-bg flex items-center justify-between">
+          <h3 className="text-2xl font-semibold text-app-text">New Lesson Plan</h3>
+          <button onClick={onClose} className="p-2 hover:bg-app-surface rounded-2xl transition-colors">
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -138,22 +138,22 @@ function NewLessonPlanModal({ isOpen, onClose, onSave }) {
         <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-              <label className="text-xs font-medium text-[#0F2044]/60 mb-1 block">CLASS</label>
+              <label className="text-xs font-medium text-app-text/60 mb-1 block">CLASS</label>
               <select
                 value={formData.className}
                 onChange={(e) => setFormData({ ...formData, className: e.target.value })}
-                className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-2xl focus:outline-none focus:border-[#0F2044]"
+                className="w-full px-4 py-3 border border-app-border rounded-2xl focus:outline-none focus:border-[#0F2044]"
               >
                 {classes.map(cls => <option key={cls} value={cls}>{cls}</option>)}
               </select>
             </div>
 
             <div>
-              <label className="text-xs font-medium text-[#0F2044]/60 mb-1 block">SUBJECT</label>
+              <label className="text-xs font-medium text-app-text/60 mb-1 block">SUBJECT</label>
               <select
                 value={formData.subject}
                 onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-2xl focus:outline-none focus:border-[#0F2044]"
+                className="w-full px-4 py-3 border border-app-border rounded-2xl focus:outline-none focus:border-[#0F2044]"
               >
                 {subjects.map(sub => <option key={sub} value={sub}>{sub}</option>)}
               </select>
@@ -162,96 +162,96 @@ function NewLessonPlanModal({ isOpen, onClose, onSave }) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-              <label className="text-xs font-medium text-[#0F2044]/60 mb-1 block">DATE</label>
+              <label className="text-xs font-medium text-app-text/60 mb-1 block">DATE</label>
               <input
                 type="date"
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-2xl"
+                className="w-full px-4 py-3 border border-app-border rounded-2xl"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-[#0F2044]/60 mb-1 block">PERIOD</label>
+              <label className="text-xs font-medium text-app-text/60 mb-1 block">PERIOD</label>
               <input
                 type="text"
                 value={formData.period}
                 onChange={(e) => setFormData({ ...formData, period: e.target.value })}
                 placeholder="e.g. Period 3 (10:30 - 11:20)"
-                className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-2xl"
+                className="w-full px-4 py-3 border border-app-border rounded-2xl"
               />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-medium text-[#0F2044]/60 mb-1 block">TOPIC / CHAPTER</label>
+            <label className="text-xs font-medium text-app-text/60 mb-1 block">TOPIC / CHAPTER</label>
             <input
               type="text"
               placeholder="e.g. Solving Simultaneous Equations"
               value={formData.topic}
               onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
-              className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-2xl"
+              className="w-full px-4 py-3 border border-app-border rounded-2xl"
               required
             />
           </div>
 
           <div>
-            <label className="text-xs font-medium text-[#0F2044]/60 mb-1 block">LEARNING OBJECTIVES</label>
+            <label className="text-xs font-medium text-app-text/60 mb-1 block">LEARNING OBJECTIVES</label>
             <textarea
               rows={4}
               placeholder="Students should be able to..."
               value={formData.objectives}
               onChange={(e) => setFormData({ ...formData, objectives: e.target.value })}
-              className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-3xl resize-y min-h-[100px]"
+              className="w-full px-4 py-3 border border-app-border rounded-3xl resize-y min-h-[100px]"
               required
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-              <label className="text-xs font-medium text-[#0F2044]/60 mb-1 block">RESOURCES / TEACHING AIDS</label>
+              <label className="text-xs font-medium text-app-text/60 mb-1 block">RESOURCES / TEACHING AIDS</label>
               <input
                 type="text"
                 value={formData.resources}
                 onChange={(e) => setFormData({ ...formData, resources: e.target.value })}
-                className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-2xl"
+                className="w-full px-4 py-3 border border-app-border rounded-2xl"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-[#0F2044]/60 mb-1 block">ASSESSMENT METHOD</label>
+              <label className="text-xs font-medium text-app-text/60 mb-1 block">ASSESSMENT METHOD</label>
               <input
                 type="text"
                 value={formData.assessment}
                 onChange={(e) => setFormData({ ...formData, assessment: e.target.value })}
-                className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-2xl"
+                className="w-full px-4 py-3 border border-app-border rounded-2xl"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-5">
             <div>
-              <label className="text-xs font-medium text-[#0F2044]/60 mb-1 block">WEEK</label>
+              <label className="text-xs font-medium text-app-text/60 mb-1 block">WEEK</label>
               <input
                 type="text"
                 value={formData.week}
                 onChange={(e) => setFormData({ ...formData, week: e.target.value })}
-                className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-2xl"
+                className="w-full px-4 py-3 border border-app-border rounded-2xl"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-[#0F2044]/60 mb-1 block">TERM</label>
+              <label className="text-xs font-medium text-app-text/60 mb-1 block">TERM</label>
               <input
                 type="text"
                 value={formData.term}
                 onChange={(e) => setFormData({ ...formData, term: e.target.value })}
-                className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-2xl"
+                className="w-full px-4 py-3 border border-app-border rounded-2xl"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-[#0F2044]/60 mb-1 block">STATUS</label>
+              <label className="text-xs font-medium text-app-text/60 mb-1 block">STATUS</label>
               <select
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full px-4 py-3 border border-[#0F2044]/10 rounded-2xl"
+                className="w-full px-4 py-3 border border-app-border rounded-2xl"
               >
                 <option value="planned">Planned</option>
                 <option value="in-progress">In Progress</option>
@@ -264,13 +264,13 @@ function NewLessonPlanModal({ isOpen, onClose, onSave }) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-4 text-sm font-medium border border-[#0F2044]/20 rounded-2xl hover:bg-[#F7F5F0]"
+              className="flex-1 py-4 text-sm font-medium border border-app-border rounded-2xl hover:bg-app-bg"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 py-4 bg-[#0F2044] hover:bg-[#1A2F5C] text-white rounded-2xl font-medium flex items-center justify-center gap-2"
+              className="flex-1 py-4 bg-app-primary hover:bg-[#1A2F5C] text-white rounded-2xl font-medium flex items-center justify-center gap-2"
             >
               <Save className="w-5 h-5" /> Save Lesson Plan
             </button>
@@ -289,60 +289,60 @@ function ViewLessonPlanModal({ plan, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden">
-        <div className="px-6 py-5 border-b bg-[#F7F5F0] flex justify-between items-center">
-          <h3 className="text-2xl font-semibold text-[#0F2044]">Lesson Plan Details</h3>
-          <button onClick={onClose} className="p-2 hover:bg-white rounded-2xl">
+      <div className="bg-app-surface rounded-3xl w-full max-w-2xl overflow-hidden">
+        <div className="px-6 py-5 border-b bg-app-bg flex justify-between items-center">
+          <h3 className="text-2xl font-semibold text-app-text">Lesson Plan Details</h3>
+          <button onClick={onClose} className="p-2 hover:bg-app-surface rounded-2xl">
             <X className="w-6 h-6" />
           </button>
         </div>
 
         <div className="p-8 space-y-8">
           <div>
-            <div className="text-xs text-[#0F2044]/60">CLASS & SUBJECT</div>
+            <div className="text-xs text-app-text/60">CLASS & SUBJECT</div>
             <div className="text-2xl font-medium">{plan.className} — {plan.subject}</div>
           </div>
 
           <div>
-            <div className="text-xs text-[#0F2044]/60">TOPIC</div>
-            <div className="text-2xl font-semibold text-[#0F2044]">{plan.topic}</div>
+            <div className="text-xs text-app-text/60">TOPIC</div>
+            <div className="text-2xl font-semibold text-app-text">{plan.topic}</div>
           </div>
 
           <div>
-            <div className="text-xs text-[#0F2044]/60 mb-2">LEARNING OBJECTIVES</div>
-            <div className="bg-[#F7F5F0] p-5 rounded-3xl text-[15px] leading-relaxed">
+            <div className="text-xs text-app-text/60 mb-2">LEARNING OBJECTIVES</div>
+            <div className="bg-app-bg p-5 rounded-3xl text-[15px] leading-relaxed">
               {plan.objectives}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-8">
             <div>
-              <div className="text-xs text-[#0F2044]/60 mb-1">DATE & PERIOD</div>
+              <div className="text-xs text-app-text/60 mb-1">DATE & PERIOD</div>
               <div className="font-medium">
                 {new Date(plan.date).toLocaleDateString('en-GB')} • {plan.period}
               </div>
             </div>
             <div>
-              <div className="text-xs text-[#0F2044]/60 mb-1">WEEK / TERM</div>
+              <div className="text-xs text-app-text/60 mb-1">WEEK / TERM</div>
               <div className="font-medium">Week {plan.week} • {plan.term}</div>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-8">
             <div>
-              <div className="text-xs text-[#0F2044]/60 mb-2">RESOURCES</div>
-              <div className="text-[#0F2044]">{plan.resources}</div>
+              <div className="text-xs text-app-text/60 mb-2">RESOURCES</div>
+              <div className="text-app-text">{plan.resources}</div>
             </div>
             <div>
-              <div className="text-xs text-[#0F2044]/60 mb-2">ASSESSMENT</div>
-              <div className="text-[#0F2044]">{plan.assessment}</div>
+              <div className="text-xs text-app-text/60 mb-2">ASSESSMENT</div>
+              <div className="text-app-text">{plan.assessment}</div>
             </div>
           </div>
 
           <div className="pt-4 border-t flex justify-end">
             <button
               onClick={onClose}
-              className="px-10 py-3 border border-[#0F2044]/20 rounded-2xl hover:bg-[#F7F5F0] font-medium"
+              className="px-10 py-3 border border-app-border rounded-2xl hover:bg-app-bg font-medium"
             >
               Close
             </button>
@@ -428,22 +428,22 @@ export default function ClassPlanningModule() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-[#0F2044]" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h2 className="text-3xl font-bold text-app-text" style={{ fontFamily: "'Playfair Display', serif" }}>
             Class Planning & Lesson Plans
           </h2>
-          <p className="text-[#0F2044]/60">Mr. Martin Khumbata • Mathematics & Physics Teacher</p>
+          <p className="text-app-text/60">Mr. Martin Khumbata • Mathematics & Physics Teacher</p>
         </div>
 
         <button
           onClick={() => setShowNewModal(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-[#0F2044] hover:bg-[#1A2F5C] text-white rounded-2xl font-medium transition-colors"
+          className="flex items-center gap-2 px-6 py-3 bg-app-primary hover:bg-[#1A2F5C] text-white rounded-2xl font-medium transition-colors"
         >
           <Plus className="w-5 h-5" /> New Lesson Plan
         </button>
       </div>
 
       {/* Filter Tabs */}
-      <div className="bg-white rounded-3xl p-1 border border-[#0F2044]/8 inline-flex">
+      <div className="bg-app-surface rounded-3xl p-1 border border-app-border inline-flex">
         {[
           { id: "all", label: "All Lesson Plans" },
           { id: "this-week", label: "This Week" },
@@ -454,8 +454,8 @@ export default function ClassPlanningModule() {
             onClick={() => setActiveFilter(filter.id)}
             className={`px-7 py-3 text-sm font-medium rounded-2xl transition-all ${
               activeFilter === filter.id 
-                ? "bg-[#0F2044] text-white shadow-md" 
-                : "hover:bg-[#FAFAF8] text-[#0F2044]/70"
+                ? "bg-app-primary text-white shadow-md" 
+                : "hover:bg-[#FAFAF8] text-app-text/70"
             }`}
           >
             {filter.label}
@@ -476,13 +476,13 @@ export default function ClassPlanningModule() {
             />
           ))
         ) : (
-          <div className="bg-white rounded-3xl py-24 text-center text-[#0F2044]/50">
+          <div className="bg-app-surface rounded-3xl py-24 text-center text-app-text/50">
             No lesson plans found.
           </div>
         )}
       </div>
 
-      <div className="text-center text-xs text-[#0F2044]/50 pt-4">
+      <div className="text-center text-xs text-app-text/50 pt-4">
         All lesson plans are automatically considered for termly curriculum coverage reports and MANEB compliance.
       </div>
 

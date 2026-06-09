@@ -57,14 +57,14 @@ const EMPTY_FORM = {
 };
 
 const inputCls =
-  "w-full px-4 py-3 bg-[#F7F5F0] border border-[#0F2044]/10 rounded-2xl focus:outline-none focus:border-[#0F2044]/30 text-sm text-[#0F2044] transition-colors";
+  "w-full px-4 py-3 bg-app-bg border border-app-border rounded-2xl focus:outline-none focus:border-[#0F2044]/30 text-sm text-app-text transition-colors";
 
 function initials(name = "") {
   return name.split(" ").filter((w) => /^[A-Z]/.test(w)).slice(0, 2).map((w) => w[0]).join("");
 }
 
 function Spinner({ size = 20 }) {
-  return <Loader2 size={size} className="animate-spin text-[#0F2044]/40 inline-block" />;
+  return <Loader2 size={size} className="animate-spin text-app-text/40 inline-block" />;
 }
 
 function Toast({ message, type = "success", onClose }) {
@@ -86,7 +86,7 @@ function Toast({ message, type = "success", onClose }) {
 function Field({ label, required, children, error }) {
   return (
     <div>
-      <label className="block text-xs font-semibold text-[#0F2044]/50 uppercase tracking-wide mb-1.5">
+      <label className="block text-xs font-semibold text-app-text/50 uppercase tracking-wide mb-1.5">
         {label}{required && <span className="text-red-400 ml-0.5">*</span>}
       </label>
       {children}
@@ -148,19 +148,19 @@ function CreatePlanModal({ onClose, onSave, editingPlan, staffList, headTeacherI
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[95vh]">
+      <div className="bg-app-surface rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[95vh]">
 
-        <div className="px-7 py-5 border-b bg-[#F7F5F0] flex justify-between items-center flex-shrink-0">
+        <div className="px-7 py-5 border-b bg-app-bg flex justify-between items-center flex-shrink-0">
           <div>
-            <h3 className="text-xl font-bold text-[#0F2044]">
+            <h3 className="text-xl font-bold text-app-text">
               {isEdit ? "Edit lesson plan" : "New lesson plan"}
             </h3>
-            <p className="text-xs text-[#0F2044]/50 mt-0.5">
+            <p className="text-xs text-app-text/50 mt-0.5">
               {isEdit ? "Update the details below." : "Fill in the details to create a new plan."}
             </p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white rounded-2xl transition-colors">
-            <X className="w-5 h-5 text-[#0F2044]/50" />
+          <button onClick={onClose} className="p-2 hover:bg-app-surface rounded-2xl transition-colors">
+            <X className="w-5 h-5 text-app-text/50" />
           </button>
         </div>
 
@@ -183,7 +183,7 @@ function CreatePlanModal({ onClose, onSave, editingPlan, staffList, headTeacherI
                   </option>
                 ))}
               </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F2044]/40 pointer-events-none" />
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-app-text/40 pointer-events-none" />
             </div>
           </Field>
 
@@ -196,7 +196,7 @@ function CreatePlanModal({ onClose, onSave, editingPlan, staffList, headTeacherI
                   <option value="">Select class…</option>
                   {CLASS_NAMES.map((c) => <option key={c}>{c}</option>)}
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F2044]/40 pointer-events-none" />
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-app-text/40 pointer-events-none" />
               </div>
             </Field>
 
@@ -208,7 +208,7 @@ function CreatePlanModal({ onClose, onSave, editingPlan, staffList, headTeacherI
                   <option value="">Select subject…</option>
                   {subjectOptions.map((s) => <option key={s}>{s}</option>)}
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F2044]/40 pointer-events-none" />
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-app-text/40 pointer-events-none" />
               </div>
             </Field>
           </div>
@@ -238,7 +238,7 @@ function CreatePlanModal({ onClose, onSave, editingPlan, staffList, headTeacherI
                   <option value="">Select period…</option>
                   {PERIODS.map((p) => <option key={p}>{p}</option>)}
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F2044]/40 pointer-events-none" />
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-app-text/40 pointer-events-none" />
               </div>
             </Field>
           </div>
@@ -255,7 +255,7 @@ function CreatePlanModal({ onClose, onSave, editingPlan, staffList, headTeacherI
                   className={inputCls + " appearance-none pr-10"}>
                   {TERMS.map((t) => <option key={t}>{t}</option>)}
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F2044]/40 pointer-events-none" />
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-app-text/40 pointer-events-none" />
               </div>
             </Field>
             <Field label="Status">
@@ -266,7 +266,7 @@ function CreatePlanModal({ onClose, onSave, editingPlan, staffList, headTeacherI
                   <option value="in-progress">In progress</option>
                   <option value="completed">Completed</option>
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F2044]/40 pointer-events-none" />
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-app-text/40 pointer-events-none" />
               </div>
             </Field>
           </div>
@@ -284,13 +284,13 @@ function CreatePlanModal({ onClose, onSave, editingPlan, staffList, headTeacherI
           </Field>
         </div>
 
-        <div className="px-7 py-5 border-t bg-[#F7F5F0] flex justify-between items-center flex-shrink-0">
+        <div className="px-7 py-5 border-t bg-app-bg flex justify-between items-center flex-shrink-0">
           <button onClick={onClose}
-            className="px-6 py-2.5 border border-[#0F2044]/20 rounded-2xl hover:bg-white transition-colors text-sm font-medium text-[#0F2044]/60">
+            className="px-6 py-2.5 border border-app-border rounded-2xl hover:bg-app-surface transition-colors text-sm font-medium text-app-text/60">
             Cancel
           </button>
           <button onClick={handleSave} disabled={saving}
-            className="flex items-center gap-2 px-7 py-2.5 bg-[#0F2044] text-white rounded-2xl hover:bg-[#1a3060] transition-colors text-sm font-semibold disabled:opacity-60">
+            className="flex items-center gap-2 px-7 py-2.5 bg-app-primary text-white rounded-2xl hover:bg-[#1a3060] transition-colors text-sm font-semibold disabled:opacity-60">
             {saving ? <Spinner size={16} /> : <Plus className="w-4 h-4" />}
             {isEdit ? "Save changes" : "Create plan"}
           </button>
@@ -309,63 +309,63 @@ function ViewLessonPlanModal({ plan, onClose, onEdit, onDelete, staffList, headT
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl">
-        <div className="px-6 py-5 border-b bg-[#F7F5F0] flex justify-between items-center">
-          <h3 className="text-xl font-bold text-[#0F2044]">Lesson plan details</h3>
-          <button onClick={onClose} className="p-2 hover:bg-white rounded-2xl transition-colors">
-            <X className="w-5 h-5 text-[#0F2044]/60" />
+      <div className="bg-app-surface rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl">
+        <div className="px-6 py-5 border-b bg-app-bg flex justify-between items-center">
+          <h3 className="text-xl font-bold text-app-text">Lesson plan details</h3>
+          <button onClick={onClose} className="p-2 hover:bg-app-surface rounded-2xl transition-colors">
+            <X className="w-5 h-5 text-app-text/60" />
           </button>
         </div>
 
         <div className="p-8 space-y-7 overflow-y-auto max-h-[80vh]">
           {/* Teacher badge */}
-          <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl w-fit ${isHT ? "bg-amber-50 border border-amber-200" : "bg-[#0F2044]/5"}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${isHT ? "bg-gradient-to-br from-amber-400 to-amber-600" : "bg-[#0F2044]"}`}>
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl w-fit ${isHT ? "bg-amber-50 border border-amber-200" : "bg-app-primary/5"}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${isHT ? "bg-gradient-to-br from-amber-400 to-amber-600" : "bg-app-primary"}`}>
               {initials(teacher?.name || "")}
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <p className="text-sm font-medium text-[#0F2044]">{teacher?.name || "Unknown"}</p>
+                <p className="text-sm font-medium text-app-text">{teacher?.name || "Unknown"}</p>
                 {isHT && <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />}
               </div>
-              <p className="text-xs text-[#0F2044]/50">{isHT ? "Head Teacher · " : ""}{plan.subject}</p>
+              <p className="text-xs text-app-text/50">{isHT ? "Head Teacher · " : ""}{plan.subject}</p>
             </div>
           </div>
 
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-xs text-[#0F2044]/50 mb-1">Class &amp; subject</p>
-              <p className="text-xl font-bold text-[#0F2044]">{plan.className} — {plan.subject}</p>
+              <p className="text-xs text-app-text/50 mb-1">Class &amp; subject</p>
+              <p className="text-xl font-bold text-app-text">{plan.className} — {plan.subject}</p>
             </div>
             <div className="text-right">
-              <p className="text-xs text-[#0F2044]/50 mb-1">Date</p>
-              <p className="font-medium text-[#0F2044]">
+              <p className="text-xs text-app-text/50 mb-1">Date</p>
+              <p className="font-medium text-app-text">
                 {plan.date ? new Date(plan.date).toLocaleDateString("en-GB") : "—"}
               </p>
             </div>
           </div>
 
           <div>
-            <p className="text-xs text-[#0F2044]/50 mb-1">Topic</p>
-            <p className="text-2xl font-bold text-[#0F2044]">{plan.topic}</p>
+            <p className="text-xs text-app-text/50 mb-1">Topic</p>
+            <p className="text-2xl font-bold text-app-text">{plan.topic}</p>
           </div>
 
           <div>
-            <p className="text-xs text-[#0F2044]/50 mb-2">Learning objectives</p>
-            <div className="bg-[#F7F5F0] px-6 py-5 rounded-2xl text-sm leading-relaxed text-[#0F2044]/80 border border-[#0F2044]/5">
+            <p className="text-xs text-app-text/50 mb-2">Learning objectives</p>
+            <div className="bg-app-bg px-6 py-5 rounded-2xl text-sm leading-relaxed text-app-text/80 border border-[#0F2044]/5">
               {plan.objectives}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-6">
-            <div><p className="text-xs text-[#0F2044]/50 mb-1">Period</p><p className="font-medium text-[#0F2044] text-sm">{plan.period}</p></div>
-            <div><p className="text-xs text-[#0F2044]/50 mb-1">Week / Term</p><p className="font-medium text-[#0F2044] text-sm">Week {plan.week} · {plan.term}</p></div>
-            <div><p className="text-xs text-[#0F2044]/50 mb-1">Resources</p><p className="font-medium text-[#0F2044] text-sm">{plan.resources || "—"}</p></div>
-            <div><p className="text-xs text-[#0F2044]/50 mb-1">Assessment</p><p className="font-medium text-[#0F2044] text-sm">{plan.assessment || "—"}</p></div>
+            <div><p className="text-xs text-app-text/50 mb-1">Period</p><p className="font-medium text-app-text text-sm">{plan.period}</p></div>
+            <div><p className="text-xs text-app-text/50 mb-1">Week / Term</p><p className="font-medium text-app-text text-sm">Week {plan.week} · {plan.term}</p></div>
+            <div><p className="text-xs text-app-text/50 mb-1">Resources</p><p className="font-medium text-app-text text-sm">{plan.resources || "—"}</p></div>
+            <div><p className="text-xs text-app-text/50 mb-1">Assessment</p><p className="font-medium text-app-text text-sm">{plan.assessment || "—"}</p></div>
           </div>
 
           <div>
-            <p className="text-xs text-[#0F2044]/50 mb-1">Status</p>
+            <p className="text-xs text-app-text/50 mb-1">Status</p>
             <span className={`inline-block px-4 py-1 rounded-full text-xs font-medium ${STATUS_STYLES[plan.status]}`}>
               {STATUS_LABELS[plan.status]}
             </span>
@@ -374,7 +374,7 @@ function ViewLessonPlanModal({ plan, onClose, onEdit, onDelete, staffList, headT
           <div className="pt-4 border-t flex justify-between items-center">
             <div className="flex gap-2">
               <button onClick={() => onEdit(plan)}
-                className="px-6 py-2.5 border border-[#0F2044]/20 rounded-2xl hover:bg-[#F7F5F0] font-medium transition-colors text-sm text-[#0F2044]/70">
+                className="px-6 py-2.5 border border-app-border rounded-2xl hover:bg-app-bg font-medium transition-colors text-sm text-app-text/70">
                 Edit plan
               </button>
               <button onClick={() => onDelete(plan.id)}
@@ -383,7 +383,7 @@ function ViewLessonPlanModal({ plan, onClose, onEdit, onDelete, staffList, headT
               </button>
             </div>
             <button onClick={onClose}
-              className="px-8 py-2.5 border border-[#0F2044]/20 rounded-2xl hover:bg-[#F7F5F0] font-medium transition-colors text-sm">
+              className="px-8 py-2.5 border border-app-border rounded-2xl hover:bg-app-bg font-medium transition-colors text-sm">
               Close
             </button>
           </div>
@@ -403,47 +403,47 @@ function PlanRow({ plan, showTeacherName, onView, staffList, headTeacherId }) {
     <div className="p-6 hover:bg-[#FAFAF8] transition-colors">
       <div className="flex flex-col lg:flex-row lg:items-start gap-5">
         <div className="flex-shrink-0 flex items-center gap-3 lg:flex-col lg:items-center lg:w-20 lg:pt-1">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${isHT ? "bg-gradient-to-br from-amber-400 to-amber-600" : "bg-[#0F2044]"}`}>
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${isHT ? "bg-gradient-to-br from-amber-400 to-amber-600" : "bg-app-primary"}`}>
             {initials(teacher?.name || "?")}
           </div>
-          <p className="text-xs text-[#0F2044]/50 text-center leading-tight hidden lg:block">
+          <p className="text-xs text-app-text/50 text-center leading-tight hidden lg:block">
             {teacher?.name?.split(" ").slice(-1)[0] || ""}
           </p>
           {showTeacherName && (
-            <p className="text-xs text-[#0F2044]/60 font-medium lg:hidden">{teacher?.name}</p>
+            <p className="text-xs text-app-text/60 font-medium lg:hidden">{teacher?.name}</p>
           )}
         </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-2">
-            <span className="px-3 py-1 bg-[#F7F5F0] border border-[#0F2044]/10 rounded-xl text-xs font-medium text-[#0F2044]/70">
+            <span className="px-3 py-1 bg-app-bg border border-app-border rounded-xl text-xs font-medium text-app-text/70">
               {plan.className} · {plan.subject}
             </span>
             <span className={`px-3 py-1 text-xs font-medium rounded-xl ${STATUS_STYLES[plan.status]}`}>
               {STATUS_LABELS[plan.status]}
             </span>
-            <span className="text-xs text-[#0F2044]/40 hidden lg:inline">Week {plan.week}</span>
+            <span className="text-xs text-app-text/40 hidden lg:inline">Week {plan.week}</span>
           </div>
-          <h3 className="font-bold text-lg text-[#0F2044] mb-1 leading-snug">{plan.topic}</h3>
-          <p className="text-sm text-[#0F2044]/60 leading-relaxed line-clamp-2">{plan.objectives}</p>
+          <h3 className="font-bold text-lg text-app-text mb-1 leading-snug">{plan.topic}</h3>
+          <p className="text-sm text-app-text/60 leading-relaxed line-clamp-2">{plan.objectives}</p>
           <div className="flex flex-wrap gap-5 mt-3">
-            <span className="flex items-center gap-1.5 text-xs text-[#0F2044]/50">
+            <span className="flex items-center gap-1.5 text-xs text-app-text/50">
               <Calendar className="w-3.5 h-3.5" />
               {plan.date ? new Date(plan.date).toLocaleDateString("en-GB") : "—"}
             </span>
-            <span className="flex items-center gap-1.5 text-xs text-[#0F2044]/50">
+            <span className="flex items-center gap-1.5 text-xs text-app-text/50">
               <Clock className="w-3.5 h-3.5" />
               {plan.period}
             </span>
             {showTeacherName && (
-              <span className="text-xs text-[#0F2044]/40 hidden lg:inline">{teacher?.name}</span>
+              <span className="text-xs text-app-text/40 hidden lg:inline">{teacher?.name}</span>
             )}
           </div>
         </div>
 
         <div className="flex-shrink-0 flex items-start">
           <button onClick={() => onView(plan)}
-            className="flex items-center gap-2 px-5 py-2.5 border border-[#0F2044]/15 rounded-2xl text-sm font-medium hover:bg-[#F7F5F0] hover:border-[#0F2044]/30 transition-colors text-[#0F2044]/70">
+            className="flex items-center gap-2 px-5 py-2.5 border border-app-border rounded-2xl text-sm font-medium hover:bg-app-bg hover:border-[#0F2044]/30 transition-colors text-app-text/70">
             <Eye className="w-4 h-4" />
             View plan
           </button>
@@ -459,16 +459,16 @@ function PlanSection({ label, plans, isHeadTeacher, showTeacherName, onView, sta
   if (!plans.length) return null;
   return (
     <div>
-      <div className={`flex items-center gap-2 px-5 py-3 rounded-2xl mb-4 ${isHeadTeacher ? "bg-gradient-to-r from-[#0F2044] to-[#1e3a6e] text-white" : "bg-white border border-[#0F2044]/10 text-[#0F2044]"}`}>
+      <div className={`flex items-center gap-2 px-5 py-3 rounded-2xl mb-4 ${isHeadTeacher ? "bg-gradient-to-r from-[#0F2044] to-[#1e3a6e] text-white" : "bg-app-surface border border-app-border text-app-text"}`}>
         {isHeadTeacher
           ? <Star className="w-4 h-4 fill-amber-400 text-amber-400 flex-shrink-0" />
           : <Users className="w-4 h-4 flex-shrink-0 opacity-50" />}
         <span className="text-xs font-semibold tracking-wide uppercase">{label}</span>
-        <span className={`ml-auto text-xs font-bold px-2.5 py-0.5 rounded-full ${isHeadTeacher ? "bg-white/20 text-white" : "bg-[#0F2044]/8 text-[#0F2044]"}`}>
+        <span className={`ml-auto text-xs font-bold px-2.5 py-0.5 rounded-full ${isHeadTeacher ? "bg-app-surface/20 text-white" : "bg-app-primary/8 text-app-text"}`}>
           {plans.length} plan{plans.length !== 1 ? "s" : ""}
         </span>
       </div>
-      <div className="bg-white rounded-3xl border border-[#0F2044]/8 overflow-hidden">
+      <div className="bg-app-surface rounded-3xl border border-app-border overflow-hidden">
         <div className="divide-y divide-[#0F2044]/5">
           {plans.map((plan) => (
             <PlanRow
@@ -488,12 +488,12 @@ function PlanSection({ label, plans, isHeadTeacher, showTeacherName, onView, sta
 
 function EmptyState({ onAdd }) {
   return (
-    <div className="bg-white rounded-3xl border border-[#0F2044]/8 py-20 text-center space-y-3">
-      <BookOpen size={32} className="mx-auto text-[#0F2044]/20 mb-2" />
-      <p className="text-[#0F2044]/40 text-sm">No lesson plans match your filters.</p>
+    <div className="bg-app-surface rounded-3xl border border-app-border py-20 text-center space-y-3">
+      <BookOpen size={32} className="mx-auto text-app-text/20 mb-2" />
+      <p className="text-app-text/40 text-sm">No lesson plans match your filters.</p>
       {onAdd && (
         <button onClick={onAdd}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0F2044] text-white rounded-2xl text-sm font-semibold hover:bg-[#1a3060] transition-colors">
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-app-primary text-white rounded-2xl text-sm font-semibold hover:bg-[#1a3060] transition-colors">
           <Plus className="w-4 h-4" /> Create your first plan
         </button>
       )}
@@ -675,7 +675,7 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
   const filteredStaff   = filteredInScope.filter((p) => p.teacherId !== userId);
 
   const stats = [
-    { label: "Total plans", value: plansInScope.length,                                          color: "text-[#0F2044]"   },
+    { label: "Total plans", value: plansInScope.length,                                          color: "text-app-text"   },
     { label: "Completed",   value: plansInScope.filter((p) => p.status === "completed").length,   color: "text-emerald-600" },
     { label: "In progress", value: plansInScope.filter((p) => p.status === "in-progress").length, color: "text-blue-600"    },
     { label: "Planned",     value: plansInScope.filter((p) => p.status === "planned").length,     color: "text-amber-600"   },
@@ -700,27 +700,27 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-[#0F2044]">Lesson Plans</h2>
-          <p className="text-[#0F2044]/60 mt-1">
+          <h2 className="text-3xl font-bold text-app-text">Lesson Plans</h2>
+          <p className="text-app-text/60 mt-1">
             {headTeacher?.name || "Head Teacher"} · {new Date().getFullYear()}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={fetchPlans}
-            className="p-2.5 bg-white border border-[#0F2044]/10 rounded-xl hover:bg-[#F7F5F0] transition-colors text-[#0F2044]/60"
+            className="p-2.5 bg-app-surface border border-app-border rounded-xl hover:bg-app-bg transition-colors text-app-text/60"
             title="Refresh"
           >
             <RefreshCw size={16} />
           </button>
-          <button className="flex items-center gap-2 px-5 py-3 border border-[#0F2044]/20 rounded-2xl hover:bg-[#F7F5F0] transition-colors text-sm font-medium text-[#0F2044]">
+          <button className="flex items-center gap-2 px-5 py-3 border border-app-border rounded-2xl hover:bg-app-bg transition-colors text-sm font-medium text-app-text">
             <Download className="w-4 h-4" />
             Export
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
             disabled={staffLoading}
-            className="flex items-center gap-2 px-6 py-3 bg-[#0F2044] text-white rounded-2xl hover:bg-[#1a3060] transition-colors text-sm font-semibold shadow-sm disabled:opacity-50"
+            className="flex items-center gap-2 px-6 py-3 bg-app-primary text-white rounded-2xl hover:bg-[#1a3060] transition-colors text-sm font-semibold shadow-sm disabled:opacity-50"
           >
             <Plus className="w-4 h-4" />
             New plan
@@ -729,15 +729,15 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-white border border-[#0F2044]/8 rounded-2xl p-1.5 w-fit">
+      <div className="flex gap-1 bg-app-surface border border-app-border rounded-2xl p-1.5 w-fit">
         {tabs.map((tab) => (
           <button key={tab.id}
             onClick={() => { setActiveTab(tab.id); setActivePill("all"); }}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeTab === tab.id ? "bg-[#0F2044] text-white shadow-sm" : "text-[#0F2044]/55 hover:text-[#0F2044] hover:bg-[#F7F5F0]"}`}>
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeTab === tab.id ? "bg-app-primary text-white shadow-sm" : "text-app-text/55 hover:text-app-text hover:bg-app-bg"}`}>
             {tab.id === "mine"  && <Star  className="w-3.5 h-3.5" />}
             {tab.id === "staff" && <Users className="w-3.5 h-3.5" />}
             {tab.label}
-            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${activeTab === tab.id ? "bg-white/20 text-white" : "bg-[#0F2044]/8 text-[#0F2044]"}`}>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${activeTab === tab.id ? "bg-app-surface/20 text-white" : "bg-app-primary/8 text-app-text"}`}>
               {tab.count}
             </span>
           </button>
@@ -747,8 +747,8 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
         {stats.map(({ label, value, color }) => (
-          <div key={label} className="bg-white rounded-3xl p-6 border border-[#0F2044]/8">
-            <p className="text-sm text-[#0F2044]/60">{label}</p>
+          <div key={label} className="bg-app-surface rounded-3xl p-6 border border-app-border">
+            <p className="text-sm text-app-text/60">{label}</p>
             <p className={`text-4xl font-bold mt-2 ${color}`}>
               {loading ? <Spinner /> : value}
             </p>
@@ -757,21 +757,21 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-3xl p-6 border border-[#0F2044]/8">
+      <div className="bg-app-surface rounded-3xl p-6 border border-app-border">
         <div className="flex flex-wrap gap-4">
           <div className="flex-1 relative min-w-[220px]">
-            <BookOpen className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F2044]/40" />
+            <BookOpen className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-app-text/40" />
             <input type="text" placeholder="Search topic, class, subject or teacher…"
               value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-4 py-3.5 bg-[#F7F5F0] border border-[#0F2044]/10 rounded-2xl focus:outline-none focus:border-[#0F2044]/30 text-sm" />
+              className="w-full pl-11 pr-4 py-3.5 bg-app-bg border border-app-border rounded-2xl focus:outline-none focus:border-[#0F2044]/30 text-sm" />
           </div>
           <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)}
-            className="px-5 py-3.5 bg-white border border-[#0F2044]/10 rounded-2xl focus:outline-none text-sm min-w-[150px]">
+            className="px-5 py-3.5 bg-app-surface border border-app-border rounded-2xl focus:outline-none text-sm min-w-[150px]">
             <option value="all">All subjects</option>
             {allSubjects.map((s) => <option key={s}>{s}</option>)}
           </select>
           <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}
-            className="px-5 py-3.5 bg-white border border-[#0F2044]/10 rounded-2xl focus:outline-none text-sm min-w-[140px]">
+            className="px-5 py-3.5 bg-app-surface border border-app-border rounded-2xl focus:outline-none text-sm min-w-[140px]">
             <option value="all">All statuses</option>
             <option value="planned">Planned</option>
             <option value="in-progress">In progress</option>
@@ -784,7 +784,7 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
       {activeTab !== "mine" && pillTeachers.length > 1 && (
         <div className="flex flex-wrap gap-3">
           <button onClick={() => setActivePill("all")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-2xl border text-sm font-medium transition-colors ${activePill === "all" ? "bg-[#0F2044] text-white border-[#0F2044]" : "border-[#0F2044]/15 text-[#0F2044]/70 hover:border-[#0F2044]/30 hover:bg-[#F7F5F0]"}`}>
+            className={`flex items-center gap-2 px-4 py-2 rounded-2xl border text-sm font-medium transition-colors ${activePill === "all" ? "bg-app-primary text-white border-[#0F2044]" : "border-app-border text-app-text/70 hover:border-[#0F2044]/30 hover:bg-app-bg"}`}>
             <Users className="w-4 h-4" /> All staff
           </button>
           {pillTeachers.map((t) => {
@@ -793,23 +793,23 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
             const isHT   = t.id === userId;
             return (
               <button key={t.id} onClick={() => setActivePill(active ? "all" : t.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-2xl border text-sm font-medium transition-colors ${active ? "bg-[#0F2044] text-white border-[#0F2044]" : "border-[#0F2044]/15 text-[#0F2044]/70 hover:border-[#0F2044]/30 hover:bg-[#F7F5F0]"}`}>
+                className={`flex items-center gap-2 px-4 py-2 rounded-2xl border text-sm font-medium transition-colors ${active ? "bg-app-primary text-white border-[#0F2044]" : "border-app-border text-app-text/70 hover:border-[#0F2044]/30 hover:bg-app-bg"}`}>
                 {isHT && <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />}
                 <span>{t.name.split(" ").slice(-1)[0]}</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${active ? "bg-white/20" : "bg-[#0F2044]/8"}`}>{count}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${active ? "bg-app-surface/20" : "bg-app-primary/8"}`}>{count}</span>
               </button>
             );
           })}
         </div>
       )}
 
-      <p className="text-sm text-[#0F2044]/50">
+      <p className="text-sm text-app-text/50">
         Showing {filteredInScope.length} of {plansInScope.length} plans
       </p>
 
       {/* Content */}
       {loading ? (
-        <div className="bg-white rounded-3xl border border-[#0F2044]/8 py-24 flex flex-col items-center gap-3 text-[#0F2044]/40">
+        <div className="bg-app-surface rounded-3xl border border-app-border py-24 flex flex-col items-center gap-3 text-app-text/40">
           <Spinner size={32} />
           <p className="text-sm">Loading lesson plans…</p>
         </div>
@@ -855,7 +855,7 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
         </div>
       )}
 
-      <p className="text-center text-xs text-[#0F2044]/40 pt-2">
+      <p className="text-center text-xs text-app-text/40 pt-2">
         Lesson plans are submitted by teaching staff and reviewed by the head teacher.
         Completed plans are automatically included in term reports.
       </p>

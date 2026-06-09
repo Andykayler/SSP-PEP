@@ -44,7 +44,7 @@ function avg(scores) {
 }
 
 function Spinner({ size = 20 }) {
-  return <Loader2 size={size} className="animate-spin text-[#0F2044]/40 inline-block" />;
+  return <Loader2 size={size} className="animate-spin text-app-text/40 inline-block" />;
 }
 
 // ─── Print styles injected once ──────────────────────────────────────────────
@@ -60,7 +60,7 @@ const PRINT_STYLE = `
 function MiniBar({ value, max = 100, color = "#3b82f6" }) {
   const pct = max ? Math.round((value / max) * 100) : 0;
   return (
-    <div className="flex-1 bg-[#F7F5F0] rounded-full h-2.5 overflow-hidden">
+    <div className="flex-1 bg-app-bg rounded-full h-2.5 overflow-hidden">
       <div
         className="h-full rounded-full transition-all duration-700"
         style={{ width: `${pct}%`, backgroundColor: color }}
@@ -84,18 +84,18 @@ function ReportCardModal({ student, schoolCode, term, onClose }) {
       className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto"
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden">
+      <div className="bg-app-surface rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden">
         {/* Modal chrome */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#0F2044]/10 bg-[#F7F5F0]">
-          <h3 className="font-semibold text-[#0F2044] text-sm">Report Card Preview</h3>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-app-border bg-app-bg">
+          <h3 className="font-semibold text-app-text text-sm">Report Card Preview</h3>
           <div className="flex gap-2">
             <button
               onClick={() => window.print()}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#0F2044] text-white text-xs font-semibold rounded-xl hover:bg-[#1a2a5c] transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-app-primary text-white text-xs font-semibold rounded-xl hover:bg-[#1a2a5c] transition-colors"
             >
               <Printer size={13} /> Print
             </button>
-            <button onClick={onClose} className="p-2 text-[#0F2044]/50 hover:text-[#0F2044] rounded-xl transition-colors">
+            <button onClick={onClose} className="p-2 text-app-text/50 hover:text-app-text rounded-xl transition-colors">
               <X size={16} />
             </button>
           </div>
@@ -105,32 +105,32 @@ function ReportCardModal({ student, schoolCode, term, onClose }) {
         <div id="report-print-area" className="p-8 space-y-6">
           {/* School header */}
           <div className="text-center border-b-2 border-[#0F2044] pb-5">
-            <p className="text-[10px] font-bold tracking-[0.25em] text-[#0F2044]/50 uppercase mb-1">
+            <p className="text-[10px] font-bold tracking-[0.25em] text-app-text/50 uppercase mb-1">
               Republic of Malawi · Ministry of Education
             </p>
-            <h2 className="text-2xl font-bold text-[#0F2044]" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <h2 className="text-2xl font-bold text-app-text" style={{ fontFamily: "'Playfair Display', serif" }}>
               {schoolCode}
             </h2>
-            <p className="text-sm text-[#0F2044]/60 mt-1">Continuous Assessment Report · {term}</p>
+            <p className="text-sm text-app-text/60 mt-1">Continuous Assessment Report · {term}</p>
           </div>
 
           {/* Student info */}
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/40">Student Name</p>
-              <p className="font-semibold text-[#0F2044] mt-0.5">{fullName(student)}</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40">Student Name</p>
+              <p className="font-semibold text-app-text mt-0.5">{fullName(student)}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/40">Adm. No.</p>
-              <p className="font-semibold text-[#0F2044] mt-0.5">{student.studentCode || student.id}</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40">Adm. No.</p>
+              <p className="font-semibold text-app-text mt-0.5">{student.studentCode || student.id}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/40">Class</p>
-              <p className="font-semibold text-[#0F2044] mt-0.5">{student.className}</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40">Class</p>
+              <p className="font-semibold text-app-text mt-0.5">{student.className}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/40">Class Position</p>
-              <p className="font-semibold text-[#0F2044] mt-0.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40">Class Position</p>
+              <p className="font-semibold text-app-text mt-0.5">
                 {student.rank ? `${student.rank}${student.rank === 1 ? "st" : student.rank === 2 ? "nd" : student.rank === 3 ? "rd" : "th"}` : "—"}
               </p>
             </div>
@@ -138,13 +138,13 @@ function ReportCardModal({ student, schoolCode, term, onClose }) {
 
           {/* Subject marks table */}
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/50 mb-2">Subject Results</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/50 mb-2">Subject Results</p>
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="bg-[#F7F5F0]">
-                  <th className="text-left py-2 px-3 rounded-tl-xl font-bold text-[#0F2044]/60 text-[10px] uppercase tracking-wide">Subject</th>
-                  <th className="text-center py-2 px-3 font-bold text-[#0F2044]/60 text-[10px] uppercase tracking-wide">Mark (%)</th>
-                  <th className="text-center py-2 px-3 rounded-tr-xl font-bold text-[#0F2044]/60 text-[10px] uppercase tracking-wide">Grade</th>
+                <tr className="bg-app-bg">
+                  <th className="text-left py-2 px-3 rounded-tl-xl font-bold text-app-text/60 text-[10px] uppercase tracking-wide">Subject</th>
+                  <th className="text-center py-2 px-3 font-bold text-app-text/60 text-[10px] uppercase tracking-wide">Mark (%)</th>
+                  <th className="text-center py-2 px-3 rounded-tr-xl font-bold text-app-text/60 text-[10px] uppercase tracking-wide">Grade</th>
                 </tr>
               </thead>
               <tbody>
@@ -153,15 +153,15 @@ function ReportCardModal({ student, schoolCode, term, onClose }) {
                   const sg = getGradeInfo(score);
                   const hasScore = score !== null && score !== undefined && score !== "";
                   return (
-                    <tr key={subj} className={i % 2 === 0 ? "bg-white" : "bg-[#FAFAF8]"}>
-                      <td className="py-2.5 px-3 font-medium text-[#0F2044]">{subj}</td>
-                      <td className="py-2.5 px-3 text-center font-bold text-[#0F2044]">{hasScore ? score : "—"}</td>
+                    <tr key={subj} className={i % 2 === 0 ? "bg-app-surface" : "bg-[#FAFAF8]"}>
+                      <td className="py-2.5 px-3 font-medium text-app-text">{subj}</td>
+                      <td className="py-2.5 px-3 text-center font-bold text-app-text">{hasScore ? score : "—"}</td>
                       <td className="py-2.5 px-3 text-center">
                         {sg ? (
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${sg.bg} ${sg.color} ${sg.border} border`}>
                             G{sg.grade} · {sg.remark}
                           </span>
-                        ) : <span className="text-[#0F2044]/30">—</span>}
+                        ) : <span className="text-app-text/30">—</span>}
                       </td>
                     </tr>
                   );
@@ -171,10 +171,10 @@ function ReportCardModal({ student, schoolCode, term, onClose }) {
           </div>
 
           {/* Overall */}
-          <div className={`flex items-center justify-between rounded-2xl p-4 border ${g ? `${g.bg} ${g.border}` : "bg-[#F7F5F0] border-[#0F2044]/10"}`}>
+          <div className={`flex items-center justify-between rounded-2xl p-4 border ${g ? `${g.bg} ${g.border}` : "bg-app-bg border-app-border"}`}>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/50">Overall CA Average</p>
-              <p className={`text-3xl font-bold mt-0.5 ${g?.color || "text-[#0F2044]"}`}>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/50">Overall CA Average</p>
+              <p className={`text-3xl font-bold mt-0.5 ${g?.color || "text-app-text"}`}>
                 {student.average !== null ? `${student.average}%` : "—"}
               </p>
             </div>
@@ -187,14 +187,14 @@ function ReportCardModal({ student, schoolCode, term, onClose }) {
           </div>
 
           {/* Footer */}
-          <div className="border-t border-[#0F2044]/10 pt-4 grid grid-cols-2 gap-4 text-[10px] text-[#0F2044]/40">
+          <div className="border-t border-app-border pt-4 grid grid-cols-2 gap-4 text-[10px] text-app-text/40">
             <div>
-              <p className="font-bold text-[#0F2044]/60 mb-4">Class Teacher's Signature</p>
-              <div className="border-b border-[#0F2044]/20 w-32" />
+              <p className="font-bold text-app-text/60 mb-4">Class Teacher's Signature</p>
+              <div className="border-b border-app-border w-32" />
             </div>
             <div className="text-right">
-              <p className="font-bold text-[#0F2044]/60 mb-4">Head Teacher's Signature</p>
-              <div className="border-b border-[#0F2044]/20 w-32 ml-auto" />
+              <p className="font-bold text-app-text/60 mb-4">Head Teacher's Signature</p>
+              <div className="border-b border-app-border w-32 ml-auto" />
             </div>
             <p className="col-span-2 text-center">CA contributes 40% to final MSCE grade. This is a school record.</p>
           </div>
@@ -433,10 +433,10 @@ export default function ReportsModule({ schoolCode }) {
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-[#0F2044]" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h2 className="text-3xl font-bold text-app-text" style={{ fontFamily: "'Playfair Display', serif" }}>
             Reports &amp; Analytics
           </h2>
-          <p className="text-[#0F2044]/60 mt-1">
+          <p className="text-app-text/60 mt-1">
             {selectedTerm} · MANEB grade scale (1–9) · Continuous Assessment
           </p>
         </div>
@@ -444,14 +444,14 @@ export default function ReportsModule({ schoolCode }) {
           <button
             onClick={fetchData}
             disabled={isLoading}
-            className="p-2.5 bg-white border border-[#0F2044]/10 rounded-xl hover:bg-[#F7F5F0] transition-colors text-[#0F2044]/60 disabled:opacity-40"
+            className="p-2.5 bg-app-surface border border-app-border rounded-xl hover:bg-app-bg transition-colors text-app-text/60 disabled:opacity-40"
             title="Refresh"
           >
             <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
           </button>
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#0F2044] text-white text-sm font-semibold rounded-xl hover:bg-[#1a2a5c] transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 bg-app-primary text-white text-sm font-semibold rounded-xl hover:bg-[#1a2a5c] transition-colors"
           >
             <Printer size={14} /> Print Report
           </button>
@@ -474,11 +474,11 @@ export default function ReportsModule({ schoolCode }) {
             sub: avgDelta !== null
               ? `${avgDelta > 0 ? "+" : ""}${avgDelta}% vs ${compareTerm}`
               : getGradeInfo(schoolAvg)?.remark || "",
-            color: "text-[#0F2044]",
-            bg: "bg-white border-[#0F2044]/8",
+            color: "text-app-text",
+            bg: "bg-app-surface border-app-border",
             subColor: avgDelta !== null
-              ? (avgDelta > 0 ? "text-emerald-600" : avgDelta < 0 ? "text-red-500" : "text-[#0F2044]/40")
-              : "text-[#0F2044]/40",
+              ? (avgDelta > 0 ? "text-emerald-600" : avgDelta < 0 ? "text-red-500" : "text-app-text/40")
+              : "text-app-text/40",
           },
           {
             label: "Distinctions (≥70%)",
@@ -509,7 +509,7 @@ export default function ReportsModule({ schoolCode }) {
             <p className={`text-2xl font-bold ${color}`}>
               {isLoading ? <Spinner size={20} /> : value}
             </p>
-            <p className="text-xs text-[#0F2044]/50 mt-1">{label}</p>
+            <p className="text-xs text-app-text/50 mt-1">{label}</p>
             {sub && <p className={`text-[10px] mt-0.5 font-medium ${subColor}`}>{sub}</p>}
           </div>
         ))}
@@ -527,7 +527,7 @@ export default function ReportsModule({ schoolCode }) {
             key={id}
             onClick={() => setReportType(id)}
             className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold transition-all
-              ${reportType === id ? "bg-[#0F2044] text-white shadow-md" : "bg-white border border-[#0F2044]/10 text-[#0F2044]/70 hover:bg-[#F7F5F0]"}`}
+              ${reportType === id ? "bg-app-primary text-white shadow-md" : "bg-app-surface border border-app-border text-app-text/70 hover:bg-app-bg"}`}
           >
             <Icon size={15} /> {label}
           </button>
@@ -535,70 +535,70 @@ export default function ReportsModule({ schoolCode }) {
       </div>
 
       {/* ── Controls row ──────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-3xl p-5 border border-[#0F2044]/8 flex flex-col md:flex-row gap-4 items-end">
+      <div className="bg-app-surface rounded-3xl p-5 border border-app-border flex flex-col md:flex-row gap-4 items-end">
         <div>
-          <label className="block text-[10px] font-bold tracking-widest text-[#0F2044]/50 mb-1.5">CLASS</label>
+          <label className="block text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5">CLASS</label>
           <div className="relative">
             <select
               value={selectedClassId}
               onChange={e => setSelectedClassId(e.target.value)}
               disabled={isLoading}
-              className="appearance-none pl-4 pr-10 py-3 bg-white border border-[#0F2044]/15 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044] min-w-[160px] disabled:opacity-50"
+              className="appearance-none pl-4 pr-10 py-3 bg-app-surface border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text min-w-[160px] disabled:opacity-50"
             >
               <option value="all">All classes</option>
               {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0F2044]/40 pointer-events-none" />
+            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
           </div>
         </div>
 
         <div>
-          <label className="block text-[10px] font-bold tracking-widest text-[#0F2044]/50 mb-1.5">TERM</label>
+          <label className="block text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5">TERM</label>
           <div className="relative">
             <select value={selectedTerm} onChange={e => setSelectedTerm(e.target.value)}
-              className="appearance-none pl-4 pr-10 py-3 bg-white border border-[#0F2044]/15 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044]">
+              className="appearance-none pl-4 pr-10 py-3 bg-app-surface border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text">
               {TERMS.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
-            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0F2044]/40 pointer-events-none" />
+            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
           </div>
         </div>
 
         {(reportType === "performance") && (
           <div>
-            <label className="block text-[10px] font-bold tracking-widest text-[#0F2044]/50 mb-1.5">COMPARE TO</label>
+            <label className="block text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5">COMPARE TO</label>
             <div className="relative">
               <select value={compareTerm} onChange={e => setCompareTerm(e.target.value)}
-                className="appearance-none pl-4 pr-10 py-3 bg-white border border-[#0F2044]/15 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044]">
+                className="appearance-none pl-4 pr-10 py-3 bg-app-surface border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text">
                 {TERMS.filter(t => t !== selectedTerm).map(t => <option key={t} value={t}>{t}</option>)}
               </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0F2044]/40 pointer-events-none" />
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
             </div>
           </div>
         )}
 
         <div className="flex-1 relative">
-          <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#0F2044]/35" />
+          <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-app-text/35" />
           <input
             type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search student, class…"
-            className="w-full pl-9 pr-4 py-3 bg-[#FAFAF8] border border-[#0F2044]/10 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/30"
+            className="w-full pl-9 pr-4 py-3 bg-[#FAFAF8] border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/30"
           />
         </div>
       </div>
 
       {/* ── Loading / No data ─────────────────────────────────────────────── */}
       {isLoading && (
-        <div className="bg-white rounded-2xl border border-[#0F2044]/8 py-20 flex flex-col items-center gap-3">
+        <div className="bg-app-surface rounded-2xl border border-app-border py-20 flex flex-col items-center gap-3">
           <Spinner size={28} />
-          <p className="text-sm text-[#0F2044]/40">Loading report data…</p>
+          <p className="text-sm text-app-text/40">Loading report data…</p>
         </div>
       )}
 
       {!isLoading && noData && (
-        <div className="bg-white rounded-2xl border border-[#0F2044]/8 py-20 flex flex-col items-center gap-3 text-center">
-          <FileText size={32} className="text-[#0F2044]/20" />
-          <p className="text-sm font-medium text-[#0F2044]/40">No marks submitted for {selectedTerm} yet.</p>
-          <p className="text-xs text-[#0F2044]/30">Teachers submit CA marks from their Performance module.</p>
+        <div className="bg-app-surface rounded-2xl border border-app-border py-20 flex flex-col items-center gap-3 text-center">
+          <FileText size={32} className="text-app-text/20" />
+          <p className="text-sm font-medium text-app-text/40">No marks submitted for {selectedTerm} yet.</p>
+          <p className="text-xs text-app-text/30">Teachers submit CA marks from their Performance module.</p>
         </div>
       )}
 
@@ -606,46 +606,46 @@ export default function ReportsModule({ schoolCode }) {
         <>
           {/* ════ REPORT CARDS ════ */}
           {reportType === "reportCards" && (
-            <div className="bg-white rounded-2xl border border-[#0F2044]/8 overflow-hidden">
-              <div className="px-6 py-4 bg-[#F7F5F0] border-b border-[#0F2044]/8 flex items-center justify-between">
+            <div className="bg-app-surface rounded-2xl border border-app-border overflow-hidden">
+              <div className="px-6 py-4 bg-app-bg border-b border-app-border flex items-center justify-between">
                 <div>
-                  <h3 className="font-semibold text-[#0F2044] text-sm">
+                  <h3 className="font-semibold text-app-text text-sm">
                     Report Cards — {selectedClassId === "all" ? "All Classes" : classes.find(c => c.id === selectedClassId)?.name} · {selectedTerm}
                   </h3>
-                  <p className="text-[10px] text-[#0F2044]/45 mt-0.5">
+                  <p className="text-[10px] text-app-text/45 mt-0.5">
                     Click a student to preview and print their individual report card
                   </p>
                 </div>
-                <span className="text-xs text-[#0F2044]/50">{sorted.length} student{sorted.length !== 1 ? "s" : ""}</span>
+                <span className="text-xs text-app-text/50">{sorted.length} student{sorted.length !== 1 ? "s" : ""}</span>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-[#0F2044]/8 bg-white">
-                      <th className="px-5 py-3 text-left text-[10px] font-bold tracking-wide text-[#0F2044]/50">ADM. NO.</th>
+                    <tr className="border-b border-app-border bg-app-surface">
+                      <th className="px-5 py-3 text-left text-[10px] font-bold tracking-wide text-app-text/50">ADM. NO.</th>
                       <th
-                        className="px-5 py-3 text-left text-[10px] font-bold tracking-wide text-[#0F2044]/50 cursor-pointer select-none hover:text-[#0F2044]/80"
+                        className="px-5 py-3 text-left text-[10px] font-bold tracking-wide text-app-text/50 cursor-pointer select-none hover:text-app-text/80"
                         onClick={() => toggleSort("name")}
                       >
                         <span className="flex items-center gap-1">STUDENT <SortIcon col="name" /></span>
                       </th>
-                      <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-[#0F2044]/50">CLASS</th>
+                      <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50">CLASS</th>
                       <th
-                        className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-[#0F2044]/50 cursor-pointer select-none hover:text-[#0F2044]/80"
+                        className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50 cursor-pointer select-none hover:text-app-text/80"
                         onClick={() => toggleSort("average")}
                       >
                         <span className="flex items-center justify-center gap-1">AVERAGE <SortIcon col="average" /></span>
                       </th>
-                      <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-[#0F2044]/50">GRADE</th>
+                      <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50">GRADE</th>
                       <th
-                        className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-[#0F2044]/50 cursor-pointer select-none hover:text-[#0F2044]/80"
+                        className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50 cursor-pointer select-none hover:text-app-text/80"
                         onClick={() => toggleSort("rank")}
                       >
                         <span className="flex items-center justify-center gap-1">POSITION <SortIcon col="rank" /></span>
                       </th>
-                      <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-[#0F2044]/50">TREND</th>
-                      <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-[#0F2044]/50">TEACHER</th>
+                      <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50">TREND</th>
+                      <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50">TEACHER</th>
                       <th className="px-3 py-3" />
                     </tr>
                   </thead>
@@ -658,52 +658,52 @@ export default function ReportsModule({ schoolCode }) {
                           className="hover:bg-[#FAFAF8] transition-colors cursor-pointer"
                           onClick={() => setViewingStudent(student)}
                         >
-                          <td className="px-5 py-3 text-[10px] text-[#0F2044]/40 font-mono">
+                          <td className="px-5 py-3 text-[10px] text-app-text/40 font-mono">
                             {student.studentCode || student.id.slice(0, 8)}
                           </td>
                           <td className="px-5 py-3">
-                            <p className="font-semibold text-[#0F2044] text-sm">{fullName(student)}</p>
+                            <p className="font-semibold text-app-text text-sm">{fullName(student)}</p>
                           </td>
-                          <td className="px-3 py-3 text-center text-xs text-[#0F2044]/60">{student.className}</td>
+                          <td className="px-3 py-3 text-center text-xs text-app-text/60">{student.className}</td>
                           <td className="px-3 py-3 text-center">
                             {student.average !== null ? (
-                              <span className={`font-bold text-base ${g?.color || "text-[#0F2044]"}`}>{student.average}%</span>
-                            ) : <span className="text-[#0F2044]/25">—</span>}
+                              <span className={`font-bold text-base ${g?.color || "text-app-text"}`}>{student.average}%</span>
+                            ) : <span className="text-app-text/25">—</span>}
                           </td>
                           <td className="px-3 py-3 text-center">
                             {g ? (
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${g.bg} ${g.color} ${g.border}`}>
                                 G{g.grade} · {g.remark}
                               </span>
-                            ) : <span className="text-[#0F2044]/25 text-xs">—</span>}
+                            ) : <span className="text-app-text/25 text-xs">—</span>}
                           </td>
                           <td className="px-3 py-3 text-center">
                             {student.rank ? (
                               <span className={`inline-flex items-center justify-center w-7 h-7 rounded-xl text-xs font-bold
-                                ${student.rank === 1 ? "bg-[#F4B400] text-[#0F2044]"
+                                ${student.rank === 1 ? "bg-app-warning text-app-text"
                                 : student.rank === 2 ? "bg-gray-200 text-gray-700"
                                 : student.rank === 3 ? "bg-amber-100 text-amber-700"
-                                : "bg-[#F7F5F0] text-[#0F2044]/50"}`}>
+                                : "bg-app-bg text-app-text/50"}`}>
                                 {student.rank}
                               </span>
-                            ) : <span className="text-[#0F2044]/20 text-xs">—</span>}
+                            ) : <span className="text-app-text/20 text-xs">—</span>}
                           </td>
                           <td className="px-3 py-3 text-center">
                             {student.delta !== null ? (
                               <span className={`flex items-center justify-center gap-0.5 text-xs font-semibold
-                                ${student.delta > 0 ? "text-emerald-600" : student.delta < 0 ? "text-red-500" : "text-[#0F2044]/30"}`}>
+                                ${student.delta > 0 ? "text-emerald-600" : student.delta < 0 ? "text-red-500" : "text-app-text/30"}`}>
                                 {student.delta > 0 ? <ArrowUp size={11} /> : student.delta < 0 ? <ArrowDown size={11} /> : <Minus size={11} />}
                                 {Math.abs(student.delta)}%
                               </span>
-                            ) : <span className="text-[#0F2044]/20 text-xs">—</span>}
+                            ) : <span className="text-app-text/20 text-xs">—</span>}
                           </td>
-                          <td className="px-3 py-3 text-center text-[10px] text-[#0F2044]/40 max-w-[100px] truncate">
+                          <td className="px-3 py-3 text-center text-[10px] text-app-text/40 max-w-[100px] truncate">
                             {student.teacherName}
                           </td>
                           <td className="px-3 py-3 text-center">
                             <button
                               onClick={e => { e.stopPropagation(); setViewingStudent(student); }}
-                              className="text-[10px] font-semibold text-[#0F2044]/50 hover:text-[#0F2044] bg-[#F7F5F0] hover:bg-[#0F2044]/10 px-3 py-1.5 rounded-xl transition-colors"
+                              className="text-[10px] font-semibold text-app-text/50 hover:text-app-text bg-app-bg hover:bg-app-primary/10 px-3 py-1.5 rounded-xl transition-colors"
                             >
                               View
                             </button>
@@ -715,13 +715,13 @@ export default function ReportsModule({ schoolCode }) {
                 </table>
               </div>
 
-              <div className="px-5 py-3 bg-[#F7F5F0] border-t border-[#0F2044]/8 flex items-center justify-between">
-                <p className="text-[10px] text-[#0F2044]/45">
+              <div className="px-5 py-3 bg-app-bg border-t border-app-border flex items-center justify-between">
+                <p className="text-[10px] text-app-text/45">
                   {studentsWithMarks.length} students with marks · CA contributes 40% to final MSCE grade
                 </p>
                 <button
                   onClick={() => window.print()}
-                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-[#0F2044] text-white hover:bg-[#1a2a5c] transition-colors"
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-app-primary text-white hover:bg-[#1a2a5c] transition-colors"
                 >
                   <Printer size={12} /> Print All
                 </button>
@@ -733,8 +733,8 @@ export default function ReportsModule({ schoolCode }) {
           {reportType === "performance" && (
             <div className="space-y-5">
               {/* School-level comparison */}
-              <div className="bg-white rounded-2xl border border-[#0F2044]/8 p-6">
-                <h3 className="font-semibold text-[#0F2044] text-sm mb-4">
+              <div className="bg-app-surface rounded-2xl border border-app-border p-6">
+                <h3 className="font-semibold text-app-text text-sm mb-4">
                   School Average — {selectedTerm} vs {compareTerm}
                 </h3>
                 {[
@@ -744,16 +744,16 @@ export default function ReportsModule({ schoolCode }) {
                   const g = getGradeInfo(value);
                   return (
                     <div key={label} className="flex items-center gap-4 mb-3">
-                      <span className="text-xs font-semibold text-[#0F2044]/60 w-28 shrink-0">{label}</span>
+                      <span className="text-xs font-semibold text-app-text/60 w-28 shrink-0">{label}</span>
                       <MiniBar value={value ?? 0} color={scoreColor(value ?? 0)} />
                       <div className="flex items-center gap-2 shrink-0">
                         {value !== null ? (
                           <>
-                            <span className={`text-base font-bold ${g?.color || "text-[#0F2044]"}`}>{value}%</span>
+                            <span className={`text-base font-bold ${g?.color || "text-app-text"}`}>{value}%</span>
                             {g && <span className={`text-[9px] font-semibold ${g.color}`}>G{g.grade}</span>}
                           </>
-                        ) : <span className="text-xs text-[#0F2044]/30">No data</span>}
-                        <span className="text-[10px] text-[#0F2044]/35">({students} students)</span>
+                        ) : <span className="text-xs text-app-text/30">No data</span>}
+                        <span className="text-[10px] text-app-text/35">({students} students)</span>
                       </div>
                     </div>
                   );
@@ -762,7 +762,7 @@ export default function ReportsModule({ schoolCode }) {
                   <div className={`mt-3 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl
                     ${avgDelta > 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                     : avgDelta < 0 ? "bg-red-50 text-red-600 border border-red-200"
-                    : "bg-[#F7F5F0] text-[#0F2044]/50 border border-[#0F2044]/10"}`}>
+                    : "bg-app-bg text-app-text/50 border border-app-border"}`}>
                     {avgDelta > 0 ? <ArrowUp size={12} /> : avgDelta < 0 ? <ArrowDown size={12} /> : <Minus size={12} />}
                     {avgDelta > 0 ? "+" : ""}{avgDelta}% change from {compareTerm}
                   </div>
@@ -771,8 +771,8 @@ export default function ReportsModule({ schoolCode }) {
 
               {/* Per-class comparison */}
               {selectedClassId === "all" && (
-                <div className="bg-white rounded-2xl border border-[#0F2044]/8 p-6">
-                  <h3 className="font-semibold text-[#0F2044] text-sm mb-4">Class-by-Class Comparison</h3>
+                <div className="bg-app-surface rounded-2xl border border-app-border p-6">
+                  <h3 className="font-semibold text-app-text text-sm mb-4">Class-by-Class Comparison</h3>
                   <div className="space-y-4">
                     {classes.map(cls => {
                       const currStudents = studentsWithMarks.filter(s => s.classId === cls.id);
@@ -783,12 +783,12 @@ export default function ReportsModule({ schoolCode }) {
                       const gc = getGradeInfo(currAvg);
                       const gp = getGradeInfo(prevAvg);
                       return (
-                        <div key={cls.id} className="border border-[#0F2044]/8 rounded-2xl p-4">
+                        <div key={cls.id} className="border border-app-border rounded-2xl p-4">
                           <div className="flex items-center justify-between mb-3">
-                            <p className="font-semibold text-[#0F2044] text-sm">{cls.name}</p>
+                            <p className="font-semibold text-app-text text-sm">{cls.name}</p>
                             {delta !== null && (
                               <span className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg
-                                ${delta > 0 ? "bg-emerald-50 text-emerald-700" : delta < 0 ? "bg-red-50 text-red-600" : "bg-[#F7F5F0] text-[#0F2044]/40"}`}>
+                                ${delta > 0 ? "bg-emerald-50 text-emerald-700" : delta < 0 ? "bg-red-50 text-red-600" : "bg-app-bg text-app-text/40"}`}>
                                 {delta > 0 ? <ArrowUp size={10} /> : delta < 0 ? <ArrowDown size={10} /> : <Minus size={10} />}
                                 {delta > 0 ? "+" : ""}{delta}%
                               </span>
@@ -799,15 +799,15 @@ export default function ReportsModule({ schoolCode }) {
                             { label: compareTerm,  value: prevAvg, g: gp, count: prevStudents.length },
                           ].map(({ label, value, g, count }) => (
                             <div key={label} className="flex items-center gap-3 mb-1.5">
-                              <span className="text-[10px] text-[#0F2044]/50 w-24 shrink-0">{label}</span>
+                              <span className="text-[10px] text-app-text/50 w-24 shrink-0">{label}</span>
                               <MiniBar value={value ?? 0} color={scoreColor(value ?? 0)} />
                               <div className="flex items-center gap-1 shrink-0">
                                 {value !== null ? (
                                   <>
-                                    <span className={`text-sm font-bold ${g?.color || "text-[#0F2044]"}`}>{value}%</span>
-                                    <span className="text-[10px] text-[#0F2044]/35">({count})</span>
+                                    <span className={`text-sm font-bold ${g?.color || "text-app-text"}`}>{value}%</span>
+                                    <span className="text-[10px] text-app-text/35">({count})</span>
                                   </>
-                                ) : <span className="text-[10px] text-[#0F2044]/30">No data</span>}
+                                ) : <span className="text-[10px] text-app-text/30">No data</span>}
                               </div>
                             </div>
                           ))}
@@ -819,19 +819,19 @@ export default function ReportsModule({ schoolCode }) {
               )}
 
               {/* Per-student trend table */}
-              <div className="bg-white rounded-2xl border border-[#0F2044]/8 overflow-hidden">
-                <div className="px-5 py-4 bg-[#F7F5F0] border-b border-[#0F2044]/8">
-                  <h3 className="font-semibold text-[#0F2044] text-sm">Student Progress — {selectedTerm} vs {compareTerm}</h3>
+              <div className="bg-app-surface rounded-2xl border border-app-border overflow-hidden">
+                <div className="px-5 py-4 bg-app-bg border-b border-app-border">
+                  <h3 className="font-semibold text-app-text text-sm">Student Progress — {selectedTerm} vs {compareTerm}</h3>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-[#0F2044]/8">
-                        <th className="px-5 py-3 text-left text-[10px] font-bold tracking-wide text-[#0F2044]/50">STUDENT</th>
-                        <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-[#0F2044]/50">CLASS</th>
-                        <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-[#0F2044]/50">{compareTerm}</th>
-                        <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-[#0F2044]/50">{selectedTerm}</th>
-                        <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-[#0F2044]/50">CHANGE</th>
+                      <tr className="border-b border-app-border">
+                        <th className="px-5 py-3 text-left text-[10px] font-bold tracking-wide text-app-text/50">STUDENT</th>
+                        <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50">CLASS</th>
+                        <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50">{compareTerm}</th>
+                        <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50">{selectedTerm}</th>
+                        <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50">CHANGE</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#0F2044]/5">
@@ -843,28 +843,28 @@ export default function ReportsModule({ schoolCode }) {
                           return (
                             <tr key={s.id} className="hover:bg-[#FAFAF8] transition-colors">
                               <td className="px-5 py-3">
-                                <p className="font-semibold text-[#0F2044] text-sm">{fullName(s)}</p>
-                                <p className="text-[10px] text-[#0F2044]/40">{s.studentCode || ""}</p>
+                                <p className="font-semibold text-app-text text-sm">{fullName(s)}</p>
+                                <p className="text-[10px] text-app-text/40">{s.studentCode || ""}</p>
                               </td>
-                              <td className="px-3 py-3 text-center text-xs text-[#0F2044]/60">{s.className}</td>
+                              <td className="px-3 py-3 text-center text-xs text-app-text/60">{s.className}</td>
                               <td className="px-3 py-3 text-center">
                                 {s.prevAverage !== null ? (
-                                  <span className={`font-semibold text-sm ${gp?.color || "text-[#0F2044]"}`}>{s.prevAverage}%</span>
-                                ) : <span className="text-[#0F2044]/25">—</span>}
+                                  <span className={`font-semibold text-sm ${gp?.color || "text-app-text"}`}>{s.prevAverage}%</span>
+                                ) : <span className="text-app-text/25">—</span>}
                               </td>
                               <td className="px-3 py-3 text-center">
                                 {s.average !== null ? (
-                                  <span className={`font-bold text-sm ${gc?.color || "text-[#0F2044]"}`}>{s.average}%</span>
-                                ) : <span className="text-[#0F2044]/25">—</span>}
+                                  <span className={`font-bold text-sm ${gc?.color || "text-app-text"}`}>{s.average}%</span>
+                                ) : <span className="text-app-text/25">—</span>}
                               </td>
                               <td className="px-3 py-3 text-center">
                                 {s.delta !== null ? (
                                   <span className={`inline-flex items-center gap-0.5 text-xs font-bold px-2.5 py-1 rounded-lg
-                                    ${s.delta > 0 ? "bg-emerald-50 text-emerald-700" : s.delta < 0 ? "bg-red-50 text-red-600" : "bg-[#F7F5F0] text-[#0F2044]/40"}`}>
+                                    ${s.delta > 0 ? "bg-emerald-50 text-emerald-700" : s.delta < 0 ? "bg-red-50 text-red-600" : "bg-app-bg text-app-text/40"}`}>
                                     {s.delta > 0 ? <ArrowUp size={10} /> : s.delta < 0 ? <ArrowDown size={10} /> : <Minus size={10} />}
                                     {s.delta > 0 ? "+" : ""}{s.delta}%
                                   </span>
-                                ) : <span className="text-[#0F2044]/20 text-xs">—</span>}
+                                ) : <span className="text-app-text/20 text-xs">—</span>}
                               </td>
                             </tr>
                           );
@@ -880,8 +880,8 @@ export default function ReportsModule({ schoolCode }) {
           {reportType === "analytics" && (
             <div className="space-y-5">
               {/* Grade distribution */}
-              <div className="bg-white rounded-2xl border border-[#0F2044]/8 p-6">
-                <h3 className="font-semibold text-[#0F2044] text-sm mb-4">
+              <div className="bg-app-surface rounded-2xl border border-app-border p-6">
+                <h3 className="font-semibold text-app-text text-sm mb-4">
                   Grade Distribution — {selectedClassId === "all" ? "All Classes" : classes.find(c => c.id === selectedClassId)?.name}
                 </h3>
                 <div className="space-y-2.5">
@@ -892,8 +892,8 @@ export default function ReportsModule({ schoolCode }) {
                       <div key={g.grade} className="flex items-center gap-3">
                         <span className={`text-[10px] font-bold w-24 shrink-0 ${g.color}`}>G{g.grade} {g.remark}</span>
                         <MiniBar value={pct} color={g.grade <= 2 ? "#10b981" : g.grade <= 6 ? "#3b82f6" : g.grade <= 8 ? "#f59e0b" : "#ef4444"} />
-                        <span className="text-[11px] font-semibold text-[#0F2044]/60 w-16 text-right">
-                          {count} <span className="text-[#0F2044]/30">({pct}%)</span>
+                        <span className="text-[11px] font-semibold text-app-text/60 w-16 text-right">
+                          {count} <span className="text-app-text/30">({pct}%)</span>
                         </span>
                       </div>
                     );
@@ -903,8 +903,8 @@ export default function ReportsModule({ schoolCode }) {
 
               {/* Class averages */}
               {selectedClassId === "all" && (
-                <div className="bg-white rounded-2xl border border-[#0F2044]/8 p-6">
-                  <h3 className="font-semibold text-[#0F2044] text-sm mb-4">Class Averages</h3>
+                <div className="bg-app-surface rounded-2xl border border-app-border p-6">
+                  <h3 className="font-semibold text-app-text text-sm mb-4">Class Averages</h3>
                   <div className="space-y-3">
                     {classes.map(cls => {
                       const clsStudents = studentsWithMarks.filter(s => s.classId === cls.id);
@@ -912,15 +912,15 @@ export default function ReportsModule({ schoolCode }) {
                       const g = getGradeInfo(clsAvg);
                       return (
                         <div key={cls.id} className="flex items-center gap-3">
-                          <span className="text-xs font-semibold text-[#0F2044]/70 w-24 shrink-0">{cls.name}</span>
+                          <span className="text-xs font-semibold text-app-text/70 w-24 shrink-0">{cls.name}</span>
                           <MiniBar value={clsAvg ?? 0} color={scoreColor(clsAvg ?? 0)} />
                           {clsAvg !== null ? (
                             <div className="flex items-center gap-1.5 shrink-0">
-                              <span className={`text-sm font-bold ${g?.color || "text-[#0F2044]"}`}>{clsAvg}%</span>
+                              <span className={`text-sm font-bold ${g?.color || "text-app-text"}`}>{clsAvg}%</span>
                               {g && <span className={`text-[9px] font-semibold ${g.color}`}>G{g.grade}</span>}
-                              <span className="text-[10px] text-[#0F2044]/40">({clsStudents.length})</span>
+                              <span className="text-[10px] text-app-text/40">({clsStudents.length})</span>
                             </div>
-                          ) : <span className="text-xs text-[#0F2044]/30 shrink-0">No data</span>}
+                          ) : <span className="text-xs text-app-text/30 shrink-0">No data</span>}
                         </div>
                       );
                     })}
@@ -930,8 +930,8 @@ export default function ReportsModule({ schoolCode }) {
 
               {/* Subject averages */}
               {allSubjects.length > 0 && (
-                <div className="bg-white rounded-2xl border border-[#0F2044]/8 p-6">
-                  <h3 className="font-semibold text-[#0F2044] text-sm mb-4">Subject Averages</h3>
+                <div className="bg-app-surface rounded-2xl border border-app-border p-6">
+                  <h3 className="font-semibold text-app-text text-sm mb-4">Subject Averages</h3>
                   <div className="space-y-3">
                     {allSubjects.map(subj => {
                       const scores = classFiltered
@@ -942,15 +942,15 @@ export default function ReportsModule({ schoolCode }) {
                       const g = getGradeInfo(subjAvg);
                       return (
                         <div key={subj} className="flex items-center gap-3">
-                          <span className="text-xs font-medium text-[#0F2044]/70 w-32 shrink-0 truncate">{subj}</span>
+                          <span className="text-xs font-medium text-app-text/70 w-32 shrink-0 truncate">{subj}</span>
                           <MiniBar value={subjAvg ?? 0} color={scoreColor(subjAvg ?? 0)} />
                           {subjAvg !== null ? (
                             <div className="flex items-center gap-2 shrink-0">
-                              <span className={`text-sm font-bold ${g?.color || "text-[#0F2044]"}`}>{subjAvg}%</span>
+                              <span className={`text-sm font-bold ${g?.color || "text-app-text"}`}>{subjAvg}%</span>
                               {g && <span className={`text-[9px] font-semibold ${g.color}`}>G{g.grade}</span>}
-                              <span className="text-[10px] text-[#0F2044]/35">({scores.length})</span>
+                              <span className="text-[10px] text-app-text/35">({scores.length})</span>
                             </div>
-                          ) : <span className="text-xs text-[#0F2044]/30 shrink-0">No data</span>}
+                          ) : <span className="text-xs text-app-text/30 shrink-0">No data</span>}
                         </div>
                       );
                     })}
@@ -959,8 +959,8 @@ export default function ReportsModule({ schoolCode }) {
               )}
 
               {/* Teacher submissions overview */}
-              <div className="bg-white rounded-2xl border border-[#0F2044]/8 p-6">
-                <h3 className="font-semibold text-[#0F2044] text-sm mb-4">Mark Submission Status</h3>
+              <div className="bg-app-surface rounded-2xl border border-app-border p-6">
+                <h3 className="font-semibold text-app-text text-sm mb-4">Mark Submission Status</h3>
                 <div className="space-y-2.5">
                   {classes.map(cls => {
                     const classData = allMarksMap[cls.id];
@@ -969,20 +969,20 @@ export default function ReportsModule({ schoolCode }) {
                     const count     = Object.keys(classData?.marks || {}).length;
                     return (
                       <div key={cls.id} className={`flex items-center gap-3 p-3 rounded-xl border
-                        ${submitted ? "border-emerald-200 bg-emerald-50/50" : "border-[#0F2044]/8 bg-[#F7F5F0]"}`}>
+                        ${submitted ? "border-emerald-200 bg-emerald-50/50" : "border-app-border bg-app-bg"}`}>
                         {submitted
                           ? <CheckCircle size={14} className="text-emerald-600 shrink-0" />
-                          : <AlertCircle size={14} className="text-[#0F2044]/30 shrink-0" />}
+                          : <AlertCircle size={14} className="text-app-text/30 shrink-0" />}
                         <div className="flex-1">
-                          <p className="text-sm font-semibold text-[#0F2044]">{cls.name}</p>
+                          <p className="text-sm font-semibold text-app-text">{cls.name}</p>
                           {submitted && (
-                            <p className="text-[10px] text-[#0F2044]/50">
+                            <p className="text-[10px] text-app-text/50">
                               {count} students · {teachers.join(", ") || "Unknown teacher"}
                             </p>
                           )}
                         </div>
                         <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg
-                          ${submitted ? "bg-emerald-100 text-emerald-700" : "bg-[#0F2044]/8 text-[#0F2044]/40"}`}>
+                          ${submitted ? "bg-emerald-100 text-emerald-700" : "bg-app-primary/8 text-app-text/40"}`}>
                           {submitted ? "Submitted" : "Pending"}
                         </span>
                       </div>
@@ -1013,11 +1013,11 @@ export default function ReportsModule({ schoolCode }) {
                         return sc !== null && sc !== undefined && Number(sc) < 40;
                       });
                       return (
-                        <div key={s.id} className="flex items-center justify-between bg-white border border-red-200 rounded-xl px-4 py-3 cursor-pointer hover:bg-red-50/50 transition-colors"
+                        <div key={s.id} className="flex items-center justify-between bg-app-surface border border-red-200 rounded-xl px-4 py-3 cursor-pointer hover:bg-red-50/50 transition-colors"
                           onClick={() => setViewingStudent(s)}>
                           <div>
-                            <p className="font-semibold text-[#0F2044] text-sm">{fullName(s)}</p>
-                            <p className="text-[10px] text-[#0F2044]/50">{s.className}</p>
+                            <p className="font-semibold text-app-text text-sm">{fullName(s)}</p>
+                            <p className="text-[10px] text-app-text/50">{s.className}</p>
                             {weak.length > 0 && (
                               <p className="text-[10px] text-red-700 mt-0.5">Failing: {weak.join(", ")}</p>
                             )}
@@ -1054,11 +1054,11 @@ export default function ReportsModule({ schoolCode }) {
                         return sc !== null && sc !== undefined && Number(sc) < 50;
                       });
                       return (
-                        <div key={s.id} className="flex items-center justify-between bg-white border border-amber-200 rounded-xl px-4 py-3 cursor-pointer hover:bg-amber-50/50 transition-colors"
+                        <div key={s.id} className="flex items-center justify-between bg-app-surface border border-amber-200 rounded-xl px-4 py-3 cursor-pointer hover:bg-amber-50/50 transition-colors"
                           onClick={() => setViewingStudent(s)}>
                           <div>
-                            <p className="font-semibold text-[#0F2044] text-sm">{fullName(s)}</p>
-                            <p className="text-[10px] text-[#0F2044]/50">{s.className}</p>
+                            <p className="font-semibold text-app-text text-sm">{fullName(s)}</p>
+                            <p className="text-[10px] text-app-text/50">{s.className}</p>
                             {weak.length > 0 && (
                               <p className="text-[10px] text-amber-700 mt-0.5">Struggling: {weak.join(", ")}</p>
                             )}
@@ -1090,7 +1090,7 @@ export default function ReportsModule({ schoolCode }) {
         </>
       )}
 
-      <p className="text-center text-xs text-[#0F2044]/40 pt-1">
+      <p className="text-center text-xs text-app-text/40 pt-1">
         Showing CA marks submitted by teachers. Select a class or term to filter.
         Marks are read-only here — teachers manage entry from their Performance module.
       </p>

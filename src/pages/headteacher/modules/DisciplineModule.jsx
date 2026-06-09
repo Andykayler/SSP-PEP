@@ -14,7 +14,7 @@ import {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function Spinner({ size = 20 }) {
-  return <Loader2 size={size} className="animate-spin text-[#0F2044]/40 inline-block" />;
+  return <Loader2 size={size} className="animate-spin text-app-text/40 inline-block" />;
 }
 
 function initials(name = "") {
@@ -47,11 +47,11 @@ function RecordModal({ record, onClose, onMarkResolved, onDelete }) {
       className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+      <div className="bg-app-surface rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
         {/* Modal header */}
-        <div className="bg-[#0F2044] px-7 py-5 flex items-start justify-between gap-4">
+        <div className="bg-app-primary px-7 py-5 flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-sm font-bold text-white">
+            <div className="w-12 h-12 rounded-2xl bg-app-surface/10 flex items-center justify-center text-sm font-bold text-white">
               {initials(record.studentName || "?")}
             </div>
             <div>
@@ -81,13 +81,13 @@ function RecordModal({ record, onClose, onMarkResolved, onDelete }) {
           </div>
 
           {/* Offense */}
-          <div className="p-4 bg-[#F7F5F0] rounded-2xl border border-[#0F2044]/8">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/40 mb-1.5">Offense / Incident</p>
-            <p className="text-sm text-[#0F2044] font-medium">{record.offense}</p>
+          <div className="p-4 bg-app-bg rounded-2xl border border-app-border">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40 mb-1.5">Offense / Incident</p>
+            <p className="text-sm text-app-text font-medium">{record.offense}</p>
           </div>
 
           {/* Details grid */}
-          <div className="grid grid-cols-2 gap-px bg-[#0F2044]/5 rounded-2xl overflow-hidden text-sm">
+          <div className="grid grid-cols-2 gap-px bg-app-primary/5 rounded-2xl overflow-hidden text-sm">
             {[
               ["Student Code", record.studentCode || "—"],
               ["Class",        record.className   || "—"],
@@ -95,17 +95,17 @@ function RecordModal({ record, onClose, onMarkResolved, onDelete }) {
               ["Reported By",  record.reportedBy  || "Teacher"],
               ["Parent Notified", record.parentNotified ? "Yes" : "No"],
             ].map(([k, v]) => (
-              <div key={k} className="bg-white px-4 py-3">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[#0F2044]/40 mb-0.5">{k}</p>
-                <p className="font-medium text-[#0F2044]">{v}</p>
+              <div key={k} className="bg-app-surface px-4 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-app-text/40 mb-0.5">{k}</p>
+                <p className="font-medium text-app-text">{v}</p>
               </div>
             ))}
           </div>
 
           {/* Action */}
-          <div className="p-4 bg-[#F7F5F0] rounded-2xl border border-[#0F2044]/8">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#0F2044]/40 mb-1.5">Action Taken / Recommended</p>
-            <p className="text-sm text-[#0F2044]/70">{record.action || record.punishment || "—"}</p>
+          <div className="p-4 bg-app-bg rounded-2xl border border-app-border">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40 mb-1.5">Action Taken / Recommended</p>
+            <p className="text-sm text-app-text/70">{record.action || record.punishment || "—"}</p>
           </div>
 
           {/* Head teacher actions */}
@@ -129,7 +129,7 @@ function RecordModal({ record, onClose, onMarkResolved, onDelete }) {
             </button>
             <button
               onClick={onClose}
-              className="px-5 py-3 border border-[#0F2044]/15 rounded-2xl hover:bg-[#F7F5F0] text-sm font-medium transition-colors text-[#0F2044]/70"
+              className="px-5 py-3 border border-app-border rounded-2xl hover:bg-app-bg text-sm font-medium transition-colors text-app-text/70"
             >
               Close
             </button>
@@ -269,19 +269,19 @@ export default function DisciplineModule({ schoolCode }) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2
-            className="text-3xl font-bold text-[#0F2044]"
+            className="text-3xl font-bold text-app-text"
             style={{ fontFamily: "'Playfair Display', serif" }}
           >
             Discipline Management
           </h2>
-          <p className="text-[#0F2044]/60 mt-1">
+          <p className="text-app-text/60 mt-1">
             Track behaviour · Log offenses · Parent notifications
           </p>
         </div>
         <button
           onClick={fetchRecords}
           disabled={isLoading}
-          className="p-2.5 bg-white border border-[#0F2044]/10 rounded-xl hover:bg-[#F7F5F0] transition-colors text-[#0F2044]/60 disabled:opacity-40"
+          className="p-2.5 bg-app-surface border border-app-border rounded-xl hover:bg-app-bg transition-colors text-app-text/60 disabled:opacity-40"
           title="Refresh"
         >
           <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
@@ -299,7 +299,7 @@ export default function DisciplineModule({ schoolCode }) {
       {/* ── Summary cards ────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Total cases",    value: records.length, color: "text-[#0F2044]",   bg: "bg-white border-[#0F2044]/8" },
+          { label: "Total cases",    value: records.length, color: "text-app-text",   bg: "bg-app-surface border-app-border" },
           { label: "Pending review", value: pendingCount,   color: "text-amber-600",   bg: "bg-amber-50 border-amber-100" },
           { label: "Resolved",       value: resolvedCount,  color: "text-emerald-600", bg: "bg-emerald-50 border-emerald-100" },
           { label: "High severity",  value: highCount,      color: "text-red-600",     bg: "bg-red-50 border-red-100" },
@@ -308,22 +308,22 @@ export default function DisciplineModule({ schoolCode }) {
             <p className={`text-4xl font-bold ${color}`}>
               {isLoading ? <Spinner size={22} /> : value}
             </p>
-            <p className="text-xs text-[#0F2044]/50 mt-1">{label}</p>
+            <p className="text-xs text-app-text/50 mt-1">{label}</p>
           </div>
         ))}
       </div>
 
       {/* ── Filters ──────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-3xl p-5 border border-[#0F2044]/8 flex flex-col md:flex-row gap-4 items-end">
+      <div className="bg-app-surface rounded-3xl p-5 border border-app-border flex flex-col md:flex-row gap-4 items-end">
         {/* Search */}
         <div className="flex-1 relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#0F2044]/40 w-4 h-4" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-app-text/40 w-4 h-4" />
           <input
             type="text"
             placeholder="Search student, offense, class…"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-11 pr-4 py-3 bg-[#FAFAF8] border border-[#0F2044]/10 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/30"
+            className="w-full pl-11 pr-4 py-3 bg-[#FAFAF8] border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/30"
           />
         </div>
 
@@ -333,14 +333,14 @@ export default function DisciplineModule({ schoolCode }) {
             value={filterClassId}
             onChange={(e) => setFilterClassId(e.target.value)}
             disabled={isLoading}
-            className="appearance-none pl-4 pr-10 py-3 bg-white border border-[#0F2044]/15 rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044] min-w-[160px] disabled:opacity-50"
+            className="appearance-none pl-4 pr-10 py-3 bg-app-surface border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text min-w-[160px] disabled:opacity-50"
           >
             <option value="all">All classes</option>
             {classes.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
-          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0F2044]/40 pointer-events-none" />
+          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
         </div>
 
         {/* Severity filter */}
@@ -351,8 +351,8 @@ export default function DisciplineModule({ schoolCode }) {
               onClick={() => setFilterSeverity(s)}
               className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition-colors ${
                 filterSeverity === s
-                  ? "bg-[#0F2044] text-white border-[#0F2044]"
-                  : "border-[#0F2044]/15 text-[#0F2044]/60 hover:border-[#0F2044]/30"
+                  ? "bg-app-primary text-white border-[#0F2044]"
+                  : "border-app-border text-app-text/60 hover:border-[#0F2044]/30"
               }`}
             >
               {s}
@@ -368,8 +368,8 @@ export default function DisciplineModule({ schoolCode }) {
               onClick={() => setFilterStatus(s)}
               className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition-colors ${
                 filterStatus === s
-                  ? "bg-[#0F2044] text-white border-[#0F2044]"
-                  : "border-[#0F2044]/15 text-[#0F2044]/60 hover:border-[#0F2044]/30"
+                  ? "bg-app-primary text-white border-[#0F2044]"
+                  : "border-app-border text-app-text/60 hover:border-[#0F2044]/30"
               }`}
             >
               {s}
@@ -379,23 +379,23 @@ export default function DisciplineModule({ schoolCode }) {
       </div>
 
       {/* ── Table ────────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-3xl border border-[#0F2044]/8 overflow-hidden">
-        <div className="px-6 py-4 bg-[#F7F5F0] border-b border-[#0F2044]/8 flex justify-between items-center">
-          <h3 className="font-semibold text-[#0F2044] text-sm">All Discipline Records</h3>
-          <span className="text-xs text-[#0F2044]/50">
+      <div className="bg-app-surface rounded-3xl border border-app-border overflow-hidden">
+        <div className="px-6 py-4 bg-app-bg border-b border-app-border flex justify-between items-center">
+          <h3 className="font-semibold text-app-text text-sm">All Discipline Records</h3>
+          <span className="text-xs text-app-text/50">
             {isLoading ? "Loading…" : `${filtered.length} case${filtered.length !== 1 ? "s" : ""}`}
           </span>
         </div>
 
         {isLoading ? (
-          <div className="py-24 flex flex-col items-center gap-3 text-[#0F2044]/40">
+          <div className="py-24 flex flex-col items-center gap-3 text-app-text/40">
             <Spinner size={28} />
             <p className="text-sm">Loading discipline records…</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="py-24 flex flex-col items-center gap-3 text-[#0F2044]/30">
+          <div className="py-24 flex flex-col items-center gap-3 text-app-text/30">
             <ShieldAlert size={36} />
-            <p className="text-sm font-medium text-[#0F2044]/40">
+            <p className="text-sm font-medium text-app-text/40">
               {records.length === 0
                 ? "No discipline cases have been logged yet."
                 : "No records match your filters."}
@@ -404,7 +404,7 @@ export default function DisciplineModule({ schoolCode }) {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-[#F7F5F0] border-b border-[#0F2044]/8">
+              <thead className="bg-app-bg border-b border-app-border">
                 <tr>
                   {[
                     ["Date",      "text-left",   "hidden md:table-cell"],
@@ -417,7 +417,7 @@ export default function DisciplineModule({ schoolCode }) {
                   ].map(([label, align, hidden]) => (
                     <th
                       key={label}
-                      className={`px-5 py-3.5 ${align} text-[10px] font-bold tracking-widest uppercase text-[#0F2044]/40 ${hidden}`}
+                      className={`px-5 py-3.5 ${align} text-[10px] font-bold tracking-widest uppercase text-app-text/40 ${hidden}`}
                     >
                       {label}
                     </th>
@@ -433,32 +433,32 @@ export default function DisciplineModule({ schoolCode }) {
                     <tr key={record.id} className="hover:bg-[#FAFAF8] transition-colors">
 
                       {/* Date */}
-                      <td className="px-5 py-4 hidden md:table-cell text-sm text-[#0F2044]/60 font-mono whitespace-nowrap">
+                      <td className="px-5 py-4 hidden md:table-cell text-sm text-app-text/60 font-mono whitespace-nowrap">
                         {fmtDate(record.date)}
                       </td>
 
                       {/* Student */}
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-[#0F2044]/8 text-[#0F2044]/60 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                          <div className="w-9 h-9 rounded-xl bg-app-primary/8 text-app-text/60 flex items-center justify-center text-xs font-bold flex-shrink-0">
                             {initials(record.studentName || "?")}
                           </div>
                           <div>
-                            <div className="text-sm font-semibold text-[#0F2044]">{record.studentName || "—"}</div>
+                            <div className="text-sm font-semibold text-app-text">{record.studentName || "—"}</div>
                             {record.studentCode && (
-                              <div className="text-xs text-[#0F2044]/40 font-mono">{record.studentCode}</div>
+                              <div className="text-xs text-app-text/40 font-mono">{record.studentCode}</div>
                             )}
                           </div>
                         </div>
                       </td>
 
                       {/* Class */}
-                      <td className="px-5 py-4 hidden lg:table-cell text-sm text-[#0F2044]/60">
+                      <td className="px-5 py-4 hidden lg:table-cell text-sm text-app-text/60">
                         {record.className || "—"}
                       </td>
 
                       {/* Offense */}
-                      <td className="px-5 py-4 hidden sm:table-cell text-sm text-[#0F2044]/70 max-w-xs truncate">
+                      <td className="px-5 py-4 hidden sm:table-cell text-sm text-app-text/70 max-w-xs truncate">
                         {record.offense}
                       </td>
 
@@ -482,7 +482,7 @@ export default function DisciplineModule({ schoolCode }) {
                         <div className="flex justify-center gap-2">
                           <button
                             onClick={() => setViewRecord(record)}
-                            className="flex items-center gap-1 text-xs bg-[#0F2044]/5 hover:bg-[#0F2044]/10 text-[#0F2044]/70 hover:text-[#0F2044] px-3 py-2 rounded-xl transition-colors"
+                            className="flex items-center gap-1 text-xs bg-app-primary/5 hover:bg-app-primary/10 text-app-text/70 hover:text-app-text px-3 py-2 rounded-xl transition-colors"
                           >
                             <Eye size={13} /> View
                           </button>
@@ -513,7 +513,7 @@ export default function DisciplineModule({ schoolCode }) {
         )}
       </div>
 
-      <p className="text-center text-xs text-[#0F2044]/40 pt-1">
+      <p className="text-center text-xs text-app-text/40 pt-1">
         Showing all discipline cases submitted by teachers across the school.
         Use the filters above to narrow by class, severity, or status.
       </p>

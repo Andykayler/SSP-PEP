@@ -72,7 +72,7 @@ function getPeriod(num) {
 }
 
 function Spinner({ size = 20 }) {
-  return <Loader2 size={size} className="animate-spin text-[#0F2044]/40 inline-block" />;
+  return <Loader2 size={size} className="animate-spin text-app-text/40 inline-block" />;
 }
 
 function Toast({ message, type = "success", onClose }) {
@@ -117,15 +117,15 @@ function PlanCard({ plan, onView, onEdit, onDelete }) {
   const s = STATUS[plan.status] || STATUS.planned;
 
   return (
-    <div className="bg-white rounded-2xl border border-[#0F2044]/8 p-4 flex gap-4 hover:border-[#0F2044]/20 transition-all group">
+    <div className="bg-app-surface rounded-2xl border border-app-border p-4 flex gap-4 hover:border-app-border transition-all group">
       <PeriodBlock periodNumber={plan.periodNumber} status={plan.status} />
 
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2 mb-2">
-          <span className="text-xs px-2.5 py-0.5 bg-[#F7F5F0] border border-[#0F2044]/10 rounded-lg text-[#0F2044]/70 font-medium">
+          <span className="text-xs px-2.5 py-0.5 bg-app-bg border border-app-border rounded-lg text-app-text/70 font-medium">
             {plan.className}
           </span>
-          <span className="text-xs px-2.5 py-0.5 bg-[#F7F5F0] border border-[#0F2044]/10 rounded-lg text-[#0F2044]/70 font-medium">
+          <span className="text-xs px-2.5 py-0.5 bg-app-bg border border-app-border rounded-lg text-app-text/70 font-medium">
             {plan.subject}
           </span>
           <span className={`text-xs px-2.5 py-0.5 rounded-lg font-semibold flex items-center gap-1.5 ${s.bg} ${s.text}`}>
@@ -134,23 +134,23 @@ function PlanCard({ plan, onView, onEdit, onDelete }) {
           </span>
         </div>
 
-        <h3 className="font-semibold text-[#0F2044] text-sm leading-snug mb-1 truncate">
+        <h3 className="font-semibold text-app-text text-sm leading-snug mb-1 truncate">
           {plan.topic}
         </h3>
 
         {plan.objectives && (
-          <p className="text-xs text-[#0F2044]/55 leading-relaxed line-clamp-2 mb-2">
+          <p className="text-xs text-app-text/55 leading-relaxed line-clamp-2 mb-2">
             {plan.objectives}
           </p>
         )}
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-          <span className="text-[11px] text-[#0F2044]/40 flex items-center gap-1">
+          <span className="text-[11px] text-app-text/40 flex items-center gap-1">
             <Calendar size={11} />
             {dayLabel(plan.date)}, {fmt(plan.date)}
           </span>
           {plan.periodNumber && (
-            <span className="text-[11px] text-[#0F2044]/40 flex items-center gap-1">
+            <span className="text-[11px] text-app-text/40 flex items-center gap-1">
               <Clock size={11} />
               {(() => {
                 const p = getPeriod(plan.periodNumber);
@@ -159,10 +159,10 @@ function PlanCard({ plan, onView, onEdit, onDelete }) {
             </span>
           )}
           {plan.week && (
-            <span className="text-[11px] text-[#0F2044]/40">Wk {plan.week} · {plan.term}</span>
+            <span className="text-[11px] text-app-text/40">Wk {plan.week} · {plan.term}</span>
           )}
           {plan.assessment && (
-            <span className="text-[11px] text-[#0F2044]/40 hidden lg:inline truncate max-w-[200px]">
+            <span className="text-[11px] text-app-text/40 hidden lg:inline truncate max-w-[200px]">
               {plan.assessment}
             </span>
           )}
@@ -172,21 +172,21 @@ function PlanCard({ plan, onView, onEdit, onDelete }) {
       <div className="flex flex-col gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={() => onView(plan)}
-          className="p-2 hover:bg-blue-50 text-[#0F2044]/40 hover:text-blue-600 rounded-xl transition-colors"
+          className="p-2 hover:bg-blue-50 text-app-text/40 hover:text-blue-600 rounded-xl transition-colors"
           title="View"
         >
           <Eye size={15} />
         </button>
         <button
           onClick={() => onEdit(plan)}
-          className="p-2 hover:bg-amber-50 text-[#0F2044]/40 hover:text-amber-600 rounded-xl transition-colors"
+          className="p-2 hover:bg-amber-50 text-app-text/40 hover:text-amber-600 rounded-xl transition-colors"
           title="Edit"
         >
           <Edit2 size={15} />
         </button>
         <button
           onClick={() => onDelete(plan.id)}
-          className="p-2 hover:bg-red-50 text-[#0F2044]/40 hover:text-red-500 rounded-xl transition-colors"
+          className="p-2 hover:bg-red-50 text-app-text/40 hover:text-red-500 rounded-xl transition-colors"
           title="Delete"
         >
           <Trash2 size={15} />
@@ -329,8 +329,8 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-[#0F2044]">Lesson plans</h2>
-          <p className="text-sm text-[#0F2044]/55 mt-0.5">
+          <h2 className="text-2xl font-bold text-app-text">Lesson plans</h2>
+          <p className="text-sm text-app-text/55 mt-0.5">
             {assignLoading
               ? "Loading your assignments…"
               : myClasses.length > 0
@@ -341,7 +341,7 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
         <div className="flex gap-2 shrink-0">
           <button
             onClick={fetchPlans}
-            className="p-2.5 bg-white border border-[#0F2044]/10 rounded-xl hover:bg-[#F7F5F0] transition-colors text-[#0F2044]/60"
+            className="p-2.5 bg-app-surface border border-app-border rounded-xl hover:bg-app-bg transition-colors text-app-text/60"
             title="Refresh"
           >
             <RefreshCw size={16} />
@@ -349,7 +349,7 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
           <button
             onClick={() => setShowNew(true)}
             disabled={noAssignments}
-            className="flex items-center gap-2 px-5 py-2.5 bg-[#0F2044] text-white rounded-2xl hover:bg-[#1A2F5C] transition-colors font-medium text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-5 py-2.5 bg-app-primary text-white rounded-2xl hover:bg-[#1A2F5C] transition-colors font-medium text-sm disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Plus size={16} /> New plan
           </button>
@@ -366,13 +366,13 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
       {/* Filter bar */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#0F2044]/35" />
+          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-app-text/35" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search topics, classes, subjects…"
-            className="w-full pl-9 pr-4 py-2.5 bg-white border border-[#0F2044]/10 rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/30 text-[#0F2044]"
+            className="w-full pl-9 pr-4 py-2.5 bg-app-surface border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/30 text-app-text"
           />
         </div>
         <div className="flex gap-1.5">
@@ -387,8 +387,8 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
               onClick={() => setStatusFilter(f.id)}
               className={`px-3.5 py-2 text-xs font-medium rounded-xl transition-all whitespace-nowrap
                 ${statusFilter === f.id
-                  ? "bg-[#0F2044] text-white"
-                  : "bg-white border border-[#0F2044]/10 text-[#0F2044]/60 hover:border-[#0F2044]/25"
+                  ? "bg-app-primary text-white"
+                  : "bg-app-surface border border-app-border text-app-text/60 hover:border-[#0F2044]/25"
                 }`}
             >
               {f.label}
@@ -403,14 +403,14 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
       {/* Plans list */}
       <div className="space-y-2.5">
         {loading ? (
-          <div className="bg-white rounded-2xl border border-[#0F2044]/8 py-20 flex flex-col items-center gap-3 text-[#0F2044]/40">
+          <div className="bg-app-surface rounded-2xl border border-app-border py-20 flex flex-col items-center gap-3 text-app-text/40">
             <Spinner size={28} />
             <p className="text-sm">Loading lesson plans…</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-[#0F2044]/8 py-20 text-center">
-            <BookOpen size={28} className="mx-auto mb-3 text-[#0F2044]/20" />
-            <p className="text-sm text-[#0F2044]/35">
+          <div className="bg-app-surface rounded-2xl border border-app-border py-20 text-center">
+            <BookOpen size={28} className="mx-auto mb-3 text-app-text/20" />
+            <p className="text-sm text-app-text/35">
               {plans.length === 0 ? "No lesson plans yet. Create your first one." : "No plans match your filter."}
             </p>
           </div>
@@ -427,7 +427,7 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
         )}
       </div>
 
-      <p className="text-center text-[11px] text-[#0F2044]/35 pt-1">
+      <p className="text-center text-[11px] text-app-text/35 pt-1">
         Lesson plans track curriculum coverage and support MANEB syllabus requirements.
       </p>
 
@@ -501,8 +501,8 @@ function PlanModal({ plan, myClasses, mySubjects, onSave, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[94vh] overflow-hidden shadow-2xl flex flex-col">
-        <div className="bg-[#0F2044] px-7 py-5 flex items-center justify-between shrink-0">
+      <div className="bg-app-surface rounded-3xl w-full max-w-2xl max-h-[94vh] overflow-hidden shadow-2xl flex flex-col">
+        <div className="bg-app-primary px-7 py-5 flex items-center justify-between shrink-0">
           <div>
             <h3 className="text-white font-bold text-lg">
               {isEdit ? "Edit lesson plan" : "New lesson plan"}
@@ -523,22 +523,22 @@ function PlanModal({ plan, myClasses, mySubjects, onSave, onClose }) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[11px] font-bold text-[#0F2044]/50 mb-1.5 block tracking-wide">CLASS</label>
+              <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">CLASS</label>
               <select
                 value={form.className}
                 onChange={(e) => set("className", e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-[#0F2044]/12 rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 bg-white text-[#0F2044]"
+                className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 bg-app-surface text-app-text"
               >
                 {myClasses.length === 0 && <option value="">No classes assigned</option>}
                 {myClasses.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-[11px] font-bold text-[#0F2044]/50 mb-1.5 block tracking-wide">SUBJECT</label>
+              <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">SUBJECT</label>
               <select
                 value={form.subject}
                 onChange={(e) => set("subject", e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-[#0F2044]/12 rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 bg-white text-[#0F2044]"
+                className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 bg-app-surface text-app-text"
               >
                 {mySubjects.length === 0 && <option value="">No subjects assigned</option>}
                 {mySubjects.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -547,43 +547,43 @@ function PlanModal({ plan, myClasses, mySubjects, onSave, onClose }) {
           </div>
 
           <div>
-            <label className="text-[11px] font-bold text-[#0F2044]/50 mb-1.5 block tracking-wide">TOPIC / CHAPTER *</label>
+            <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">TOPIC / CHAPTER *</label>
             <input
               type="text"
               placeholder="e.g. Factorisation of quadratic expressions"
               value={form.topic}
               onChange={(e) => set("topic", e.target.value)}
-              className="w-full px-3.5 py-2.5 border border-[#0F2044]/12 rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044]"
+              className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
             />
           </div>
 
           <div>
-            <label className="text-[11px] font-bold text-[#0F2044]/50 mb-1.5 block tracking-wide">LEARNING OBJECTIVES *</label>
+            <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">LEARNING OBJECTIVES *</label>
             <textarea
               rows={3}
               placeholder="By the end of the lesson, students should be able to…"
               value={form.objectives}
               onChange={(e) => set("objectives", e.target.value)}
-              className="w-full px-3.5 py-2.5 border border-[#0F2044]/12 rounded-xl text-sm resize-y focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044]"
+              className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm resize-y focus:outline-none focus:border-[#0F2044]/40 text-app-text"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[11px] font-bold text-[#0F2044]/50 mb-1.5 block tracking-wide">DATE</label>
+              <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">DATE</label>
               <input
                 type="date"
                 value={form.date}
                 onChange={(e) => set("date", e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-[#0F2044]/12 rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044]"
+                className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-[#0F2044]/50 mb-1.5 block tracking-wide">PERIOD</label>
+              <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">PERIOD</label>
               <select
                 value={form.periodNumber}
                 onChange={(e) => set("periodNumber", Number(e.target.value))}
-                className="w-full px-3.5 py-2.5 border border-[#0F2044]/12 rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 bg-white text-[#0F2044]"
+                className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 bg-app-surface text-app-text"
               >
                 {PERIODS.map((p) => (
                   <option key={p.number} value={p.number}>
@@ -592,7 +592,7 @@ function PlanModal({ plan, myClasses, mySubjects, onSave, onClose }) {
                 ))}
               </select>
               {selectedPeriod && (
-                <p className="text-[11px] text-[#0F2044]/40 mt-1 pl-1">
+                <p className="text-[11px] text-app-text/40 mt-1 pl-1">
                   {selectedPeriod.start} – {selectedPeriod.end}
                 </p>
               )}
@@ -601,22 +601,22 @@ function PlanModal({ plan, myClasses, mySubjects, onSave, onClose }) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[11px] font-bold text-[#0F2044]/50 mb-1.5 block tracking-wide">WEEK</label>
+              <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">WEEK</label>
               <input
                 type="number"
                 min={1} max={16}
                 placeholder="e.g. 12"
                 value={form.week}
                 onChange={(e) => set("week", e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-[#0F2044]/12 rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044]"
+                className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-[#0F2044]/50 mb-1.5 block tracking-wide">TERM</label>
+              <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">TERM</label>
               <select
                 value={form.term}
                 onChange={(e) => set("term", e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-[#0F2044]/12 rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 bg-white text-[#0F2044]"
+                className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 bg-app-surface text-app-text"
               >
                 <option>Term 1</option>
                 <option>Term 2</option>
@@ -627,40 +627,40 @@ function PlanModal({ plan, myClasses, mySubjects, onSave, onClose }) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[11px] font-bold text-[#0F2044]/50 mb-1.5 block tracking-wide">RESOURCES</label>
+              <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">RESOURCES</label>
               <input
                 type="text"
                 placeholder="Textbook, graph boards…"
                 value={form.resources}
                 onChange={(e) => set("resources", e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-[#0F2044]/12 rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044]"
+                className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-[#0F2044]/50 mb-1.5 block tracking-wide">ASSESSMENT</label>
+              <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">ASSESSMENT</label>
               <input
                 type="text"
                 placeholder="Class exercise + Homework"
                 value={form.assessment}
                 onChange={(e) => set("assessment", e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-[#0F2044]/12 rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044]"
+                className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
               />
             </div>
           </div>
 
           <div>
-            <label className="text-[11px] font-bold text-[#0F2044]/50 mb-1.5 block tracking-wide">NOTES</label>
+            <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">NOTES</label>
             <textarea
               rows={2}
               placeholder="Any extra notes…"
               value={form.notes}
               onChange={(e) => set("notes", e.target.value)}
-              className="w-full px-3.5 py-2.5 border border-[#0F2044]/12 rounded-xl text-sm resize-y focus:outline-none focus:border-[#0F2044]/40 text-[#0F2044]"
+              className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm resize-y focus:outline-none focus:border-[#0F2044]/40 text-app-text"
             />
           </div>
 
           <div>
-            <label className="text-[11px] font-bold text-[#0F2044]/50 mb-2 block tracking-wide">STATUS</label>
+            <label className="text-[11px] font-bold text-app-text/50 mb-2 block tracking-wide">STATUS</label>
             <div className="flex gap-2 flex-wrap">
               {Object.entries(STATUS).map(([key, s]) => (
                 <label
@@ -668,12 +668,12 @@ function PlanModal({ plan, myClasses, mySubjects, onSave, onClose }) {
                   className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer text-sm font-medium transition-all
                     ${form.status === key
                       ? `border-current ${s.bg} ${s.text}`
-                      : "border-[#0F2044]/10 text-[#0F2044]/50 hover:border-[#0F2044]/25"
+                      : "border-app-border text-app-text/50 hover:border-[#0F2044]/25"
                     }`}
                 >
                   <input type="radio" name="status" checked={form.status === key}
                     onChange={() => set("status", key)} className="sr-only" />
-                  <span className={`w-2 h-2 rounded-full ${form.status === key ? s.dot : "bg-[#0F2044]/20"}`} />
+                  <span className={`w-2 h-2 rounded-full ${form.status === key ? s.dot : "bg-app-primary/20"}`} />
                   {s.label}
                 </label>
               ))}
@@ -681,17 +681,17 @@ function PlanModal({ plan, myClasses, mySubjects, onSave, onClose }) {
           </div>
         </div>
 
-        <div className="px-7 py-5 border-t border-[#0F2044]/8 flex gap-3 shrink-0">
+        <div className="px-7 py-5 border-t border-app-border flex gap-3 shrink-0">
           <button
             onClick={onClose}
-            className="flex-1 py-3 border border-[#0F2044]/15 rounded-2xl font-medium text-[#0F2044]/60 hover:bg-[#F7F5F0] transition-colors text-sm"
+            className="flex-1 py-3 border border-app-border rounded-2xl font-medium text-app-text/60 hover:bg-app-bg transition-colors text-sm"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 py-3 bg-[#F4B400] hover:brightness-105 disabled:opacity-60 text-[#0F2044] font-bold rounded-2xl flex items-center justify-center gap-2 transition-all text-sm"
+            className="flex-1 py-3 bg-app-warning hover:brightness-105 disabled:opacity-60 text-app-text font-bold rounded-2xl flex items-center justify-center gap-2 transition-all text-sm"
           >
             {saving ? <Spinner size={16} /> : <Save size={16} />}
             {isEdit ? "Update plan" : "Save plan"}
@@ -709,12 +709,12 @@ function ViewModal({ plan, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl">
-        <div className="bg-[#0F2044] px-7 py-5 flex items-start justify-between gap-4">
+      <div className="bg-app-surface rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl">
+        <div className="bg-app-primary px-7 py-5 flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span className="text-xs px-2.5 py-0.5 bg-white/15 text-white/80 rounded-lg font-medium">{plan.className}</span>
-              <span className="text-xs px-2.5 py-0.5 bg-white/15 text-white/80 rounded-lg font-medium">{plan.subject}</span>
+              <span className="text-xs px-2.5 py-0.5 bg-app-surface/15 text-white/80 rounded-lg font-medium">{plan.className}</span>
+              <span className="text-xs px-2.5 py-0.5 bg-app-surface/15 text-white/80 rounded-lg font-medium">{plan.subject}</span>
               <span className={`text-xs px-2.5 py-0.5 rounded-lg font-semibold ${s.bg} ${s.text}`}>{s.label}</span>
             </div>
             <h3 className="text-white font-bold text-lg leading-snug">{plan.topic}</h3>
@@ -745,34 +745,34 @@ function ViewModal({ plan, onClose }) {
           </div>
 
           <div>
-            <p className="text-[11px] font-bold text-[#0F2044]/45 mb-2 tracking-wide">LEARNING OBJECTIVES</p>
-            <div className="bg-[#F7F5F0] p-4 rounded-xl text-sm leading-relaxed text-[#0F2044]/80 border border-[#0F2044]/5">
+            <p className="text-[11px] font-bold text-app-text/45 mb-2 tracking-wide">LEARNING OBJECTIVES</p>
+            <div className="bg-app-bg p-4 rounded-xl text-sm leading-relaxed text-app-text/80 border border-[#0F2044]/5">
               {plan.objectives}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <p className="text-[11px] font-bold text-[#0F2044]/45 mb-1 tracking-wide">RESOURCES</p>
-              <p className="text-[#0F2044]/70">{plan.resources || "—"}</p>
+              <p className="text-[11px] font-bold text-app-text/45 mb-1 tracking-wide">RESOURCES</p>
+              <p className="text-app-text/70">{plan.resources || "—"}</p>
             </div>
             <div>
-              <p className="text-[11px] font-bold text-[#0F2044]/45 mb-1 tracking-wide">ASSESSMENT</p>
-              <p className="text-[#0F2044]/70">{plan.assessment || "—"}</p>
+              <p className="text-[11px] font-bold text-app-text/45 mb-1 tracking-wide">ASSESSMENT</p>
+              <p className="text-app-text/70">{plan.assessment || "—"}</p>
             </div>
           </div>
 
           {plan.notes && (
             <div className="text-sm">
-              <p className="text-[11px] font-bold text-[#0F2044]/45 mb-1 tracking-wide">NOTES</p>
-              <p className="text-[#0F2044]/60 leading-relaxed">{plan.notes}</p>
+              <p className="text-[11px] font-bold text-app-text/45 mb-1 tracking-wide">NOTES</p>
+              <p className="text-app-text/60 leading-relaxed">{plan.notes}</p>
             </div>
           )}
 
-          <div className="pt-3 border-t border-[#0F2044]/8 flex justify-end">
+          <div className="pt-3 border-t border-app-border flex justify-end">
             <button
               onClick={onClose}
-              className="px-6 py-2.5 border border-[#0F2044]/15 rounded-xl hover:bg-[#F7F5F0] text-sm font-medium transition-colors text-[#0F2044]/70"
+              className="px-6 py-2.5 border border-app-border rounded-xl hover:bg-app-bg text-sm font-medium transition-colors text-app-text/70"
             >
               Close
             </button>

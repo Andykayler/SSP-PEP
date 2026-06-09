@@ -1,7 +1,7 @@
 /* ── SIGN IN PAGE ─────────────────────────────────────── */
 .signin-page {
   min-height: 100vh;
-  background: var(--dark);
+  background: var(--bg-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -50,7 +50,7 @@
   z-index: 2;
   width: 100%;
   max-width: 420px;
-  background: var(--dark-mid);
+  background: var(--bg-secondary);
   border: 1px solid rgba(79,110,247,0.18);
   border-radius: var(--radius-xl);
   overflow: hidden;
@@ -219,7 +219,7 @@
 }
 
 .signin-modal-content {
-  background: var(--dark-mid);
+  background: var(--bg-secondary);
   border: 1px solid rgba(79,110,247,0.25);
   border-radius: var(--radius-xl);
   width: 100%;
