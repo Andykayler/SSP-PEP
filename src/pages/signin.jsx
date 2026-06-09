@@ -13,6 +13,8 @@ const ROLES = {
   admin:         { label: "Administrator",   redirectTo: "/admin"   },
   head_teacher:  { label: "Head Teacher",    redirectTo: "/head"    },
   class_teacher: { label: "Class Teacher",   redirectTo: "/teacher" },
+  bursar:        { label: "Bursar / Fees",   redirectTo: "/bursar"  },
+  librarian:     { label: "Librarian",       redirectTo: "/library" },
 };
 
 export default function SignIn() {
@@ -59,7 +61,7 @@ export default function SignIn() {
       }
 
       const userData = userSnap.data();
-      const allowedRoles = ["admin", "head_teacher", "class_teacher"];
+      const allowedRoles = ["admin", "head_teacher", "class_teacher", "bursar"];
 
       if (!allowedRoles.includes(userData.role)) {
         await signOut(auth);

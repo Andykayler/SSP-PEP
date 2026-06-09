@@ -534,7 +534,7 @@ export default function StudentManagement({ schoolCode, senderName }) {
                   <th className="text-left px-4 py-3 text-xs font-medium text-[#0F2044]/60 uppercase tracking-wide">Parent / Guardian</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-[#0F2044]/60 uppercase tracking-wide">Contact</th>
                   <th className="text-center px-4 py-3 text-xs font-medium text-[#0F2044]/60 uppercase tracking-wide">Boarding</th>
-                  <th className="text-center px-4 py-3 text-xs font-medium text-[#0F2044]/60 uppercase tracking-wide">Fees</th>
+                  {/* <th className="text-center px-4 py-3 text-xs font-medium text-[#0F2044]/60 uppercase tracking-wide">Fees</th> */}
                   <th className="text-center px-4 py-3 text-xs font-medium text-[#0F2044]/60 uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
@@ -578,12 +578,12 @@ export default function StudentManagement({ schoolCode, senderName }) {
                         <td className="px-4 py-3 text-center">
                           <StatusBadge value={student.boarding || "No"} type="boarding" />
                         </td>
-                        <td className="px-4 py-3 text-center">
+                        {/* <td className="px-4 py-3 text-center">
                           {student.feeStatus
                             ? <StatusBadge value={student.feeStatus} type="feeStatus" />
                             : <span className="text-xs text-[#0F2044]/30">—</span>
                           }
-                        </td>
+                        </td> */}
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-center gap-1.5">
                             <button

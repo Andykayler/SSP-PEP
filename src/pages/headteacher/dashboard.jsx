@@ -9,7 +9,7 @@ import {
 
 import StudentManagement from "./modules/student";
 import ClassAndStreamModule from "./modules/ClassModule";
-import TimetableModule from "./modules/TimetableModule";
+// import TimetableModule from "./modules/TimetableModule";
 import AttendanceOverview from "./modules/AttendanceModule";
 import DisciplineOverview from "./modules/DisciplineModule";
 import PerformanceAnalytics from "./modules/PerformanceModule";
@@ -32,7 +32,7 @@ const Icon = {
   Home:          () => <Home className="w-5 h-5" />,
   SchoolOverview:() => <Users className="w-5 h-5" />,
   Students:      () => <Users className="w-5 h-5" />,
-  Timetable:     () => <Calendar className="w-5 h-5" />,
+  // Timetable:     () => <Calendar className="w-5 h-5" />,
   Attendance:    () => <UserCheck className="w-5 h-5" />,
   Performance:   () => <Award className="w-5 h-5" />,
   Discipline:    () => <AlertTriangle className="w-5 h-5" />,
@@ -52,13 +52,13 @@ const Spinner = () => (
 );
 
 // ─── Static school-wide stats ───────────────────────────────────────────────
-const headStats = [
-  { label: "Total Students",       value: "1,248", change: "+42",      color: "text-emerald-600" },
-  { label: "Overall Attendance",   value: "89%",   change: "-1%",      color: "text-amber-600"   },
-  { label: "Fee Collection Rate",  value: "76%",   change: "+5%",      color: "text-emerald-600" },
-  { label: "Discipline Cases",     value: "18",    change: "This week",color: "text-red-600"      },
-  { label: "Staff Present",        value: "48/52", change: "",         color: "text-blue-600"     },
-];
+// const headStats = [
+//   { label: "Total Students",       value: "1,248", change: "+42",      color: "text-emerald-600" },
+//   { label: "Overall Attendance",   value: "89%",   change: "-1%",      color: "text-amber-600"   },
+//   { label: "Fee Collection Rate",  value: "76%",   change: "+5%",      color: "text-emerald-600" },
+//   { label: "Discipline Cases",     value: "18",    change: "This week",color: "text-red-600"      },
+//   { label: "Staff Present",        value: "48/52", change: "",         color: "text-blue-600"     },
+// ];
 
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function HeadTeacherDashboard() {
@@ -142,12 +142,12 @@ export default function HeadTeacherDashboard() {
       icon: Icon.SchoolOverview,
       component: <ClassAndStreamModule schoolCode={schoolCode} /> 
     },
-    { 
-      id: "timetable",     
-      label: "School Timetable",      
-      icon: Icon.Timetable,
-      component: <TimetableModule schoolCode={schoolCode} /> 
-    },
+    // { 
+    //   id: "timetable",     
+    //   label: "School Timetable",      
+    //   icon: Icon.Timetable,
+    //   component: <TimetableModule schoolCode={schoolCode} /> 
+    // },
     { 
       id: "attendance",    
       label: "Attendance Overview",   
@@ -356,7 +356,7 @@ export default function HeadTeacherDashboard() {
               </div>
 
               {/* Stats and Quick Actions */}
-              <div>
+              {/* <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-[#0F2044]/40 mb-3">School Overview</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                   {headStats.map((stat, i) => (
@@ -367,7 +367,7 @@ export default function HeadTeacherDashboard() {
                     </div>
                   ))}
                 </div>
-              </div>
+              </div> */}
 
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-[#0F2044]/40 mb-3">Quick Actions</p>
@@ -386,7 +386,7 @@ export default function HeadTeacherDashboard() {
               </div>
 
               {/* Pending items */}
-              <div className="grid lg:grid-cols-2 gap-6">
+              {/* <div className="grid lg:grid-cols-2 gap-6">
                 <div className="bg-white rounded-2xl p-6 border border-[#0F2044]/8">
                   <h3 className="font-semibold text-[#0F2044] mb-4 flex items-center gap-2">
                     <AlertTriangle className="w-5 h-5 text-amber-600" /> Pending Approvals
@@ -400,7 +400,7 @@ export default function HeadTeacherDashboard() {
                   <h3 className="font-semibold text-[#0F2044] mb-3">Key Metrics This Term</h3>
                   <p className="text-sm text-[#0F2044]/60">Overall performance trending upward.</p>
                 </div>
-              </div>
+              </div> */}
             </div>
           )}
 

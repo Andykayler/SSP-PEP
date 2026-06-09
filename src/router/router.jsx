@@ -5,6 +5,7 @@ import AcademixLanding from "../pages/landing";
 import AdminDashboard from "../pages/admin/admin_dashboard";
 import TeacherDashboard from "../pages/teacher/teacherdashboard";
 import HeadteacherDashboard from "../pages/headteacher/dashboard";
+import BursarDashboard from "../pages/burser/burser";
 const router = createBrowserRouter([
                 {
                     path: "/",
@@ -29,6 +30,10 @@ const router = createBrowserRouter([
             {
                 path: "/head",
                 element: <HeadteacherDashboard />
-            }   
+            },
+            {
+                path: "/bursar",
+                element: <BursarDashboard />
+            }
 ]);
 export default router;
