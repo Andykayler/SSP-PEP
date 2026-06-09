@@ -1,0 +1,451 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   SSP-PEP Global UI Polish
+   Visual consistency layer — no logic, layout, or workflow changes.
+   Scoped to application shells; auth/landing pages keep their own styling.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Typography scale (table-aligned: DM Sans + mono labels) ──────────────── */
+.dashboard-shell,
+.page-content,
+.main-area {
+  --type-page-title: 1.5rem;
+  --type-section-title: 1.125rem;
+  --type-card-title: 0.9375rem;
+  --type-body: 0.875rem;
+  --type-table: 0.8125rem;
+  --type-label: 0.625rem;
+  --type-line-tight: 1.25;
+  --type-line-body: 1.55;
+}
+
+/* Unify mismatched Playfair / oversized module headings */
+.dashboard-shell h2,
+.page-content h2,
+.main-area h2,
+.dashboard-shell [style*="Playfair Display"],
+.page-content [style*="Playfair Display"],
+.main-area [style*="Playfair Display"] {
+  font-family: var(--font-body) !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em !important;
+  line-height: var(--type-line-tight) !important;
+  color: var(--text-primary);
+}
+
+.dashboard-shell h2.text-3xl,
+.page-content h2.text-3xl,
+.dashboard-shell h2.text-2xl,
+.page-content h2.text-2xl {
+  font-size: var(--type-page-title) !important;
+}
+
+.dashboard-shell h3,
+.page-content h3 {
+  font-family: var(--font-body);
+  font-size: var(--type-section-title);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: var(--type-line-tight);
+  color: var(--text-primary);
+}
+
+.dashboard-shell h4,
+.page-content h4 {
+  font-size: var(--type-card-title);
+  font-weight: 600;
+  line-height: var(--type-line-tight);
+}
+
+/* Page subtitle rhythm */
+.dashboard-shell h2 + p,
+.page-content > div > div > p:first-of-type,
+.page-content h2 + p {
+  font-size: var(--type-body);
+  line-height: var(--type-line-body);
+  color: var(--text-secondary);
+}
+
+/* Label pattern (matches table headers) */
+.dashboard-shell label,
+.page-content label,
+.dashboard-shell .text-\[10px\],
+.page-content .text-\[10px\] {
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+}
+
+/* ── Page layout rhythm ─────────────────────────────────────────────────── */
+.page-content > .space-y-6,
+.page-content > .space-y-8,
+.dashboard-shell .page-content .space-y-6,
+.dashboard-shell .page-content .space-y-8 {
+  width: 100%;
+  max-width: 100%;
+}
+
+.page-content .grid {
+  align-items: stretch;
+}
+
+/* Metric / KPI cards — equal height in grids */
+.page-content .grid > .rounded-3xl,
+.page-content .grid > .rounded-2xl,
+.dashboard-shell .grid > .rounded-3xl,
+.dashboard-shell .grid > .rounded-2xl,
+.dt-card,
+.card,
+.cc {
+  min-height: 0;
+}
+
+.page-content .grid > [class*="rounded-3xl"],
+.page-content .grid > [class*="rounded-2xl"] {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Surface cards — consistent depth */
+.page-content .bg-app-surface.rounded-3xl,
+.page-content .bg-app-surface.rounded-2xl,
+.dashboard-shell .bg-app-surface.rounded-3xl,
+.dashboard-shell .bg-app-surface.rounded-2xl {
+  border-radius: var(--r-xl);
+  border-color: var(--border-color);
+  box-shadow: var(--shadow-xs);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.page-content .bg-app-surface.rounded-3xl:hover,
+.page-content .bg-app-surface.rounded-2xl:hover,
+.dashboard-shell .bg-app-surface.rounded-3xl:hover {
+  border-color: var(--border-strong);
+}
+
+/* ── Buttons (dashboard scope) ──────────────────────────────────────────── */
+.dashboard-shell button,
+.page-content button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  font-family: var(--font-body);
+  line-height: 1.2;
+  vertical-align: middle;
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base),
+    color var(--transition-base),
+    box-shadow var(--transition-base),
+    transform var(--transition-fast),
+    opacity var(--transition-base);
+}
+
+.dashboard-shell button svg,
+.page-content button svg {
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.dashboard-shell button:disabled,
+.page-content button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.dashboard-shell button:not(:disabled):active,
+.page-content button:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+/* Common Tailwind button sizes → consistent heights */
+.dashboard-shell button[class*="py-3"],
+.page-content button[class*="py-3"] {
+  min-height: 40px;
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+}
+
+.dashboard-shell button[class*="py-2.5"],
+.page-content button[class*="py-2.5"] {
+  min-height: 36px;
+}
+
+.dashboard-shell button[class*="rounded-2xl"],
+.page-content button[class*="rounded-2xl"],
+.dashboard-shell button[class*="rounded-xl"],
+.page-content button[class*="rounded-xl"] {
+  border-radius: var(--r-md);
+}
+
+/* ── Form controls & filters ──────────────────────────────────────────────── */
+.dashboard-shell input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+.dashboard-shell select,
+.dashboard-shell textarea,
+.page-content input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+.page-content select,
+.page-content textarea {
+  min-height: 40px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.4;
+  border-radius: var(--r-md);
+  border-color: var(--input-border);
+  background: var(--input-bg);
+  color: var(--text-primary);
+  transition:
+    border-color var(--transition-base),
+    box-shadow var(--transition-base),
+    background-color var(--transition-base);
+}
+
+.dashboard-shell input:focus,
+.dashboard-shell select:focus,
+.dashboard-shell textarea:focus,
+.page-content input:focus,
+.page-content select:focus,
+.page-content textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.15);
+}
+
+.dashboard-shell input::placeholder,
+.page-content input::placeholder,
+.dashboard-shell textarea::placeholder,
+.page-content textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* Toolbar / filter row alignment */
+.dt-toolbar select,
+.dt-toolbar input,
+.page-content .dt-toolbar select,
+.page-content .dt-toolbar input {
+  min-height: 36px;
+  padding: 0.5rem 0.75rem;
+  font-size: 13px;
+}
+
+/* ── Tables — enforce consistency on ALL tables in dashboards ───────────── */
+.dashboard-shell table,
+.page-content table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.dashboard-shell table:not(.data-table) thead tr,
+.page-content table:not(.data-table) thead tr {
+  background: var(--primary-dim);
+}
+
+.dashboard-shell table:not(.data-table) thead th,
+.page-content table:not(.data-table) thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 13px 16px;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--primary-dim);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.dashboard-shell table:not(.data-table) tbody tr,
+.page-content table:not(.data-table) tbody tr {
+  transition: background var(--transition-fast);
+}
+
+.dashboard-shell table:not(.data-table) tbody tr:nth-child(even),
+.page-content table:not(.data-table) tbody tr:nth-child(even) {
+  background: rgba(79, 110, 247, 0.02);
+}
+
+[data-theme="light"] .dashboard-shell table:not(.data-table) tbody tr:nth-child(even),
+[data-theme="light"] .page-content table:not(.data-table) tbody tr:nth-child(even) {
+  background: rgba(79, 110, 247, 0.04);
+}
+
+.dashboard-shell table:not(.data-table) tbody tr:hover,
+.page-content table:not(.data-table) tbody tr:hover {
+  background: var(--primary-dim);
+}
+
+.dashboard-shell table:not(.data-table) td,
+.dashboard-shell table:not(.data-table) th,
+.page-content table:not(.data-table) td,
+.page-content table:not(.data-table) th {
+  padding: 13px 16px;
+  font-size: var(--type-table);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--primary-dim);
+  vertical-align: middle;
+}
+
+.dashboard-shell table:not(.data-table) tbody tr:last-child td,
+.page-content table:not(.data-table) tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Action cells */
+.dashboard-shell table td .flex,
+.page-content table td .flex {
+  align-items: center;
+}
+
+/* ── Badges & status pills (Tailwind utility harmonization) ───────────────── */
+.dashboard-shell [class*="rounded-full"][class*="px-"],
+.dashboard-shell [class*="rounded-lg"][class*="text-xs"],
+.dashboard-shell [class*="rounded-xl"][class*="text-xs"],
+.page-content [class*="rounded-full"][class*="px-"],
+.page-content [class*="rounded-lg"][class*="text-xs"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 22px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  vertical-align: middle;
+}
+
+/* Dark theme: soften harsh light-mode badge colors */
+[data-theme="dark"] .dashboard-shell .bg-emerald-100,
+[data-theme="dark"] .page-content .bg-emerald-100 {
+  background: var(--success-pale) !important;
+}
+
+[data-theme="dark"] .dashboard-shell .text-emerald-700,
+[data-theme="dark"] .dashboard-shell .text-emerald-600,
+[data-theme="dark"] .page-content .text-emerald-700,
+[data-theme="dark"] .page-content .text-emerald-600 {
+  color: var(--success-light) !important;
+}
+
+[data-theme="dark"] .dashboard-shell .bg-amber-100,
+[data-theme="dark"] .dashboard-shell .bg-amber-50,
+[data-theme="dark"] .page-content .bg-amber-100,
+[data-theme="dark"] .page-content .bg-amber-50 {
+  background: var(--warning-pale) !important;
+}
+
+[data-theme="dark"] .dashboard-shell .text-amber-700,
+[data-theme="dark"] .dashboard-shell .text-amber-600,
+[data-theme="dark"] .page-content .text-amber-700,
+[data-theme="dark"] .page-content .text-amber-600 {
+  color: var(--warning-light) !important;
+}
+
+[data-theme="dark"] .dashboard-shell .bg-red-100,
+[data-theme="dark"] .dashboard-shell .bg-red-50,
+[data-theme="dark"] .page-content .bg-red-100,
+[data-theme="dark"] .page-content .bg-red-50 {
+  background: var(--danger-pale) !important;
+}
+
+[data-theme="dark"] .dashboard-shell .text-red-700,
+[data-theme="dark"] .dashboard-shell .text-red-600,
+[data-theme="dark"] .page-content .text-red-700,
+[data-theme="dark"] .page-content .text-red-600 {
+  color: var(--danger-light) !important;
+}
+
+[data-theme="dark"] .dashboard-shell .bg-blue-100,
+[data-theme="dark"] .dashboard-shell .bg-blue-50,
+[data-theme="dark"] .page-content .bg-blue-100,
+[data-theme="dark"] .page-content .bg-blue-50 {
+  background: var(--primary-pale) !important;
+}
+
+[data-theme="dark"] .dashboard-shell .text-blue-700,
+[data-theme="dark"] .page-content .text-blue-700 {
+  color: var(--primary-light) !important;
+}
+
+[data-theme="dark"] .dashboard-shell .bg-green-100,
+[data-theme="dark"] .page-content .bg-green-100 {
+  background: var(--success-pale) !important;
+}
+
+[data-theme="dark"] .dashboard-shell .text-green-700,
+[data-theme="dark"] .page-content .text-green-700 {
+  color: var(--success-light) !important;
+}
+
+/* Hover rows — theme-aware (replace hardcoded #FAFAF8) */
+[data-theme="dark"] .dashboard-shell tr.hover\:bg-\[\#FAFAF8\]:hover,
+[data-theme="dark"] .page-content tr.hover\:bg-\[\#FAFAF8\]:hover,
+.dashboard-shell tr[class*="hover:bg-"]:hover,
+.page-content tr[class*="hover:bg-app-bg"]:hover {
+  background: var(--primary-dim) !important;
+}
+
+/* ── Dark theme surface refinement ──────────────────────────────────────── */
+[data-theme="dark"] {
+  --card-bg:        rgba(255, 255, 255, 0.045);
+  --card-bg-hover:  rgba(255, 255, 255, 0.07);
+  --text-secondary: rgba(255, 255, 255, 0.62);
+  --text-muted:     rgba(255, 255, 255, 0.32);
+  --border-color:   rgba(79, 110, 247, 0.2);
+  --border-strong:  rgba(79, 110, 247, 0.34);
+  --input-bg:       rgba(255, 255, 255, 0.05);
+  --input-border:   rgba(79, 110, 247, 0.22);
+}
+
+/* ── Responsive cleanup ─────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .dashboard-shell h2.text-3xl,
+  .page-content h2.text-3xl {
+    font-size: 1.3125rem !important;
+  }
+
+  .page-content .flex-col.sm\:flex-row,
+  .dashboard-shell .flex-col.sm\:flex-row {
+    align-items: stretch;
+  }
+
+  .dt-toolbar,
+  .dt-toolbar__main {
+    align-items: stretch;
+  }
+
+  .dt-toolbar__search {
+    max-width: none;
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .page-content table:not(.data-table) thead th,
+  .page-content table:not(.data-table) td,
+  .dashboard-shell table:not(.data-table) thead th,
+  .dashboard-shell table:not(.data-table) td {
+    padding: 11px 12px;
+    font-size: 12px;
+  }
+}
+
+/* Prevent horizontal page overflow from wide children */
+.dashboard-shell .page-content,
+.dashboard-shell .main-area {
+  overflow-x: hidden;
+}
+
+.dashboard-shell .data-table-wrap,
+.page-content .data-table-wrap {
+  max-width: 100%;
+}

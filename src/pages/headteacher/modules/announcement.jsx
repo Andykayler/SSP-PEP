@@ -1,6 +1,4 @@
-// modules/AnnouncementsModule.jsx  (Head Teacher / Admin view)
-// Full Firestore CRUD: create, read, delete announcements. Stored in `announcements` collection.
-
+// modules/AnnouncementsModule.jsx
 import { useState, useEffect, useCallback } from "react";
 import { db } from "../../../firebase";
 import {
@@ -10,8 +8,9 @@ import {
 import {
   Megaphone, Eye, Trash2, RefreshCw, Loader2, AlertCircle,
   CheckCircle, X, ChevronDown, Send, Users, BookOpen,
-  DollarSign, Calendar, AlertTriangle, Plus,
+  DollarSign, Calendar, AlertTriangle, Plus, Radio, Clock, Archive, Search,
 } from "lucide-react";
+import "./staff-management.css";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const TYPES = ["Academic", "Boarding", "Finance", "Events", "General"];
@@ -45,7 +44,50 @@ const PRIORITY_META = {
 };
 
 function Spinner({ size = 20 }) {
-  return <Loader2 size={size} className="animate-spin text-app-text/40 inline-block" />;
+  return <div className="spinner" style={{ width: size, height: size }} />;
+}
+
+function KpiCard({ label, value, icon: Icon, accent = "neutral", loading }) {
+  let cardClass = "stat-card";
+  let valueClass = "stat-card__value";
+  switch (accent) {
+    case "success": valueClass += " stat-card__value--success"; break;
+    case "warning": valueClass += " stat-card__value--warning"; break;
+    case "danger":  valueClass += " stat-card__value--danger";  break;
+    case "info":    valueClass += " stat-card__value--accent";  break;
+    default: break;
+  }
+  return (
+    <div className={cardClass}>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="stat-card__label">{label}</div>
+          <div className={valueClass}>{loading ? <Spinner size={22} /> : value}</div>
+        </div>
+        {Icon && <Icon size={24} className="text-muted shrink-0" />}
+      </div>
+    </div>
+  );
+}
+
+function TableStatusBadge({ status, variant = "neutral" }) {
+  let badgeClass = "status-pill";
+  switch (variant) {
+    case "success": badgeClass += " status-pill--success"; break;
+    case "warning": badgeClass += " status-pill--warning"; break;
+    case "danger":  badgeClass += " status-pill--danger";  break;
+    default: badgeClass += " status-pill--neutral";
+  }
+  return <span className={badgeClass}>{status}</span>;
+}
+
+function getAnnouncementStatus(a) {
+  const now = Date.now();
+  const expires = a.expiresAt?.toDate?.()?.getTime?.() ?? (a.expiresAt ? new Date(a.expiresAt).getTime() : null);
+  const scheduled = a.scheduledFor?.toDate?.()?.getTime?.() ?? (a.scheduledFor ? new Date(a.scheduledFor).getTime() : null);
+  if (expires && expires < now) return "expired";
+  if (scheduled && scheduled > now) return "scheduled";
+  return "active";
 }
 
 function Toast({ message, type = "success", onClose }) {
@@ -54,9 +96,8 @@ function Toast({ message, type = "success", onClose }) {
     return () => clearTimeout(t);
   }, [onClose]);
   return (
-    <div className={`fixed bottom-6 right-6 z-[200] flex items-center gap-3 px-5 py-3.5
-      rounded-2xl shadow-xl text-sm font-medium pointer-events-none
-      ${type === "success" ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}`}>
+    <div className={`fixed bottom-6 right-6 z-[200] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl text-sm font-medium pointer-events-none
+      ${type === "success" ? "bg-success text-white" : "bg-danger text-white"}`}>
       {type === "success" ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
       {message}
     </div>
@@ -69,77 +110,39 @@ function ViewModal({ announcement: a, onClose, onDelete }) {
   const pm = PRIORITY_META[a.priority] || PRIORITY_META.Normal;
   const TypeIcon = tm.icon;
   return (
-    <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-      onClick={e => e.target === e.currentTarget && onClose()}
-    >
-      <div className="bg-app-surface rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="bg-app-primary px-7 py-5 flex items-start justify-between">
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal-container" style={{ maxWidth: "560px" }}>
+        <div className="modal-header">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-app-surface/10 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-surface/10 flex items-center justify-center">
               <TypeIcon size={16} className="text-white" />
             </div>
             <div>
               <p className="text-white/50 text-[10px] font-bold tracking-widest uppercase">{a.type}</p>
-              <h3 className="text-white font-bold text-base leading-tight mt-0.5">{a.title}</h3>
+              <h3 className="text-white font-bold text-base mt-0.5">{a.title}</h3>
             </div>
           </div>
-          <button onClick={onClose} className="text-white/40 hover:text-white p-1 transition-colors shrink-0">
+          <button onClick={onClose} className="modal-close">
             <X size={18} />
           </button>
         </div>
-
-        <div className="p-7 space-y-5">
-          {/* Meta row */}
+        <div className="modal-body space-y-5">
           <div className="flex flex-wrap gap-2">
-            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg ${pm.bg} ${pm.text}`}>
-              {pm.label} priority
-            </span>
-            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border ${tm.bg} ${tm.text} ${tm.border}`}>
-              {a.type}
-            </span>
+            <span className={`status-pill ${pm.bg} ${pm.text}`}>{pm.label} priority</span>
+            <span className={`status-pill ${tm.bg} ${tm.text} ${tm.border}`}>{a.type}</span>
           </div>
-
-          {/* Message */}
-          <div className="bg-app-bg rounded-2xl p-4">
-            <p className="text-sm text-app-text/80 leading-relaxed whitespace-pre-wrap">{a.message}</p>
+          <div className="p-4 bg-app-bg rounded-xl border border-app-border">
+            <p className="text-sm text-app-text/80 whitespace-pre-wrap">{a.message}</p>
           </div>
-
-          {/* Details */}
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40 mb-0.5">Audience</p>
-              <p className="font-medium text-app-text">{a.audience}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40 mb-0.5">Posted by</p>
-              <p className="font-medium text-app-text">{a.postedBy}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40 mb-0.5">Date</p>
-              <p className="font-medium text-app-text">{a.displayDate}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40 mb-0.5">Views</p>
-              <p className="font-medium text-emerald-700">{a.readCount ?? 0}</p>
-            </div>
+            <div><p className="text-[10px] font-bold uppercase text-muted">Audience</p><p className="font-medium">{a.audience}</p></div>
+            <div><p className="text-[10px] font-bold uppercase text-muted">Posted by</p><p className="font-medium">{a.postedBy}</p></div>
+            <div><p className="text-[10px] font-bold uppercase text-muted">Date</p><p className="font-medium">{a.displayDate}</p></div>
+            <div><p className="text-[10px] font-bold uppercase text-muted">Views</p><p className="font-medium text-success">{a.readCount ?? 0}</p></div>
           </div>
-
-          {/* Actions */}
           <div className="flex gap-3 pt-2">
-            <button
-              onClick={() => { onDelete(a.id); onClose(); }}
-              className="flex items-center gap-2 px-4 py-2.5 border border-red-200 text-red-600 hover:bg-red-50 rounded-xl text-sm font-medium transition-colors"
-            >
-              <Trash2 size={14} /> Delete
-            </button>
-            <button
-              onClick={onClose}
-              className="flex-1 py-2.5 border border-app-border rounded-xl hover:bg-app-bg text-sm font-medium transition-colors"
-            >
-              Close
-            </button>
+            <button onClick={() => { onDelete(a.id); onClose(); }} className="btn btn--danger flex-1">Delete</button>
+            <button onClick={onClose} className="btn-cancel flex-1">Close</button>
           </div>
         </div>
       </div>
@@ -150,16 +153,10 @@ function ViewModal({ announcement: a, onClose, onDelete }) {
 // ─── Compose modal ────────────────────────────────────────────────────────────
 function ComposeModal({ onClose, onSend, postedBy, saving }) {
   const [form, setForm] = useState({
-    title: "",
-    message: "",
-    type: "Academic",
-    audience: "All Parents",
-    priority: "Normal",
+    title: "", message: "", type: "Academic", audience: "All Parents", priority: "Normal",
   });
   const [errors, setErrors] = useState({});
-
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
   const validate = () => {
     const e = {};
     if (!form.title.trim())   e.title   = "Title is required";
@@ -167,126 +164,76 @@ function ComposeModal({ onClose, onSend, postedBy, saving }) {
     setErrors(e);
     return !Object.keys(e).length;
   };
-
-  const handleSend = () => {
-    if (validate()) onSend(form);
-  };
-
+  const handleSend = () => { if (validate()) onSend(form); };
   const TypeIcon = TYPE_META[form.type]?.icon || Megaphone;
   const charCount = form.message.length;
 
   return (
-    <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto"
-      onClick={e => e.target === e.currentTarget && onClose()}
-    >
-      <div className="bg-app-surface rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden my-4">
-        {/* Header */}
-        <div className="bg-app-primary px-7 py-5 flex items-center justify-between">
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal-container" style={{ maxWidth: "640px" }}>
+        <div className="modal-header">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-app-warning flex items-center justify-center">
-              <Megaphone size={16} className="text-app-text" />
+            <div className="w-9 h-9 rounded-xl bg-warning flex items-center justify-center">
+              <Megaphone size={16} className="text-warning-dark" />
             </div>
             <div>
-              <h3 className="text-white font-bold">New Announcement</h3>
-              <p className="text-white/50 text-xs mt-0.5">From: {postedBy}</p>
+              <h3>New Announcement</h3>
+              <p className="text-muted text-xs">From: {postedBy}</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-white/40 hover:text-white p-1 transition-colors">
-            <X size={18} />
-          </button>
+          <button onClick={onClose} className="modal-close"><X size={18} /></button>
         </div>
-
-        <div className="p-7 space-y-5">
-          {/* Type pills */}
+        <div className="modal-body space-y-5">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-app-text/50 mb-2">Category</label>
-            <div className="flex flex-wrap gap-2">
+            <label className="field__label">Category</label>
+            <div className="flex flex-wrap gap-2 mt-1">
               {TYPES.map(t => {
                 const m = TYPE_META[t];
                 const Icon = m.icon;
                 return (
-                  <button
-                    key={t}
-                    onClick={() => set("type", t)}
-                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all
-                      ${form.type === t ? `${m.bg} ${m.text} ${m.border}` : "bg-app-surface border-app-border text-app-text/50 hover:border-[#0F2044]/25"}`}
-                  >
+                  <button key={t} onClick={() => set("type", t)}
+                    className={`tag ${form.type === t ? `${m.bg} ${m.text} ${m.border}` : "bg-surface border-app-border text-muted"}`}>
                     <Icon size={12} /> {t}
                   </button>
                 );
               })}
             </div>
           </div>
-
-          {/* Title */}
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-app-text/50 mb-2">
-              Title <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={form.title}
-              onChange={e => set("title", e.target.value)}
-              placeholder="e.g. Parent-Teacher Meeting Notice"
-              className={`w-full px-4 py-3 border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text transition-colors
-                ${errors.title ? "border-red-300 bg-red-50" : "border-app-border"}`}
-            />
-            {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title}</p>}
+            <label className="field__label">Title <span className="text-danger">*</span></label>
+            <input type="text" value={form.title} onChange={e => set("title", e.target.value)}
+              placeholder="e.g. Parent-Teacher Meeting Notice" className={`field__input ${errors.title ? "border-danger bg-danger/5" : ""}`} />
+            {errors.title && <p className="text-danger text-xs mt-1">{errors.title}</p>}
           </div>
-
-          {/* Message */}
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-app-text/50 mb-2">
-              Message <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              rows={6}
-              value={form.message}
-              onChange={e => set("message", e.target.value)}
+            <label className="field__label">Message <span className="text-danger">*</span></label>
+            <textarea rows={6} value={form.message} onChange={e => set("message", e.target.value)}
               placeholder="Write your announcement here. Be clear and concise — parents read on mobile."
-              className={`w-full px-4 py-3 border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text resize-none transition-colors leading-relaxed
-                ${errors.message ? "border-red-300 bg-red-50" : "border-app-border"}`}
-            />
+              className={`field__textarea ${errors.message ? "border-danger bg-danger/5" : ""}`} />
             <div className="flex justify-between mt-1">
-              {errors.message
-                ? <p className="text-red-500 text-xs">{errors.message}</p>
-                : <span />}
-              <p className={`text-[10px] ${charCount > 500 ? "text-amber-600" : "text-app-text/30"}`}>
-                {charCount} chars
-              </p>
+              {errors.message && <p className="text-danger text-xs">{errors.message}</p>}
+              <p className={`text-[10px] ${charCount > 500 ? "text-warning" : "text-muted"} ml-auto`}>{charCount} chars</p>
             </div>
           </div>
-
-          {/* Audience + Priority */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-app-text/50 mb-2">Audience</label>
+              <label className="field__label">Audience</label>
               <div className="relative">
-                <select
-                  value={form.audience}
-                  onChange={e => set("audience", e.target.value)}
-                  className="w-full appearance-none pl-4 pr-10 py-3 border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text bg-app-surface"
-                >
+                <select value={form.audience} onChange={e => set("audience", e.target.value)} className="field__select">
                   {AUDIENCES.map(a => <option key={a} value={a}>{a}</option>)}
                 </select>
-                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
+                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
               </div>
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-app-text/50 mb-2">Priority</label>
+              <label className="field__label">Priority</label>
               <div className="flex gap-2">
                 {PRIORITIES.map(p => {
                   const m = PRIORITY_META[p];
                   return (
-                    <button
-                      key={p}
-                      onClick={() => set("priority", p)}
-                      className={`flex-1 py-3 rounded-2xl text-xs font-bold border transition-all
-                        ${form.priority === p
-                          ? `${m.bg} ${m.text} border-transparent`
-                          : "bg-app-surface border-app-border text-app-text/50 hover:border-app-border"}`}
-                    >
+                    <button key={p} onClick={() => set("priority", p)}
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all
+                        ${form.priority === p ? `${m.bg} ${m.text} border-transparent` : "bg-surface border-app-border text-muted"}`}>
                       {p}
                     </button>
                   );
@@ -294,37 +241,21 @@ function ComposeModal({ onClose, onSend, postedBy, saving }) {
               </div>
             </div>
           </div>
-
-          {/* Preview strip */}
           {form.title && (
-            <div className={`p-4 rounded-2xl border ${TYPE_META[form.type]?.bg} ${TYPE_META[form.type]?.border}`}>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40 mb-1">Preview</p>
+            <div className={`p-4 rounded-xl border ${TYPE_META[form.type]?.bg} ${TYPE_META[form.type]?.border}`}>
+              <p className="text-[10px] font-bold uppercase text-muted mb-1">Preview</p>
               <p className={`font-semibold text-sm ${TYPE_META[form.type]?.text}`}>{form.title}</p>
-              {form.message && (
-                <p className="text-xs text-app-text/60 mt-1 line-clamp-2">{form.message}</p>
-              )}
-              <p className="text-[10px] text-app-text/40 mt-2">→ {form.audience}</p>
+              {form.message && <p className="text-xs text-muted mt-1 line-clamp-2">{form.message}</p>}
+              <p className="text-[10px] text-muted mt-2">→ {form.audience}</p>
             </div>
           )}
-
-          {/* Footer */}
-          <div className="flex gap-3 pt-2 border-t border-app-border">
-            <button
-              onClick={onClose}
-              disabled={saving}
-              className="flex-1 py-3 border border-app-border rounded-2xl font-medium text-sm hover:bg-app-bg transition-colors disabled:opacity-40"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSend}
-              disabled={saving}
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-app-warning text-app-text rounded-2xl font-bold text-sm hover:brightness-105 transition-all disabled:opacity-60"
-            >
-              {saving ? <Spinner size={15} /> : <Send size={15} />}
-              {saving ? "Sending…" : "Send Announcement"}
-            </button>
-          </div>
+        </div>
+        <div className="modal-footer">
+          <button onClick={onClose} disabled={saving} className="btn-cancel">Cancel</button>
+          <button onClick={handleSend} disabled={saving} className="btn-save">
+            {saving ? <Spinner size={16} /> : <Send size={14} />}
+            {saving ? "Sending…" : "Send Announcement"}
+          </button>
         </div>
       </div>
     </div>
@@ -335,6 +266,9 @@ function ComposeModal({ onClose, onSend, postedBy, saving }) {
 export default function AnnouncementsModule({ schoolCode, userId, userName }) {
   const [announcements, setAnnouncements] = useState([]);
   const [filterType,    setFilterType]    = useState("All");
+  const [filterStatus,  setFilterStatus]  = useState("All");
+  const [filterPriority,setFilterPriority]= useState("All");
+  const [searchTerm,    setSearchTerm]    = useState("");
   const [showCompose,   setShowCompose]   = useState(false);
   const [viewing,       setViewing]       = useState(null);
   const [loading,       setLoading]       = useState(true);
@@ -345,28 +279,20 @@ export default function AnnouncementsModule({ schoolCode, userId, userName }) {
 
   const showToast = (msg, type = "success") => setToast({ message: msg, type });
 
-  // ── Load announcements ─────────────────────────────────────────────────────
   const loadAnnouncements = useCallback(async () => {
     if (!schoolCode) return;
     setLoading(true);
     setError("");
     try {
       const snap = await getDocs(
-        query(
-          collection(db, "announcements"),
-          where("schoolCode", "==", schoolCode),
-          orderBy("createdAt", "desc")
-        )
+        query(collection(db, "announcements"), where("schoolCode", "==", schoolCode), orderBy("createdAt", "desc"))
       );
       setAnnouncements(snap.docs.map(d => {
         const data = d.data();
         const ts = data.createdAt?.toDate?.();
         return {
-          id: d.id,
-          ...data,
-          displayDate: ts
-            ? ts.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
-            : "—",
+          id: d.id, ...data,
+          displayDate: ts ? ts.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—",
         };
       }));
     } catch (err) {
@@ -378,21 +304,14 @@ export default function AnnouncementsModule({ schoolCode, userId, userName }) {
 
   useEffect(() => { loadAnnouncements(); }, [loadAnnouncements]);
 
-  // ── Send announcement ──────────────────────────────────────────────────────
   const handleSend = async (form) => {
     setSaving(true);
     try {
-      const docRef = await addDoc(collection(db, "announcements"), {
-        schoolCode,
-        postedById: userId || "",
-        postedBy:   userName || "Head Teacher",
-        title:      form.title.trim(),
-        message:    form.message.trim(),
-        type:       form.type,
-        audience:   form.audience,
-        priority:   form.priority,
-        readCount:  0,
-        createdAt:  serverTimestamp(),
+      await addDoc(collection(db, "announcements"), {
+        schoolCode, postedById: userId || "", postedBy: userName || "Head Teacher",
+        title: form.title.trim(), message: form.message.trim(),
+        type: form.type, audience: form.audience, priority: form.priority,
+        readCount: 0, createdAt: serverTimestamp(),
       });
       setShowCompose(false);
       showToast("Announcement sent successfully.");
@@ -404,7 +323,6 @@ export default function AnnouncementsModule({ schoolCode, userId, userName }) {
     }
   };
 
-  // ── Delete announcement ────────────────────────────────────────────────────
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this announcement? This cannot be undone.")) return;
     setDeleting(id);
@@ -419,208 +337,155 @@ export default function AnnouncementsModule({ schoolCode, userId, userName }) {
     }
   };
 
-  // ── Derived data ───────────────────────────────────────────────────────────
-  const filtered = announcements.filter(a => filterType === "All" || a.type === filterType);
+  const withStatus = announcements.map(a => ({ ...a, lifecycle: getAnnouncementStatus(a) }));
 
-  const totalThisTerm = announcements.length;
-  const highPriorityCount = announcements.filter(a => a.priority === "Urgent" || a.priority === "High").length;
-  const totalReach = announcements.reduce((s, a) => s + (a.readCount || 0), 0);
+  const filtered = withStatus.filter(a => {
+    const q = searchTerm.toLowerCase();
+    const matchSearch = !q || a.title?.toLowerCase().includes(q) || a.message?.toLowerCase().includes(q) || a.postedBy?.toLowerCase().includes(q);
+    const matchType = filterType === "All" || a.type === filterType;
+    const matchPriority = filterPriority === "All" || a.priority === filterPriority;
+    const matchStatus = filterStatus === "All"
+      || (filterStatus === "Active" && a.lifecycle === "active")
+      || (filterStatus === "Scheduled" && a.lifecycle === "scheduled")
+      || (filterStatus === "Expired" && a.lifecycle === "expired");
+    return matchSearch && matchType && matchPriority && matchStatus;
+  });
 
-  // ─── Render ────────────────────────────────────────────────────────────────
+  const totalCount = announcements.length;
+  const activeCount = withStatus.filter(a => a.lifecycle === "active").length;
+  const scheduledCount = withStatus.filter(a => a.lifecycle === "scheduled").length;
+  const expiredCount = withStatus.filter(a => a.lifecycle === "expired").length;
+
+  const hasActiveFilters = filterType !== "All" || filterStatus !== "All" || filterPriority !== "All" || searchTerm;
+  const clearFilters = () => {
+    setFilterType("All"); setFilterStatus("All"); setFilterPriority("All"); setSearchTerm("");
+  };
+
   return (
     <div className="space-y-6">
-      {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header */}
+      <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold text-app-text" style={{ fontFamily: "'Playfair Display', serif" }}>
-            Announcements
-          </h2>
-          <p className="text-app-text/60 mt-1">Communicate with parents, students and staff</p>
+          <h2 style={{ fontFamily: "'Playfair Display', serif" }}>Communication Center</h2>
+          <p className="text-muted">Broadcast updates to parents, students and staff</p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={loadAnnouncements}
-            disabled={loading}
-            className="p-2.5 bg-app-surface border border-app-border rounded-xl hover:bg-app-bg transition-colors text-app-text/60 disabled:opacity-40"
-            title="Refresh"
-          >
+          <button onClick={loadAnnouncements} disabled={loading} className="icon-btn" title="Refresh">
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
           </button>
-          <button
-            onClick={() => setShowCompose(true)}
-            className="flex items-center gap-2 bg-app-warning text-app-text px-5 py-2.5 rounded-2xl hover:brightness-105 font-bold text-sm transition-all"
-          >
-            <Plus size={16} /> New Announcement
+          <button onClick={() => setShowCompose(true)} className="btn btn--warning">
+            <Plus size={14} /> New Announcement
           </button>
         </div>
       </div>
 
-      {/* ── Error ── */}
-      {error && (
-        <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl text-sm">
-          <AlertCircle size={16} className="shrink-0 mt-0.5" /> {error}
-        </div>
-      )}
+      {error && <div className="error-message"><AlertCircle size={16} /> {error}</div>}
 
-      {/* ── Summary cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[
-          { label: "Total Announcements", value: loading ? null : totalThisTerm,       color: "text-app-text",   bg: "bg-app-surface border-app-border" },
-          { label: "Total Parent Reach",  value: loading ? null : totalReach,          color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-100" },
-          { label: "High / Urgent",       value: loading ? null : highPriorityCount,   color: "text-red-600",     bg: "bg-red-50 border-red-100" },
-        ].map(({ label, value, color, bg }) => (
-          <div key={label} className={`rounded-3xl p-5 border ${bg}`}>
-            <p className={`text-3xl font-bold ${color}`}>
-              {loading ? <Loader2 size={22} className="animate-spin opacity-30" /> : value}
-            </p>
-            <p className="text-xs text-app-text/50 mt-1">{label}</p>
-          </div>
-        ))}
+      <div className="stats-grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard label="Total" value={totalCount} icon={Megaphone} accent="neutral" loading={loading} />
+        <KpiCard label="Active" value={activeCount} icon={Radio} accent="success" loading={loading} />
+        <KpiCard label="Scheduled" value={scheduledCount} icon={Clock} accent="warning" loading={loading} />
+        <KpiCard label="Expired" value={expiredCount} icon={Archive} accent="danger" loading={loading} />
       </div>
 
-      {/* ── Filter tabs ── */}
-      <div className="flex flex-wrap gap-2">
-        {["All", ...TYPES].map(type => (
-          <button
-            key={type}
-            onClick={() => setFilterType(type)}
-            className={`px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all
-              ${filterType === type
-                ? "bg-app-primary text-white"
-                : "bg-app-surface border border-app-border text-app-text/60 hover:bg-app-bg"}`}
-          >
-            {type}
-          </button>
-        ))}
-      </div>
-
-      {/* ── List ── */}
-      <div className="bg-app-surface rounded-3xl overflow-hidden border border-app-border">
-        <div className="px-6 py-4 bg-app-bg border-b border-app-border flex items-center justify-between">
-          <h3 className="font-semibold text-app-text text-sm">
-            {filterType === "All" ? "All Announcements" : `${filterType} Announcements`}
-          </h3>
-          <span className="text-xs text-app-text/50">{filtered.length} item{filtered.length !== 1 ? "s" : ""}</span>
+      {/* Filters (compact) */}
+      <div className="card">
+        <div className="cc__head">
+          <div className="cc__head-left">
+            <Megaphone size={18} />
+            <h3>Announcements</h3>
+          </div>
+          {hasActiveFilters && <button onClick={clearFilters} className="cc__view">Clear filters</button>}
         </div>
-
-        {loading && (
-          <div className="py-20 flex flex-col items-center gap-3">
-            <Spinner size={26} />
-            <p className="text-sm text-app-text/40">Loading announcements…</p>
+        <div className="cc__body">
+          <div className="filter-bar">
+            <div className="search-wrapper" style={{ margin: 0 }}>
+              <Search size={14} className="search-icon" />
+              <input type="text" placeholder="Search title, message, author…" className="search-input" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+            </div>
+            <select value={filterType} onChange={e => setFilterType(e.target.value)} className="field__select">
+              <option value="All">All types</option>
+              {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="field__select">
+              {["All", "Active", "Scheduled", "Expired"].map(s => <option key={s} value={s}>{s === "All" ? "All status" : s}</option>)}
+            </select>
+            <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} className="field__select">
+              <option value="All">All priority</option>
+              {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
           </div>
-        )}
 
-        {!loading && filtered.length === 0 && (
-          <div className="py-20 flex flex-col items-center gap-3 text-center px-4">
-            <Megaphone size={32} className="text-app-text/20" />
-            <p className="text-sm font-medium text-app-text/40">
-              {filterType === "All" ? "No announcements yet." : `No ${filterType} announcements yet.`}
-            </p>
-            <button
-              onClick={() => setShowCompose(true)}
-              className="mt-2 px-5 py-2.5 bg-app-warning text-app-text font-bold text-sm rounded-2xl hover:brightness-105 transition-all"
-            >
-              Create First Announcement
-            </button>
-          </div>
-        )}
-
-        {!loading && filtered.length > 0 && (
-          <div className="divide-y divide-[#0F2044]/5">
-            {filtered.map(a => {
-              const tm = TYPE_META[a.type] || TYPE_META.General;
-              const pm = PRIORITY_META[a.priority] || PRIORITY_META.Normal;
-              const TypeIcon = tm.icon;
-              const isDeleting = deleting === a.id;
-              return (
-                <div
-                  key={a.id}
-                  className={`group px-6 py-5 hover:bg-[#FAFAF8] transition-colors ${isDeleting ? "opacity-40" : ""}`}
-                >
-                  <div className="flex flex-col md:flex-row md:items-start gap-4">
-                    {/* Left: icon + content */}
-                    <div className="flex gap-4 flex-1 min-w-0">
-                      {/* Type icon */}
-                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border ${tm.bg} ${tm.border}`}>
-                        <TypeIcon size={16} className={tm.text} />
+          {loading ? (
+            <div className="empty-state py-12"><Spinner size={28} /><p className="empty-state__sub">Loading announcements…</p></div>
+          ) : filtered.length === 0 ? (
+            <div className="empty-state py-12">
+              <Megaphone size={32} className="text-muted" />
+              <p className="empty-state__title">{announcements.length === 0 ? "No announcements yet" : "No matching announcements"}</p>
+              <p className="empty-state__sub">
+                {announcements.length === 0
+                  ? "Create your first announcement to reach parents and staff."
+                  : "Try changing your search or filters."}
+              </p>
+              {announcements.length === 0 && (
+                <button onClick={() => setShowCompose(true)} className="btn btn--warning mt-4">Create First Announcement</button>
+              )}
+            </div>
+          ) : (
+            <div className="divide-y divide-app-border">
+              {filtered.map(a => {
+                const tm = TYPE_META[a.type] || TYPE_META.General;
+                const pm = PRIORITY_META[a.priority] || PRIORITY_META.Normal;
+                const TypeIcon = tm.icon;
+                const isDeleting = deleting === a.id;
+                const statusVariant = a.lifecycle === "active" ? "success" : a.lifecycle === "scheduled" ? "warning" : "neutral";
+                return (
+                  <div key={a.id} className={`group px-6 py-6 hover:bg-app-bg/50 transition-colors ${isDeleting ? "opacity-40" : ""}`}>
+                    <div className="flex flex-col lg:flex-row lg:items-start gap-5">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border ${tm.bg} ${tm.border}`}>
+                        <TypeIcon size={18} className={tm.text} />
                       </div>
-
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        {/* Badges */}
-                        <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <TableStatusBadge status={a.type} variant="neutral" />
                           {a.priority !== "Normal" && (
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${pm.bg} ${pm.text}`}>
-                              {a.priority === "Urgent" && <AlertTriangle size={9} className="inline mr-0.5 -mt-0.5" />}
-                              {pm.label}
-                            </span>
+                            <TableStatusBadge status={a.priority} variant={a.priority === "Urgent" ? "danger" : "warning"} />
                           )}
-                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${tm.bg} ${tm.text} ${tm.border}`}>
-                            {a.type}
-                          </span>
-                          <span className="text-[10px] text-app-text/35">{a.displayDate}</span>
+                          <TableStatusBadge status={a.lifecycle.charAt(0).toUpperCase() + a.lifecycle.slice(1)} variant={statusVariant} />
                         </div>
-
-                        <h4 className="font-bold text-app-text text-sm mb-1">{a.title}</h4>
-                        <p className="text-xs text-app-text/60 leading-relaxed line-clamp-2">{a.message}</p>
-
-                        <div className="flex flex-wrap items-center gap-3 mt-2 text-[10px] text-app-text/45">
-                          <span>→ <span className="font-semibold text-app-text/60">{a.audience}</span></span>
-                          <span>by <span className="font-semibold text-app-text/60">{a.postedBy}</span></span>
-                          {a.readCount > 0 && (
-                            <span className="text-emerald-600 font-semibold">{a.readCount} reached</span>
-                          )}
+                        <h4 className="font-bold text-app-text text-base">{a.title}</h4>
+                        <p className="text-sm text-muted leading-relaxed line-clamp-2">{a.message}</p>
+                        <div className="flex flex-wrap gap-4 text-xs text-muted pt-1">
+                          <span className="flex items-center gap-1"><Calendar size={12} /> {a.displayDate}</span>
+                          <span className="flex items-center gap-1"><Users size={12} /> {a.audience}</span>
+                          <span>Posted by <strong className="text-app-text/70">{a.postedBy}</strong></span>
+                          {a.readCount > 0 && <span className="text-success font-semibold">{a.readCount} reached</span>}
                         </div>
                       </div>
-                    </div>
-
-                    {/* Right: actions */}
-                    <div className="flex items-center gap-2 shrink-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => setViewing(a)}
-                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-app-bg hover:bg-app-primary/8 text-app-text/60 hover:text-app-text rounded-xl transition-colors"
-                      >
-                        <Eye size={12} /> View
-                      </button>
-                      <button
-                        onClick={() => handleDelete(a.id)}
-                        disabled={isDeleting}
-                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-600 rounded-xl transition-colors disabled:opacity-40"
-                      >
-                        {isDeleting ? <Spinner size={12} /> : <Trash2 size={12} />}
-                        Delete
-                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button onClick={() => setViewing(a)} className="btn btn--secondary">View</button>
+                        <button onClick={() => handleDelete(a.id)} disabled={isDeleting} className="btn btn--danger">
+                          {isDeleting ? <Spinner size={12} /> : <Trash2 size={12} />} Delete
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+          )}
+          <div className="cc__head border-t mt-4">
+            <p className="text-muted text-[10px]">Showing {filtered.length} of {announcements.length} announcements</p>
           </div>
-        )}
+        </div>
       </div>
 
-      <p className="text-center text-xs text-app-text/40">
+      <p className="text-center text-xs text-muted pt-1">
         Announcements are stored and visible to all staff with access to this school.
       </p>
 
-      {/* ── Modals ── */}
-      {showCompose && (
-        <ComposeModal
-          onClose={() => setShowCompose(false)}
-          onSend={handleSend}
-          postedBy={userName || "Head Teacher"}
-          saving={saving}
-        />
-      )}
-
-      {viewing && (
-        <ViewModal
-          announcement={viewing}
-          onClose={() => setViewing(null)}
-          onDelete={handleDelete}
-        />
-      )}
-
+      {showCompose && <ComposeModal onClose={() => setShowCompose(false)} onSend={handleSend} postedBy={userName || "Head Teacher"} saving={saving} />}
+      {viewing && <ViewModal announcement={viewing} onClose={() => setViewing(null)} onDelete={handleDelete} />}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );

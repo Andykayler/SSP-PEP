@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import "./staff-management.css";
 import { db } from "../../../firebase";
 import {
   collection, query, where, getDocs, doc, updateDoc, serverTimestamp,
@@ -23,30 +24,18 @@ function initials(name = "") {
 }
 
 function Spinner() {
-  return (
-    <svg className="animate-spin w-5 h-5 text-app-text/40" viewBox="0 0 24 24" fill="none">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-    </svg>
-  );
+  return <div className="spinner" />;
 }
 
-function Tag({ label, color = "bg-app-primary/8 text-app-text/70" }) {
-  return (
-    <span className={`inline-block px-2.5 py-0.5 rounded-lg text-xs font-medium border border-app-border ${color}`}>
-      {label}
-    </span>
-  );
+function Tag({ label, color = "tag--blue" }) {
+  return <span className={`tag ${color}`}>{label}</span>;
 }
 
 function StatusPill({ status = "active" }) {
   const isActive = status === "active";
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold
-        ${isActive ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}
-    >
-      <span className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-emerald-500" : "bg-red-400"}`} />
+    <span className={`status-pill ${isActive ? "status-pill--active" : "status-pill--suspended"}`}>
+      <span className="status-dot" />
       {isActive ? "Active" : "Suspended"}
     </span>
   );
@@ -62,31 +51,24 @@ function CheckboxGroup({ items, selected = [], onChange }) {
   };
 
   if (items.length === 0) {
-    return (
-      <p className="text-center text-app-text/40 py-8 italic">Nothing available to assign</p>
-    );
+    return <p className="empty-assignments">Nothing available to assign</p>;
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3 max-h-96 overflow-y-auto pr-2 py-1">
+    <div className="checkbox-group">
       {items.map((item) => {
         const isSelected = selected.includes(item);
         return (
           <label
             key={item}
-            className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl border cursor-pointer transition-all select-none
-              ${isSelected
-                ? "border-[#0F2044] bg-app-primary/5 text-app-text font-medium"
-                : "border-app-border hover:border-[#0F2044]/30 hover:bg-app-bg text-app-text/70"
-              }`}
+            className={`checkbox-label ${isSelected ? "checkbox-label--selected" : ""}`}
           >
             <input
               type="checkbox"
               checked={isSelected}
               onChange={() => toggle(item)}
-              className="w-5 h-5 accent-[#0F2044] cursor-pointer"
             />
-            <span className="text-sm">{item}</span>
+            <span>{item}</span>
           </label>
         );
       })}
@@ -123,85 +105,62 @@ function AssignModal({ member, allClasses, onSave, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-app-surface rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden">
-        <div className="bg-app-primary px-8 py-6 flex items-center justify-between">
+    <div className="modal-overlay">
+      <div className="modal-container">
+        <div className="modal-header">
           <div>
-            <h3 className="text-white font-bold text-xl">Assign Classes & Subjects</h3>
-            <p className="text-white/70 mt-1">{member.name}</p>
+            <h3>Assign Classes & Subjects</h3>
+            <p>{member.name}</p>
           </div>
-          <button onClick={onClose} className="text-white/60 hover:text-white transition-colors">
-            <X size={28} />
+          <button onClick={onClose} className="modal-close">
+            <X size={24} />
           </button>
         </div>
 
-        <div className="flex border-b border-app-border">
+        <div className="modal-tabs">
           <button
             onClick={() => setActiveTab("classes")}
-            className={`flex-1 py-4 text-sm font-semibold transition-colors ${
-              activeTab === "classes"
-                ? "border-b-4 border-[#0F2044] text-app-text"
-                : "text-app-text/50 hover:text-app-text"
-            }`}
+            className={`modal-tab ${activeTab === "classes" ? "modal-tab--active" : ""}`}
           >
             Classes ({assignedClasses.length})
           </button>
           <button
             onClick={() => setActiveTab("subjects")}
-            className={`flex-1 py-4 text-sm font-semibold transition-colors ${
-              activeTab === "subjects"
-                ? "border-b-4 border-[#0F2044] text-app-text"
-                : "text-app-text/50 hover:text-app-text"
-            }`}
+            className={`modal-tab ${activeTab === "subjects" ? "modal-tab--active" : ""}`}
           >
             Subjects ({assignedSubjects.length})
           </button>
         </div>
 
-        <div className="p-8">
-          {saveError && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded-xl">
-              {saveError}
-            </div>
-          )}
+        <div className="modal-body">
+          {saveError && <div className="error-message">{saveError}</div>}
           {activeTab === "classes" ? (
-            <div>
-              <p className="text-sm text-app-text/60 mb-4">
-                Select classes this staff member will be responsible for:
-              </p>
+            <>
+              <p className="text-muted">Select classes this staff member will be responsible for:</p>
               <CheckboxGroup
                 items={allClasses.map((c) => c.name)}
                 selected={assignedClasses}
                 onChange={setAssignedClasses}
               />
-            </div>
+            </>
           ) : (
-            <div>
-              <p className="text-sm text-app-text/60 mb-4">
-                Select subjects this staff member teaches:
-              </p>
+            <>
+              <p className="text-muted">Select subjects this staff member teaches:</p>
               <CheckboxGroup
                 items={allSubjects}
                 selected={assignedSubjects}
                 onChange={setAssignedSubjects}
               />
-            </div>
+            </>
           )}
         </div>
 
-        <div className="px-8 py-6 border-t flex gap-4">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3.5 border border-app-border rounded-2xl font-medium text-app-text/70 hover:bg-app-bg transition-colors"
-          >
+        <div className="modal-footer">
+          <button onClick={onClose} className="btn-cancel">
             Cancel
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 py-3.5 bg-app-warning hover:brightness-105 disabled:opacity-70 text-app-text font-bold rounded-2xl flex items-center justify-center gap-2 transition-all"
-          >
-            {saving ? <Spinner /> : <Check className="w-5 h-5" />}
+          <button onClick={handleSave} disabled={saving} className="btn-save">
+            {saving ? <Spinner /> : <Check size={18} />}
             Save Assignments
           </button>
         </div>
@@ -295,65 +254,57 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-app-text">Staff Management</h2>
-          <p className="text-app-text/60">View staff and assign classes & subjects</p>
+          <h2>Staff Management</h2>
+          <p className="text-muted">View staff and assign classes & subjects</p>
         </div>
-        <button
-          onClick={fetchAllData}
-          className="flex items-center gap-2 px-5 py-2.5 bg-app-surface border border-app-border rounded-2xl hover:bg-app-bg transition-colors"
-        >
-          <RefreshCw className="w-4 h-4" />
+        <button onClick={fetchAllData} className="btn-refresh">
+          <RefreshCw size={16} />
           Refresh
         </button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: "Total Staff", value: stats.total, color: "text-app-text" },
-          { label: "Teachers", value: stats.total, color: "text-blue-600" },
-          { label: "Active", value: stats.active, color: "text-emerald-600" },
-          { label: "Forms Covered", value: stats.covered, color: "text-purple-600" },
-        ].map((stat) => (
-          <div key={stat.label} className="bg-app-surface rounded-2xl p-6 border border-app-border">
-            <p className={`text-4xl font-bold ${stat.color}`}>{stat.value}</p>
-            <p className="text-sm text-app-text/50 mt-1">{stat.label}</p>
-          </div>
-        ))}
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-card__value">{stats.total}</div>
+          <div className="stat-card__label">Total Staff</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-card__value stat-card__value--accent">{stats.total}</div>
+          <div className="stat-card__label">Teachers</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-card__value stat-card__value--success">{stats.active}</div>
+          <div className="stat-card__label">Active</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-card__value stat-card__value--warning">{stats.covered}</div>
+          <div className="stat-card__label">Forms Covered</div>
+        </div>
       </div>
 
-      <div className="flex bg-app-bg p-1 rounded-2xl w-fit">
+      <div className="tab-bar">
         {["staff", "assignments"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-6 py-3 rounded-xl font-semibold transition-all ${
-              activeTab === tab ? "bg-app-surface shadow-sm" : "text-app-text/60"
-            }`}
+            className={`tab ${activeTab === tab ? "tab--active" : ""}`}
           >
             {tab === "staff" ? "Staff List" : "Class Assignments"}
           </button>
         ))}
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl">{error}</div>
-      )}
-      {saveError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl">{saveError}</div>
-      )}
+      {error && <div className="error-message">{error}</div>}
+      {saveError && <div className="error-message">{saveError}</div>}
 
       {activeTab === "staff" && (
         <>
-          <div className="flex flex-wrap gap-2">
+          <div className="filter-group">
             {["all", "head_teacher", "class_teacher"].map((role) => (
               <button
                 key={role}
                 onClick={() => setRoleFilter(role)}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                  roleFilter === role
-                    ? "bg-app-primary text-white"
-                    : "bg-app-surface border border-app-border text-app-text/70 hover:border-[#0F2044]/30"
-                }`}
+                className={`filter-btn ${roleFilter === role ? "filter-btn--active" : ""}`}
               >
                 {role === "all" ? "All Staff" : role === "head_teacher" ? "Head Teachers" : "Class Teachers"}
                 {" "}({role === "all" ? staff.length : staff.filter((s) => s.role === role).length})
@@ -361,106 +312,104 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
             ))}
           </div>
 
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-app-text/40" />
+          <div className="search-wrapper">
+            <Search className="search-icon" size={18} />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name or email..."
-              className="w-full pl-12 pr-4 py-3.5 bg-app-surface border border-app-border rounded-2xl focus:border-[#0F2044]/40 outline-none"
+              className="search-input"
             />
           </div>
 
-          <div className="bg-app-surface rounded-3xl border border-app-border overflow-hidden">
+          <div className="data-table-wrap">
             {loading ? (
-              <div className="py-24 flex flex-col items-center gap-4">
+              <div className="empty-state">
                 <Spinner />
-                <p className="text-app-text/60">Loading staff...</p>
+                <p className="empty-state__sub">Loading staff...</p>
               </div>
             ) : filteredStaff.length === 0 ? (
-              <div className="py-24 text-center text-app-text/50">No staff found</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b bg-app-bg">
-                      <th className="px-6 py-5 text-left text-xs font-bold text-app-text/50">STAFF</th>
-                      <th className="px-6 py-5 text-left text-xs font-bold text-app-text/50">ROLE</th>
-                      <th className="px-6 py-5 text-left text-xs font-bold text-app-text/50">CLASSES</th>
-                      <th className="px-6 py-5 text-left text-xs font-bold text-app-text/50">SUBJECTS</th>
-                      <th className="px-6 py-5 text-left text-xs font-bold text-app-text/50">STATUS</th>
-                      <th className="px-6 py-5 text-right text-xs font-bold text-app-text/50">ACTIONS</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#0F2044]/5">
-                    {filteredStaff.map((member) => (
-                      <tr key={member.id} className="hover:bg-app-bg/60 transition-colors">
-                        <td className="px-6 py-5">
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-app-primary text-white rounded-2xl flex items-center justify-center font-bold text-sm">
-                              {initials(member.name)}
-                            </div>
-                            <div>
-                              <p className="font-semibold">{member.name}</p>
-                              <p className="text-xs text-app-text/50">{member.email}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5 text-sm">
-                          {member.role === "head_teacher" ? "Head Teacher" : "Class Teacher"}
-                        </td>
-                        <td className="px-6 py-5">
-                          {member.assignedClasses?.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {member.assignedClasses.map((c) => (
-                                <Tag key={c} label={c} color="bg-blue-50 text-blue-700" />
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-app-text/40">—</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-5">
-                          {member.assignedSubjects?.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {member.assignedSubjects.slice(0, 3).map((s) => (
-                                <Tag key={s} label={s} color="bg-emerald-50 text-emerald-700" />
-                              ))}
-                              {member.assignedSubjects.length > 3 && (
-                                <Tag label={`+${member.assignedSubjects.length - 3}`} />
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-app-text/40">—</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-5">
-                          <StatusPill status={member.status} />
-                        </td>
-                        <td className="px-6 py-5">
-                          <div className="flex gap-2 justify-end">
-                            <button
-                              onClick={() => setModal({ mode: "view", member })}
-                              className="p-2 hover:bg-app-bg rounded-xl text-app-text/60 hover:text-app-text"
-                              title="View"
-                            >
-                              <Eye size={20} />
-                            </button>
-                            <button
-                              onClick={() => setModal({ mode: "assign", member })}
-                              className="p-2 hover:bg-blue-50 rounded-xl text-app-text/60 hover:text-blue-600"
-                              title="Assign classes & subjects"
-                            >
-                              <BookOpen size={20} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="empty-state">
+                <p className="empty-state__sub">No staff found</p>
               </div>
+            ) : (
+              <table className="data-table data-table--stack">
+                <thead>
+                  <tr>
+                    <th>STAFF</th>
+                    <th>ROLE</th>
+                    <th>CLASSES</th>
+                    <th>SUBJECTS</th>
+                    <th>STATUS</th>
+                    <th>ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredStaff.map((member) => (
+                    <tr key={member.id}>
+                      <td data-label="STAFF">
+                        <div className="flex items-center gap-4">
+                          <div className="assignment-avatar">{initials(member.name)}</div>
+                          <div>
+                            <p className="truncate" style={{ fontWeight: 500 }}>{member.name}</p>
+                            <p className="text-muted" style={{ fontSize: "0.7rem" }}>{member.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td data-label="ROLE">
+                        {member.role === "head_teacher" ? "Head Teacher" : "Class Teacher"}
+                      </td>
+                      <td data-label="CLASSES">
+                        {member.assignedClasses?.length > 0 ? (
+                          <div className="flex gap-1 flex-wrap">
+                            {member.assignedClasses.map((c) => (
+                              <Tag key={c} label={c} color="tag--blue" />
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td data-label="SUBJECTS">
+                        {member.assignedSubjects?.length > 0 ? (
+                          <div className="flex gap-1 flex-wrap">
+                            {member.assignedSubjects.slice(0, 3).map((s) => (
+                              <Tag key={s} label={s} color="tag--green" />
+                            ))}
+                            {member.assignedSubjects.length > 3 && (
+                              <Tag label={`+${member.assignedSubjects.length - 3}`} color="tag--neutral" />
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td data-label="STATUS">
+                        <StatusPill status={member.status} />
+                      </td>
+                      <td data-label="ACTIONS">
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            onClick={() => setModal({ mode: "view", member })}
+                            className="icon-btn"
+                            title="View"
+                          >
+                            <Eye size={18} />
+                          </button>
+                          <button
+                            onClick={() => setModal({ mode: "assign", member })}
+                            className="icon-btn icon-btn--assign"
+                            title="Assign classes & subjects"
+                          >
+                            <BookOpen size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
           </div>
         </>
@@ -469,61 +418,52 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
       {activeTab === "assignments" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {loading ? (
-            <div className="col-span-2 py-24 flex flex-col items-center gap-4">
+            <div className="col-span-2 empty-state">
               <Spinner />
-              <p className="text-app-text/60">Loading classes...</p>
+              <p className="empty-state__sub">Loading classes...</p>
             </div>
           ) : allClasses.length === 0 ? (
-            <div className="col-span-2 bg-app-surface rounded-3xl p-16 text-center border border-app-border">
-              <LayoutGrid className="w-16 h-16 mx-auto text-app-text/20 mb-4" />
-              <p className="text-xl font-semibold">No classes found</p>
-              <p className="text-app-text/60 mt-2">Create classes in the Admin Dashboard first</p>
+            <div className="col-span-2 empty-state">
+              <LayoutGrid className="empty-state__icon" size={48} />
+              <p className="empty-state__title">No classes found</p>
+              <p className="empty-state__sub">Create classes in the Admin Dashboard first</p>
             </div>
           ) : (
             allClasses.map((cls) => {
               const assigned = staff.filter((t) => t.assignedClasses?.includes(cls.name));
               return (
-                <div key={cls.id} className="bg-app-surface rounded-3xl border border-app-border overflow-hidden">
-                  <div className="px-6 py-5 bg-app-bg border-b flex justify-between items-center">
+                <div key={cls.id} className="assignment-card">
+                  <div className="assignment-card__header">
                     <div>
-                      <h3 className="font-bold text-lg">{cls.name}</h3>
-                      <p className="text-xs text-app-text/50">{cls.subjects?.length || 0} subjects</p>
+                      <h3 className="assignment-card__title">{cls.name}</h3>
+                      <p className="text-muted">{cls.subjects?.length || 0} subjects</p>
                     </div>
-                    <span className="text-blue-600 font-semibold text-sm">
+                    <span className="assignment-card__count">
                       {assigned.length} teacher{assigned.length !== 1 ? "s" : ""}
                     </span>
                   </div>
-                  <div className="p-6">
+                  <div className="assignment-list">
                     {assigned.length > 0 ? (
                       assigned.map((teacher) => (
-                        <div
-                          key={teacher.id}
-                          className="flex items-center justify-between py-4 border-b last:border-0 group"
-                        >
+                        <div key={teacher.id} className="assignment-item">
                           <div className="flex items-center gap-4">
-                            <div className="w-9 h-9 bg-app-primary text-white rounded-2xl flex items-center justify-center text-sm font-bold">
-                              {initials(teacher.name)}
-                            </div>
+                            <div className="assignment-avatar">{initials(teacher.name)}</div>
                             <div>
-                              <p className="font-medium">{teacher.name}</p>
-                              <p className="text-xs text-app-text/50">
-                                {teacher.assignedSubjects?.length || 0} subjects
-                              </p>
+                              <p style={{ fontWeight: 500 }}>{teacher.name}</p>
+                              <p className="text-muted">{teacher.assignedSubjects?.length || 0} subjects</p>
                             </div>
                           </div>
                           <button
                             onClick={() => setModal({ mode: "assign", member: teacher })}
-                            className="opacity-0 group-hover:opacity-100 p-2 hover:bg-blue-50 rounded-xl transition-all"
+                            className="icon-btn icon-btn--assign"
                             title="Edit assignments"
                           >
-                            <BookOpen className="w-5 h-5 text-blue-600" />
+                            <BookOpen size={18} />
                           </button>
                         </div>
                       ))
                     ) : (
-                      <p className="text-center py-12 text-app-text/40 italic">
-                        No teachers assigned yet
-                      </p>
+                      <p className="empty-assignments">No teachers assigned yet</p>
                     )}
                   </div>
                 </div>

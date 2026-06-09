@@ -98,9 +98,7 @@ function PrintableReceipt({ payment, schoolName, onClose }) {
             <div class="footer">
               <div>Recorded by: ${payment.recordedBy}</div>
               <div style="margin-top: 4px;">This is an official receipt. Please retain for your records.</div>
-              <div style="margin-top: 4px;">SSP-PEP · Ministry of Education, Malawi</div>
-            </div>
-          </div>
+              <div style="margin-top: 4px;">SSP-PEP · Ministry of Education, Malawi</div></div>
           <script>window.onload = function() { window.print(); window.close(); }</script>
         </body>
       </html>
@@ -250,24 +248,25 @@ export default function Receipts({ schoolCode, schoolName }) {
             <p className="text-sm text-app-text/50">Receipts are generated when payments are recorded</p>
           </div>
         ) : (
-          <table className="w-full">
+          <div className="data-table-wrap">
+<table className="data-table data-table--stack">
             <thead>
               <tr className="border-b border-[#0F2044]/5">
-                <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40">Receipt No.</th>
-                <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40">Student</th>
-                <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden sm:table-cell">Method</th>
-                <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden md:table-cell">Date</th>
-                <th className="px-5 py-3.5 text-right text-[10px] font-bold tracking-widest uppercase text-app-text/40">Amount</th>
-                <th className="px-5 py-3.5 text-right text-[10px] font-bold tracking-widest uppercase text-app-text/40">Print</th>
+                <th>Receipt No.</th>
+                <th>Student</th>
+                <th>Method</th>
+                <th>Date</th>
+                <th>Amount</th>
+                <th>Print</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#0F2044]/5">
               {filtered.map(p => (
                 <tr key={p.id} className="hover:bg-app-bg/60 transition-colors">
-                  <td className="px-5 py-3.5">
+                  <td className="px-5 py-3.5" data-label="Receipt No.">
                     <span className="font-mono text-xs font-bold text-app-text bg-app-bg px-2.5 py-1 rounded-lg">{p.receiptNo}</span>
                   </td>
-                  <td className="px-5 py-3.5">
+                  <td className="px-5 py-3.5" data-label="Student">
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-lg bg-app-primary text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">{initials(p.studentName)}</div>
                       <div>
@@ -276,12 +275,12 @@ export default function Receipts({ schoolCode, schoolName }) {
                       </div>
                     </div>
                   </td>
-                  <td className="px-5 py-3.5 hidden sm:table-cell">
+                  <td className="px-5 py-3.5 hidden sm:table-cell" data-label="Method">
                     <span className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-semibold ${methodBadge[p.method] || "bg-gray-100 text-gray-700"}`}>{p.method}</span>
                   </td>
-                  <td className="px-5 py-3.5 text-xs text-app-text/60 hidden md:table-cell">{p.paymentDate}</td>
-                  <td className="px-5 py-3.5 text-right font-bold text-emerald-700">{fmt(p.amount)}</td>
-                  <td className="px-5 py-3.5 text-right">
+                  <td className="px-5 py-3.5 text-xs text-app-text/60 hidden md:table-cell" data-label="Date">{p.paymentDate}</td>
+                  <td className="px-5 py-3.5 text-right font-bold text-emerald-700" data-label="Amount">{fmt(p.amount)}</td>
+                  <td className="px-5 py-3.5 text-right" data-label="Print">
                     <button onClick={() => setPreviewPayment(p)} className="p-2 rounded-lg hover:bg-app-primary/5 text-app-text/50 hover:text-app-text transition-colors" title="View & Print">
                       {IC.print}
                     </button>
@@ -290,6 +289,7 @@ export default function Receipts({ schoolCode, schoolName }) {
               ))}
             </tbody>
           </table>
+</div>
         )}
       </div>
 

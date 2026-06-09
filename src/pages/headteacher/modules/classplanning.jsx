@@ -1,89 +1,89 @@
-import { useState } from "react";
-import { 
-  Plus, Calendar, Clock, Edit2, Eye, 
-  Trash2, X, Save 
+import { useState, useMemo } from "react";
+import {
+  Plus, Calendar, Clock, Edit2, Eye,
+  Trash2, X, Save, BookOpen, CheckCircle, Loader2, ClipboardList,
 } from "lucide-react";
+import {
+  DataTableCard, TableToolbar, TableEmpty, TableSkeleton, TableStatusBadge,
+} from "../../../components/data-table";
 
-// ========================
-// 1. LESSON PLAN CARD COMPONENT
-// ========================
-function LessonPlanCard({ plan, onView, onEdit, onDelete }) {
-  const statusStyles = {
-    planned: "bg-amber-100 text-amber-700",
-    "in-progress": "bg-blue-100 text-blue-700",
-    completed: "bg-green-100 text-green-700"
+const STATUS_VARIANT = {
+  planned: "warning",
+  "in-progress": "neutral",
+  completed: "success",
+};
+
+function KpiCard({ label, value, icon: Icon, accent = "neutral" }) {
+  const map = {
+    neutral: "bg-app-surface border-app-border text-app-text",
+    success: "bg-emerald-50 border-emerald-100 text-emerald-600",
+    warning: "bg-amber-50 border-amber-100 text-amber-600",
+    info: "bg-blue-50 border-blue-100 text-blue-600",
   };
-
-  const statusText = {
-    planned: "Planned",
-    "in-progress": "In Progress",
-    completed: "Completed"
-  };
-
+  const [bg, border, text] = (map[accent] || map.neutral).split(" ");
   return (
-    <div className="bg-app-surface rounded-3xl border border-app-border overflow-hidden hover:shadow-md transition-all">
-      <div className="px-6 py-5 border-b bg-app-bg flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="px-4 py-1.5 bg-app-surface border border-app-border rounded-2xl text-sm font-medium">
-            {plan.className} • {plan.subject}
-          </div>
-          <div className={`px-4 py-1 text-xs font-medium rounded-2xl ${statusStyles[plan.status]}`}>
-            {statusText[plan.status]}
-          </div>
+    <div className={`rounded-3xl p-5 border ${bg} ${border}`}>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/45">{label}</p>
+          <p className={`text-3xl font-bold mt-1 ${text}`}>{value}</p>
         </div>
+        {Icon && <Icon size={24} className="text-app-text/25" />}
+      </div>
+    </div>
+  );
+}
 
-        <div className="text-xs text-app-text/60 font-mono">
-          Week {plan.week} • {plan.term}
+function LessonPlanCard({ plan, onView, onEdit, onDelete }) {
+  return (
+    <div className="rounded-2xl border border-app-border bg-app-bg/20 overflow-hidden hover:shadow-md transition-all">
+      <div className="px-5 py-4 border-b border-app-border bg-app-surface flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="px-3 py-1 bg-app-bg border border-app-border rounded-xl text-xs font-semibold text-app-text">
+            {plan.className} · {plan.subject}
+          </span>
+          <TableStatusBadge
+            status={plan.status === "in-progress" ? "In Progress" : plan.status.charAt(0).toUpperCase() + plan.status.slice(1)}
+            variant={STATUS_VARIANT[plan.status] || "neutral"}
+          />
         </div>
+        <span className="text-xs text-app-text/50 font-mono">Week {plan.week} · {plan.term}</span>
       </div>
 
-      <div className="p-6 space-y-5">
+      <div className="p-5 space-y-4">
         <div>
-          <h3 className="font-semibold text-2xl text-app-text leading-tight">{plan.topic}</h3>
-          <p className="text-app-text/70 mt-2 text-[15px]">{plan.objectives}</p>
+          <h3 className="font-bold text-lg text-app-text leading-snug">{plan.topic}</h3>
+          <p className="text-sm text-app-text/60 mt-2 line-clamp-2">{plan.objectives}</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-sm">
-          <div>
-            <p className="text-xs text-app-text/60 mb-1">DATE & PERIOD</p>
-            <div className="flex items-center gap-2 font-medium">
-              <Calendar className="w-4 h-4 text-app-text/70" />
-              {new Date(plan.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
-              <span className="text-app-text/50">•</span>
-              <Clock className="w-4 h-4 text-app-text/70" />
-              {plan.period}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+          <div className="flex items-start gap-2">
+            <Calendar className="w-4 h-4 text-app-text/40 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-app-text/40">Date</p>
+              <p className="font-medium">{new Date(plan.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</p>
+              <p className="text-xs text-app-text/50">{plan.period}</p>
             </div>
           </div>
-
           <div>
-            <p className="text-xs text-app-text/60 mb-1">RESOURCES</p>
-            <p className="font-medium text-app-text">{plan.resources}</p>
+            <p className="text-[10px] uppercase tracking-wider text-app-text/40 mb-1">Resources</p>
+            <p className="font-medium text-app-text text-sm line-clamp-2">{plan.resources}</p>
           </div>
-
           <div>
-            <p className="text-xs text-app-text/60 mb-1">ASSESSMENT</p>
-            <p className="font-medium text-app-text">{plan.assessment}</p>
+            <p className="text-[10px] uppercase tracking-wider text-app-text/40 mb-1">Assessment</p>
+            <p className="font-medium text-app-text text-sm line-clamp-2">{plan.assessment}</p>
           </div>
         </div>
 
-        <div className="flex gap-3 pt-2">
-          <button
-            onClick={() => onView(plan)}
-            className="flex-1 flex items-center justify-center gap-2 py-3 border border-app-border hover:bg-app-bg rounded-2xl text-sm font-medium transition-colors"
-          >
-            <Eye className="w-4 h-4" /> View Full Plan
+        <div className="flex gap-2 pt-2 border-t border-app-border">
+          <button onClick={() => onView(plan)} className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-app-border rounded-xl text-xs font-semibold hover:bg-app-surface transition-colors">
+            <Eye className="w-3.5 h-3.5" /> View
           </button>
-          <button
-            onClick={() => onEdit(plan)}
-            className="flex-1 flex items-center justify-center gap-2 py-3 border border-app-border hover:bg-app-bg rounded-2xl text-sm font-medium transition-colors"
-          >
-            <Edit2 className="w-4 h-4" /> Edit
+          <button onClick={() => onEdit(plan)} className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-app-border rounded-xl text-xs font-semibold hover:bg-app-surface transition-colors">
+            <Edit2 className="w-3.5 h-3.5" /> Edit
           </button>
-          <button
-            onClick={() => onDelete(plan.id)}
-            className="p-3 text-red-600 hover:bg-red-50 border border-red-200 rounded-2xl transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
+          <button onClick={() => onDelete(plan.id)} className="p-2.5 text-red-600 hover:bg-red-50 border border-red-200 rounded-xl transition-colors">
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -358,9 +358,13 @@ function ViewLessonPlanModal({ plan, onClose }) {
 // ========================
 export default function ClassPlanningModule() {
   const [activeFilter, setActiveFilter] = useState("all");
+  const [selectedStatus, setSelectedStatus] = useState("all");
+  const [selectedSubject, setSelectedSubject] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
   const [showNewModal, setShowNewModal] = useState(false);
   const [viewingPlan, setViewingPlan] = useState(null);
   const [editingPlan, setEditingPlan] = useState(null);
+  const [loading] = useState(false);
 
   const [lessonPlans, setLessonPlans] = useState([
     {
@@ -407,11 +411,52 @@ export default function ClassPlanningModule() {
     },
   ]);
 
-  const filteredPlans = lessonPlans.filter(plan => {
-    if (activeFilter === "completed") return plan.status === "completed";
-    if (activeFilter === "this-week") return true; // You can enhance this logic later
-    return true;
-  });
+  const subjects = useMemo(
+    () => [...new Set(lessonPlans.map((p) => p.subject))].filter(Boolean).sort(),
+    [lessonPlans]
+  );
+
+  const startOfWeek = useMemo(() => {
+    const d = new Date();
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(d.setDate(diff)).toISOString().slice(0, 10);
+  }, []);
+
+  const endOfWeek = useMemo(() => {
+    const d = new Date(startOfWeek);
+    d.setDate(d.getDate() + 6);
+    return d.toISOString().slice(0, 10);
+  }, [startOfWeek]);
+
+  const filteredPlans = useMemo(() => {
+    const q = searchTerm.toLowerCase();
+    return lessonPlans.filter((plan) => {
+      const matchSearch = !q
+        || plan.topic?.toLowerCase().includes(q)
+        || plan.className?.toLowerCase().includes(q)
+        || plan.subject?.toLowerCase().includes(q);
+      const matchStatus = selectedStatus === "all" || plan.status === selectedStatus;
+      const matchSubject = selectedSubject === "all" || plan.subject === selectedSubject;
+      const matchTab =
+        activeFilter === "all"
+        || (activeFilter === "completed" && plan.status === "completed")
+        || (activeFilter === "this-week" && plan.date >= startOfWeek && plan.date <= endOfWeek);
+      return matchSearch && matchStatus && matchSubject && matchTab;
+    });
+  }, [lessonPlans, searchTerm, selectedStatus, selectedSubject, activeFilter, startOfWeek, endOfWeek]);
+
+  const pendingCount = lessonPlans.filter((p) => p.status === "planned").length;
+  const approvedCount = lessonPlans.filter((p) => p.status === "completed").length;
+  const weekCount = lessonPlans.filter((p) => p.date >= startOfWeek && p.date <= endOfWeek).length;
+
+  const hasActiveFilters = selectedStatus !== "all" || selectedSubject !== "all" || searchTerm || activeFilter !== "all";
+  const clearFilters = () => {
+    setActiveFilter("all");
+    setSelectedStatus("all");
+    setSelectedSubject("all");
+    setSearchTerm("");
+  };
 
   const handleSavePlan = (newPlan) => {
     setLessonPlans(prev => [newPlan, ...prev]);
@@ -429,9 +474,9 @@ export default function ClassPlanningModule() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold text-app-text" style={{ fontFamily: "'Playfair Display', serif" }}>
-            Class Planning & Lesson Plans
+            Planning Workspace
           </h2>
-          <p className="text-app-text/60">Mr. Martin Khumbata • Mathematics & Physics Teacher</p>
+          <p className="text-app-text/60">Lesson plans · curriculum coverage · term preparation</p>
         </div>
 
         <button
@@ -442,20 +487,26 @@ export default function ClassPlanningModule() {
         </button>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="bg-app-surface rounded-3xl p-1 border border-app-border inline-flex">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard label="Total Plans" value={lessonPlans.length} icon={ClipboardList} accent="neutral" />
+        <KpiCard label="Pending Plans" value={pendingCount} icon={Loader2} accent="warning" />
+        <KpiCard label="Approved Plans" value={approvedCount} icon={CheckCircle} accent="success" />
+        <KpiCard label="This Week" value={weekCount} icon={Calendar} accent="info" />
+      </div>
+
+      <div className="flex flex-wrap gap-2">
         {[
-          { id: "all", label: "All Lesson Plans" },
+          { id: "all", label: "All Plans" },
           { id: "this-week", label: "This Week" },
           { id: "completed", label: "Completed" },
         ].map((filter) => (
           <button
             key={filter.id}
             onClick={() => setActiveFilter(filter.id)}
-            className={`px-7 py-3 text-sm font-medium rounded-2xl transition-all ${
-              activeFilter === filter.id 
-                ? "bg-app-primary text-white shadow-md" 
-                : "hover:bg-[#FAFAF8] text-app-text/70"
+            className={`px-5 py-2.5 text-sm font-semibold rounded-2xl transition-all ${
+              activeFilter === filter.id
+                ? "bg-app-primary text-white shadow-sm"
+                : "bg-app-surface border border-app-border text-app-text/60 hover:bg-app-bg"
             }`}
           >
             {filter.label}
@@ -463,24 +514,65 @@ export default function ClassPlanningModule() {
         ))}
       </div>
 
-      {/* Lesson Plans List */}
-      <div className="space-y-6">
-        {filteredPlans.length > 0 ? (
-          filteredPlans.map((plan) => (
-            <LessonPlanCard
-              key={plan.id}
-              plan={plan}
-              onView={setViewingPlan}
-              onEdit={(p) => alert(`Edit functionality for plan "${p.topic}" can be expanded here`)}
-              onDelete={handleDelete}
-            />
-          ))
+      <DataTableCard>
+        <TableToolbar
+          search={searchTerm}
+          onSearchChange={setSearchTerm}
+          searchPlaceholder="Search topic, class, subject…"
+          hasActiveFilters={hasActiveFilters}
+          onClearFilters={clearFilters}
+          resultCount={filteredPlans.length}
+        >
+          <select
+            value={selectedSubject}
+            onChange={(e) => setSelectedSubject(e.target.value)}
+            className="px-3 py-2.5 border border-app-border rounded-xl text-sm bg-app-surface"
+          >
+            <option value="all">All subjects</option>
+            {subjects.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            className="px-3 py-2.5 border border-app-border rounded-xl text-sm bg-app-surface"
+          >
+            <option value="all">All statuses</option>
+            <option value="planned">Planned</option>
+            <option value="in-progress">In Progress</option>
+            <option value="completed">Completed</option>
+          </select>
+        </TableToolbar>
+
+        {loading ? (
+          <TableSkeleton rows={3} cols={1} />
+        ) : filteredPlans.length === 0 ? (
+          <TableEmpty
+            icon={<BookOpen size={32} />}
+            title="No lesson plans found"
+            description="Create a new plan or adjust your filters."
+            action={
+              <button
+                onClick={() => setShowNewModal(true)}
+                className="px-5 py-2.5 bg-app-primary text-white text-sm font-semibold rounded-2xl hover:bg-[#1a3060] transition-colors"
+              >
+                New Lesson Plan
+              </button>
+            }
+          />
         ) : (
-          <div className="bg-app-surface rounded-3xl py-24 text-center text-app-text/50">
-            No lesson plans found.
+          <div className="p-5 space-y-4">
+            {filteredPlans.map((plan) => (
+              <LessonPlanCard
+                key={plan.id}
+                plan={plan}
+                onView={setViewingPlan}
+                onEdit={(p) => alert(`Edit functionality for plan "${p.topic}" can be expanded here`)}
+                onDelete={handleDelete}
+              />
+            ))}
           </div>
         )}
-      </div>
+      </DataTableCard>
 
       <div className="text-center text-xs text-app-text/50 pt-4">
         All lesson plans are automatically considered for termly curriculum coverage reports and MANEB compliance.

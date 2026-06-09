@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Sidebar from "../pages/admin/side_bar";
 import { getInitialTheme, toggleTheme as flipTheme } from "../utils/theme";
 
@@ -29,9 +29,6 @@ function initials(name = "") {
   return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
 }
 
-/**
- * Shared dashboard shell for all role-based portals.
- */
 export default function DashboardShell({
   navItems,
   currentTab,
@@ -56,20 +53,49 @@ export default function DashboardShell({
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
 
+  // Close sidebar on Escape
+  useEffect(() => {
+    const handler = (e) => { if (e.key === "Escape") setSidebarOpen(false); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  // Prevent body scroll when mobile tray is open
+  useEffect(() => {
+    document.body.style.overflow = sidebarOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [sidebarOpen]);
+
+  // Close sidebar when resizing to desktop
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const handler = (e) => { if (e.matches) setSidebarOpen(false); };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
   const handleToggleTheme = () => setTheme((t) => flipTheme(t));
+  const handleTabChange = useCallback((tab) => {
+    onTabChange(tab);
+    setSidebarOpen(false);
+  }, [onTabChange]);
+
   const currentNavItem = navItems.find((item) => item.id === currentTab);
   const displayTitle = title ?? (currentTab === "overview" ? "Dashboard" : currentNavItem?.label);
 
   return (
     <div className="dashboard-shell">
+      {/*
+        Sidebar handles its OWN overlay (.sidebar-overlay) internally.
+        DashboardShell does NOT render a second backdrop.
+        On desktop:  sidebar is sticky, in-flow, takes 280px — main-area fills the rest.
+        On mobile:   sidebar is fixed, out-of-flow — main-area fills 100% width.
+      */}
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         currentTab={currentTab}
-        onTabChange={(tab) => {
-          onTabChange(tab);
-          setSidebarOpen(false);
-        }}
+        onTabChange={handleTabChange}
         navItems={navItems}
         navSectionLabel={navSectionLabel}
         portalLabel={portalLabel}
@@ -87,10 +113,11 @@ export default function DashboardShell({
               className="topbar__menu-btn"
               onClick={() => setSidebarOpen((v) => !v)}
               aria-label={sidebarOpen ? "Close menu" : "Open menu"}
+              aria-expanded={sidebarOpen}
             >
               {sidebarOpen ? THEME_ICONS.close : THEME_ICONS.menu}
             </button>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div className="topbar__title">{displayTitle}</div>
               {subtitle && <div className="topbar__subtitle">{subtitle}</div>}
             </div>

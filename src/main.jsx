@@ -4,7 +4,9 @@ import { RouterProvider } from 'react-router-dom'
 import router from './router/router.jsx'
 import { initTheme } from './utils/theme'
 import './styles/design-system.css'
+import './styles/data-table.css'
 import './styles/dashboard-layout.css'
+import './styles/polish.css'
 import './index.css'
 
 initTheme()

@@ -264,23 +264,23 @@ function SubmissionTable({ homework, submissions, onMarkSubmitted, onClose }) {
         </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className="data-table-wrap">
+        <table className="data-table data-table--stack">
           <thead>
             <tr className="border-b border-app-border">
-              <th className="py-4 text-left font-medium text-app-text/60">ADMISSION NO.</th>
-              <th className="py-4 text-left font-medium text-app-text/60">STUDENT NAME</th>
-              <th className="py-4 text-center font-medium text-app-text/60">STATUS</th>
-              <th className="py-4 text-center font-medium text-app-text/60">SUBMITTED ON</th>
-              <th className="py-4 text-center font-medium text-app-text/60">ACTION</th>
+              <th>ADMISSION NO.</th>
+              <th>STUDENT NAME</th>
+              <th>STATUS</th>
+              <th>SUBMITTED ON</th>
+              <th>ACTION</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {studentSubmissions.map(student => (
               <tr key={student.id} className="hover:bg-[#FAFAF8]">
-                <td className="py-5 font-mono text-app-text/70">{student.admissionNo}</td>
-                <td className="py-5 font-medium">{student.studentName}</td>
-                <td className="py-5 text-center">
+                <td className="py-5 font-mono text-app-text/70" data-label="ADMISSION NO.">{student.admissionNo}</td>
+                <td className="py-5 font-medium" data-label="STUDENT NAME">{student.studentName}</td>
+                <td className="py-5 text-center" data-label="STATUS">
                   {student.submitted ? (
                     <span className="inline-flex items-center gap-1 text-green-600 bg-green-100 px-4 py-1 rounded-2xl text-xs font-medium">
                       <CheckCircle className="w-3 h-3" /> Submitted
@@ -291,10 +291,10 @@ function SubmissionTable({ homework, submissions, onMarkSubmitted, onClose }) {
                     </span>
                   )}
                 </td>
-                <td className="py-5 text-center text-app-text/60">
+                <td className="py-5 text-center text-app-text/60" data-label="SUBMITTED ON">
                   {student.submittedDate || "—"}
                 </td>
-                <td className="py-5 text-center">
+                <td className="py-5 text-center" data-label="ACTION">
                   <button
                     onClick={() => handleToggleSubmission(student.id)}
                     className={`px-5 py-2 text-xs font-medium rounded-2xl transition-colors ${

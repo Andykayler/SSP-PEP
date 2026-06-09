@@ -382,7 +382,7 @@ function UserManagement({ schoolCode, schoolName }) {
         />
       </div>
 
-      <div className="card" style={{ overflowX: "auto" }}>
+      <div className="card">
         {loading ? (
           <div style={{ padding: "48px", display: "flex", justifyContent: "center" }}><Spinner /></div>
         ) : filtered.length === 0 ? (
@@ -393,7 +393,8 @@ function UserManagement({ schoolCode, schoolName }) {
             action={<Btn onClick={openAdd} variant="gold" size="sm">{IC.plus} Add User</Btn>}
           />
         ) : (
-          <table className="data-table">
+          <div className="data-table-wrap">
+<table className="data-table data-table--stack">
             <thead>
               <tr>
                 <th>User</th>
@@ -406,20 +407,20 @@ function UserManagement({ schoolCode, schoolName }) {
             <tbody>
               {filtered.map(u => (
                 <tr key={u.id}>
-                  <td>
+                  <td data-label="User">
                     <div className="flex-gap-3">
                       <div className="avatar avatar--navy">{initials(u.name)}</div>
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{u.name}</div>
-                        <div style={{ fontSize: 11.5, color: "var(--text3)" }}>{u.email}</div>
+                        <div className="data-table__primary">{u.name}</div>
+                        <div className="data-table__meta">{u.email}</div>
                       </div>
                     </div>
                   </td>
-                  <td><RoleBadge role={u.role} /></td>
-                  <td><StatusPill active={u.status !== "suspended"} /></td>
-                  <td style={{ fontSize: 12, color: "var(--text3)" }}>{fmtDate(u.createdAt)}</td>
-                  <td>
-                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
+                  <td data-label="Role"><RoleBadge role={u.role} /></td>
+                  <td data-label="Status"><StatusPill active={u.status !== "suspended"} /></td>
+                  <td style={{ fontSize: 12, color: "var(--text3)" }} data-label="Added">{fmtDate(u.createdAt)}</td>
+                  <td data-label="Actions">
+                    <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
                       <ActionBtn onClick={() => openEdit(u)} icon={IC.edit} title="Edit" />
                       <ActionBtn onClick={() => toggleStatus(u)} icon={IC.shield} title={u.status === "suspended" ? "Activate" : "Suspend"} hoverBg="rgba(251,191,36,0.12)" />
                       <ActionBtn onClick={() => setShowDelete(u)} icon={IC.trash} title="Delete" hoverBg="rgba(239,68,68,0.1)" />
@@ -429,6 +430,7 @@ function UserManagement({ schoolCode, schoolName }) {
               ))}
             </tbody>
           </table>
+</div>
         )}
       </div>
 
@@ -446,7 +448,7 @@ function UserManagement({ schoolCode, schoolName }) {
             </div>
             <Input label="Email Address" required type="email" value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} placeholder="jane@school.mw" error={formErrors.email} />
             <Input label="Phone Number" type="tel" value={form.phone} onChange={e => setForm(p => ({...p, phone: e.target.value}))} placeholder="+265 9xx xxx xxx" />
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 8 }}>
+            <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 8 }}>
               <Btn type="button" variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Btn>
               <Btn type="submit" variant="gold" loading={actionLoading}>{IC.mail} Create &amp; Send</Btn>
             </div>
@@ -465,7 +467,7 @@ function UserManagement({ schoolCode, schoolName }) {
             </Select>
             <Input label="Phone Number" type="tel" value={form.phone} onChange={e => setForm(p => ({...p, phone: e.target.value}))} />
             <p style={{ fontSize: 11, color: "var(--text3)" }}>Email and password changes must be done through Firebase Console.</p>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 8 }}>
+            <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 8 }}>
               <Btn type="button" variant="ghost" onClick={() => setShowEdit(null)}>Cancel</Btn>
               <Btn type="submit" variant="accent" loading={actionLoading}>Save Changes</Btn>
             </div>
@@ -483,7 +485,7 @@ function UserManagement({ schoolCode, schoolName }) {
                 <p style={{ fontSize: 12 }}>The Firestore record for <strong>{showDelete.name}</strong> will be permanently deleted. Their Firebase Auth account must be removed separately.</p>
               </div>
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <Btn variant="ghost" onClick={() => setShowDelete(null)}>Cancel</Btn>
               <Btn variant="danger" loading={actionLoading} onClick={handleDelete}>Delete User</Btn>
             </div>
@@ -700,7 +702,7 @@ function StudentManagement({ schoolCode, schoolName }) {
             </select>
           </div>
 
-          <div className="card" style={{ overflowX: "auto" }}>
+          <div className="card">
             {loading ? (
               <div style={{ padding: 48, display: "flex", justifyContent: "center" }}><Spinner /></div>
             ) : filtered.length === 0 ? (
@@ -709,7 +711,8 @@ function StudentManagement({ schoolCode, schoolName }) {
                 action={<Btn onClick={() => setActiveTab("register")} variant="gold" size="sm">{IC.plus} Register</Btn>}
               />
             ) : (
-              <table className="data-table">
+              <div className="data-table-wrap">
+<table className="data-table data-table--stack">
                 <thead>
                   <tr>
                     <th>Student</th><th>Code</th><th>Class</th><th>Guardian</th><th>Status</th>
@@ -719,24 +722,24 @@ function StudentManagement({ schoolCode, schoolName }) {
                 <tbody>
                   {filtered.map(s => (
                     <tr key={s.id}>
-                      <td>
+                      <td data-label="Student">
                         <div className="flex-gap-3">
                           <div className={`avatar ${s.gender === "Female" ? "avatar--pink" : "avatar--blue"}`}>{initials(s.fullName)}</div>
                           <div>
-                            <div style={{ fontWeight: 600, fontSize: 13 }}>{s.fullName}</div>
-                            <div style={{ fontSize: 11.5, color: "var(--text3)" }}>{s.gender} · {s.dob || "—"}</div>
+                            <div className="data-table__primary">{s.fullName}</div>
+                            <div className="data-table__meta">{s.gender} · {s.dob || "—"}</div>
                           </div>
                         </div>
                       </td>
-                      <td><StudentCodeBadge code={s.studentCode} /></td>
-                      <td style={{ fontSize: 13, color: "var(--text2)" }}>{s.className || "—"}</td>
-                      <td>
+                      <td data-label="Code"><StudentCodeBadge code={s.studentCode} /></td>
+                      <td style={{ fontSize: 13, color: "var(--text2)" }} data-label="Class">{s.className || "—"}</td>
+                      <td data-label="Guardian">
                         <div style={{ fontSize: 12, color: "var(--text2)" }}>{s.guardianName || "—"}</div>
                         <div style={{ fontSize: 11, color: "var(--text3)" }}>{s.guardianPhone || ""}</div>
                       </td>
-                      <td><StatusPill active={s.status !== "suspended"} /></td>
-                      <td>
-                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
+                      <td data-label="Status"><StatusPill active={s.status !== "suspended"} /></td>
+                      <td data-label="Actions">
+                        <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
                           <ActionBtn onClick={() => setShowDetail(s)} icon={IC.eye} title="View profile" />
                           <ActionBtn onClick={() => setShowDelete(s)} icon={IC.trash} title="Remove" hoverBg="rgba(239,68,68,0.1)" />
                         </div>
@@ -745,6 +748,7 @@ function StudentManagement({ schoolCode, schoolName }) {
                   ))}
                 </tbody>
               </table>
+</div>
             )}
           </div>
         </div>
@@ -821,7 +825,7 @@ function StudentManagement({ schoolCode, schoolName }) {
                   </Select>
                 </div>
               </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 8 }}>
+              <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 8 }}>
                 <Btn type="button" variant="ghost" onClick={() => setRegForm(EMPTY_REG)}>Clear Form</Btn>
                 <Btn type="submit" variant="gold" loading={actionLoading}>{IC.students} Register Student</Btn>
               </div>
@@ -890,7 +894,7 @@ function StudentManagement({ schoolCode, schoolName }) {
                     <option value="">Select class…</option>
                     {classes.map(c => <option key={c.id} value={c.id}>{c.name} ({c.level})</option>)}
                   </Select>
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                  <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
                     <Btn variant="ghost" onClick={() => { setTransferFound(null); setTransferCode(""); }}>Cancel</Btn>
                     <Btn variant="teal" onClick={handleTransferConfirm} loading={transferLoading}>{IC.transfer} Confirm Transfer</Btn>
                   </div>
@@ -940,7 +944,7 @@ function StudentManagement({ schoolCode, schoolName }) {
                 <p style={{ fontSize: 12 }}><strong>{showDelete.fullName}</strong>'s record will be removed from {schoolName}. Their student code stays valid for future enrolment elsewhere.</p>
               </div>
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <Btn variant="ghost" onClick={() => setShowDelete(null)}>Cancel</Btn>
               <Btn variant="danger" loading={actionLoading} onClick={handleDeleteStudent}>Remove Student</Btn>
             </div>
@@ -1046,7 +1050,7 @@ function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
             <Input label="Phone Number" type="tel" value={form.phone} onChange={e => setForm(p => ({...p, phone: e.target.value}))} />
             <Input label="Email Address" type="email" value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} />
           </div>
-          <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: 8 }}>
+          <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", paddingTop: 8 }}>
             <Btn onClick={handleSaveSchool} loading={loading} variant="accent">Save School Info</Btn>
           </div>
         </div>
@@ -1111,7 +1115,7 @@ function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
               </div>
               <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 5 }}>Defaults applied if none selected.</p>
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+            <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
               <Btn variant="ghost" onClick={() => setShowClassModal(false)}>Cancel</Btn>
               <Btn onClick={saveClass} variant="gold" loading={loading}>{editingClass ? "Update Class" : "Add Class"}</Btn>
             </div>
@@ -1269,7 +1273,7 @@ function Announcements({ schoolCode, userName }) {
                 <option value="urgent">Urgent</option>
               </Select>
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 8 }}>
+            <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 8 }}>
               <Btn type="button" variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Btn>
               <Btn type="submit" variant="gold" loading={actionLoading}>Post Announcement</Btn>
             </div>

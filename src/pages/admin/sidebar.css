@@ -1,564 +1,237 @@
-/* ============================================================
-   sidebar.css  –  SSP-PEP Admin · Sidebar Component
-   Responsive, scrollable, mobile-drawer + desktop-fixed panel
-   ============================================================ */
 
-/* Sidebar tokens — mapped to global design system */
-:root,
-[data-theme="dark"],
-[data-theme="light"] {
-  --sb-bg:              var(--bg-primary);
-  --sb-bg-gradient:     var(--sidebar-bg);
-  --sb-border:          var(--border-color);
-  --sb-border-hover:    var(--border-strong);
-  --sb-accent:          var(--primary);
-  --sb-accent-lt:       var(--primary-light);
-  --sb-accent-pale:     var(--primary-pale);
-  --sb-teal:            var(--secondary);
-  --sb-teal-lt:         var(--secondary-light);
-  --sb-gold:            var(--warning);
-  --sb-gold-lt:         var(--warning-light);
-  --sb-text:            var(--text-primary);
-  --sb-text2:           var(--text-secondary);
-  --sb-text3:           var(--text-muted);
-  --sb-danger:          var(--danger-light);
-  --sb-danger-hover-bg: var(--danger-pale);
-  --sb-danger-hover:    var(--danger);
-  --sb-radius:          var(--r-md);
-  --sb-radius-sm:       var(--r-sm);
-  --sb-width:           248px;
-  --sb-transition:      var(--transition-base);
-}
 
-/* ── Reset box-sizing for sidebar subtree ── */
-.sidebar *,
-.sidebar *::before,
-.sidebar *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-/* ================================================================
-   OVERLAY  (mobile only – dims the page behind the open drawer)
-   ================================================================ */
-.sidebar-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 48;
-  background: rgba(4, 6, 14, 0.72);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
-  opacity: 0;
-  transition: opacity 0.25s ease;
-}
-
-.sidebar-overlay--visible {
-  opacity: 1;
-}
-
-/* ================================================================
-   SIDEBAR PANEL
-   ================================================================ */
+/* ── Base: fixed (mobile-first, always out of flow) ── */
 .sidebar {
-  /* Structure */
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 280px;
+  z-index: 300;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  width: var(--sb-width);
-  height: 100vh;
-
-  /* Desktop: sticky inside a flex shell */
-  position: sticky;
-  top: 0;
-  flex-shrink: 0;
-  overflow: hidden;           /* scrolling is handled by inner nav */
-
-  /* Visual */
-  background: var(--sb-bg-gradient);
-  border-right: 1px solid var(--sb-border);
-  font-family: var(--font-body);
-  -webkit-font-smoothing: antialiased;
-
-  /* Layering */
-  z-index: 50;
+  overflow-y: auto;
+  will-change: transform;
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.28s;
+  box-shadow: 4px 0 24px rgba(0,0,0,0.4);
 }
 
-/* ================================================================
-   HEADER  –  logo + brand
-   ================================================================ */
+.sidebar::-webkit-scrollbar        { width: 4px; }
+.sidebar::-webkit-scrollbar-track  { background: var(--primary-dim); }
+.sidebar::-webkit-scrollbar-thumb  { background: var(--primary-pale); border-radius: 10px; }
+
+/* ── Desktop: switch to sticky so .main-area shrinks naturally ── */
+@media (min-width: 1024px) {
+  .sidebar {
+    position: sticky;
+    height: 100vh;
+    z-index: 100;
+    will-change: auto;
+    transition: none;
+    box-shadow: none;
+    /* Always visible on desktop — override any JS inline styles */
+    transform: none !important;
+    visibility: visible !important;
+  }
+}
+
+@media (max-width: 400px) {
+  .sidebar { width: 260px; }
+}
+
+/* ── Overlay ── No blur — caused glow-through on mobile. */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 250;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+.sidebar-overlay--visible {
+  opacity: 1;
+  visibility: visible;
+}
+@media (min-width: 1024px) {
+  .sidebar-overlay { display: none !important; }
+}
+
+/* ── Header ── */
 .sidebar__header {
+  padding: 24px 20px 16px;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 20px 18px 16px;
-  border-bottom: 1px solid var(--sb-border);
+  border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
-
 .sidebar__logo-mark {
-  width: 36px;
-  height: 36px;
-  background: linear-gradient(135deg, var(--sb-accent), var(--sb-accent-lt));
-  border-radius: 10px;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: var(--shadow-accent);
   flex-shrink: 0;
-  box-shadow: 0 4px 18px rgba(79, 110, 247, 0.38);
 }
-
-.sidebar__logo-mark svg {
-  width: 18px;
-  height: 18px;
-}
-
+.sidebar__logo-mark svg { width: 22px; height: 22px; }
 .sidebar__brand-name {
   font-family: var(--font-display);
-  font-size: 20px;
-  color: var(--sb-text);
-  letter-spacing: 2px;
-  line-height: 1;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
 }
-
 .sidebar__brand-sub {
   font-family: var(--font-mono);
-  font-size: 8px;
-  letter-spacing: 3px;
-  color: var(--sb-text3);
-  text-transform: uppercase;
-  margin-top: 3px;
+  font-size: 0.65rem;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
 }
 
-/* ================================================================
-   NAV  –  scrollable section
-   ================================================================ */
+/* ── User info ── */
+.sidebar__user-info {
+  padding: 14px 20px 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.sidebar__user-role    { color: var(--primary-light); }
+.sidebar__user-divider { color: var(--text-muted); }
+.sidebar__user-school  { color: var(--text-primary); font-weight: 600; }
+
+/* ── Nav ── */
 .sidebar__nav {
   flex: 1;
-  padding: 10px 10px 6px;
+  padding: 20px 16px;
   overflow-y: auto;
-  overflow-x: hidden;
-  /* Thin scrollbar */
-  scrollbar-width: thin;
-  scrollbar-color: rgba(79, 110, 247, 0.2) transparent;
 }
-
-.sidebar__nav::-webkit-scrollbar {
-  width: 4px;
-}
-
-.sidebar__nav::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.sidebar__nav::-webkit-scrollbar-thumb {
-  background: rgba(79, 110, 247, 0.22);
-  border-radius: 4px;
-}
-
-/* Section label */
 .sidebar__nav-label {
-  display: block;
-  padding: 12px 10px 5px;
   font-family: var(--font-mono);
-  font-size: 8.5px;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  color: var(--sb-text3);
-  user-select: none;
-}
-
-/* Nav item button */
-.sidebar__nav-item {
-  /* Reset */
-  appearance: none;
-  border: none;
-  background: none;
-  cursor: pointer;
-
-  /* Layout */
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  border-radius: var(--sb-radius);
-  margin-bottom: 2px;
-  text-align: left;
-
-  /* Type */
-  font-family: var(--font-body);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--sb-text2);
-
-  /* Motion */
-  transition:
-    background var(--sb-transition),
-    color var(--sb-transition),
-    transform var(--sb-transition);
-
-  /* Overflow guard */
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sidebar__nav-item svg {
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  opacity: 0.68;
-  transition: opacity var(--sb-transition);
-}
-
-/* span carries the label text */
-.sidebar__nav-item span:not(.sidebar__nav-badge) {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Hover */
-.sidebar__nav-item:hover {
-  background: var(--sb-accent-pale);
-  color: rgba(255, 255, 255, 0.88);
-  transform: translateX(2px);
-}
-
-.sidebar__nav-item:hover svg {
-  opacity: 1;
-}
-
-/* Active */
-.sidebar__nav-item--active {
-  background: linear-gradient(
-    135deg,
-    rgba(79, 110, 247, 0.82),
-    rgba(79, 110, 247, 0.6)
-  );
-  color: #fff;
-  box-shadow:
-    0 4px 18px rgba(79, 110, 247, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  transform: none;
-}
-
-.sidebar__nav-item--active svg {
-  opacity: 1;
-}
-
-/* Active – no further hover shift */
-.sidebar__nav-item--active:hover {
-  transform: none;
-  background: linear-gradient(
-    135deg,
-    rgba(79, 110, 247, 0.88),
-    rgba(79, 110, 247, 0.68)
-  );
-}
-
-/* Focus ring (keyboard nav) */
-.sidebar__nav-item:focus-visible {
-  outline: 2px solid var(--sb-accent-lt);
-  outline-offset: 2px;
-}
-
-/* Badge (e.g. "NEW" or counts) */
-.sidebar__nav-badge {
-  margin-left: auto;
-  flex-shrink: 0;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 500;
-  padding: 2px 7px;
-  border-radius: 6px;
-  background: rgba(34, 211, 222, 0.13);
-  color: var(--sb-teal-lt);
-  border: 1px solid rgba(34, 211, 222, 0.18);
-  letter-spacing: 0.5px;
-}
-
-/* ================================================================
-   FOOTER  –  school card + sign out
-   ================================================================ */
-.sidebar__footer {
-  flex-shrink: 0;
-  padding: 10px 12px 12px;
-  border-top: 1px solid var(--sb-border);
-}
-
-.sidebar__school-card {
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid var(--sb-border);
-  border-radius: var(--sb-radius);
-  padding: 12px 12px 10px;
-}
-
-.sidebar__school-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.sidebar__school-avatar {
-  width: 34px;
-  height: 34px;
-  flex-shrink: 0;
-  background: linear-gradient(135deg, var(--sb-accent), #6b86ff);
-  border-radius: var(--sb-radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-size: 13px;
-  color: #fff;
-  letter-spacing: 1px;
-}
-
-.sidebar__school-name {
-  font-size: 12px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.82);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sidebar__school-meta {
-  font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 0.65rem;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: var(--sb-text3);
-  margin-top: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  padding-left: 12px;
+  display: block;
+}
+.sidebar__nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sidebar__nav-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: var(--radius-lg);
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-left: 3px solid transparent;
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  text-align: left;
+  min-height: 42px;
+}
+.sidebar__nav-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.sidebar__nav-icon svg { width: 20px; height: 20px; stroke: currentColor; }
+.sidebar__nav-text { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar__nav-item:hover { background: var(--primary-pale); color: var(--primary-light); }
+.sidebar__nav-item--active {
+  background: var(--primary-dim);
+  color: var(--primary);
+  border-left-color: var(--primary);
+}
+.sidebar__nav-badge {
+  margin-left: auto;
+  background: var(--primary);
+  color: white;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 40px;
+  flex-shrink: 0;
 }
 
-/* Sign out button */
+/* ── Footer ── */
+.sidebar__footer {
+  margin-top: auto;
+  padding: 16px 16px 20px;
+  border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+.sidebar__weather {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  justify-content: space-between;
+  background: var(--surface);
+  border-radius: var(--radius-xl);
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.sidebar__weather-temp { font-weight: 700; color: var(--primary-light); }
+.sidebar__weather-condition::before { content: "☀️"; margin-right: 4px; }
+.sidebar__weather-time,
+.sidebar__weather-date { font-family: var(--font-mono); font-size: 0.7rem; }
 .sidebar__signout {
-  /* Reset */
-  appearance: none;
-  border: none;
-  background: none;
-  cursor: pointer;
-
-  /* Layout */
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border-radius: var(--sb-radius-sm);
-
-  /* Type */
+  gap: 10px;
+  padding: 10px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   font-family: var(--font-body);
-  font-size: 12px;
+  font-size: 0.8rem;
   font-weight: 500;
-  color: var(--sb-danger);
-
-  /* Motion */
-  transition:
-    background var(--sb-transition),
-    color var(--sb-transition);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  min-height: 40px;
 }
-
-.sidebar__signout svg {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-
+.sidebar__signout svg { width: 18px; height: 18px; }
 .sidebar__signout:hover {
-  background: var(--sb-danger-hover-bg);
-  color: var(--sb-danger-hover);
+  background: var(--danger-pale);
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
-.sidebar__signout:focus-visible {
-  outline: 2px solid var(--sb-danger-hover);
-  outline-offset: 2px;
-}
-
-/* ================================================================
-   UTILITY
-   ================================================================ */
-.truncate {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-/* ================================================================
-   RESPONSIVE  –  tablet + mobile drawer behaviour
-   ================================================================ */
-
-/* ── Tablet (≤ 1024px): narrow sidebar, icon-only ── */
-@media (max-width: 1024px) {
-  :root {
-    --sb-width: 68px;
-  }
-
-  .sidebar__brand-name,
-  .sidebar__brand-sub,
-  .sidebar__nav-label,
-  .sidebar__school-name,
-  .sidebar__school-meta,
-  .sidebar__nav-badge {
-    display: none;
-  }
-
-  .sidebar__header {
-    justify-content: center;
-    padding: 18px 0;
-  }
-
-  .sidebar__nav-item {
-    justify-content: center;
-    padding: 10px 0;
-  }
-
-  /* Hide text labels, keep icons */
-  .sidebar__nav-item span:not(.sidebar__nav-badge) {
-    display: none;
-  }
-
-  .sidebar__nav-item svg {
-    width: 20px;
-    height: 20px;
-    opacity: 0.75;
-  }
-
-  .sidebar__school-info {
-    justify-content: center;
-    margin-bottom: 8px;
-  }
-
-  .sidebar__school-avatar {
-    margin: 0 auto;
-  }
-
-  .sidebar__signout {
-    padding: 8px 0;
-  }
-
-  .sidebar__signout span {
-    display: none;
-  }
-}
-
-/* ── Mobile (≤ 768px): off-canvas drawer ── */
-@media (max-width: 768px) {
-  :root {
-    --sb-width: 260px;
-  }
-
-  /* Show overlay as block so it can fade in */
-  .sidebar-overlay {
-    display: block;
-    pointer-events: none;
-  }
-
-  .sidebar-overlay--visible {
-    pointer-events: all;
-  }
-
-  /* Sidebar becomes a fixed drawer, off-screen by default */
-  .sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    height: 100dvh;        /* dynamic viewport height – handles mobile chrome */
-    transform: translateX(-100%);
-    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.28s ease;
-    box-shadow: none;
-  }
-
-  .sidebar--open {
-    transform: translateX(0);
-    box-shadow: 8px 0 40px rgba(4, 6, 14, 0.6);
-  }
-
-  /* Restore full labels on mobile drawer */
-  .sidebar__brand-name,
-  .sidebar__brand-sub,
-  .sidebar__nav-label,
-  .sidebar__school-name,
-  .sidebar__school-meta {
-    display: block;
-  }
-
-  .sidebar__nav-badge {
-    display: inline-flex;
-  }
-
-  .sidebar__header {
-    justify-content: flex-start;
-    padding: 20px 18px 16px;
-  }
-
-  .sidebar__nav-item {
-    justify-content: flex-start;
-    padding: 9px 12px;
-  }
-
-  .sidebar__nav-item span:not(.sidebar__nav-badge) {
-    display: inline;
-  }
-
-  .sidebar__nav-item svg {
-    width: 18px;
-    height: 18px;
-  }
-
-  .sidebar__school-info {
-    justify-content: flex-start;
-  }
-
-  .sidebar__school-avatar {
-    margin: 0;
-  }
-
-  .sidebar__signout {
-    padding: 7px 10px;
-  }
-
-  .sidebar__signout span {
-    display: inline;
-  }
-}
-
-/* ── Very small screens (≤ 380px): tighten spacing ── */
-@media (max-width: 380px) {
-  :root {
-    --sb-width: 240px;
-  }
-
-  .sidebar__header {
-    padding: 16px 14px 12px;
-  }
-
-  .sidebar__nav {
-    padding: 8px 8px 4px;
-  }
-
-  .sidebar__footer {
-    padding: 8px 10px 10px;
-  }
-}
-
-/* ================================================================
-   REDUCED MOTION  –  respect OS preference
-   ================================================================ */
-@media (prefers-reduced-motion: reduce) {
-  .sidebar,
-  .sidebar-overlay,
-  .sidebar__nav-item,
-  .sidebar__signout {
-    transition: none !important;
-  }
+@media (max-width: 400px) {
+  .sidebar__weather { flex-direction: column; align-items: center; text-align: center; gap: 4px; }
 }

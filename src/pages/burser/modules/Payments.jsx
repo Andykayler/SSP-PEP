@@ -461,17 +461,17 @@ export default function Payments({ schoolCode, bursarName }) {
             {!search && <Btn variant="gold" size="sm" onClick={() => openModal()}>{IC.plus} Record Payment</Btn>}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px]">
+          <div className="data-table-wrap">
+            <table className="data-table data-table--stack">
               <thead>
                 <tr className="border-b border-[#0F2044]/6 bg-app-bg/60">
-                  <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40">Student</th>
-                  <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden md:table-cell">Receipt</th>
-                  <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden sm:table-cell">Method</th>
-                  <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden lg:table-cell">Term</th>
-                  <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden lg:table-cell">Date</th>
-                  <th className="px-5 py-3.5 text-right text-[10px] font-bold tracking-widest uppercase text-app-text/40">Amount</th>
-                  <th className="px-5 py-3.5 text-center text-[10px] font-bold tracking-widest uppercase text-app-text/40 w-20">Again</th>
+                  <th>Student</th>
+                  <th>Receipt</th>
+                  <th>Method</th>
+                  <th>Term</th>
+                  <th>Date</th>
+                  <th>Amount</th>
+                  <th>Again</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#0F2044]/5">
@@ -479,7 +479,7 @@ export default function Payments({ schoolCode, bursarName }) {
                   const student = students.find(s => s.id === p.studentId);
                   return (
                     <tr key={p.id} className="hover:bg-app-bg/60 transition-colors">
-                      <td className="px-5 py-3.5">
+                      <td className="px-5 py-3.5" data-label="Student">
                         <div className="flex items-center gap-3">
                           <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${avatarColor(p.studentName)}`}>
                             {initials(p.studentName)}
@@ -490,21 +490,21 @@ export default function Payments({ schoolCode, bursarName }) {
                           </div>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 hidden md:table-cell">
+                      <td className="px-5 py-3.5 hidden md:table-cell" data-label="Receipt">
                         <span className="font-mono text-xs bg-app-bg text-app-text/60 px-2 py-1 rounded-lg">{p.receiptNo}</span>
                       </td>
-                      <td className="px-5 py-3.5 hidden sm:table-cell">
+                      <td className="px-5 py-3.5 hidden sm:table-cell" data-label="Method">
                         <span className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-semibold ${METHOD_BADGE[p.method] || "bg-gray-100 text-gray-600"}`}>
                           {p.method}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-xs text-app-text/55 hidden lg:table-cell">{p.term}</td>
-                      <td className="px-5 py-3.5 text-xs text-app-text/55 hidden lg:table-cell">{p.paymentDate}</td>
-                      <td className="px-5 py-3.5 text-right">
+                      <td className="px-5 py-3.5 text-xs text-app-text/55 hidden lg:table-cell" data-label="Term">{p.term}</td>
+                      <td className="px-5 py-3.5 text-xs text-app-text/55 hidden lg:table-cell" data-label="Date">{p.paymentDate}</td>
+                      <td className="px-5 py-3.5 text-right" data-label="Amount">
                         <span className="text-sm font-bold text-emerald-700">{fmt(p.amount)}</span>
                       </td>
                       {/* "Again" quick button: opens modal pre-selected for same student */}
-                      <td className="px-5 py-3.5 text-center">
+                      <td className="px-5 py-3.5 text-center" data-label="Again">
                         {student && (
                           <button
                             onClick={() => openModal(student)}

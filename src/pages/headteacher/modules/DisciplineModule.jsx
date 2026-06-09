@@ -1,20 +1,20 @@
-// modules/DisciplineModule.jsx  (Head Teacher / Admin view)
-// Reads live Firestore discipline_cases written by teachers via the teacher DisciplineModule.
-
+// modules/DisciplineModule.jsx
 import { useState, useEffect, useCallback } from "react";
 import { db } from "../../../firebase";
 import {
   collection, query, where, getDocs, doc, updateDoc, deleteDoc,
 } from "firebase/firestore";
 import {
-  Plus, Eye, RefreshCw, Search, AlertCircle, Loader2,
+  Eye, RefreshCw, AlertCircle, Loader2,
   ChevronDown, X, ShieldAlert, CheckCircle, Trash2,
+  BarChart3, UserX, ClipboardList, Search,
 } from "lucide-react";
+import "./staff-management.css";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function Spinner({ size = 20 }) {
-  return <Loader2 size={size} className="animate-spin text-app-text/40 inline-block" />;
+  return <div className="spinner" style={{ width: size, height: size }} />;
 }
 
 function initials(name = "") {
@@ -28,66 +28,102 @@ function fmtDate(dateStr) {
 }
 
 const SEVERITY_CONFIG = {
-  Low:    { bg: "bg-emerald-100", text: "text-emerald-700", dot: "bg-emerald-500" },
-  Medium: { bg: "bg-amber-100",   text: "text-amber-700",   dot: "bg-amber-500"   },
-  High:   { bg: "bg-red-100",     text: "text-red-700",     dot: "bg-red-500"     },
-  // Legacy labels from older records
-  Minor:  { bg: "bg-amber-100",   text: "text-amber-700",   dot: "bg-amber-400"   },
-  Serious:{ bg: "bg-red-100",     text: "text-red-700",     dot: "bg-red-500"     },
+  Low:    { variant: "success", label: "Low" },
+  Medium: { variant: "warning", label: "Medium" },
+  High:   { variant: "danger",  label: "High" },
+  Minor:  { variant: "warning", label: "Minor" },
+  Serious:{ variant: "danger",  label: "Serious" },
 };
 
-// ─── Detail Modal ─────────────────────────────────────────────────────────────
+function KpiCard({ label, value, sub, icon: Icon, accent = "neutral", loading }) {
+  let accentClass = "";
+  let valueClass = "stat-card__value";
+  switch (accent) {
+    case "success":
+      accentClass = "stat-card--success";
+      valueClass += " stat-card__value--success";
+      break;
+    case "warning":
+      accentClass = "stat-card--warning";
+      valueClass += " stat-card__value--warning";
+      break;
+    case "danger":
+      accentClass = "stat-card--danger";
+      valueClass += " stat-card__value--danger";
+      break;
+    case "info":
+      accentClass = "stat-card--info";
+      valueClass += " stat-card__value--info";
+      break;
+    default:
+      accentClass = "";
+  }
+  return (
+    <div className={`stat-card ${accentClass}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="stat-card__label">{label}</div>
+          <div className={valueClass}>
+            {loading ? <Spinner size={22} /> : value}
+          </div>
+          {sub && <div className="stat-card__sub">{sub}</div>}
+        </div>
+        {Icon && <Icon size={24} className="text-muted shrink-0" />}
+      </div>
+    </div>
+  );
+}
 
+function ResolutionBar({ resolved, total }) {
+  const pct = total > 0 ? Math.round((resolved / total) * 100) : 0;
+  return (
+    <div className="space-y-1">
+      <div className="h-2 w-full bg-primary-dim rounded-full overflow-hidden">
+        <div className="h-full bg-success rounded-full transition-all" style={{ width: `${pct}%` }} />
+      </div>
+      <p className="text-[10px] text-muted">{pct}% resolution rate</p>
+    </div>
+  );
+}
+
+// ─── Detail Modal ─────────────────────────────────────────────────────────────
 function RecordModal({ record, onClose, onMarkResolved, onDelete }) {
   const sev = SEVERITY_CONFIG[record.severity] || SEVERITY_CONFIG.Medium;
   const resolved = record.status?.toLowerCase().includes("resolved");
-
   return (
-    <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="bg-app-surface rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
-        {/* Modal header */}
-        <div className="bg-app-primary px-7 py-5 flex items-start justify-between gap-4">
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-container" style={{ maxWidth: "480px" }}>
+        <div className="modal-header">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-app-surface/10 flex items-center justify-center text-sm font-bold text-white">
+            <div className="w-10 h-10 rounded-xl bg-surface flex items-center justify-center text-sm font-bold text-app-text">
               {initials(record.studentName || "?")}
             </div>
             <div>
-              <h3 className="text-white font-bold text-lg leading-tight">
-                {record.studentName || "—"}
-              </h3>
-              <p className="text-white/50 text-xs mt-0.5">
-                {record.className} · {record.date}
-              </p>
+              <h3>{record.studentName || "—"}</h3>
+              <p className="text-muted text-xs">{record.className} · {record.date}</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors p-1">
-            <X size={20} />
+          <button onClick={onClose} className="modal-close">
+            <X size={18} />
           </button>
         </div>
 
-        <div className="p-7 space-y-5">
-          {/* Severity + Status */}
+        <div className="modal-body space-y-5">
           <div className="flex items-center gap-3 flex-wrap">
-            <span className={`inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl ${sev.bg} ${sev.text}`}>
-              <span className={`w-2 h-2 rounded-full ${sev.dot}`} />
+            <span className={`status-pill status-pill--${sev.variant}`}>
               {record.severity} Severity
             </span>
-            <span className={`text-sm font-semibold px-3 py-1.5 rounded-xl ${resolved ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+            <span className={`status-pill ${resolved ? "status-pill--success" : "status-pill--warning"}`}>
               {record.status || "Pending Review"}
             </span>
           </div>
 
-          {/* Offense */}
-          <div className="p-4 bg-app-bg rounded-2xl border border-app-border">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40 mb-1.5">Offense / Incident</p>
+          <div className="p-4 bg-app-bg rounded-xl border border-app-border">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-1">Offense / Incident</p>
             <p className="text-sm text-app-text font-medium">{record.offense}</p>
           </div>
 
-          {/* Details grid */}
-          <div className="grid grid-cols-2 gap-px bg-app-primary/5 rounded-2xl overflow-hidden text-sm">
+          <div className="grid grid-cols-2 gap-px bg-primary-dim rounded-xl overflow-hidden text-sm">
             {[
               ["Student Code", record.studentCode || "—"],
               ["Class",        record.className   || "—"],
@@ -95,27 +131,23 @@ function RecordModal({ record, onClose, onMarkResolved, onDelete }) {
               ["Reported By",  record.reportedBy  || "Teacher"],
               ["Parent Notified", record.parentNotified ? "Yes" : "No"],
             ].map(([k, v]) => (
-              <div key={k} className="bg-app-surface px-4 py-3">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-app-text/40 mb-0.5">{k}</p>
+              <div key={k} className="bg-card-bg px-4 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted mb-0.5">{k}</p>
                 <p className="font-medium text-app-text">{v}</p>
               </div>
             ))}
           </div>
 
-          {/* Action */}
-          <div className="p-4 bg-app-bg rounded-2xl border border-app-border">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40 mb-1.5">Action Taken / Recommended</p>
+          <div className="p-4 bg-app-bg rounded-xl border border-app-border">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-1">Action Taken / Recommended</p>
             <p className="text-sm text-app-text/70">{record.action || record.punishment || "—"}</p>
           </div>
 
-          {/* Head teacher actions */}
           <div className="flex gap-3 pt-1">
             <button
               onClick={() => onMarkResolved(record.id, record.status)}
-              className={`flex-1 py-3 rounded-2xl font-medium text-sm transition-all flex items-center justify-center gap-2 ${
-                resolved
-                  ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
-                  : "bg-emerald-600 text-white hover:bg-emerald-700"
+              className={`flex-1 py-3 rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-2 ${
+                resolved ? "btn--warning" : "btn--success"
               }`}
             >
               <CheckCircle size={14} />
@@ -123,13 +155,13 @@ function RecordModal({ record, onClose, onMarkResolved, onDelete }) {
             </button>
             <button
               onClick={() => { onDelete(record.id); onClose(); }}
-              className="px-4 py-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-2xl text-sm font-medium transition-all flex items-center gap-1.5"
+              className="px-4 py-3 bg-danger/10 hover:bg-danger/20 text-danger rounded-xl text-sm font-medium transition-all flex items-center gap-1.5"
             >
               <Trash2 size={14} /> Delete
             </button>
             <button
               onClick={onClose}
-              className="px-5 py-3 border border-app-border rounded-2xl hover:bg-app-bg text-sm font-medium transition-colors text-app-text/70"
+              className="px-5 py-3 border border-app-border rounded-xl hover:bg-surface text-sm font-medium transition-colors text-muted"
             >
               Close
             </button>
@@ -141,27 +173,25 @@ function RecordModal({ record, onClose, onMarkResolved, onDelete }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-
 export default function DisciplineModule({ schoolCode }) {
   const [classes,       setClasses]       = useState([]);
   const [records,       setRecords]       = useState([]);
   const [filterClassId, setFilterClassId] = useState("all");
   const [filterSeverity,setFilterSeverity]= useState("All");
   const [filterStatus,  setFilterStatus]  = useState("All");
+  const [filterDate,    setFilterDate]    = useState("");
   const [searchTerm,    setSearchTerm]    = useState("");
   const [viewRecord,    setViewRecord]    = useState(null);
   const [error,         setError]         = useState("");
 
   const [classesReady,  setClassesReady]  = useState(false);
   const [recordsReady,  setRecordsReady]  = useState(false);
-
   const isLoading = !classesReady || !recordsReady;
 
-  // ── Load all school classes ────────────────────────────────────────────────
+  // Load classes
   useEffect(() => {
     if (!schoolCode) return;
     let cancelled = false;
-
     (async () => {
       setClassesReady(false);
       setError("");
@@ -174,18 +204,16 @@ export default function DisciplineModule({ schoolCode }) {
           .map((d) => ({ id: d.id, ...d.data() }))
           .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
         setClasses(list);
-      } catch (err) {
-        if (cancelled) return;
-        setError("Could not load classes.");
+      } catch {
+        if (!cancelled) setError("Could not load classes.");
       } finally {
         if (!cancelled) setClassesReady(true);
       }
     })();
-
     return () => { cancelled = true; };
   }, [schoolCode]);
 
-  // ── Load discipline cases ──────────────────────────────────────────────────
+  // Load discipline cases
   const fetchRecords = useCallback(async () => {
     if (!schoolCode) return;
     setRecordsReady(false);
@@ -216,7 +244,6 @@ export default function DisciplineModule({ schoolCode }) {
     if (classesReady) fetchRecords();
   }, [fetchRecords, classesReady]);
 
-  // ── Mark resolved / re-open ────────────────────────────────────────────────
   async function handleMarkResolved(id, currentStatus) {
     const resolved = currentStatus?.toLowerCase().includes("resolved");
     const newStatus = resolved ? "Pending Review" : "Resolved";
@@ -226,299 +253,253 @@ export default function DisciplineModule({ schoolCode }) {
         prev.map((r) => r.id === id ? { ...r, status: newStatus } : r)
       );
       if (viewRecord?.id === id) setViewRecord((v) => ({ ...v, status: newStatus }));
-    } catch (err) {
+    } catch {
       setError("Failed to update status.");
     }
   }
 
-  // ── Delete ─────────────────────────────────────────────────────────────────
   async function handleDelete(id) {
     if (!window.confirm("Permanently delete this discipline record?")) return;
     try {
       await deleteDoc(doc(db, "discipline_cases", id));
       setRecords((prev) => prev.filter((r) => r.id !== id));
-    } catch (err) {
+    } catch {
       setError("Failed to delete record.");
     }
   }
 
-  // ── Derived stats ──────────────────────────────────────────────────────────
   const pendingCount  = records.filter((r) => !r.status?.toLowerCase().includes("resolved")).length;
   const resolvedCount = records.filter((r) =>  r.status?.toLowerCase().includes("resolved")).length;
   const highCount     = records.filter((r) => r.severity === "High" || r.severity === "Serious").length;
+  const suspendedCount = records.filter((r) => r.status?.toLowerCase().includes("suspend")).length;
+  const resolutionRate = records.length > 0 ? Math.round((resolvedCount / records.length) * 100) : 0;
 
-  // ── Filtered list ──────────────────────────────────────────────────────────
+  const hasActiveFilters = filterSeverity !== "All" || filterStatus !== "All" || filterDate || searchTerm;
+  const clearFilters = () => {
+    setFilterSeverity("All");
+    setFilterStatus("All");
+    setFilterDate("");
+    setSearchTerm("");
+  };
+
   const filtered = records.filter((r) => {
     const matchSev    = filterSeverity === "All" || r.severity === filterSeverity;
     const matchStatus = filterStatus   === "All"
       || (filterStatus === "Pending"  && !r.status?.toLowerCase().includes("resolved"))
       || (filterStatus === "Resolved" &&  r.status?.toLowerCase().includes("resolved"));
+    const matchDate   = !filterDate || r.date === filterDate;
     const matchSearch = !searchTerm
       || r.studentName?.toLowerCase().includes(searchTerm.toLowerCase())
       || r.offense?.toLowerCase().includes(searchTerm.toLowerCase())
       || r.studentCode?.toLowerCase().includes(searchTerm.toLowerCase())
       || r.className?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchSev && matchStatus && matchSearch;
+    return matchSev && matchStatus && matchDate && matchSearch;
   });
 
-  // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header */}
+      <div className="flex justify-between items-center">
         <div>
-          <h2
-            className="text-3xl font-bold text-app-text"
-            style={{ fontFamily: "'Playfair Display', serif" }}
-          >
-            Discipline Management
-          </h2>
-          <p className="text-app-text/60 mt-1">
-            Track behaviour · Log offenses · Parent notifications
-          </p>
+          <h2 style={{ fontFamily: "'Playfair Display', serif" }}>Behaviour Analytics</h2>
+          <p className="text-muted">Incident tracking · Severity insights · Resolution monitoring</p>
         </div>
         <button
           onClick={fetchRecords}
           disabled={isLoading}
-          className="p-2.5 bg-app-surface border border-app-border rounded-xl hover:bg-app-bg transition-colors text-app-text/60 disabled:opacity-40"
+          className="icon-btn"
           title="Refresh"
         >
           <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
         </button>
       </div>
 
-      {/* ── Error ────────────────────────────────────────────────────────────── */}
-      {error && (
-        <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl text-sm">
-          <AlertCircle size={16} className="shrink-0 mt-0.5" />
-          {error}
+      {error && <div className="error-message"><AlertCircle size={16} /> {error}</div>}
+
+      {/* KPI Cards */}
+      <div className="stats-grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <KpiCard label="Total Cases" value={records.length} icon={ClipboardList} accent="neutral" loading={isLoading} />
+        <KpiCard label="Open Cases" value={pendingCount} icon={AlertCircle} accent="warning" loading={isLoading} />
+        <KpiCard label="Resolved" value={resolvedCount} icon={CheckCircle} accent="success" loading={isLoading} />
+        <KpiCard label="Suspended" value={suspendedCount} icon={UserX} accent="danger" loading={isLoading} />
+        <KpiCard label="Resolution Rate" value={`${resolutionRate}%`} sub={`${highCount} high severity`} icon={BarChart3} accent="info" loading={isLoading} />
+      </div>
+
+      {!isLoading && records.length > 0 && (
+        <div className="card p-5">
+          <ResolutionBar resolved={resolvedCount} total={records.length} />
         </div>
       )}
 
-      {/* ── Summary cards ────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: "Total cases",    value: records.length, color: "text-app-text",   bg: "bg-app-surface border-app-border" },
-          { label: "Pending review", value: pendingCount,   color: "text-amber-600",   bg: "bg-amber-50 border-amber-100" },
-          { label: "Resolved",       value: resolvedCount,  color: "text-emerald-600", bg: "bg-emerald-50 border-emerald-100" },
-          { label: "High severity",  value: highCount,      color: "text-red-600",     bg: "bg-red-50 border-red-100" },
-        ].map(({ label, value, color, bg }) => (
-          <div key={label} className={`rounded-3xl p-6 border ${bg}`}>
-            <p className={`text-4xl font-bold ${color}`}>
-              {isLoading ? <Spinner size={22} /> : value}
-            </p>
-            <p className="text-xs text-app-text/50 mt-1">{label}</p>
+      {/* Filters toolbar – using .filter-bar for compact selects */}
+      <div className="card">
+        <div className="cc__head">
+          <div className="cc__head-left">
+            <ShieldAlert size={18} />
+            <h3>Discipline Cases</h3>
           </div>
-        ))}
-      </div>
-
-      {/* ── Filters ──────────────────────────────────────────────────────────── */}
-      <div className="bg-app-surface rounded-3xl p-5 border border-app-border flex flex-col md:flex-row gap-4 items-end">
-        {/* Search */}
-        <div className="flex-1 relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-app-text/40 w-4 h-4" />
-          <input
-            type="text"
-            placeholder="Search student, offense, class…"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-11 pr-4 py-3 bg-[#FAFAF8] border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/30"
-          />
-        </div>
-
-        {/* Class filter */}
-        <div className="relative">
-          <select
-            value={filterClassId}
-            onChange={(e) => setFilterClassId(e.target.value)}
-            disabled={isLoading}
-            className="appearance-none pl-4 pr-10 py-3 bg-app-surface border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text min-w-[160px] disabled:opacity-50"
-          >
-            <option value="all">All classes</option>
-            {classes.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
-        </div>
-
-        {/* Severity filter */}
-        <div className="flex gap-2 flex-wrap">
-          {["All", "Low", "Medium", "High"].map((s) => (
-            <button
-              key={s}
-              onClick={() => setFilterSeverity(s)}
-              className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition-colors ${
-                filterSeverity === s
-                  ? "bg-app-primary text-white border-[#0F2044]"
-                  : "border-app-border text-app-text/60 hover:border-[#0F2044]/30"
-              }`}
-            >
-              {s}
+          {hasActiveFilters && (
+            <button onClick={clearFilters} className="cc__view">
+              Clear filters
             </button>
-          ))}
+          )}
         </div>
-
-        {/* Status filter */}
-        <div className="flex gap-2 flex-wrap">
-          {["All", "Pending", "Resolved"].map((s) => (
-            <button
-              key={s}
-              onClick={() => setFilterStatus(s)}
-              className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition-colors ${
-                filterStatus === s
-                  ? "bg-app-primary text-white border-[#0F2044]"
-                  : "border-app-border text-app-text/60 hover:border-[#0F2044]/30"
-              }`}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Table ────────────────────────────────────────────────────────────── */}
-      <div className="bg-app-surface rounded-3xl border border-app-border overflow-hidden">
-        <div className="px-6 py-4 bg-app-bg border-b border-app-border flex justify-between items-center">
-          <h3 className="font-semibold text-app-text text-sm">All Discipline Records</h3>
-          <span className="text-xs text-app-text/50">
-            {isLoading ? "Loading…" : `${filtered.length} case${filtered.length !== 1 ? "s" : ""}`}
-          </span>
-        </div>
-
-        {isLoading ? (
-          <div className="py-24 flex flex-col items-center gap-3 text-app-text/40">
-            <Spinner size={28} />
-            <p className="text-sm">Loading discipline records…</p>
+        <div className="cc__body">
+          <div className="filter-bar">
+            <div className="search-wrapper">
+              <Search size={14} className="search-icon" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search student, offense, class…"
+                className="search-input"
+              />
+            </div>
+            <div className="relative">
+              <select
+                value={filterClassId}
+                onChange={(e) => setFilterClassId(e.target.value)}
+                disabled={isLoading}
+                className="field__select"
+              >
+                <option value="all">All classes</option>
+                {classes.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+            </div>
+            <input
+              type="date"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              className="search-input"  // reuse compact input style
+              style={{ padding: "8px 12px", width: "auto" }}
+            />
+            <select value={filterSeverity} onChange={(e) => setFilterSeverity(e.target.value)} className="field__select">
+              {["All", "Low", "Medium", "High"].map((s) => (
+                <option key={s} value={s}>{s === "All" ? "All severity" : s}</option>
+              ))}
+            </select>
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="field__select">
+              {["All", "Pending", "Resolved"].map((s) => (
+                <option key={s} value={s}>{s === "All" ? "All status" : s}</option>
+              ))}
+            </select>
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="py-24 flex flex-col items-center gap-3 text-app-text/30">
-            <ShieldAlert size={36} />
-            <p className="text-sm font-medium text-app-text/40">
-              {records.length === 0
-                ? "No discipline cases have been logged yet."
-                : "No records match your filters."}
+
+          {isLoading ? (
+            <div className="empty-state py-12">
+              <Spinner size={28} />
+              <p className="empty-state__sub">Loading discipline records…</p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <TableEmpty
+              icon={<ShieldAlert size={32} />}
+              title={records.length === 0 ? "No discipline cases yet" : "No matching records"}
+              description={records.length === 0
+                ? "Cases logged by teachers will appear here for review."
+                : "Try adjusting your filters or search term."}
+            />
+          ) : (
+            <div className="data-table-wrap">
+              <table className="data-table data-table--stack">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Student</th>
+                    <th>Class</th>
+                    <th>Incident</th>
+                    <th>Severity</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((record) => {
+                    const sev = SEVERITY_CONFIG[record.severity] || SEVERITY_CONFIG.Medium;
+                    const resolved = record.status?.toLowerCase().includes("resolved");
+                    const isCritical = record.severity === "High" || record.severity === "Serious";
+                    return (
+                      <tr key={record.id} className={isCritical ? "bg-danger/5" : ""}>
+                        <td data-label="Date" className="text-muted font-mono text-xs">
+                          {fmtDate(record.date)}
+                        </td>
+                        <td data-label="Student">
+                          <div className="flex items-center gap-3">
+                            <div className="assignment-avatar" style={{ width: 36, height: 36 }}>
+                              {initials(record.studentName || "?")}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-app-text">{record.studentName || "—"}</div>
+                              {record.studentCode && (
+                                <div className="text-muted text-[10px] font-mono">{record.studentCode}</div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td data-label="Class" className="text-muted">{record.className || "—"}</td>
+                        <td data-label="Incident">
+                          <div className="text-sm text-app-text/70 truncate max-w-xs">{record.offense}</div>
+                          {record.reportedBy && (
+                            <div className="text-[10px] text-muted mt-0.5">Reported by {record.reportedBy}</div>
+                          )}
+                        </td>
+                        <td data-label="Severity" className="text-center">
+                          <span className={`status-pill status-pill--${sev.variant}`}>
+                            {record.severity || "Medium"}
+                          </span>
+                        </td>
+                        <td data-label="Status" className="text-center">
+                          <span className={`status-pill ${resolved ? "status-pill--success" : record.status?.toLowerCase().includes("suspend") ? "status-pill--danger" : "status-pill--warning"}`}>
+                            {record.status || "Pending Review"}
+                          </span>
+                        </td>
+                        <td data-label="Actions">
+                          <div className="flex justify-center gap-2">
+                            <button
+                              onClick={() => setViewRecord(record)}
+                              className="icon-btn icon-btn--assign"
+                              title="View"
+                            >
+                              <Eye size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleMarkResolved(record.id, record.status)}
+                              className={`tag ${resolved ? "tag--neutral" : "tag--green"}`}
+                            >
+                              {resolved ? "Re-open" : "Resolve"}
+                            </button>
+                            <button
+                              onClick={() => handleDelete(record.id)}
+                              className="tag tag--red"
+                              title="Delete"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="cc__head border-t mt-4">
+            <p className="text-muted text-[10px]">
+              Showing {filtered.length} of {records.length} cases
             </p>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-app-bg border-b border-app-border">
-                <tr>
-                  {[
-                    ["Date",      "text-left",   "hidden md:table-cell"],
-                    ["Student",   "text-left",   ""],
-                    ["Class",     "text-left",   "hidden lg:table-cell"],
-                    ["Offense",   "text-left",   "hidden sm:table-cell"],
-                    ["Severity",  "text-center", ""],
-                    ["Status",    "text-center", ""],
-                    ["Actions",   "text-center", ""],
-                  ].map(([label, align, hidden]) => (
-                    <th
-                      key={label}
-                      className={`px-5 py-3.5 ${align} text-[10px] font-bold tracking-widest uppercase text-app-text/40 ${hidden}`}
-                    >
-                      {label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#0F2044]/5">
-                {filtered.map((record) => {
-                  const sev      = SEVERITY_CONFIG[record.severity] || SEVERITY_CONFIG.Medium;
-                  const resolved = record.status?.toLowerCase().includes("resolved");
-
-                  return (
-                    <tr key={record.id} className="hover:bg-[#FAFAF8] transition-colors">
-
-                      {/* Date */}
-                      <td className="px-5 py-4 hidden md:table-cell text-sm text-app-text/60 font-mono whitespace-nowrap">
-                        {fmtDate(record.date)}
-                      </td>
-
-                      {/* Student */}
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-app-primary/8 text-app-text/60 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                            {initials(record.studentName || "?")}
-                          </div>
-                          <div>
-                            <div className="text-sm font-semibold text-app-text">{record.studentName || "—"}</div>
-                            {record.studentCode && (
-                              <div className="text-xs text-app-text/40 font-mono">{record.studentCode}</div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Class */}
-                      <td className="px-5 py-4 hidden lg:table-cell text-sm text-app-text/60">
-                        {record.className || "—"}
-                      </td>
-
-                      {/* Offense */}
-                      <td className="px-5 py-4 hidden sm:table-cell text-sm text-app-text/70 max-w-xs truncate">
-                        {record.offense}
-                      </td>
-
-                      {/* Severity */}
-                      <td className="px-5 py-4 text-center">
-                        <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg ${sev.bg} ${sev.text}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${sev.dot}`} />
-                          {record.severity}
-                        </span>
-                      </td>
-
-                      {/* Status */}
-                      <td className="px-5 py-4 text-center">
-                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${resolved ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-                          {record.status || "Pending Review"}
-                        </span>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-5 py-4">
-                        <div className="flex justify-center gap-2">
-                          <button
-                            onClick={() => setViewRecord(record)}
-                            className="flex items-center gap-1 text-xs bg-app-primary/5 hover:bg-app-primary/10 text-app-text/70 hover:text-app-text px-3 py-2 rounded-xl transition-colors"
-                          >
-                            <Eye size={13} /> View
-                          </button>
-                          <button
-                            onClick={() => handleMarkResolved(record.id, record.status)}
-                            className={`text-xs px-3 py-2 rounded-xl font-medium transition-colors ${
-                              resolved
-                                ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
-                                : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                            }`}
-                          >
-                            {resolved ? "Re-open" : "Resolve"}
-                          </button>
-                          <button
-                            onClick={() => handleDelete(record.id)}
-                            className="flex items-center gap-1 text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-2 rounded-xl transition-colors"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        </div>
       </div>
 
-      <p className="text-center text-xs text-app-text/40 pt-1">
+      <p className="text-center text-xs text-muted pt-1">
         Showing all discipline cases submitted by teachers across the school.
         Use the filters above to narrow by class, severity, or status.
       </p>
 
-      {/* ── Detail modal ─────────────────────────────────────────────────────── */}
       {viewRecord && (
         <RecordModal
           record={viewRecord}
@@ -527,6 +508,17 @@ export default function DisciplineModule({ schoolCode }) {
           onDelete={handleDelete}
         />
       )}
+    </div>
+  );
+}
+
+// Helper component for empty state
+function TableEmpty({ icon, title, description }) {
+  return (
+    <div className="empty-state py-12">
+      <div className="empty-state__icon">{icon}</div>
+      <div className="empty-state__title">{title}</div>
+      <div className="empty-state__sub">{description}</div>
     </div>
   );
 }

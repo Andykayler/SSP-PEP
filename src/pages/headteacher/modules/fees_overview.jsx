@@ -177,42 +177,43 @@ export default function FeesOverview() {
 
       {/* Fees Table */}
       <div className="bg-app-surface rounded-3xl overflow-hidden border border-app-border">
-        <table className="w-full">
+        <div className="data-table-wrap">
+<table className="data-table data-table--stack">
           <thead className="bg-app-bg">
             <tr>
-              <th className="text-left p-6">Adm. No.</th>
-              <th className="text-left p-6">Student Name</th>
-              <th className="text-left p-6">Form</th>
-              <th className="text-center p-6">Boarding</th>
-              <th className="text-right p-6">Total Due (MK)</th>
-              <th className="text-right p-6">Paid (MK)</th>
-              <th className="text-right p-6">Balance (MK)</th>
-              <th className="text-center p-6">Last Payment</th>
-              <th className="text-center p-6">Method</th>
-              <th className="text-center p-6">Status</th>
+              <th>Adm. No.</th>
+              <th>Student Name</th>
+              <th>Form</th>
+              <th>Boarding</th>
+              <th>Total Due (MK)</th>
+              <th>Paid (MK)</th>
+              <th>Balance (MK)</th>
+              <th>Last Payment</th>
+              <th>Method</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#0F2044]/5">
             {filteredFees.map((student) => (
               <tr key={student.id} className="hover:bg-app-bg/70 transition-colors">
-                <td className="p-6 font-mono text-sm">{student.id}</td>
-                <td className="p-6 font-medium">{student.name}</td>
-                <td className="p-6">{student.form}</td>
-                <td className="p-6 text-center">
+                <td className="p-6 font-mono text-sm" data-label="Adm. No.">{student.id}</td>
+                <td className="p-6 font-medium" data-label="Student Name">{student.name}</td>
+                <td className="p-6" data-label="Form">{student.form}</td>
+                <td className="p-6 text-center" data-label="Boarding">
                   <span className={`inline-block px-4 py-1 rounded-full text-xs ${student.boarding ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
                     {student.boarding ? "Yes" : "Day"}
                   </span>
                 </td>
-                <td className="p-6 text-right font-medium">MK {student.totalDue.toLocaleString()}</td>
-                <td className="p-6 text-right font-medium text-emerald-600">MK {student.amountPaid.toLocaleString()}</td>
-                <td className="p-6 text-right font-medium">
+                <td className="p-6 text-right font-medium" data-label="Total Due (MK)">MK {student.totalDue.toLocaleString()}</td>
+                <td className="p-6 text-right font-medium text-emerald-600" data-label="Paid (MK)">MK {student.amountPaid.toLocaleString()}</td>
+                <td className="p-6 text-right font-medium" data-label="Balance (MK)">
                   <span className={student.balance > 0 ? "text-red-600" : "text-emerald-600"}>
                     MK {student.balance.toLocaleString()}
                   </span>
                 </td>
-                <td className="p-6 text-center text-sm text-app-text/70">{student.lastPayment}</td>
-                <td className="p-6 text-center text-sm">{student.paymentMethod}</td>
-                <td className="p-6 text-center">
+                <td className="p-6 text-center text-sm text-app-text/70" data-label="Last Payment">{student.lastPayment}</td>
+                <td className="p-6 text-center text-sm" data-label="Method">{student.paymentMethod}</td>
+                <td className="p-6 text-center" data-label="Status">
                   <span className={`inline-block px-5 py-1 rounded-full text-xs font-medium
                     ${student.status === "Paid" ? "bg-emerald-100 text-emerald-700" : 
                       student.status === "Partial" ? "bg-amber-100 text-amber-700" : 
@@ -224,6 +225,7 @@ export default function FeesOverview() {
             ))}
           </tbody>
         </table>
+</div>
       </div>
 
       {/* Quick Actions for Bursar */}

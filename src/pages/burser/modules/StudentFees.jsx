@@ -168,7 +168,8 @@ function FeePreviewRows({ studentIds, students, feeStructures, studentFees, assi
           {fees.length === 0 ? (
             <div className="px-4 py-2 text-xs text-app-text/40">All fees already assigned.</div>
           ) : (
-            <table className="w-full text-xs">
+            <div className="data-table-wrap">
+<table className="data-table data-table--stack">
               <tbody>
                 {fees.map(fee => (
                   <tr key={fee.id} className="border-t border-[#0F2044]/5">
@@ -179,6 +180,7 @@ function FeePreviewRows({ studentIds, students, feeStructures, studentFees, assi
                 ))}
               </tbody>
             </table>
+</div>
           )}
         </div>
       ))}
@@ -501,11 +503,11 @@ export default function StudentFees({ schoolCode, schoolName }) {
             <p className="text-sm text-app-text/35">Try adjusting your search or filters.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px]">
+          <div className="data-table-wrap">
+            <table className="data-table data-table--stack">
               <thead>
                 <tr className="border-b border-[#0F2044]/6 bg-app-bg/60">
-                  <th className="px-5 py-3.5 w-10">
+                  <th>
                     <input
                       type="checkbox"
                       checked={allFilteredSelected}
@@ -513,13 +515,13 @@ export default function StudentFees({ schoolCode, schoolName }) {
                       className="rounded border-[#0F2044]/30 accent-[#0F2044] cursor-pointer"
                     />
                   </th>
-                  <th className="px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider text-app-text/40">Student</th>
-                  <th className="px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider text-app-text/40 hidden md:table-cell">Class</th>
-                  <th className="px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider text-app-text/40 hidden lg:table-cell">Terms Assigned</th>
-                  <th className="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-app-text/40">Charged</th>
-                  <th className="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-app-text/40">Paid</th>
-                  <th className="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-app-text/40">Balance</th>
-                  <th className="px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-app-text/40">Status</th>
+                  <th>Student</th>
+                  <th>Class</th>
+                  <th>Terms Assigned</th>
+                  <th>Charged</th>
+                  <th>Paid</th>
+                  <th>Balance</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#0F2044]/5">
@@ -533,7 +535,7 @@ export default function StudentFees({ schoolCode, schoolName }) {
                       className={`transition-colors ${isSelected ? "bg-app-primary/3" : "hover:bg-app-bg/60"}`}
                     >
                       {/* Checkbox */}
-                      <td className="px-5 py-4 w-10">
+                      <td className="px-5 py-4 w-10" data-label="Field">
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -543,7 +545,7 @@ export default function StudentFees({ schoolCode, schoolName }) {
                       </td>
 
                       {/* Student */}
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-4" data-label="Student">
                         <div className="flex items-center gap-3">
                           <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 ${avatarColor(s.fullName)}`}>
                             {initials(s.fullName)}
@@ -556,12 +558,12 @@ export default function StudentFees({ schoolCode, schoolName }) {
                       </td>
 
                       {/* Class */}
-                      <td className="px-4 py-4 text-sm text-app-text/55 hidden md:table-cell">
+                      <td className="px-4 py-4 text-sm text-app-text/55 hidden md:table-cell" data-label="Class">
                         {s.className || <span className="text-app-text/25">—</span>}
                       </td>
 
                       {/* Terms Assigned */}
-                      <td className="px-4 py-4 hidden lg:table-cell">
+                      <td className="px-4 py-4 hidden lg:table-cell" data-label="Terms Assigned">
                         <div className="flex flex-wrap gap-1">
                           {s.assignedTerms.length === 0
                             ? <span className="text-xs text-app-text/25">None</span>
@@ -573,20 +575,20 @@ export default function StudentFees({ schoolCode, schoolName }) {
                       </td>
 
                       {/* Financials */}
-                      <td className="px-4 py-4 text-right">
+                      <td className="px-4 py-4 text-right" data-label="Charged">
                         <span className="text-sm font-medium text-app-text/70">{fmt(s.totalCharged)}</span>
                       </td>
-                      <td className="px-4 py-4 text-right">
+                      <td className="px-4 py-4 text-right" data-label="Paid">
                         <span className="text-sm font-semibold text-emerald-600">{fmt(s.totalPaid)}</span>
                       </td>
-                      <td className="px-4 py-4 text-right">
+                      <td className="px-4 py-4 text-right" data-label="Balance">
                         <span className={`text-sm font-bold ${s.balance > 0 ? "text-red-600" : "text-emerald-600"}`}>
                           {fmt(s.balance)}
                         </span>
                       </td>
 
                       {/* Status — replaces the old Action column */}
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-4" data-label="Status">
                         <div className="flex flex-col items-center gap-1.5">
                           <StatusPill balance={s.balance} percentage={s.percentage} totalCharged={s.totalCharged} />
                           {s.totalCharged > 0 && <ProgressBar percentage={s.percentage} />}

@@ -1,0 +1,456 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Data Table UI — toolbar, pagination, skeleton, actions, status badges
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Card container ───────────────────────────────────────────────────────── */
+.dt-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-xs);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+  display: flex;
+  flex-direction: column;
+}
+
+.dt-card:hover {
+  border-color: var(--border-strong);
+}
+
+/* ── Toolbar ──────────────────────────────────────────────────────────────── */
+.dt-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--primary-dim);
+}
+
+.dt-toolbar__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.dt-toolbar__search {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+  max-width: 360px;
+}
+
+.dt-toolbar__search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+  display: flex;
+}
+
+.dt-toolbar__search-input {
+  width: 100%;
+  padding: 9px 12px 9px 36px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--text-primary);
+  outline: none;
+  transition: all var(--transition-base);
+}
+
+.dt-toolbar__search-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.15);
+}
+
+.dt-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.dt-toolbar__count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+.dt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--r-md);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  white-space: nowrap;
+}
+
+.dt-btn--ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+}
+
+.dt-btn--ghost:hover {
+  background: var(--primary-pale);
+  color: var(--text-primary);
+}
+
+.dt-btn--outline {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.dt-btn--outline:hover {
+  background: var(--primary-pale);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+/* ── Pagination ───────────────────────────────────────────────────────────── */
+.dt-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border-color);
+  background: var(--primary-dim);
+}
+
+.dt-pagination__info {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.dt-pagination__info strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.dt-pagination__controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dt-pagination__select {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-color);
+  background: var(--input-bg);
+  color: var(--text-primary);
+  margin-right: 8px;
+  cursor: pointer;
+}
+
+.dt-pagination__btn {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.dt-pagination__btn:hover:not(:disabled) {
+  background: var(--primary-pale);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.dt-pagination__btn--active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.dt-pagination__btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ── Sortable headers ─────────────────────────────────────────────────────── */
+.dt-th-sortable { padding: 0 !important; }
+
+.dt-th-sortable__btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 14px 18px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: left;
+  transition: color var(--transition-base);
+}
+
+.dt-th-sortable__btn:hover { color: var(--text-primary); }
+.dt-th-sortable--active .dt-th-sortable__btn { color: var(--primary-light); }
+
+.dt-sort-icon { flex-shrink: 0; opacity: 0.5; }
+.dt-th-sortable--active .dt-sort-icon { opacity: 1; }
+
+/* ── Skeleton loader ──────────────────────────────────────────────────────── */
+.dt-skeleton {
+  padding: 8px 0;
+}
+
+.dt-skeleton__head,
+.dt-skeleton__row {
+  display: grid;
+  grid-template-columns: repeat(var(--dt-cols, 5), 1fr);
+  gap: 12px;
+  padding: 12px 18px;
+}
+
+.dt-skeleton__head {
+  border-bottom: 1px solid var(--border-color);
+  background: var(--primary-dim);
+}
+
+.dt-skeleton__cell {
+  height: 14px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--primary-dim) 0%,
+    var(--primary-pale) 50%,
+    var(--primary-dim) 100%
+  );
+  background-size: 200% 100%;
+  animation: dt-shimmer 1.2s ease-in-out infinite;
+}
+
+.dt-skeleton__cell--head { height: 10px; opacity: 0.7; }
+
+@keyframes dt-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Empty state ──────────────────────────────────────────────────────────── */
+.dt-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 24px;
+  text-align: center;
+}
+
+.dt-empty__icon {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--r-lg);
+  background: var(--primary-pale);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary-light);
+  margin-bottom: 14px;
+}
+
+.dt-empty__title {
+  font-family: var(--font-body);
+  font-size: var(--type-section-title, 1.125rem);
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  margin-bottom: 6px;
+}
+
+.dt-empty__desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  max-width: 320px;
+  line-height: 1.55;
+  margin-bottom: 16px;
+}
+
+/* ── Action buttons ───────────────────────────────────────────────────────── */
+.dt-action-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.dt-action-btn:hover {
+  background: var(--primary-pale);
+  color: var(--primary-light);
+  border-color: var(--border-color);
+}
+
+.dt-action-btn--danger:hover {
+  background: var(--danger-pale);
+  color: var(--danger-light);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.dt-action-btn--success:hover {
+  background: var(--success-pale);
+  color: var(--success-light);
+}
+
+.dt-action-btn--warning:hover {
+  background: var(--warning-pale);
+  color: var(--warning-light);
+}
+
+/* ── Status badges ────────────────────────────────────────────────────────── */
+.dt-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 22px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: capitalize;
+  white-space: nowrap;
+  line-height: 1.2;
+  vertical-align: middle;
+}
+
+.dt-status__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.dt-status--success {
+  background: var(--success-pale);
+  color: var(--success-light);
+  border: 1px solid rgba(34, 197, 94, 0.22);
+}
+
+.dt-status--warning {
+  background: var(--warning-pale);
+  color: var(--warning-light);
+  border: 1px solid rgba(232, 168, 0, 0.22);
+}
+
+.dt-status--danger {
+  background: var(--danger-pale);
+  color: var(--danger-light);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.dt-status--neutral {
+  background: var(--primary-dim);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+/* ── Bulk selection bar ───────────────────────────────────────────────────── */
+.dt-bulk-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 18px;
+  background: var(--primary-pale);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.dt-bulk-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Row selection checkbox ─────────────────────────────────────────────────── */
+.dt-row-check {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+/* ── Responsive toolbar & pagination ──────────────────────────────────────── */
+@media (max-width: 768px) {
+  .dt-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dt-toolbar__search {
+    max-width: none;
+  }
+
+  .dt-toolbar__actions {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .dt-pagination {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  .dt-pagination__controls {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .dt-pagination__btn {
+    min-width: 28px;
+    height: 28px;
+    font-size: 11px;
+  }
+}

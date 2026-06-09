@@ -278,7 +278,8 @@ export default function Studentmodule({ userId, schoolCode }) {
             </p>
           </div>
         ) : (
-          <table className="w-full">
+          <div className="data-table-wrap">
+<table className="data-table data-table--stack">
             <thead className="bg-app-bg border-b border-app-border">
               <tr>
                 {[
@@ -307,7 +308,7 @@ export default function Studentmodule({ userId, schoolCode }) {
                 return (
                   <tr key={student.id} className="hover:bg-[#FAFAF8] transition-colors">
                     {/* Name + avatar */}
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4" data-label="Field">
                       <div className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${isFemale ? "bg-pink-100 text-pink-700" : "bg-blue-100 text-blue-700"}`}>
                           {initials(name)}
@@ -320,34 +321,34 @@ export default function Studentmodule({ userId, schoolCode }) {
                     </td>
 
                     {/* Student code */}
-                    <td className="px-6 py-4 hidden md:table-cell">
+                    <td className="px-6 py-4 hidden md:table-cell" data-label="Field">
                       <span className="font-mono text-xs font-bold text-app-text/70 bg-app-bg px-2.5 py-1 rounded-lg border border-app-border tracking-widest">
                         {student.studentCode}
                       </span>
                     </td>
 
                     {/* Gender */}
-                    <td className="px-6 py-4 text-center hidden sm:table-cell">
+                    <td className="px-6 py-4 text-center hidden sm:table-cell" data-label="Field">
                       <span className={`text-xs font-medium px-2.5 py-1 rounded-lg ${isFemale ? "bg-pink-50 text-pink-700" : "bg-blue-50 text-blue-700"}`}>
                         {student.gender || "—"}
                       </span>
                     </td>
 
                     {/* Guardian */}
-                    <td className="px-6 py-4 hidden lg:table-cell">
+                    <td className="px-6 py-4 hidden lg:table-cell" data-label="Field">
                       <div className="text-xs text-app-text/70 font-medium">{student.guardianName || "—"}</div>
                       <div className="text-xs text-app-text/40">{student.guardianPhone || ""}</div>
                     </td>
 
                     {/* Status */}
-                    <td className="px-6 py-4 text-center hidden lg:table-cell">
+                    <td className="px-6 py-4 text-center hidden lg:table-cell" data-label="Field">
                       <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${suspended ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
                         {suspended ? "Suspended" : "Active"}
                       </span>
                     </td>
 
                     {/* Actions */}
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4" data-label="Field">
                       <div className="flex justify-center gap-2">
                         <button
                           onClick={() => setViewStudent(student)}
@@ -368,6 +369,7 @@ export default function Studentmodule({ userId, schoolCode }) {
               })}
             </tbody>
           </table>
+</div>
         )}
       </div>
 

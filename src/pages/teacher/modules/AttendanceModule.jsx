@@ -526,7 +526,8 @@ export default function AttendanceModule({ userId, schoolCode }) {
             </p>
           </div>
         ) : (
-          <table className="w-full">
+          <div className="data-table-wrap">
+<table className="data-table data-table--stack">
             <thead className="bg-app-bg border-b border-app-border">
               <tr>
                 {[
@@ -565,7 +566,7 @@ export default function AttendanceModule({ userId, schoolCode }) {
                     }`}
                   >
                     {/* Name + avatar */}
-                    <td className="px-5 py-3.5">
+                    <td className="px-5 py-3.5" data-label="Field">
                       <div className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${isFemale ? "bg-pink-100 text-pink-700" : "bg-blue-100 text-blue-700"}`}>
                           {initials(name)}
@@ -578,14 +579,14 @@ export default function AttendanceModule({ userId, schoolCode }) {
                     </td>
 
                     {/* Student code */}
-                    <td className="px-5 py-3.5 hidden md:table-cell">
+                    <td className="px-5 py-3.5 hidden md:table-cell" data-label="Field">
                       <span className="font-mono text-xs font-bold text-app-text/70 bg-app-bg px-2.5 py-1 rounded-lg border border-app-border tracking-widest">
                         {student.studentCode}
                       </span>
                     </td>
 
                     {/* Status badge */}
-                    <td className="px-5 py-3.5 text-center">
+                    <td className="px-5 py-3.5 text-center" data-label="Field">
                       {status ? (
                         <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl ${statusCfg.bg} ${statusCfg.text}`}>
                           {status === "Present" && <CheckCircle size={11} />}
@@ -601,14 +602,14 @@ export default function AttendanceModule({ userId, schoolCode }) {
                     </td>
 
                     {/* Time */}
-                    <td className="px-5 py-3.5 text-center hidden sm:table-cell">
+                    <td className="px-5 py-3.5 text-center hidden sm:table-cell" data-label="Field">
                       <span className="text-xs text-app-text/60 font-mono">
                         {record.time || "—"}
                       </span>
                     </td>
 
                     {/* Remark */}
-                    <td className="px-5 py-3.5 hidden lg:table-cell">
+                    <td className="px-5 py-3.5 hidden lg:table-cell" data-label="Field">
                       <input
                         type="text"
                         placeholder="Add remark…"
@@ -619,7 +620,7 @@ export default function AttendanceModule({ userId, schoolCode }) {
                     </td>
 
                     {/* Mark buttons */}
-                    <td className="px-5 py-3.5">
+                    <td className="px-5 py-3.5" data-label="Field">
                       <div className="flex gap-1 justify-center flex-wrap">
                         {["Present", "Late", "Absent"].map((s) => {
                           const cfg    = STATUS_CONFIG[s];
@@ -645,6 +646,7 @@ export default function AttendanceModule({ userId, schoolCode }) {
               })}
             </tbody>
           </table>
+</div>
         )}
       </div>
 

@@ -358,30 +358,31 @@ export default function FeeStructure({ schoolCode, schoolName }) {
                 </div>
               </div>
 
-              <table className="w-full">
+              <div className="data-table-wrap">
+<table className="data-table data-table--stack">
                 <thead>
                   <tr className="border-b border-[#0F2044]/5">
-                    <th className="px-5 py-3 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40">Fee Name</th>
-                    <th className="px-5 py-3 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden sm:table-cell">Category</th>
-                    <th className="px-5 py-3 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden md:table-cell">Term</th>
-                    <th className="px-5 py-3 text-right text-[10px] font-bold tracking-widest uppercase text-app-text/40">Amount</th>
-                    <th className="px-5 py-3 text-right text-[10px] font-bold tracking-widest uppercase text-app-text/40">Actions</th>
+                    <th>Fee Name</th>
+                    <th>Category</th>
+                    <th>Term</th>
+                    <th>Amount</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#0F2044]/5">
                   {fees.map(fee => (
                     <tr key={fee.id} className="hover:bg-app-bg/60 transition-colors">
-                      <td className="px-5 py-4">
+                      <td className="px-5 py-4" data-label="Fee Name">
                         <div className="font-medium text-app-text">{fee.name}</div>
                         {fee.description && <div className="text-xs text-app-text/50 mt-0.5">{fee.description}</div>}
                         {fee.mandatory && <span className="inline-block mt-1 text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">Mandatory</span>}
                       </td>
-                      <td className="px-5 py-4 hidden sm:table-cell">
+                      <td className="px-5 py-4 hidden sm:table-cell" data-label="Category">
                         <span className="text-xs px-2.5 py-1 bg-app-primary/5 rounded-lg">{fee.category}</span>
                       </td>
-                      <td className="px-5 py-4 text-xs text-app-text/60 hidden md:table-cell">{fee.term}</td>
-                      <td className="px-5 py-4 text-right font-semibold text-app-text">{fmt(fee.amount)}</td>
-                      <td className="px-5 py-4 text-right">
+                      <td className="px-5 py-4 text-xs text-app-text/60 hidden md:table-cell" data-label="Term">{fee.term}</td>
+                      <td className="px-5 py-4 text-right font-semibold text-app-text" data-label="Amount">{fmt(fee.amount)}</td>
+                      <td className="px-5 py-4 text-right" data-label="Actions">
                         <div className="flex gap-1 justify-end">
                           <button onClick={() => openEdit(fee)} className="p-2 hover:bg-app-primary/5 rounded-lg transition-colors" title="Edit">{IC.edit}</button>
                           <button onClick={() => setShowDelete(fee)} className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors" title="Delete">{IC.trash}</button>
@@ -391,6 +392,7 @@ export default function FeeStructure({ schoolCode, schoolName }) {
                   ))}
                 </tbody>
               </table>
+</div>
             </div>
           ))}
         </div>

@@ -473,7 +473,8 @@ export default function DisciplineModule({ userId, schoolCode }) {
             </p>
           </div>
         ) : (
-          <table className="w-full">
+          <div className="data-table-wrap">
+<table className="data-table data-table--stack">
             <thead className="bg-app-bg border-b border-app-border">
               <tr>
                 {[
@@ -502,7 +503,7 @@ export default function DisciplineModule({ userId, schoolCode }) {
                 return (
                   <tr key={record.id} className="hover:bg-[#FAFAF8] transition-colors">
                     {/* Student */}
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4" data-label="Field">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-xl bg-app-primary/8 text-app-text/60 flex items-center justify-center text-xs font-bold flex-shrink-0">
                           {initials(record.studentName || "?")}
@@ -517,17 +518,17 @@ export default function DisciplineModule({ userId, schoolCode }) {
                     </td>
 
                     {/* Date */}
-                    <td className="px-6 py-4 hidden md:table-cell text-sm text-app-text/60">
+                    <td className="px-6 py-4 hidden md:table-cell text-sm text-app-text/60" data-label="Field">
                       {record.date || "—"}
                     </td>
 
                     {/* Offense */}
-                    <td className="px-6 py-4 hidden sm:table-cell text-sm text-app-text/70 max-w-xs truncate">
+                    <td className="px-6 py-4 hidden sm:table-cell text-sm text-app-text/70 max-w-xs truncate" data-label="Field">
                       {record.offense}
                     </td>
 
                     {/* Severity */}
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-6 py-4 text-center" data-label="Field">
                       <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg ${sev.bg} ${sev.text}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${sev.dot}`} />
                         {record.severity}
@@ -535,19 +536,19 @@ export default function DisciplineModule({ userId, schoolCode }) {
                     </td>
 
                     {/* Action */}
-                    <td className="px-6 py-4 hidden lg:table-cell text-xs text-app-text/60 max-w-[180px] truncate">
+                    <td className="px-6 py-4 hidden lg:table-cell text-xs text-app-text/60 max-w-[180px] truncate" data-label="Field">
                       {record.action}
                     </td>
 
                     {/* Status */}
-                    <td className="px-6 py-4 text-center hidden lg:table-cell">
+                    <td className="px-6 py-4 text-center hidden lg:table-cell" data-label="Field">
                       <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${resolved ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
                         {record.status || "Pending Review"}
                       </span>
                     </td>
 
                     {/* Actions */}
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4" data-label="Field">
                       <div className="flex justify-center gap-2">
                         <button
                           onClick={() => setViewRecord(record)}
@@ -568,6 +569,7 @@ export default function DisciplineModule({ userId, schoolCode }) {
               })}
             </tbody>
           </table>
+</div>
         )}
       </div>
 

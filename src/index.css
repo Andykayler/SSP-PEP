@@ -12,5 +12,10 @@
   --color-app-success: var(--success);
   --color-app-warning: var(--warning);
   --color-app-danger: var(--danger);
-  --color-app-warning: var(--warning);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-mono);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+  --radius-2xl: var(--r-xl);
+  --radius-3xl: var(--r-xl);
 }

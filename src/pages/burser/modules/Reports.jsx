@@ -268,31 +268,32 @@ export default function Reports({ schoolCode, schoolName }) {
           {classBreakdown.length === 0 ? (
             <div className="p-12 text-center"><p className="text-app-text/50">No data available for this period.</p></div>
           ) : (
-            <table className="w-full">
+            <div className="data-table-wrap">
+<table className="data-table data-table--stack">
               <thead>
                 <tr className="border-b border-[#0F2044]/5">
-                  <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40">Class</th>
-                  <th className="px-5 py-3.5 text-right text-[10px] font-bold tracking-widest uppercase text-app-text/40">Students</th>
-                  <th className="px-5 py-3.5 text-right text-[10px] font-bold tracking-widests uppercase text-app-text/40 hidden sm:table-cell">Charged</th>
-                  <th className="px-5 py-3.5 text-right text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden sm:table-cell">Collected</th>
-                  <th className="px-5 py-3.5 text-right text-[10px] font-bold tracking-widest uppercase text-app-text/40">Balance</th>
-                  <th className="px-5 py-3.5 text-center text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden md:table-cell">Rate</th>
+                  <th>Class</th>
+                  <th>Students</th>
+                  <th>Charged</th>
+                  <th>Collected</th>
+                  <th>Balance</th>
+                  <th>Rate</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#0F2044]/5">
                 {classBreakdown.map(cls => (
                   <tr key={cls.id} className="hover:bg-app-bg/60 transition-colors">
-                    <td className="px-5 py-3.5">
+                    <td className="px-5 py-3.5" data-label="Class">
                       <div className="flex items-center gap-2">
                         <span className={`inline-block px-2.5 py-0.5 rounded-lg text-xs font-bold ${cls.level === "primary" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"}`}>{cls.level === "primary" ? "P" : "S"}</span>
                         <span className="font-semibold text-app-text">{cls.name}</span>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-right text-sm text-app-text/60">{cls.studentCount}</td>
-                    <td className="px-5 py-3.5 text-right text-sm text-app-text/60 hidden sm:table-cell">{fmt(cls.totalCharged)}</td>
-                    <td className="px-5 py-3.5 text-right text-sm text-emerald-600 font-medium hidden sm:table-cell">{fmt(cls.totalPaid)}</td>
-                    <td className="px-5 py-3.5 text-right font-bold text-sm text-red-600">{fmt(cls.balance)}</td>
-                    <td className="px-5 py-3.5 hidden md:table-cell">
+                    <td className="px-5 py-3.5 text-right text-sm text-app-text/60" data-label="Students">{cls.studentCount}</td>
+                    <td className="px-5 py-3.5 text-right text-sm text-app-text/60 hidden sm:table-cell" data-label="Charged">{fmt(cls.totalCharged)}</td>
+                    <td className="px-5 py-3.5 text-right text-sm text-emerald-600 font-medium hidden sm:table-cell" data-label="Collected">{fmt(cls.totalPaid)}</td>
+                    <td className="px-5 py-3.5 text-right font-bold text-sm text-red-600" data-label="Balance">{fmt(cls.balance)}</td>
+                    <td className="px-5 py-3.5 hidden md:table-cell" data-label="Rate">
                       <div className="flex items-center justify-center gap-2">
                         <div className="h-2 w-20 bg-app-primary/10 rounded-full overflow-hidden">
                           <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${cls.rate}%` }} />
@@ -304,6 +305,7 @@ export default function Reports({ schoolCode, schoolName }) {
                 ))}
               </tbody>
             </table>
+</div>
           )}
         </div>
       )}
@@ -329,15 +331,16 @@ export default function Reports({ schoolCode, schoolName }) {
                 <p className="text-sm text-app-text/50">All students are fully paid up for {academicYear}</p>
               </div>
             ) : (
-              <table className="w-full">
+              <div className="data-table-wrap">
+<table className="data-table data-table--stack">
                 <thead>
                   <tr className="border-b border-[#0F2044]/5">
-                    <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40">Student</th>
-                    <th className="px-5 py-3.5 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden md:table-cell">Class</th>
-                    <th className="px-5 py-3.5 text-right text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden sm:table-cell">Charged</th>
-                    <th className="px-5 py-3.5 text-right text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden sm:table-cell">Paid</th>
-                    <th className="px-5 py-3.5 text-right text-[10px] font-bold tracking-widest uppercase text-app-text/40">Balance Due</th>
-                    <th className="px-5 py-3.5 text-center text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden lg:table-cell">Progress</th>
+                    <th>Student</th>
+                    <th>Class</th>
+                    <th>Charged</th>
+                    <th>Paid</th>
+                    <th>Balance Due</th>
+                    <th>Progress</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#0F2044]/5">
@@ -345,7 +348,7 @@ export default function Reports({ schoolCode, schoolName }) {
                     const pct = s.totalCharged > 0 ? Math.round((s.totalPaid / s.totalCharged) * 100) : 0;
                     return (
                       <tr key={s.id} className="hover:bg-app-bg/60 transition-colors">
-                        <td className="px-5 py-3.5">
+                        <td className="px-5 py-3.5" data-label="Student">
                           <div className="flex items-center gap-3">
                             <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${s.gender === "Female" ? "bg-pink-100 text-pink-700" : "bg-blue-100 text-blue-700"}`}>{initials(s.fullName)}</div>
                             <div>
@@ -354,11 +357,11 @@ export default function Reports({ schoolCode, schoolName }) {
                             </div>
                           </div>
                         </td>
-                        <td className="px-5 py-3.5 text-sm text-app-text/60 hidden md:table-cell">{s.className}</td>
-                        <td className="px-5 py-3.5 text-right text-sm text-app-text/60 hidden sm:table-cell">{fmt(s.totalCharged)}</td>
-                        <td className="px-5 py-3.5 text-right text-sm text-emerald-600 hidden sm:table-cell">{fmt(s.totalPaid)}</td>
-                        <td className="px-5 py-3.5 text-right font-bold text-red-600">{fmt(s.balance)}</td>
-                        <td className="px-5 py-3.5 hidden lg:table-cell">
+                        <td className="px-5 py-3.5 text-sm text-app-text/60 hidden md:table-cell" data-label="Class">{s.className}</td>
+                        <td className="px-5 py-3.5 text-right text-sm text-app-text/60 hidden sm:table-cell" data-label="Charged">{fmt(s.totalCharged)}</td>
+                        <td className="px-5 py-3.5 text-right text-sm text-emerald-600 hidden sm:table-cell" data-label="Paid">{fmt(s.totalPaid)}</td>
+                        <td className="px-5 py-3.5 text-right font-bold text-red-600" data-label="Balance Due">{fmt(s.balance)}</td>
+                        <td className="px-5 py-3.5 hidden lg:table-cell" data-label="Progress">
                           <div className="flex items-center gap-2">
                             <div className="h-1.5 w-24 bg-app-primary/10 rounded-full overflow-hidden">
                               <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
@@ -371,6 +374,7 @@ export default function Reports({ schoolCode, schoolName }) {
                   })}
                 </tbody>
               </table>
+</div>
             )}
           </div>
         </div>
@@ -411,31 +415,33 @@ export default function Reports({ schoolCode, schoolName }) {
               <p className="text-sm font-semibold text-app-text">All Transactions ({academicYear})</p>
               <span className="text-xs text-app-text/40">{payments.length} records · {fmt(payments.reduce((s, p) => s + p.amount, 0))}</span>
             </div>
-            <table className="w-full">
+            <div className="data-table-wrap">
+<table className="data-table data-table--stack">
               <thead>
                 <tr className="border-b border-[#0F2044]/5">
-                  <th className="px-5 py-3 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40">Student</th>
-                  <th className="px-5 py-3 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden md:table-cell">Receipt</th>
-                  <th className="px-5 py-3 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden sm:table-cell">Method</th>
-                  <th className="px-5 py-3 text-left text-[10px] font-bold tracking-widest uppercase text-app-text/40 hidden lg:table-cell">Date</th>
-                  <th className="px-5 py-3 text-right text-[10px] font-bold tracking-widest uppercase text-app-text/40">Amount</th>
+                  <th>Student</th>
+                  <th>Receipt</th>
+                  <th>Method</th>
+                  <th>Date</th>
+                  <th>Amount</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#0F2044]/5">
                 {[...payments].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).map(p => (
                   <tr key={p.id} className="hover:bg-app-bg/60 transition-colors">
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3" data-label="Student">
                       <div className="text-sm font-medium text-app-text">{p.studentName}</div>
                       <div className="text-xs text-app-text/40">{p.className}</div>
                     </td>
-                    <td className="px-5 py-3 hidden md:table-cell"><span className="font-mono text-xs text-app-text/50">{p.receiptNo}</span></td>
-                    <td className="px-5 py-3 text-xs text-app-text/60 hidden sm:table-cell">{p.method}</td>
-                    <td className="px-5 py-3 text-xs text-app-text/40 hidden lg:table-cell">{p.paymentDate}</td>
-                    <td className="px-5 py-3 text-right font-bold text-emerald-700 text-sm">{fmt(p.amount)}</td>
+                    <td className="px-5 py-3 hidden md:table-cell" data-label="Receipt"><span className="font-mono text-xs text-app-text/50">{p.receiptNo}</span></td>
+                    <td className="px-5 py-3 text-xs text-app-text/60 hidden sm:table-cell" data-label="Method">{p.method}</td>
+                    <td className="px-5 py-3 text-xs text-app-text/40 hidden lg:table-cell" data-label="Date">{p.paymentDate}</td>
+                    <td className="px-5 py-3 text-right font-bold text-emerald-700 text-sm" data-label="Amount">{fmt(p.amount)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}

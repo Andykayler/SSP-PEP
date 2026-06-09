@@ -1,8 +1,7 @@
-// modules/ReportsModule.jsx  (Head Teacher / Admin view)
-// Reads live ca_marks + students from Firestore to generate real reports.
-
+// modules/ReportsModule.jsx
 import { useState, useEffect, useCallback, useRef } from "react";
 import { db } from "../../../firebase";
+import "./staff-management.css";
 import {
   collection, query, where, getDocs, doc, getDoc,
 } from "firebase/firestore";
@@ -44,7 +43,7 @@ function avg(scores) {
 }
 
 function Spinner({ size = 20 }) {
-  return <Loader2 size={size} className="animate-spin text-app-text/40 inline-block" />;
+  return <div className="spinner" style={{ width: size, height: size }} />;
 }
 
 // ─── Print styles injected once ──────────────────────────────────────────────
@@ -76,46 +75,41 @@ function scoreColor(score) {
   return "#ef4444";
 }
 
-// ─── Report Card (printable single student) ───────────────────────────────────
+// ─── Report Card Modal (printable) ──────────────────────────────────────────
 function ReportCardModal({ student, schoolCode, term, onClose }) {
   const g = getGradeInfo(student.average);
   return (
-    <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto"
-      onClick={e => e.target === e.currentTarget && onClose()}
-    >
-      <div className="bg-app-surface rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden">
-        {/* Modal chrome */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-app-border bg-app-bg">
-          <h3 className="font-semibold text-app-text text-sm">Report Card Preview</h3>
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal-container" style={{ maxWidth: "640px" }}>
+        <div className="modal-header">
+          <div>
+            <h3>Report Card Preview</h3>
+            <p>{fullName(student)}</p>
+          </div>
           <div className="flex gap-2">
-            <button
-              onClick={() => window.print()}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-app-primary text-white text-xs font-semibold rounded-xl hover:bg-[#1a2a5c] transition-colors"
-            >
-              <Printer size={13} /> Print
+            <button onClick={() => window.print()} className="icon-btn icon-btn--assign" style={{ background: "rgba(255,255,255,0.2)" }}>
+              <Printer size={16} />
             </button>
-            <button onClick={onClose} className="p-2 text-app-text/50 hover:text-app-text rounded-xl transition-colors">
-              <X size={16} />
+            <button onClick={onClose} className="modal-close">
+              <X size={18} />
             </button>
           </div>
         </div>
 
-        {/* Printable area */}
-        <div id="report-print-area" className="p-8 space-y-6">
+        <div id="report-print-area" className="modal-body" style={{ maxHeight: "none", padding: "24px" }}>
           {/* School header */}
           <div className="text-center border-b-2 border-[#0F2044] pb-5">
             <p className="text-[10px] font-bold tracking-[0.25em] text-app-text/50 uppercase mb-1">
               Republic of Malawi · Ministry of Education
             </p>
-            <h2 className="text-2xl font-bold text-app-text" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.75rem", fontWeight: "bold" }}>
               {schoolCode}
             </h2>
             <p className="text-sm text-app-text/60 mt-1">Continuous Assessment Report · {term}</p>
           </div>
 
           {/* Student info */}
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-2 gap-4 text-sm mt-6">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40">Student Name</p>
               <p className="font-semibold text-app-text mt-0.5">{fullName(student)}</p>
@@ -137,41 +131,43 @@ function ReportCardModal({ student, schoolCode, term, onClose }) {
           </div>
 
           {/* Subject marks table */}
-          <div>
+          <div className="mt-6">
             <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/50 mb-2">Subject Results</p>
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="bg-app-bg">
-                  <th className="text-left py-2 px-3 rounded-tl-xl font-bold text-app-text/60 text-[10px] uppercase tracking-wide">Subject</th>
-                  <th className="text-center py-2 px-3 font-bold text-app-text/60 text-[10px] uppercase tracking-wide">Mark (%)</th>
-                  <th className="text-center py-2 px-3 rounded-tr-xl font-bold text-app-text/60 text-[10px] uppercase tracking-wide">Grade</th>
-                </tr>
-              </thead>
-              <tbody>
-                {student.subjects.map((subj, i) => {
-                  const score = student.subjectMarks?.[subj];
-                  const sg = getGradeInfo(score);
-                  const hasScore = score !== null && score !== undefined && score !== "";
-                  return (
-                    <tr key={subj} className={i % 2 === 0 ? "bg-app-surface" : "bg-[#FAFAF8]"}>
-                      <td className="py-2.5 px-3 font-medium text-app-text">{subj}</td>
-                      <td className="py-2.5 px-3 text-center font-bold text-app-text">{hasScore ? score : "—"}</td>
-                      <td className="py-2.5 px-3 text-center">
-                        {sg ? (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${sg.bg} ${sg.color} ${sg.border} border`}>
-                            G{sg.grade} · {sg.remark}
-                          </span>
-                        ) : <span className="text-app-text/30">—</span>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="data-table-wrap">
+              <table className="data-table data-table--stack">
+                <thead>
+                  <tr>
+                    <th>Subject</th>
+                    <th>Mark (%)</th>
+                    <th>Grade</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {student.subjects.map((subj, i) => {
+                    const score = student.subjectMarks?.[subj];
+                    const sg = getGradeInfo(score);
+                    const hasScore = score !== null && score !== undefined && score !== "";
+                    return (
+                      <tr key={subj}>
+                        <td data-label="Subject">{subj}</td>
+                        <td data-label="Mark (%)">{hasScore ? score : "—"}</td>
+                        <td data-label="Grade">
+                          {sg ? (
+                            <span className={`tag ${sg.bg} ${sg.color} ${sg.border}`}>
+                              G{sg.grade} · {sg.remark}
+                            </span>
+                          ) : <span className="text-muted">—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Overall */}
-          <div className={`flex items-center justify-between rounded-2xl p-4 border ${g ? `${g.bg} ${g.border}` : "bg-app-bg border-app-border"}`}>
+          <div className={`mt-6 flex items-center justify-between rounded-2xl p-4 border ${g ? `${g.bg} ${g.border}` : "bg-app-bg border-app-border"}`}>
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/50">Overall CA Average</p>
               <p className={`text-3xl font-bold mt-0.5 ${g?.color || "text-app-text"}`}>
@@ -187,7 +183,7 @@ function ReportCardModal({ student, schoolCode, term, onClose }) {
           </div>
 
           {/* Footer */}
-          <div className="border-t border-app-border pt-4 grid grid-cols-2 gap-4 text-[10px] text-app-text/40">
+          <div className="border-t border-app-border pt-4 mt-6 grid grid-cols-2 gap-4 text-[10px] text-app-text/40">
             <div>
               <p className="font-bold text-app-text/60 mb-4">Class Teacher's Signature</p>
               <div className="border-b border-app-border w-32" />
@@ -218,15 +214,15 @@ export default function ReportsModule({ schoolCode }) {
 
   const [classes, setClasses] = useState([]);
   const [allStudents, setAllStudents] = useState([]);
-  const [allMarksMap, setAllMarksMap] = useState({});        // classId → { subjects, marks, teacherIds }
-  const [compareMarksMap, setCompareMarksMap] = useState({}); // same for compare term
+  const [allMarksMap, setAllMarksMap] = useState({});
+  const [compareMarksMap, setCompareMarksMap] = useState({});
   const [teacherNames, setTeacherNames] = useState({});
 
   const [classesReady, setClassesReady] = useState(false);
   const [dataReady, setDataReady] = useState(false);
   const isLoading = !classesReady || !dataReady;
 
-  // ── Print style injection ────────────────────────────────────────────────
+  // Print style injection
   useEffect(() => {
     const el = document.createElement("style");
     el.textContent = PRINT_STYLE;
@@ -234,7 +230,7 @@ export default function ReportsModule({ schoolCode }) {
     return () => document.head.removeChild(el);
   }, []);
 
-  // ── Step 1: Load all classes ─────────────────────────────────────────────
+  // Load classes
   useEffect(() => {
     if (!schoolCode) return;
     let cancelled = false;
@@ -258,19 +254,17 @@ export default function ReportsModule({ schoolCode }) {
     return () => { cancelled = true; };
   }, [schoolCode]);
 
-  // ── Step 2: Load students + marks (primary + compare term) ───────────────
+  // Fetch marks
   const fetchData = useCallback(async () => {
     if (!schoolCode || !classesReady) return;
     setDataReady(false);
     setError("");
     try {
-      // Students
       const studentSnap = await getDocs(
         query(collection(db, "students"), where("schoolCode", "==", schoolCode))
       );
       setAllStudents(studentSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
-      // Helper: load ca_marks for a term into a map
       const loadTermMarks = async (term) => {
         const snap = await getDocs(
           query(
@@ -308,7 +302,6 @@ export default function ReportsModule({ schoolCode }) {
       setAllMarksMap(primary.map);
       setCompareMarksMap(compare.map);
 
-      // Teacher names
       const allUids = new Set([...primary.teacherUids, ...compare.teacherUids]);
       const names = {};
       await Promise.all([...allUids].map(async uid => {
@@ -330,7 +323,7 @@ export default function ReportsModule({ schoolCode }) {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // ── Enrich students ──────────────────────────────────────────────────────
+  // Enrich students
   const enrich = (marksMap) => (student) => {
     const cid = student.classId;
     const classData = marksMap[cid] || {};
@@ -346,10 +339,10 @@ export default function ReportsModule({ schoolCode }) {
     return { ...student, className: classObj?.name || "—", subjectMarks, subjects, average, teacherName };
   };
 
-  const enrichedStudents = allStudents.map(enrich(allMarksMap));
-  const compareStudents  = allStudents.map(enrich(compareMarksMap));
+  let enrichedStudents = allStudents.map(enrich(allMarksMap));
+  let compareStudents  = allStudents.map(enrich(compareMarksMap));
 
-  // Rank within each class
+  // Ranks
   const addRanks = (list) => {
     const byClass = {};
     list.forEach(s => {
@@ -361,10 +354,10 @@ export default function ReportsModule({ schoolCode }) {
     });
     return list;
   };
-  addRanks(enrichedStudents);
-  addRanks(compareStudents);
+  enrichedStudents = addRanks(enrichedStudents);
+  compareStudents = addRanks(compareStudents);
 
-  // Add trend delta
+  // Trend delta
   const compareMap = Object.fromEntries(compareStudents.map(s => [s.id, s.average]));
   const studentsWithTrend = enrichedStudents.map(s => ({
     ...s,
@@ -374,17 +367,12 @@ export default function ReportsModule({ schoolCode }) {
       : null,
   }));
 
-  // Class filter
   const classFiltered = selectedClassId === "all"
     ? studentsWithTrend
     : studentsWithTrend.filter(s => s.classId === selectedClassId);
-
   const studentsWithMarks = classFiltered.filter(s => s.average !== null);
-
-  // All subjects in scope
   const allSubjects = [...new Set(classFiltered.flatMap(s => s.subjects))].sort();
 
-  // Search + sort
   const searchFiltered = classFiltered.filter(s => {
     if (!search) return true;
     const q = search.toLowerCase();
@@ -400,7 +388,6 @@ export default function ReportsModule({ schoolCode }) {
     return sortDir === "asc" ? va - vb : vb - va;
   });
 
-  // School stats
   const schoolAvg   = avg(studentsWithMarks.map(s => s.average));
   const distinctions = studentsWithMarks.filter(s => s.average >= 70).length;
   const passRate     = studentsWithMarks.length
@@ -408,7 +395,6 @@ export default function ReportsModule({ schoolCode }) {
     : null;
   const failing      = studentsWithMarks.filter(s => s.average < 40).length;
 
-  // Previous term stats for trend
   const prevStudentsWithMarks = allStudents.map(enrich(compareMarksMap)).filter(s => s.average !== null);
   const prevSchoolAvg = avg(prevStudentsWithMarks.map(s => s.average));
   const avgDelta = schoolAvg !== null && prevSchoolAvg !== null
@@ -417,7 +403,6 @@ export default function ReportsModule({ schoolCode }) {
 
   const noData = dataReady && studentsWithMarks.length === 0;
 
-  // Sort toggle helper
   const toggleSort = (col) => {
     if (sortBy === col) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortBy(col); setSortDir("asc"); }
@@ -430,93 +415,54 @@ export default function ReportsModule({ schoolCode }) {
 
   return (
     <div className="space-y-6">
-      {/* ── Header ────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header */}
+      <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold text-app-text" style={{ fontFamily: "'Playfair Display', serif" }}>
-            Reports &amp; Analytics
-          </h2>
-          <p className="text-app-text/60 mt-1">
-            {selectedTerm} · MANEB grade scale (1–9) · Continuous Assessment
-          </p>
+          <h2 style={{ fontFamily: "'Playfair Display', serif" }}>Reports &amp; Analytics</h2>
+          <p className="text-muted">{selectedTerm} · MANEB grade scale (1–9) · Continuous Assessment</p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={fetchData}
-            disabled={isLoading}
-            className="p-2.5 bg-app-surface border border-app-border rounded-xl hover:bg-app-bg transition-colors text-app-text/60 disabled:opacity-40"
-            title="Refresh"
-          >
+          <button onClick={fetchData} disabled={isLoading} className="icon-btn" title="Refresh">
             <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
           </button>
-          <button
-            onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2.5 bg-app-primary text-white text-sm font-semibold rounded-xl hover:bg-[#1a2a5c] transition-colors"
-          >
+          <button onClick={() => window.print()} className="btn-refresh">
             <Printer size={14} /> Print Report
           </button>
         </div>
       </div>
 
-      {/* ── Error ─────────────────────────────────────────────────────────── */}
-      {error && (
-        <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl text-sm">
-          <AlertCircle size={16} className="shrink-0 mt-0.5" /> {error}
-        </div>
-      )}
+      {error && <div className="error-message"><AlertCircle size={16} /> {error}</div>}
 
-      {/* ── Summary cards ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          {
-            label: "School Average",
-            value: isLoading ? null : schoolAvg !== null ? `${schoolAvg}%` : "—",
-            sub: avgDelta !== null
-              ? `${avgDelta > 0 ? "+" : ""}${avgDelta}% vs ${compareTerm}`
-              : getGradeInfo(schoolAvg)?.remark || "",
-            color: "text-app-text",
-            bg: "bg-app-surface border-app-border",
-            subColor: avgDelta !== null
-              ? (avgDelta > 0 ? "text-emerald-600" : avgDelta < 0 ? "text-red-500" : "text-app-text/40")
-              : "text-app-text/40",
-          },
-          {
-            label: "Distinctions (≥70%)",
-            value: isLoading ? null : distinctions,
-            sub: "Grade 1 or 2",
-            color: "text-emerald-700",
-            bg: "bg-emerald-50 border-emerald-100",
-            subColor: "text-emerald-600/60",
-          },
-          {
-            label: "School Pass Rate",
-            value: isLoading ? null : passRate !== null ? `${passRate}%` : "—",
-            sub: "Scoring ≥40%",
-            color: "text-blue-700",
-            bg: "bg-blue-50 border-blue-100",
-            subColor: "text-blue-600/60",
-          },
-          {
-            label: "Failing Students",
-            value: isLoading ? null : failing,
-            sub: "Grade 9 (<40%)",
-            color: "text-red-600",
-            bg: "bg-red-50 border-red-100",
-            subColor: "text-red-500/60",
-          },
-        ].map(({ label, value, sub, color, bg, subColor }) => (
-          <div key={label} className={`rounded-3xl p-5 border ${bg}`}>
-            <p className={`text-2xl font-bold ${color}`}>
-              {isLoading ? <Spinner size={20} /> : value}
-            </p>
-            <p className="text-xs text-app-text/50 mt-1">{label}</p>
-            {sub && <p className={`text-[10px] mt-0.5 font-medium ${subColor}`}>{sub}</p>}
-          </div>
-        ))}
+      {/* Summary cards */}
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-card__value">{isLoading ? <Spinner size={20} /> : schoolAvg !== null ? `${schoolAvg}%` : "—"}</div>
+          <div className="stat-card__label">School Average</div>
+          {avgDelta !== null && (
+            <div className={`text-[10px] font-medium mt-1 ${avgDelta > 0 ? "text-success" : avgDelta < 0 ? "text-danger" : "text-muted"}`}>
+              {avgDelta > 0 ? "+" : ""}{avgDelta}% vs {compareTerm}
+            </div>
+          )}
+        </div>
+        <div className="stat-card">
+          <div className="stat-card__value stat-card__value--success">{isLoading ? <Spinner size={20} /> : distinctions}</div>
+          <div className="stat-card__label">Distinctions (≥70%)</div>
+          <div className="text-muted text-[10px] mt-1">Grade 1 or 2</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-card__value stat-card__value--accent">{isLoading ? <Spinner size={20} /> : passRate !== null ? `${passRate}%` : "—"}</div>
+          <div className="stat-card__label">School Pass Rate</div>
+          <div className="text-muted text-[10px] mt-1">Scoring ≥40%</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-card__value stat-card__value--warning">{isLoading ? <Spinner size={20} /> : failing}</div>
+          <div className="stat-card__label">Failing Students</div>
+          <div className="text-muted text-[10px] mt-1">Grade 9 (&lt;40%)</div>
+        </div>
       </div>
 
-      {/* ── Tab nav ───────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap gap-2">
+      {/* Tab nav */}
+      <div className="tab-bar">
         {[
           { id: "reportCards", icon: FileText,   label: "Report Cards" },
           { id: "performance", icon: TrendingUp,  label: "Performance Trends" },
@@ -526,24 +472,23 @@ export default function ReportsModule({ schoolCode }) {
           <button
             key={id}
             onClick={() => setReportType(id)}
-            className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold transition-all
-              ${reportType === id ? "bg-app-primary text-white shadow-md" : "bg-app-surface border border-app-border text-app-text/70 hover:bg-app-bg"}`}
+            className={`tab ${reportType === id ? "tab--active" : ""}`}
           >
             <Icon size={15} /> {label}
           </button>
         ))}
       </div>
 
-      {/* ── Controls row ──────────────────────────────────────────────────── */}
-      <div className="bg-app-surface rounded-3xl p-5 border border-app-border flex flex-col md:flex-row gap-4 items-end">
+      {/* Controls */}
+      <div className="stats-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "16px" }}>
         <div>
-          <label className="block text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5">CLASS</label>
+          <label className="field__label">CLASS</label>
           <div className="relative">
             <select
               value={selectedClassId}
               onChange={e => setSelectedClassId(e.target.value)}
               disabled={isLoading}
-              className="appearance-none pl-4 pr-10 py-3 bg-app-surface border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text min-w-[160px] disabled:opacity-50"
+              className="field__select"
             >
               <option value="all">All classes</option>
               {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -551,162 +496,119 @@ export default function ReportsModule({ schoolCode }) {
             <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
           </div>
         </div>
-
         <div>
-          <label className="block text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5">TERM</label>
+          <label className="field__label">TERM</label>
           <div className="relative">
-            <select value={selectedTerm} onChange={e => setSelectedTerm(e.target.value)}
-              className="appearance-none pl-4 pr-10 py-3 bg-app-surface border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text">
+            <select value={selectedTerm} onChange={e => setSelectedTerm(e.target.value)} className="field__select">
               {TERMS.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
             <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
           </div>
         </div>
-
-        {(reportType === "performance") && (
+        {reportType === "performance" && (
           <div>
-            <label className="block text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5">COMPARE TO</label>
+            <label className="field__label">COMPARE TO</label>
             <div className="relative">
-              <select value={compareTerm} onChange={e => setCompareTerm(e.target.value)}
-                className="appearance-none pl-4 pr-10 py-3 bg-app-surface border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text">
+              <select value={compareTerm} onChange={e => setCompareTerm(e.target.value)} className="field__select">
                 {TERMS.filter(t => t !== selectedTerm).map(t => <option key={t} value={t}>{t}</option>)}
               </select>
               <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
             </div>
           </div>
         )}
-
-        <div className="flex-1 relative">
-          <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-app-text/35" />
+        <div className="search-wrapper">
+          <Search className="search-icon" size={14} />
           <input
             type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search student, class…"
-            className="w-full pl-9 pr-4 py-3 bg-[#FAFAF8] border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/30"
+            className="search-input"
           />
         </div>
       </div>
 
-      {/* ── Loading / No data ─────────────────────────────────────────────── */}
       {isLoading && (
-        <div className="bg-app-surface rounded-2xl border border-app-border py-20 flex flex-col items-center gap-3">
+        <div className="empty-state">
           <Spinner size={28} />
-          <p className="text-sm text-app-text/40">Loading report data…</p>
+          <p className="empty-state__sub">Loading report data…</p>
         </div>
       )}
 
       {!isLoading && noData && (
-        <div className="bg-app-surface rounded-2xl border border-app-border py-20 flex flex-col items-center gap-3 text-center">
-          <FileText size={32} className="text-app-text/20" />
-          <p className="text-sm font-medium text-app-text/40">No marks submitted for {selectedTerm} yet.</p>
-          <p className="text-xs text-app-text/30">Teachers submit CA marks from their Performance module.</p>
+        <div className="empty-state">
+          <FileText size={32} className="text-muted" />
+          <p className="empty-state__sub">No marks submitted for {selectedTerm} yet.</p>
+          <p className="text-muted" style={{ fontSize: "0.7rem" }}>Teachers submit CA marks from their Performance module.</p>
         </div>
       )}
 
       {!isLoading && !noData && (
         <>
-          {/* ════ REPORT CARDS ════ */}
+          {/* REPORT CARDS TAB */}
           {reportType === "reportCards" && (
-            <div className="bg-app-surface rounded-2xl border border-app-border overflow-hidden">
-              <div className="px-6 py-4 bg-app-bg border-b border-app-border flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold text-app-text text-sm">
-                    Report Cards — {selectedClassId === "all" ? "All Classes" : classes.find(c => c.id === selectedClassId)?.name} · {selectedTerm}
-                  </h3>
-                  <p className="text-[10px] text-app-text/45 mt-0.5">
-                    Click a student to preview and print their individual report card
-                  </p>
+            <div className="card">
+              <div className="cc__head">
+                <div className="cc__head-left">
+                  <FileText size={18} />
+                  <h3>Report Cards — {selectedClassId === "all" ? "All Classes" : classes.find(c => c.id === selectedClassId)?.name}</h3>
                 </div>
-                <span className="text-xs text-app-text/50">{sorted.length} student{sorted.length !== 1 ? "s" : ""}</span>
+                <span className="text-muted" style={{ fontSize: "0.7rem" }}>{sorted.length} student{sorted.length !== 1 ? "s" : ""}</span>
               </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="data-table-wrap">
+                <table className="data-table data-table--stack">
                   <thead>
-                    <tr className="border-b border-app-border bg-app-surface">
-                      <th className="px-5 py-3 text-left text-[10px] font-bold tracking-wide text-app-text/50">ADM. NO.</th>
-                      <th
-                        className="px-5 py-3 text-left text-[10px] font-bold tracking-wide text-app-text/50 cursor-pointer select-none hover:text-app-text/80"
-                        onClick={() => toggleSort("name")}
-                      >
-                        <span className="flex items-center gap-1">STUDENT <SortIcon col="name" /></span>
-                      </th>
-                      <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50">CLASS</th>
-                      <th
-                        className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50 cursor-pointer select-none hover:text-app-text/80"
-                        onClick={() => toggleSort("average")}
-                      >
-                        <span className="flex items-center justify-center gap-1">AVERAGE <SortIcon col="average" /></span>
-                      </th>
-                      <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50">GRADE</th>
-                      <th
-                        className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50 cursor-pointer select-none hover:text-app-text/80"
-                        onClick={() => toggleSort("rank")}
-                      >
-                        <span className="flex items-center justify-center gap-1">POSITION <SortIcon col="rank" /></span>
-                      </th>
-                      <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50">TREND</th>
-                      <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50">TEACHER</th>
-                      <th className="px-3 py-3" />
+                    <tr>
+                      <th>ADM. NO.</th>
+                      <th onClick={() => toggleSort("name")} style={{ cursor: "pointer" }}>STUDENT <SortIcon col="name" /></th>
+                      <th>CLASS</th>
+                      <th onClick={() => toggleSort("average")} style={{ cursor: "pointer", textAlign: "center" }}>AVERAGE <SortIcon col="average" /></th>
+                      <th>GRADE</th>
+                      <th onClick={() => toggleSort("rank")} style={{ cursor: "pointer", textAlign: "center" }}>POSITION <SortIcon col="rank" /></th>
+                      <th>TREND</th>
+                      <th>TEACHER</th>
+                      <th></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#0F2044]/5">
+                  <tbody>
                     {sorted.map(student => {
                       const g = getGradeInfo(student.average);
                       return (
-                        <tr
-                          key={student.id}
-                          className="hover:bg-[#FAFAF8] transition-colors cursor-pointer"
-                          onClick={() => setViewingStudent(student)}
-                        >
-                          <td className="px-5 py-3 text-[10px] text-app-text/40 font-mono">
-                            {student.studentCode || student.id.slice(0, 8)}
-                          </td>
-                          <td className="px-5 py-3">
-                            <p className="font-semibold text-app-text text-sm">{fullName(student)}</p>
-                          </td>
-                          <td className="px-3 py-3 text-center text-xs text-app-text/60">{student.className}</td>
-                          <td className="px-3 py-3 text-center">
+                        <tr key={student.id} onClick={() => setViewingStudent(student)} style={{ cursor: "pointer" }}>
+                          <td data-label="ADM. NO." className="text-muted font-mono text-[10px]">{student.studentCode || student.id.slice(0, 8)}</td>
+                          <td data-label="STUDENT"><span className="font-semibold">{fullName(student)}</span></td>
+                          <td data-label="CLASS">{student.className}</td>
+                          <td data-label="AVERAGE" className="text-center">
                             {student.average !== null ? (
-                              <span className={`font-bold text-base ${g?.color || "text-app-text"}`}>{student.average}%</span>
-                            ) : <span className="text-app-text/25">—</span>}
+                              <span className={`font-bold text-base ${g?.color}`}>{student.average}%</span>
+                            ) : <span className="text-muted">—</span>}
                           </td>
-                          <td className="px-3 py-3 text-center">
+                          <td data-label="GRADE" className="text-center">
                             {g ? (
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${g.bg} ${g.color} ${g.border}`}>
-                                G{g.grade} · {g.remark}
-                              </span>
-                            ) : <span className="text-app-text/25 text-xs">—</span>}
+                              <span className={`tag ${g.bg} ${g.color} ${g.border}`}>G{g.grade} · {g.remark}</span>
+                            ) : <span className="text-muted">—</span>}
                           </td>
-                          <td className="px-3 py-3 text-center">
+                          <td data-label="POSITION" className="text-center">
                             {student.rank ? (
                               <span className={`inline-flex items-center justify-center w-7 h-7 rounded-xl text-xs font-bold
-                                ${student.rank === 1 ? "bg-app-warning text-app-text"
-                                : student.rank === 2 ? "bg-gray-200 text-gray-700"
-                                : student.rank === 3 ? "bg-amber-100 text-amber-700"
-                                : "bg-app-bg text-app-text/50"}`}>
+                                ${student.rank === 1 ? "bg-warning text-app-text" :
+                                  student.rank === 2 ? "bg-gray-200 text-gray-700" :
+                                  student.rank === 3 ? "bg-amber-100 text-amber-700" :
+                                  "bg-app-bg text-muted"}`}>
                                 {student.rank}
                               </span>
-                            ) : <span className="text-app-text/20 text-xs">—</span>}
+                            ) : <span className="text-muted">—</span>}
                           </td>
-                          <td className="px-3 py-3 text-center">
+                          <td data-label="TREND" className="text-center">
                             {student.delta !== null ? (
                               <span className={`flex items-center justify-center gap-0.5 text-xs font-semibold
-                                ${student.delta > 0 ? "text-emerald-600" : student.delta < 0 ? "text-red-500" : "text-app-text/30"}`}>
+                                ${student.delta > 0 ? "text-success" : student.delta < 0 ? "text-danger" : "text-muted"}`}>
                                 {student.delta > 0 ? <ArrowUp size={11} /> : student.delta < 0 ? <ArrowDown size={11} /> : <Minus size={11} />}
                                 {Math.abs(student.delta)}%
                               </span>
-                            ) : <span className="text-app-text/20 text-xs">—</span>}
+                            ) : <span className="text-muted">—</span>}
                           </td>
-                          <td className="px-3 py-3 text-center text-[10px] text-app-text/40 max-w-[100px] truncate">
-                            {student.teacherName}
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <button
-                              onClick={e => { e.stopPropagation(); setViewingStudent(student); }}
-                              className="text-[10px] font-semibold text-app-text/50 hover:text-app-text bg-app-bg hover:bg-app-primary/10 px-3 py-1.5 rounded-xl transition-colors"
-                            >
-                              View
-                            </button>
+                          <td data-label="TEACHER" className="text-muted text-[10px] truncate max-w-[100px]">{student.teacherName}</td>
+                          <td data-label="ACTION" className="text-center">
+                            <button onClick={e => { e.stopPropagation(); setViewingStudent(student); }} className="tag tag--blue">View</button>
                           </td>
                         </tr>
                       );
@@ -714,55 +616,47 @@ export default function ReportsModule({ schoolCode }) {
                   </tbody>
                 </table>
               </div>
-
-              <div className="px-5 py-3 bg-app-bg border-t border-app-border flex items-center justify-between">
-                <p className="text-[10px] text-app-text/45">
-                  {studentsWithMarks.length} students with marks · CA contributes 40% to final MSCE grade
-                </p>
-                <button
-                  onClick={() => window.print()}
-                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-app-primary text-white hover:bg-[#1a2a5c] transition-colors"
-                >
-                  <Printer size={12} /> Print All
-                </button>
+              <div className="cc__head border-t">
+                <p className="text-muted text-[10px]">{studentsWithMarks.length} students with marks · CA contributes 40% to final MSCE grade</p>
+                <button onClick={() => window.print()} className="btn-refresh"><Printer size={12} /> Print All</button>
               </div>
             </div>
           )}
 
-          {/* ════ PERFORMANCE TRENDS ════ */}
+          {/* PERFORMANCE TRENDS TAB */}
           {reportType === "performance" && (
             <div className="space-y-5">
               {/* School-level comparison */}
-              <div className="bg-app-surface rounded-2xl border border-app-border p-6">
-                <h3 className="font-semibold text-app-text text-sm mb-4">
-                  School Average — {selectedTerm} vs {compareTerm}
-                </h3>
-                {[
-                  { label: selectedTerm, value: schoolAvg, students: studentsWithMarks.length },
-                  { label: compareTerm,  value: prevSchoolAvg, students: prevStudentsWithMarks.length },
-                ].map(({ label, value, students }) => {
-                  const g = getGradeInfo(value);
-                  return (
-                    <div key={label} className="flex items-center gap-4 mb-3">
-                      <span className="text-xs font-semibold text-app-text/60 w-28 shrink-0">{label}</span>
-                      <MiniBar value={value ?? 0} color={scoreColor(value ?? 0)} />
-                      <div className="flex items-center gap-2 shrink-0">
-                        {value !== null ? (
-                          <>
-                            <span className={`text-base font-bold ${g?.color || "text-app-text"}`}>{value}%</span>
-                            {g && <span className={`text-[9px] font-semibold ${g.color}`}>G{g.grade}</span>}
-                          </>
-                        ) : <span className="text-xs text-app-text/30">No data</span>}
-                        <span className="text-[10px] text-app-text/35">({students} students)</span>
+              <div className="card p-6">
+                <h3 className="font-semibold text-app-text text-sm mb-4">School Average — {selectedTerm} vs {compareTerm}</h3>
+                <div className="space-y-3">
+                  {[
+                    { label: selectedTerm, value: schoolAvg, students: studentsWithMarks.length },
+                    { label: compareTerm,  value: prevSchoolAvg, students: prevStudentsWithMarks.length },
+                  ].map(({ label, value, students }) => {
+                    const g = getGradeInfo(value);
+                    return (
+                      <div key={label} className="flex items-center gap-4">
+                        <span className="text-xs font-semibold text-muted w-28 shrink-0">{label}</span>
+                        <MiniBar value={value ?? 0} color={scoreColor(value ?? 0)} />
+                        <div className="flex items-center gap-2 shrink-0">
+                          {value !== null ? (
+                            <>
+                              <span className={`text-base font-bold ${g?.color || "text-app-text"}`}>{value}%</span>
+                              {g && <span className={`text-[9px] font-semibold ${g.color}`}>G{g.grade}</span>}
+                            </>
+                          ) : <span className="text-xs text-muted">No data</span>}
+                          <span className="text-[10px] text-muted">({students} students)</span>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
                 {avgDelta !== null && (
-                  <div className={`mt-3 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl
-                    ${avgDelta > 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                    : avgDelta < 0 ? "bg-red-50 text-red-600 border border-red-200"
-                    : "bg-app-bg text-app-text/50 border border-app-border"}`}>
+                  <div className={`mt-4 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl
+                    ${avgDelta > 0 ? "bg-success/10 text-success border border-success/20" :
+                      avgDelta < 0 ? "bg-danger/10 text-danger border border-danger/20" :
+                      "bg-app-bg text-muted border border-app-border"}`}>
                     {avgDelta > 0 ? <ArrowUp size={12} /> : avgDelta < 0 ? <ArrowDown size={12} /> : <Minus size={12} />}
                     {avgDelta > 0 ? "+" : ""}{avgDelta}% change from {compareTerm}
                   </div>
@@ -771,7 +665,7 @@ export default function ReportsModule({ schoolCode }) {
 
               {/* Per-class comparison */}
               {selectedClassId === "all" && (
-                <div className="bg-app-surface rounded-2xl border border-app-border p-6">
+                <div className="card p-6">
                   <h3 className="font-semibold text-app-text text-sm mb-4">Class-by-Class Comparison</h3>
                   <div className="space-y-4">
                     {classes.map(cls => {
@@ -785,10 +679,10 @@ export default function ReportsModule({ schoolCode }) {
                       return (
                         <div key={cls.id} className="border border-app-border rounded-2xl p-4">
                           <div className="flex items-center justify-between mb-3">
-                            <p className="font-semibold text-app-text text-sm">{cls.name}</p>
+                            <p className="font-semibold text-app-text">{cls.name}</p>
                             {delta !== null && (
                               <span className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg
-                                ${delta > 0 ? "bg-emerald-50 text-emerald-700" : delta < 0 ? "bg-red-50 text-red-600" : "bg-app-bg text-app-text/40"}`}>
+                                ${delta > 0 ? "bg-success/10 text-success" : delta < 0 ? "bg-danger/10 text-danger" : "bg-app-bg text-muted"}`}>
                                 {delta > 0 ? <ArrowUp size={10} /> : delta < 0 ? <ArrowDown size={10} /> : <Minus size={10} />}
                                 {delta > 0 ? "+" : ""}{delta}%
                               </span>
@@ -799,15 +693,15 @@ export default function ReportsModule({ schoolCode }) {
                             { label: compareTerm,  value: prevAvg, g: gp, count: prevStudents.length },
                           ].map(({ label, value, g, count }) => (
                             <div key={label} className="flex items-center gap-3 mb-1.5">
-                              <span className="text-[10px] text-app-text/50 w-24 shrink-0">{label}</span>
+                              <span className="text-[10px] text-muted w-24 shrink-0">{label}</span>
                               <MiniBar value={value ?? 0} color={scoreColor(value ?? 0)} />
                               <div className="flex items-center gap-1 shrink-0">
                                 {value !== null ? (
                                   <>
                                     <span className={`text-sm font-bold ${g?.color || "text-app-text"}`}>{value}%</span>
-                                    <span className="text-[10px] text-app-text/35">({count})</span>
+                                    <span className="text-[10px] text-muted">({count})</span>
                                   </>
-                                ) : <span className="text-[10px] text-app-text/30">No data</span>}
+                                ) : <span className="text-[10px] text-muted">No data</span>}
                               </div>
                             </div>
                           ))}
@@ -819,56 +713,57 @@ export default function ReportsModule({ schoolCode }) {
               )}
 
               {/* Per-student trend table */}
-              <div className="bg-app-surface rounded-2xl border border-app-border overflow-hidden">
-                <div className="px-5 py-4 bg-app-bg border-b border-app-border">
-                  <h3 className="font-semibold text-app-text text-sm">Student Progress — {selectedTerm} vs {compareTerm}</h3>
+              <div className="card">
+                <div className="cc__head">
+                  <div className="cc__head-left">
+                    <TrendingUp size={18} />
+                    <h3>Student Progress — {selectedTerm} vs {compareTerm}</h3>
+                  </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                <div className="data-table-wrap">
+                  <table className="data-table data-table--stack">
                     <thead>
-                      <tr className="border-b border-app-border">
-                        <th className="px-5 py-3 text-left text-[10px] font-bold tracking-wide text-app-text/50">STUDENT</th>
-                        <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50">CLASS</th>
-                        <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50">{compareTerm}</th>
-                        <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50">{selectedTerm}</th>
-                        <th className="px-3 py-3 text-center text-[10px] font-bold tracking-wide text-app-text/50">CHANGE</th>
+                      <tr>
+                        <th>STUDENT</th>
+                        <th>CLASS</th>
+                        <th>{compareTerm}</th>
+                        <th>{selectedTerm}</th>
+                        <th>CHANGE</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#0F2044]/5">
-                      {sorted
-                        .filter(s => s.average !== null || s.prevAverage !== null)
-                        .map(s => {
-                          const gc = getGradeInfo(s.average);
-                          const gp = getGradeInfo(s.prevAverage);
-                          return (
-                            <tr key={s.id} className="hover:bg-[#FAFAF8] transition-colors">
-                              <td className="px-5 py-3">
-                                <p className="font-semibold text-app-text text-sm">{fullName(s)}</p>
-                                <p className="text-[10px] text-app-text/40">{s.studentCode || ""}</p>
-                              </td>
-                              <td className="px-3 py-3 text-center text-xs text-app-text/60">{s.className}</td>
-                              <td className="px-3 py-3 text-center">
-                                {s.prevAverage !== null ? (
-                                  <span className={`font-semibold text-sm ${gp?.color || "text-app-text"}`}>{s.prevAverage}%</span>
-                                ) : <span className="text-app-text/25">—</span>}
-                              </td>
-                              <td className="px-3 py-3 text-center">
-                                {s.average !== null ? (
-                                  <span className={`font-bold text-sm ${gc?.color || "text-app-text"}`}>{s.average}%</span>
-                                ) : <span className="text-app-text/25">—</span>}
-                              </td>
-                              <td className="px-3 py-3 text-center">
-                                {s.delta !== null ? (
-                                  <span className={`inline-flex items-center gap-0.5 text-xs font-bold px-2.5 py-1 rounded-lg
-                                    ${s.delta > 0 ? "bg-emerald-50 text-emerald-700" : s.delta < 0 ? "bg-red-50 text-red-600" : "bg-app-bg text-app-text/40"}`}>
-                                    {s.delta > 0 ? <ArrowUp size={10} /> : s.delta < 0 ? <ArrowDown size={10} /> : <Minus size={10} />}
-                                    {s.delta > 0 ? "+" : ""}{s.delta}%
-                                  </span>
-                                ) : <span className="text-app-text/20 text-xs">—</span>}
-                              </td>
-                            </tr>
-                          );
-                        })}
+                    <tbody>
+                      {sorted.filter(s => s.average !== null || s.prevAverage !== null).map(s => {
+                        const gc = getGradeInfo(s.average);
+                        const gp = getGradeInfo(s.prevAverage);
+                        return (
+                          <tr key={s.id}>
+                            <td data-label="STUDENT">
+                              <span className="font-semibold">{fullName(s)}</span>
+                              <div className="text-muted text-[10px]">{s.studentCode || ""}</div>
+                            </td>
+                            <td data-label="CLASS">{s.className}</td>
+                            <td data-label={compareTerm} className="text-center">
+                              {s.prevAverage !== null ? (
+                                <span className={`font-semibold text-sm ${gp?.color}`}>{s.prevAverage}%</span>
+                              ) : <span className="text-muted">—</span>}
+                            </td>
+                            <td data-label={selectedTerm} className="text-center">
+                              {s.average !== null ? (
+                                <span className={`font-bold text-sm ${gc?.color}`}>{s.average}%</span>
+                              ) : <span className="text-muted">—</span>}
+                            </td>
+                            <td data-label="CHANGE" className="text-center">
+                              {s.delta !== null ? (
+                                <span className={`inline-flex items-center gap-0.5 text-xs font-bold px-2.5 py-1 rounded-lg
+                                  ${s.delta > 0 ? "bg-success/10 text-success" : s.delta < 0 ? "bg-danger/10 text-danger" : "bg-app-bg text-muted"}`}>
+                                  {s.delta > 0 ? <ArrowUp size={10} /> : s.delta < 0 ? <ArrowDown size={10} /> : <Minus size={10} />}
+                                  {s.delta > 0 ? "+" : ""}{s.delta}%
+                                </span>
+                              ) : <span className="text-muted">—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -876,11 +771,11 @@ export default function ReportsModule({ schoolCode }) {
             </div>
           )}
 
-          {/* ════ ANALYTICS ════ */}
+          {/* ANALYTICS TAB */}
           {reportType === "analytics" && (
             <div className="space-y-5">
               {/* Grade distribution */}
-              <div className="bg-app-surface rounded-2xl border border-app-border p-6">
+              <div className="card p-6">
                 <h3 className="font-semibold text-app-text text-sm mb-4">
                   Grade Distribution — {selectedClassId === "all" ? "All Classes" : classes.find(c => c.id === selectedClassId)?.name}
                 </h3>
@@ -892,8 +787,8 @@ export default function ReportsModule({ schoolCode }) {
                       <div key={g.grade} className="flex items-center gap-3">
                         <span className={`text-[10px] font-bold w-24 shrink-0 ${g.color}`}>G{g.grade} {g.remark}</span>
                         <MiniBar value={pct} color={g.grade <= 2 ? "#10b981" : g.grade <= 6 ? "#3b82f6" : g.grade <= 8 ? "#f59e0b" : "#ef4444"} />
-                        <span className="text-[11px] font-semibold text-app-text/60 w-16 text-right">
-                          {count} <span className="text-app-text/30">({pct}%)</span>
+                        <span className="text-[11px] font-semibold text-muted w-16 text-right">
+                          {count} <span className="text-muted">({pct}%)</span>
                         </span>
                       </div>
                     );
@@ -903,7 +798,7 @@ export default function ReportsModule({ schoolCode }) {
 
               {/* Class averages */}
               {selectedClassId === "all" && (
-                <div className="bg-app-surface rounded-2xl border border-app-border p-6">
+                <div className="card p-6">
                   <h3 className="font-semibold text-app-text text-sm mb-4">Class Averages</h3>
                   <div className="space-y-3">
                     {classes.map(cls => {
@@ -912,15 +807,15 @@ export default function ReportsModule({ schoolCode }) {
                       const g = getGradeInfo(clsAvg);
                       return (
                         <div key={cls.id} className="flex items-center gap-3">
-                          <span className="text-xs font-semibold text-app-text/70 w-24 shrink-0">{cls.name}</span>
+                          <span className="text-xs font-semibold text-muted w-24 shrink-0">{cls.name}</span>
                           <MiniBar value={clsAvg ?? 0} color={scoreColor(clsAvg ?? 0)} />
                           {clsAvg !== null ? (
                             <div className="flex items-center gap-1.5 shrink-0">
                               <span className={`text-sm font-bold ${g?.color || "text-app-text"}`}>{clsAvg}%</span>
                               {g && <span className={`text-[9px] font-semibold ${g.color}`}>G{g.grade}</span>}
-                              <span className="text-[10px] text-app-text/40">({clsStudents.length})</span>
+                              <span className="text-[10px] text-muted">({clsStudents.length})</span>
                             </div>
-                          ) : <span className="text-xs text-app-text/30 shrink-0">No data</span>}
+                          ) : <span className="text-xs text-muted shrink-0">No data</span>}
                         </div>
                       );
                     })}
@@ -930,7 +825,7 @@ export default function ReportsModule({ schoolCode }) {
 
               {/* Subject averages */}
               {allSubjects.length > 0 && (
-                <div className="bg-app-surface rounded-2xl border border-app-border p-6">
+                <div className="card p-6">
                   <h3 className="font-semibold text-app-text text-sm mb-4">Subject Averages</h3>
                   <div className="space-y-3">
                     {allSubjects.map(subj => {
@@ -942,15 +837,15 @@ export default function ReportsModule({ schoolCode }) {
                       const g = getGradeInfo(subjAvg);
                       return (
                         <div key={subj} className="flex items-center gap-3">
-                          <span className="text-xs font-medium text-app-text/70 w-32 shrink-0 truncate">{subj}</span>
+                          <span className="text-xs font-medium text-muted w-32 shrink-0 truncate">{subj}</span>
                           <MiniBar value={subjAvg ?? 0} color={scoreColor(subjAvg ?? 0)} />
                           {subjAvg !== null ? (
                             <div className="flex items-center gap-2 shrink-0">
                               <span className={`text-sm font-bold ${g?.color || "text-app-text"}`}>{subjAvg}%</span>
                               {g && <span className={`text-[9px] font-semibold ${g.color}`}>G{g.grade}</span>}
-                              <span className="text-[10px] text-app-text/35">({scores.length})</span>
+                              <span className="text-[10px] text-muted">({scores.length})</span>
                             </div>
-                          ) : <span className="text-xs text-app-text/30 shrink-0">No data</span>}
+                          ) : <span className="text-xs text-muted shrink-0">No data</span>}
                         </div>
                       );
                     })}
@@ -958,8 +853,8 @@ export default function ReportsModule({ schoolCode }) {
                 </div>
               )}
 
-              {/* Teacher submissions overview */}
-              <div className="bg-app-surface rounded-2xl border border-app-border p-6">
+              {/* Mark submission status */}
+              <div className="card p-6">
                 <h3 className="font-semibold text-app-text text-sm mb-4">Mark Submission Status</h3>
                 <div className="space-y-2.5">
                   {classes.map(cls => {
@@ -969,20 +864,20 @@ export default function ReportsModule({ schoolCode }) {
                     const count     = Object.keys(classData?.marks || {}).length;
                     return (
                       <div key={cls.id} className={`flex items-center gap-3 p-3 rounded-xl border
-                        ${submitted ? "border-emerald-200 bg-emerald-50/50" : "border-app-border bg-app-bg"}`}>
+                        ${submitted ? "border-success/30 bg-success/5" : "border-app-border bg-app-bg"}`}>
                         {submitted
-                          ? <CheckCircle size={14} className="text-emerald-600 shrink-0" />
-                          : <AlertCircle size={14} className="text-app-text/30 shrink-0" />}
+                          ? <CheckCircle size={14} className="text-success shrink-0" />
+                          : <AlertCircle size={14} className="text-muted shrink-0" />}
                         <div className="flex-1">
                           <p className="text-sm font-semibold text-app-text">{cls.name}</p>
                           {submitted && (
-                            <p className="text-[10px] text-app-text/50">
+                            <p className="text-[10px] text-muted">
                               {count} students · {teachers.join(", ") || "Unknown teacher"}
                             </p>
                           )}
                         </div>
                         <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg
-                          ${submitted ? "bg-emerald-100 text-emerald-700" : "bg-app-primary/8 text-app-text/40"}`}>
+                          ${submitted ? "bg-success/10 text-success" : "bg-app-bg text-muted"}`}>
                           {submitted ? "Submitted" : "Pending"}
                         </span>
                       </div>
@@ -993,15 +888,14 @@ export default function ReportsModule({ schoolCode }) {
             </div>
           )}
 
-          {/* ════ AT-RISK STUDENTS ════ */}
+          {/* AT-RISK STUDENTS TAB */}
           {reportType === "atRisk" && (
             <div className="space-y-5">
-              {/* Failing */}
               {studentsWithMarks.filter(s => s.average < 40).length > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
+                <div className="bg-danger/10 border border-danger/30 rounded-2xl p-5">
                   <div className="flex items-center gap-2 mb-3">
-                    <AlertTriangle size={16} className="text-red-600" />
-                    <h3 className="font-semibold text-red-800 text-sm">
+                    <AlertTriangle size={16} className="text-danger" />
+                    <h3 className="font-semibold text-danger text-sm">
                       Failing Students — G9 · below 40% ({studentsWithMarks.filter(s => s.average < 40).length})
                     </h3>
                   </div>
@@ -1013,19 +907,17 @@ export default function ReportsModule({ schoolCode }) {
                         return sc !== null && sc !== undefined && Number(sc) < 40;
                       });
                       return (
-                        <div key={s.id} className="flex items-center justify-between bg-app-surface border border-red-200 rounded-xl px-4 py-3 cursor-pointer hover:bg-red-50/50 transition-colors"
+                        <div key={s.id} className="flex items-center justify-between bg-card-bg border border-danger/20 rounded-xl px-4 py-3 cursor-pointer hover:bg-danger/5 transition-colors"
                           onClick={() => setViewingStudent(s)}>
                           <div>
-                            <p className="font-semibold text-app-text text-sm">{fullName(s)}</p>
-                            <p className="text-[10px] text-app-text/50">{s.className}</p>
-                            {weak.length > 0 && (
-                              <p className="text-[10px] text-red-700 mt-0.5">Failing: {weak.join(", ")}</p>
-                            )}
+                            <p className="font-semibold text-app-text">{fullName(s)}</p>
+                            <p className="text-[10px] text-muted">{s.className}</p>
+                            {weak.length > 0 && <p className="text-[10px] text-danger mt-0.5">Failing: {weak.join(", ")}</p>}
                           </div>
                           <div className="text-right shrink-0">
                             <p className={`font-bold text-lg ${g?.color}`}>{s.average}%</p>
                             {s.delta !== null && (
-                              <p className={`text-[10px] font-semibold ${s.delta > 0 ? "text-emerald-600" : "text-red-500"}`}>
+                              <p className={`text-[10px] font-semibold ${s.delta > 0 ? "text-success" : "text-danger"}`}>
                                 {s.delta > 0 ? "+" : ""}{s.delta}% vs {compareTerm}
                               </p>
                             )}
@@ -1037,12 +929,11 @@ export default function ReportsModule({ schoolCode }) {
                 </div>
               )}
 
-              {/* Needs support (40–49%) */}
               {studentsWithMarks.filter(s => s.average >= 40 && s.average < 50).length > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+                <div className="bg-warning/10 border border-warning/30 rounded-2xl p-5">
                   <div className="flex items-center gap-2 mb-3">
-                    <AlertTriangle size={16} className="text-amber-600" />
-                    <h3 className="font-semibold text-amber-800 text-sm">
+                    <AlertTriangle size={16} className="text-warning" />
+                    <h3 className="font-semibold text-warning-dark text-sm">
                       Needs Support — G7–G8 · 40–49% ({studentsWithMarks.filter(s => s.average >= 40 && s.average < 50).length})
                     </h3>
                   </div>
@@ -1054,19 +945,17 @@ export default function ReportsModule({ schoolCode }) {
                         return sc !== null && sc !== undefined && Number(sc) < 50;
                       });
                       return (
-                        <div key={s.id} className="flex items-center justify-between bg-app-surface border border-amber-200 rounded-xl px-4 py-3 cursor-pointer hover:bg-amber-50/50 transition-colors"
+                        <div key={s.id} className="flex items-center justify-between bg-card-bg border border-warning/20 rounded-xl px-4 py-3 cursor-pointer hover:bg-warning/5 transition-colors"
                           onClick={() => setViewingStudent(s)}>
                           <div>
-                            <p className="font-semibold text-app-text text-sm">{fullName(s)}</p>
-                            <p className="text-[10px] text-app-text/50">{s.className}</p>
-                            {weak.length > 0 && (
-                              <p className="text-[10px] text-amber-700 mt-0.5">Struggling: {weak.join(", ")}</p>
-                            )}
+                            <p className="font-semibold text-app-text">{fullName(s)}</p>
+                            <p className="text-[10px] text-muted">{s.className}</p>
+                            {weak.length > 0 && <p className="text-[10px] text-warning mt-0.5">Struggling: {weak.join(", ")}</p>}
                           </div>
                           <div className="text-right shrink-0">
                             <p className={`font-bold text-lg ${g?.color}`}>{s.average}%</p>
                             {s.delta !== null && (
-                              <p className={`text-[10px] font-semibold ${s.delta > 0 ? "text-emerald-600" : "text-red-500"}`}>
+                              <p className={`text-[10px] font-semibold ${s.delta > 0 ? "text-success" : "text-danger"}`}>
                                 {s.delta > 0 ? "+" : ""}{s.delta}% vs {compareTerm}
                               </p>
                             )}
@@ -1079,10 +968,10 @@ export default function ReportsModule({ schoolCode }) {
               )}
 
               {studentsWithMarks.filter(s => s.average < 50).length === 0 && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl py-16 flex flex-col items-center gap-3 text-center">
-                  <CheckCircle size={32} className="text-emerald-600" />
-                  <p className="text-sm font-semibold text-emerald-800">No students currently below 50%!</p>
-                  <p className="text-xs text-emerald-700/70">All students with marks are passing at Credit level or above.</p>
+                <div className="bg-success/10 border border-success/30 rounded-2xl py-16 flex flex-col items-center gap-3 text-center">
+                  <CheckCircle size={32} className="text-success" />
+                  <p className="text-sm font-semibold text-success-dark">No students currently below 50%!</p>
+                  <p className="text-xs text-success/70">All students with marks are passing at Credit level or above.</p>
                 </div>
               )}
             </div>
@@ -1090,12 +979,11 @@ export default function ReportsModule({ schoolCode }) {
         </>
       )}
 
-      <p className="text-center text-xs text-app-text/40 pt-1">
+      <p className="text-center text-xs text-muted pt-1">
         Showing CA marks submitted by teachers. Select a class or term to filter.
-        Marks are read-only here — teachers manage entry from their Performance module.
+        Marks are read‑only here — teachers manage entry from their Performance module.
       </p>
 
-      {/* ── Report card modal ─────────────────────────────────────────────── */}
       {viewingStudent && (
         <ReportCardModal
           student={viewingStudent}

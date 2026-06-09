@@ -480,11 +480,11 @@ export default function PerformanceModule({ userId, schoolCode }) {
                 )}
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="data-table-wrap">
+                <table className="data-table data-table--stack">
                   <thead>
                     <tr className="border-b border-app-border bg-app-surface">
-                      <th className="px-5 py-3 text-left text-[11px] font-bold tracking-wide text-app-text/50 sticky left-0 bg-app-surface">
+                      <th>
                         STUDENT
                       </th>
                       {mySubjects.map(subj => (
@@ -492,10 +492,10 @@ export default function PerformanceModule({ userId, schoolCode }) {
                           {subj}
                         </th>
                       ))}
-                      <th className="px-3 py-3 text-center text-[11px] font-bold tracking-wide text-app-text/50">
+                      <th>
                         AVERAGE
                       </th>
-                      <th className="px-3 py-3 text-center text-[11px] font-bold tracking-wide text-app-text/50">
+                      <th>
                         RANK
                       </th>
                     </tr>
@@ -506,7 +506,7 @@ export default function PerformanceModule({ userId, schoolCode }) {
                       const avgGrade = getGradeInfo(avg);
                       return (
                         <tr key={student.id} className="hover:bg-[#FAFAF8] transition-colors">
-                          <td className="px-5 py-3 sticky left-0 bg-app-surface">
+                          <td className="px-5 py-3 sticky left-0 bg-app-surface" data-label="STUDENT">
                             <p className="font-semibold text-app-text text-sm">{fullName(student)}</p>
                             <p className="text-[10px] text-app-text/40">{student.studentCode || student.id}</p>
                           </td>
@@ -517,7 +517,7 @@ export default function PerformanceModule({ userId, schoolCode }) {
                               onCommit={score => updateMark(student.id, subj, score)}
                             />
                           ))}
-                          <td className="px-3 py-3 text-center">
+                          <td className="px-3 py-3 text-center" data-label="Field">
                             {avg !== null ? (
                               <div className="flex flex-col items-center gap-0.5">
                                 <span className={`font-bold text-base ${avgGrade?.color || "text-app-text"}`}>
@@ -531,7 +531,7 @@ export default function PerformanceModule({ userId, schoolCode }) {
                               </div>
                             ) : <span className="text-app-text/25 text-xs">—</span>}
                           </td>
-                          <td className="px-3 py-3 text-center">
+                          <td className="px-3 py-3 text-center" data-label="AVERAGE">
                             {student.rank ? (
                               <span className={`inline-flex items-center justify-center w-7 h-7 rounded-xl text-xs font-bold
                                 ${student.rank === 1 ? "bg-app-warning text-app-text"
