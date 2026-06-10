@@ -1485,6 +1485,7 @@ export default function AdminDashboard() {
         currentTab={currentTab}
         onTabChange={(tab) => { setCurrentTab(tab); setSidebarOpen(false); }}
         schoolName={schoolName}
+          navItems={NAV_ITEMS}  
         schoolDistrict={schoolDistrict}
         schoolCode={schoolCode}
         onSignOut={handleSignOut}
