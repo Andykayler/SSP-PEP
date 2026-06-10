@@ -1,35 +1,35 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   SSP-PEP Dashboard CSS
-   Consolidated from dashboard-layout.css + admin_dashboard.css
-   Fixes: duplicate .main-area, duplicate .topbar, duplicate .badge/.alert,
-          z-index conflicts, topbar-user-name vs topbar__user-name mismatch,
-          unnecessary margin-left transition on .main-area.
+   SSP-PEP Dashboard Layout CSS
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ── 0. ROOT SCROLL LOCK ── */
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   1. SHELL LAYOUT
-   ═══════════════════════════════════════════════════════════════════════════ */
-
+/* ── 1. SHELL ── */
 .dashboard-shell {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: var(--bg-primary);
   display: flex;
   transition: background-color var(--transition-base);
 }
 
-/* ── Main area ──────────────────────────────────────────────────────────────
-   Mobile:  sidebar is position:fixed (out of flow) → .main-area fills 100%.
-   Desktop: sidebar is position:sticky (in-flow)   → .main-area fills rest.
-   NO margin-left or transition needed — flex handles it automatically.
-   ─────────────────────────────────────────────────────────────────────────── */
+
+/* ── 2. MAIN AREA ── */
 .main-area {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-width: 0;             /* prevent flex blowout */
+  min-width: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: var(--bg-primary);
   transition: background-color var(--transition-base);
+  -webkit-overflow-scrolling: touch;
 }
 
 @keyframes fadeIn {
@@ -37,19 +37,11 @@
   to   { opacity: 1; }
 }
 
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   2. TOPBAR
-   FIX: unified from two conflicting definitions.
-        z-index: 40 (below sidebar:300 and overlay:250).
-        Height normalised to 60px.
-        backdrop-filter kept — it's on the topbar (not the sidebar overlay)
-        so it's fine and intentional.
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ── 3. TOPBAR ── */
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 40;              /* intentionally below sidebar (300) & overlay (250) */
+  z-index: 40;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -96,7 +88,6 @@
   border-color: var(--border-strong);
 }
 
-/* Hide hamburger on desktop — sidebar is always visible there */
 @media (min-width: 1024px) {
   .topbar__menu-btn { display: none; }
 }
@@ -140,7 +131,6 @@
   flex-shrink: 0;
 }
 
-/* Online status pill */
 .topbar__status {
   display: none;
   align-items: center;
@@ -173,8 +163,6 @@
   color: var(--secondary-light);
 }
 
-/* FIX: both class names now work — topbar__user-name (BEM) and
-   topbar-user-name (legacy) are identical. JSX can use either. */
 .topbar__user-name,
 .topbar-user-name {
   font-size: 13px;
@@ -182,7 +170,7 @@
   color: var(--text-primary);
   text-align: right;
   white-space: nowrap;
-  display: none;          /* hidden on tiny screens */
+  display: none;
 }
 @media (min-width: 480px) {
   .topbar__user-name,
@@ -235,10 +223,7 @@
   border-color: var(--border-strong);
 }
 
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   3. PAGE CONTENT
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ── 4. PAGE CONTENT ── */
 .page-content {
   flex: 1;
   padding: 16px;
@@ -247,15 +232,13 @@
   gap: 20px;
   background: var(--bg-primary);
   transition: background-color var(--transition-base);
+  min-height: 0;
 }
 
 @media (min-width: 640px)  { .page-content { padding: 24px; } }
 @media (min-width: 1024px) { .page-content { padding: 28px 32px; } }
 
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   4. FOOTER
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ── 5. FOOTER ── */
 .dashboard-footer {
   display: flex;
   align-items: center;
@@ -279,10 +262,7 @@
   color: var(--text-muted);
 }
 
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   5. OVERVIEW HERO
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ── 6. OVERVIEW HERO ── */
 .overview-hero {
   background: var(--hero-bg);
   border-radius: var(--radius-xl);
@@ -394,10 +374,7 @@
   margin-top: 6px;
 }
 
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   6. SECTION LABELS
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ── 7. SECTION LABELS ── */
 .section-tag,
 .sec-eyebrow {
   display: inline-flex;
@@ -423,10 +400,7 @@
 
 .sec-eyebrow { margin-bottom: 10px; }
 
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   7. STAT CARDS
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ── 8. STAT CARDS ── */
 .stat-strip {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -537,10 +511,7 @@
   background: linear-gradient(90deg, var(--warning), var(--warning-light));
 }
 
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   8. QUICK ACTIONS
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ── 9. QUICK ACTIONS ── */
 .quick-actions-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -588,10 +559,23 @@
 .quick-action-btn:hover::after { transform: scale(2.5); }
 .quick-action-btn:active       { transform: scale(0.97); }
 
-.quick-action-btn--navy   { background: linear-gradient(135deg, var(--bg-secondary), var(--bg-primary)); box-shadow: 0 6px 20px rgba(15,22,41,0.4); }
-.quick-action-btn--teal   { background: linear-gradient(135deg, var(--secondary), #06909a); box-shadow: 0 6px 20px rgba(14,165,176,0.3); }
-.quick-action-btn--gold   { background: linear-gradient(135deg, var(--warning), #d4960a); color: var(--warning-dark); box-shadow: 0 6px 20px rgba(232,168,0,0.3); }
-.quick-action-btn--purple { background: linear-gradient(135deg, #7c3aed, #6929d4); box-shadow: 0 6px 20px rgba(124,58,237,0.3); }
+.quick-action-btn--navy {
+  background: linear-gradient(135deg, #2d3a5e, #3d4f7a);
+  box-shadow: 0 6px 20px rgba(30, 42, 80, 0.35);
+}
+.quick-action-btn--teal {
+  background: linear-gradient(135deg, #0ea5b0, #0b8a94);
+  box-shadow: 0 6px 20px rgba(14, 165, 176, 0.30);
+}
+.quick-action-btn--gold {
+  background: linear-gradient(135deg, #c47d0e, #e09a1a);
+  color: #1a0f00;
+  box-shadow: 0 6px 20px rgba(196, 125, 14, 0.30);
+}
+.quick-action-btn--purple {
+  background: linear-gradient(135deg, #6929d4, #7c3aed);
+  box-shadow: 0 6px 20px rgba(109, 40, 217, 0.30);
+}
 
 .quick-action-btn__icon svg { width: 20px; height: 20px; }
 .quick-action-btn__label    { font-size: 12px; font-weight: 500; line-height: 1.3; }
@@ -600,10 +584,7 @@
   .quick-action-btn__label    { font-size: 13px; }
 }
 
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   9. MODULE CARDS
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ── 10. MODULE CARDS ── */
 .modules-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -673,10 +654,22 @@
   font-weight: 300;
 }
 
+/* ── Light mode overrides ── */
+[data-theme="light"] .module-card {
+  background: linear-gradient(135deg, #eef1fb 0%, #f4f6fd 100%);
+  border-color: #cdd4ec;
+}
+[data-theme="light"] .module-card:hover {
+  background: linear-gradient(135deg, #e6ecfa 0%, #eef2fd 100%);
+  border-color: #b0bcd8;
+}
+[data-theme="light"] .quick-action-btn--navy {
+  background: linear-gradient(135deg, #2d3a5e, #3d4f7a);
+  color: #ffffff;
+  box-shadow: 0 6px 20px rgba(30, 42, 80, 0.28);
+}
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   10. AVATARS
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ── 11. AVATARS ── */
 .avatar {
   width: 36px; height: 36px;
   border-radius: 9px;
@@ -688,16 +681,13 @@
   flex-shrink: 0;
   letter-spacing: 1px;
 }
-.avatar--navy   { background: linear-gradient(135deg, var(--bg-secondary), var(--bg-primary)); color: #fff; }
+.avatar--navy   { background: linear-gradient(135deg, #2d3a5e, #3d4f7a); color: #fff; }
 .avatar--accent { background: var(--primary-pale); color: var(--primary-light); }
 .avatar--teal   { background: rgba(14,165,176,0.12); color: var(--secondary-light); }
 .avatar--pink   { background: rgba(236,72,153,0.15); color: #f472b6; }
 .avatar--blue   { background: rgba(59,130,246,0.15); color: #60a5fa; }
 
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   11. STUDENT CODE BADGE
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ── 12. STUDENT CODE BADGE ── */
 .student-code-badge {
   display: inline-flex;
   align-items: center;
@@ -732,10 +722,7 @@
 }
 .student-code-badge__copy:hover { opacity: 1; }
 
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   12. FILTER PILLS & SEARCH
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ── 13. FILTER PILLS & SEARCH ── */
 .filter-pills { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .filter-pill {
@@ -796,10 +783,7 @@
   background: var(--primary-pale);
 }
 
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   13. BILLING PLANS & SUB-TABS
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ── 14. BILLING PLANS & SUB-TABS ── */
 .plan-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -851,7 +835,6 @@
 }
 .plan-card__feature-icon { color: var(--secondary-light); flex-shrink: 0; }
 
-/* Sub-tabs */
 .sub-tabs {
   display: flex;
   gap: 4px;
@@ -892,10 +875,7 @@
 }
 @media (min-width: 640px) { .sub-tab { font-size: 13px; padding: 8px 16px; } }
 
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   14. MODULE TITLE & SUBTITLE
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ── 15. MODULE TITLE & SUBTITLE ── */
 .module-title {
   font-family: var(--font-display);
   font-size: clamp(1.2rem, 4vw, 1.9rem);
@@ -910,10 +890,7 @@
   font-weight: 300;
 }
 
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   15. CC-ROW (table row helper)
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ── 16. CC-ROW ── */
 .cc-row {
   display: flex;
   align-items: center;
@@ -942,12 +919,7 @@
 .cc-row__meta  { color: var(--text-muted); font-size: 11px; font-weight: 300; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cc-row__right { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; gap: 3px; }
 
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   16. ALERTS
-   FIX: single definition — removed duplicate from admin_dashboard.css.
-        Using design-system version (border instead of border-left only).
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ── 17. ALERTS ── */
 .alert {
   display: flex;
   align-items: flex-start;
@@ -962,12 +934,7 @@
 .alert--warning { background: var(--warning-pale);  border: 1px solid rgba(232,168,0,0.2);   color: var(--warning-light); }
 .alert--info    { background: var(--primary-pale);  border: 1px solid var(--border-strong);  color: var(--text-secondary); }
 
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   17. BADGES
-   FIX: single definition — removed duplicate from admin_dashboard.css.
-        Using design-system version (has border for polish).
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ── 18. BADGES ── */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -992,7 +959,6 @@
 .badge--green  { background: var(--success-pale);    color: var(--success-light); border: 1px solid rgba(34,197,94,0.22); }
 .badge--red    { background: var(--danger-pale);     color: var(--danger-light); border: 1px solid rgba(239,68,68,0.2); }
 
-/* Status pill */
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -1012,10 +978,7 @@
 .status-pill--suspended { background: var(--danger-pale);  color: var(--danger-light);  border: 1px solid rgba(239,68,68,0.2); }
 .status-pill__dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   18. SPINNER & EMPTY STATE
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ── 19. SPINNER & EMPTY STATE ── */
 .spinner {
   display: inline-block;
   width: 18px; height: 18px;
@@ -1073,4 +1036,57 @@
   color: var(--text-primary);
   margin-bottom: 4px;
 }
-.empty-state__sub  { font-size: 12.5px; color: var(--text-muted); margin-bottom: 20px; font-weight: 300; }
+.empty-state__sub { font-size: 12.5px; color: var(--text-muted); margin-bottom: 20px; font-weight: 300; }
+
+/* ── 20. DATA TABLE ── */
+.data-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background:
+    linear-gradient(to right, var(--card-bg) 0%, transparent 40px) left,
+    linear-gradient(to left,  var(--card-bg) 0%, transparent 40px) right;
+  background-size: 40px 100%, 40px 100%;
+  background-repeat: no-repeat;
+  background-attachment: local;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 520px;
+}
+
+@media (max-width: 479px) {
+  .data-table--stack thead { display: none; }
+
+  .data-table--stack tbody tr {
+    display: block;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .data-table--stack tbody td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 5px 0;
+    font-size: 12.5px;
+    border: none;
+  }
+
+  .data-table--stack tbody td::before {
+    content: attr(data-label);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    min-width: 80px;
+  }
+
+  .data-table--stack tbody td[data-label="Actions"]::before { display: none; }
+  .data-table { min-width: unset; }
+}

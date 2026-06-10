@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
+import { getInitialTheme, applyTheme, toggleTheme as toggleThemeUtil } from "../utils/theme";
 import "./landing.css";
 
 /* ─── helpers ───────────────────────────────────────── */
@@ -46,7 +47,7 @@ const SLIDES = ["Home", "Features", "Stats", "Pricing", "Launch", "About"];
 const TOTAL = SLIDES.length;
 
 /* ─── TOP NAV ───────────────────────────────────────── */
-const TopNav = ({ goTo, menuOpen, setMenuOpen }) => (
+const TopNav = ({ goTo, menuOpen, setMenuOpen, theme, onToggleTheme }) => (
   <>
     <header className="top-nav">
       <div className="nav-logo">
@@ -63,6 +64,16 @@ const TopNav = ({ goTo, menuOpen, setMenuOpen }) => (
         </ul>
       </nav>
       <div className="nav-actions">
+        {/* ── Theme toggle ── */}
+        <button
+          className="btn-theme-toggle"
+          onClick={onToggleTheme}
+          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+        >
+          <i className={`ti ${theme === "dark" ? "ti-sun" : "ti-moon"}`} aria-hidden="true" />
+        </button>
+
         <Link to="/signin">
           <button className="btn-nav-in">Sign In</button>
         </Link>
@@ -82,6 +93,17 @@ const TopNav = ({ goTo, menuOpen, setMenuOpen }) => (
           {s}
         </button>
       ))}
+
+      {/* ── Theme toggle in mobile menu ── */}
+      <button
+        className="mobile-nav-link mobile-theme-toggle"
+        onClick={() => { onToggleTheme(); }}
+        aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+      >
+        <i className={`ti ${theme === "dark" ? "ti-sun" : "ti-moon"}`} aria-hidden="true" />
+        {theme === "dark" ? "Light Mode" : "Dark Mode"}
+      </button>
+
       <Link to="/signin" onClick={() => setMenuOpen(false)} style={{ display: "block" }}>
         <button className="btn-nav-in mobile-btn">Sign In</button>
       </Link>
@@ -302,14 +324,14 @@ const PLANS = [
     desc: "Perfect for small schools just getting started.",
     accent: false,
     features: [
-      { label: "Up to 200 students",        yes: true  },
-      { label: "1 admin account",           yes: true  },
-      { label: "Grade & attendance tracking",yes: true  },
-      { label: "Parent notifications",      yes: true  },
-      { label: "PDF report export",         yes: false },
-      { label: "Parent–teacher chat",       yes: false },
-      { label: "Multi-campus support",      yes: false },
-      { label: "Priority support",          yes: false },
+      { label: "Up to 200 students",         yes: true  },
+      { label: "1 admin account",            yes: true  },
+      { label: "Grade & attendance tracking", yes: true  },
+      { label: "Parent notifications",       yes: true  },
+      { label: "PDF report export",          yes: false },
+      { label: "Parent–teacher chat",        yes: false },
+      { label: "Multi-campus support",       yes: false },
+      { label: "Priority support",           yes: false },
     ],
     cta: "Get Started Free",
     ctaLink: "/register",
@@ -322,14 +344,14 @@ const PLANS = [
     desc: "For growing schools that need the full toolkit.",
     accent: true,
     features: [
-      { label: "Up to 1,500 students",      yes: true  },
-      { label: "5 staff accounts",          yes: true  },
-      { label: "Grade & attendance tracking",yes: true  },
-      { label: "Parent notifications",      yes: true  },
-      { label: "PDF report export",         yes: true  },
-      { label: "Parent–teacher chat",       yes: true  },
-      { label: "Multi-campus support",      yes: false },
-      { label: "Priority support",          yes: false },
+      { label: "Up to 1,500 students",       yes: true  },
+      { label: "5 staff accounts",           yes: true  },
+      { label: "Grade & attendance tracking", yes: true  },
+      { label: "Parent notifications",       yes: true  },
+      { label: "PDF report export",          yes: true  },
+      { label: "Parent–teacher chat",        yes: true  },
+      { label: "Multi-campus support",       yes: false },
+      { label: "Priority support",           yes: false },
     ],
     cta: "Start 30-Day Trial",
     ctaLink: "/register",
@@ -342,14 +364,14 @@ const PLANS = [
     desc: "For large districts and multi-school networks.",
     accent: false,
     features: [
-      { label: "Unlimited students",        yes: true  },
-      { label: "Unlimited staff accounts",  yes: true  },
-      { label: "Grade & attendance tracking",yes: true  },
-      { label: "Parent notifications",      yes: true  },
-      { label: "PDF report export",         yes: true  },
-      { label: "Parent–teacher chat",       yes: true  },
-      { label: "Multi-campus support",      yes: true  },
-      { label: "Priority support",          yes: true  },
+      { label: "Unlimited students",         yes: true  },
+      { label: "Unlimited staff accounts",   yes: true  },
+      { label: "Grade & attendance tracking", yes: true  },
+      { label: "Parent notifications",       yes: true  },
+      { label: "PDF report export",          yes: true  },
+      { label: "Parent–teacher chat",        yes: true  },
+      { label: "Multi-campus support",       yes: true  },
+      { label: "Priority support",           yes: true  },
     ],
     cta: "Contact Sales",
     ctaLink: "/signin",
@@ -453,10 +475,10 @@ const SlideCTA = () => (
 
       <div className="cta-cards">
         {[
-          { icon: "ti-brand-google-play", cls: "cta-card-icon", title: "Android App", sub: "Available on Google Play — free download", to: null },
-          { icon: "ti-brand-apple",       cls: "cta-card-icon teal", title: "iOS App", sub: "Available on the App Store for iPhone & iPad", to: null },
-          { icon: "ti-login",             cls: "cta-card-icon dark", title: "Staff Portal", sub: "Sign in to your school dashboard", to: "/signin" },
-          { icon: "ti-school",            cls: "cta-card-icon", title: "Register School", sub: "Create your institution account now", to: "/register" },
+          { icon: "ti-brand-google-play", cls: "cta-card-icon",      title: "Android App",     sub: "Available on Google Play — free download",          to: null       },
+          { icon: "ti-brand-apple",       cls: "cta-card-icon teal", title: "iOS App",          sub: "Available on the App Store for iPhone & iPad",      to: null       },
+          { icon: "ti-login",             cls: "cta-card-icon dark", title: "Staff Portal",     sub: "Sign in to your school dashboard",                  to: "/signin"  },
+          { icon: "ti-school",            cls: "cta-card-icon",      title: "Register School",  sub: "Create your institution account now",               to: "/register"},
         ].map(c => (
           c.to ? (
             <Link key={c.title} to={c.to} style={{ textDecoration: "none" }}>
@@ -544,7 +566,18 @@ export default function AcademixLanding() {
   const [current, setCurrent] = useState(0);
   const [exiting, setExiting] = useState(-1);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Initialise from localStorage / system preference — no flash
+  const [theme, setTheme] = useState(getInitialTheme);
   const transitioning = useRef(false);
+
+  // Keep <html data-theme="..."> and localStorage in sync whenever theme changes
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  const onToggleTheme = useCallback(() => {
+    setTheme(prev => toggleThemeUtil(prev));
+  }, []);
 
   const goTo = useCallback((idx) => {
     if (idx === current || transitioning.current) return;
@@ -558,7 +591,7 @@ export default function AcademixLanding() {
     }, 550);
   }, [current]);
 
-  // keyboard navigation
+  // Keyboard navigation
   useEffect(() => {
     const handler = (e) => {
       if (e.key === "ArrowDown" || e.key === "ArrowRight") goTo(current + 1);
@@ -568,7 +601,7 @@ export default function AcademixLanding() {
     return () => window.removeEventListener("keydown", handler);
   }, [current, goTo]);
 
-  // touch swipe
+  // Touch swipe
   useEffect(() => {
     let startY = 0;
     const onStart = (e) => { startY = e.touches[0].clientY; };
@@ -584,7 +617,7 @@ export default function AcademixLanding() {
     };
   }, [current, goTo]);
 
-  // mouse wheel
+  // Mouse wheel
   useEffect(() => {
     let lastWheel = 0;
     const onWheel = (e) => {
@@ -608,17 +641,23 @@ export default function AcademixLanding() {
   ];
 
   const slideComponents = [
-    <SlideHero    key="hero"     goTo={goTo} />,
+    <SlideHero     key="hero"     goTo={goTo} />,
     <SlideFeatures key="features" />,
-    <SlideStats   key="stats"    active={current === 2} />,
-    <SlidePricing key="pricing"  active={current === 3} />,
-    <SlideCTA     key="cta"      />,
-    <SlideFooter  key="footer"   />,
+    <SlideStats    key="stats"    active={current === 2} />,
+    <SlidePricing  key="pricing"  active={current === 3} />,
+    <SlideCTA      key="cta"      />,
+    <SlideFooter   key="footer"   />,
   ];
 
   return (
     <>
-      <TopNav goTo={goTo} menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
+      <TopNav
+        goTo={goTo}
+        menuOpen={menuOpen}
+        setMenuOpen={setMenuOpen}
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+      />
 
       {/* slide container */}
       <div id="slide-container">

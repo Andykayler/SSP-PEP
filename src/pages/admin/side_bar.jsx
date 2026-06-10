@@ -9,10 +9,7 @@ export const NAV_ITEMS = [
   { id: "announcements", label: "Announcements",   icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} width={20} height={20}><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"/></svg> },
   { id: "audit",         label: "Audit Log",       icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} width={20} height={20}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"/></svg> },
 ];
-/**
- * Returns a random weather condition (static once mounted)
- * Includes temperature, condition, time, and date.
- */
+
 function getInitialWeather() {
   const now = new Date();
   const temp = 18 + Math.floor(Math.random() * 6);
@@ -23,20 +20,21 @@ function getInitialWeather() {
   return { temp, condition, time, date };
 }
 
-/** Map weather condition to a relevant emoji */
 function getWeatherEmoji(condition) {
-  const map = {
-    Clear: "☀️",
-    "Partly Cloudy": "⛅",
-    Sunny: "☀️",
-    Mild: "🌤️",
-  };
+  const map = { Clear: "☀️", "Partly Cloudy": "⛅", Sunny: "☀️", Mild: "🌤️" };
   return map[condition] || "🌡️";
 }
 
-/** Generate initials from a name (max 2 letters) */
-function initials(name = "") {
-  return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+/* ─── media query helper ─────────────────────────────── */
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const handler = (e) => setIsDesktop(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return isDesktop;
 }
 
 export default function HeadTeacherSidebar({
@@ -46,17 +44,16 @@ export default function HeadTeacherSidebar({
   onTabChange,
   navItems,
   navSectionLabel = "School Leadership",
-  portalLabel = "Head Teacher Portal",
-  roleName = "Head Teacher",
+  portalLabel = "Admin Portal",
+  roleName = "System Admin",
   schoolName = "Your School",
   schoolDistrict = "",
   schoolCode = "",
   onSignOut,
 }) {
-  // Weather state: computed once at mount (improves stability across re-renders)
   const [weather, setWeather] = useState(getInitialWeather);
+  const isDesktop = useIsDesktop();
 
-  // Optional: refresh time & date every minute, while preserving temp/condition
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
@@ -69,338 +66,210 @@ export default function HeadTeacherSidebar({
     return () => clearInterval(interval);
   }, []);
 
+  /* ── derived visibility ── */
+  const visible = isDesktop || isOpen;
+
   return (
-    <div className="ht-sidebar-root">
-      {/* Inline styles — scoped to this component via the wrapper class */}
+    <>
       <style>{`
-        /* ----- CSS variables (scoped fallbacks) ----- */
-        .ht-sidebar-root {
-          --primary: #3b82f6;
-          --primary-light: #60a5fa;
-          --primary-dim: #eff6ff;
-          --primary-pale: #dbeafe;
-          --danger: #ef4444;
-          --danger-pale: #fee2e2;
-          --bg-secondary: #ffffff;
-          --surface: #f8fafc;
-          --border-color: #e2e8f0;
-          --text-primary: #0f172a;
-          --text-secondary: #334155;
-          --text-muted: #64748b;
-          --font-display: system-ui, 'Segoe UI', 'Inter', sans-serif;
-          --font-body: system-ui, 'Segoe UI', 'Inter', sans-serif;
-          --font-mono: 'SF Mono', 'Fira Code', monospace;
-          --radius-lg: 12px;
-          --radius-xl: 16px;
-          --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
-          --shadow-accent: 0 4px 8px rgba(59, 130, 246, 0.2);
-          --transition-base: 0.2s ease;
+        /* scrollbar */
+        .sidebar-inner::-webkit-scrollbar       { width: 4px; }
+        .sidebar-inner::-webkit-scrollbar-track { background: var(--primary-dim); }
+        .sidebar-inner::-webkit-scrollbar-thumb { background: var(--primary-pale); border-radius: 10px; }
+
+        /* nav item hover / active */
+        .sb-nav-btn:hover {
+          background: var(--primary-pale) !important;
+          color: var(--primary-light) !important;
+        }
+        .sb-nav-btn--active {
+          background: var(--primary-dim) !important;
+          color: var(--primary) !important;
+          border-left-color: var(--primary) !important;
         }
 
-        /* Sidebar container */
-        .ht-sidebar-root .sidebar {
-          position: sticky;
-          top: 0;
-          height: 100vh;
-          width: 280px;
-          flex-shrink: 0;
-          background: var(--bg-secondary);
-          border-right: 1px solid var(--border-color);
-          display: flex;
-          flex-direction: column;
-          transition: transform 0.25s ease, background var(--transition-base);
-          z-index: 100;
-          overflow-y: auto;
-        }
-
-        /* Custom scrollbar */
-        .ht-sidebar-root .sidebar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .ht-sidebar-root .sidebar::-webkit-scrollbar-track {
-          background: var(--primary-dim);
-        }
-        .ht-sidebar-root .sidebar::-webkit-scrollbar-thumb {
-          background: var(--primary-pale);
-          border-radius: 10px;
-        }
-
-        /* Mobile off-canvas */
-        @media (max-width: 768px) {
-          .ht-sidebar-root .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            transform: translateX(-100%);
-            box-shadow: var(--shadow-lg);
-            z-index: 200;
-          }
-          .ht-sidebar-root .sidebar--open {
-            transform: translateX(0);
-          }
-        }
-
-        /* Overlay */
-        .ht-sidebar-root .sidebar-overlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(0, 0, 0, 0.6);
-          backdrop-filter: blur(8px);
-          z-index: 150;
-          opacity: 0;
-          visibility: hidden;
-          transition: opacity 0.2s ease, visibility 0.2s ease;
-        }
-        .ht-sidebar-root .sidebar-overlay--visible {
-          opacity: 1;
-          visibility: visible;
-        }
-
-        /* Header */
-        .ht-sidebar-root .sidebar__header {
-          padding: 24px 20px 16px 20px;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          border-bottom: 1px solid var(--border-color);
-        }
-        .ht-sidebar-root .sidebar__logo-mark {
-          width: 40px;
-          height: 40px;
-          background: linear-gradient(135deg, var(--primary), var(--primary-light));
-          border-radius: var(--radius-lg);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: var(--shadow-accent);
-        }
-        .ht-sidebar-root .sidebar__logo-mark svg {
-          width: 22px;
-          height: 22px;
-          stroke: white;
-        }
-        .ht-sidebar-root .sidebar__brand-name {
-          font-family: var(--font-display);
-          font-size: 1.5rem;
-          font-weight: 700;
-          background: linear-gradient(135deg, var(--primary), var(--primary-light));
-          background-clip: text;
-          -webkit-background-clip: text;
-          color: transparent;
-        }
-        .ht-sidebar-root .sidebar__brand-sub {
-          font-family: var(--font-mono);
-          font-size: 0.65rem;
-          letter-spacing: 1.5px;
-          color: var(--text-muted);
-        }
-
-        /* User info */
-        .ht-sidebar-root .sidebar__user-info {
-          padding: 16px 20px 12px 20px;
-          font-size: 0.75rem;
-          font-weight: 500;
-          color: var(--text-secondary);
-          border-bottom: 1px solid var(--border-color);
-          display: flex;
-          gap: 6px;
-          flex-wrap: wrap;
-        }
-        .ht-sidebar-root .sidebar__user-role {
-          color: var(--primary-light);
-        }
-        .ht-sidebar-root .sidebar__user-divider {
-          color: var(--text-muted);
-        }
-        .ht-sidebar-root .sidebar__user-school {
-          color: var(--text-primary);
-          font-weight: 600;
-        }
-
-        /* Navigation */
-        .ht-sidebar-root .sidebar__nav {
-          flex: 1;
-          padding: 20px 16px;
-        }
-        .ht-sidebar-root .sidebar__nav-label {
-          font-family: var(--font-mono);
-          font-size: 0.65rem;
-          letter-spacing: 1.5px;
-          text-transform: uppercase;
-          color: var(--text-muted);
-          margin-bottom: 16px;
-          padding-left: 12px;
-          display: block;
-        }
-        .ht-sidebar-root .sidebar__nav-list {
-          list-style: none;
-          margin: 0;
-          padding: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-        .ht-sidebar-root .sidebar__nav-item {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          width: 100%;
-          padding: 10px 16px;
-          border-radius: var(--radius-lg);
-          color: var(--text-secondary);
-          background: transparent;
-          border: none;
-          font-family: var(--font-body);
-          font-weight: 500;
-          font-size: 0.85rem;
-          cursor: pointer;
-          transition: all var(--transition-base);
-          text-align: left;
-        }
-        .ht-sidebar-root .sidebar__nav-icon svg {
-          width: 20px;
-          height: 20px;
-          stroke: currentColor;
-        }
-        .ht-sidebar-root .sidebar__nav-text {
-          flex: 1;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .ht-sidebar-root .sidebar__nav-item:hover {
-          background: var(--primary-pale);
-          color: var(--primary-light);
-        }
-        .ht-sidebar-root .sidebar__nav-item--active {
-          background: var(--primary-dim);
-          color: var(--primary);
-          border-left: 3px solid var(--primary);
-        }
-        .ht-sidebar-root .sidebar__nav-badge {
-          margin-left: auto;
-          background: var(--primary);
-          color: white;
-          font-size: 0.6rem;
-          font-weight: 700;
-          padding: 2px 8px;
-          border-radius: 40px;
-        }
-
-        /* Footer */
-        .ht-sidebar-root .sidebar__footer {
-          margin-top: auto;
-          padding: 20px 16px 24px;
-          border-top: 1px solid var(--border-color);
-        }
-        .ht-sidebar-root .sidebar__weather {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 12px;
-          justify-content: space-between;
-          background: var(--surface);
-          border-radius: var(--radius-xl);
-          padding: 12px 16px;
-          margin-bottom: 16px;
-          font-size: 0.75rem;
-          font-weight: 500;
-          color: var(--text-secondary);
-        }
-        .ht-sidebar-root .sidebar__weather-temp {
-          font-weight: 700;
-          color: var(--primary-light);
-        }
-        .ht-sidebar-root .sidebar__weather-emoji {
-          margin-right: 4px;
-          font-size: 0.85rem;
-        }
-        .ht-sidebar-root .sidebar__signout {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          padding: 10px;
-          background: transparent;
-          border: 1px solid var(--border-color);
-          border-radius: var(--radius-lg);
-          font-family: var(--font-body);
-          font-size: 0.8rem;
-          font-weight: 500;
-          color: var(--text-secondary);
-          cursor: pointer;
-          transition: all var(--transition-base);
-        }
-        .ht-sidebar-root .sidebar__signout svg {
-          width: 18px;
-          height: 18px;
-        }
-        .ht-sidebar-root .sidebar__signout:hover {
-          background: var(--danger-pale);
-          border-color: var(--danger);
-          color: var(--danger);
-        }
-
-        /* Responsive adjustments */
-        @media (max-width: 640px) {
-          .ht-sidebar-root .sidebar {
-            width: 260px;
-          }
-          .ht-sidebar-root .sidebar__weather {
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-            gap: 6px;
-          }
+        /* sign-out hover */
+        .sb-signout:hover {
+          background: var(--danger-pale) !important;
+          border-color: var(--danger-light) !important;
+          color: var(--danger-light) !important;
         }
       `}</style>
 
-      {/* Mobile overlay */}
-      <div
-        className={`sidebar-overlay${isOpen ? " sidebar-overlay--visible" : ""}`}
-        onClick={onClose}
-      />
+      {/* ── Mobile overlay ── */}
+      {!isDesktop && (
+        <div
+          onClick={onClose}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            backdropFilter: "blur(2px)",
+            WebkitBackdropFilter: "blur(2px)",
+            zIndex: 250,
+            opacity: isOpen ? 1 : 0,
+            visibility: isOpen ? "visible" : "hidden",
+            transition: "opacity 0.25s ease, visibility 0.25s ease",
+            pointerEvents: isOpen ? "auto" : "none",
+          }}
+        />
+      )}
 
-      <aside className={`sidebar${isOpen ? " sidebar--open" : ""}`}>
-        {/* Brand header */}
-        <div className="sidebar__header">
-          <div className="sidebar__logo-mark">
-            <svg viewBox="0 0 24 24" fill="none">
+      {/* ── Sidebar ── */}
+      <aside
+        className="sidebar-inner"
+        style={{
+          /* positioning */
+          position: isDesktop ? "sticky" : "fixed",
+          top: 0,
+          left: 0,
+          height: isDesktop ? "100vh" : "100%",
+          width: 280,
+          zIndex: isDesktop ? 100 : 300,
+          flexShrink: 0,
+
+          /* appearance */
+          background: "var(--sidebar-bg)",
+          borderRight: "1px solid var(--border-color)",
+          boxShadow: isDesktop ? "none" : "4px 0 24px rgba(0,0,0,0.4)",
+
+          /* layout */
+          display: "flex",
+          flexDirection: "column",
+          overflowY: "auto",
+          overflowX: "hidden",
+
+          /* slide animation — only on mobile */
+          transform: isDesktop ? "none" : (isOpen ? "translateX(0)" : "translateX(-100%)"),
+          visibility: visible ? "visible" : "hidden",
+          transition: isDesktop
+            ? "background-color var(--transition-base), border-color var(--transition-base)"
+            : "transform 0.28s cubic-bezier(0.4,0,0.2,1), visibility 0.28s, background-color var(--transition-base)",
+        }}
+      >
+        {/* ── Brand header ── */}
+        <div style={{
+          padding: "24px 20px 16px",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          borderBottom: "1px solid var(--border-color)",
+          flexShrink: 0,
+        }}>
+          <div style={{
+            width: 40, height: 40, flexShrink: 0,
+            background: "linear-gradient(135deg, var(--primary), var(--primary-light))",
+            borderRadius: "var(--radius-lg)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 3px 14px rgba(79,110,247,0.4)",
+          }}>
+            <svg viewBox="0 0 24 24" fill="none" width={22} height={22}>
               <path d="M12 3L2 8l10 5 10-5-10-5z" fill="#fff" />
               <path d="M2 13l10 5 10-5" stroke="#fff" strokeWidth="1.8" strokeLinejoin="round" />
             </svg>
           </div>
           <div>
-            <div className="sidebar__brand-name">SSP-PEP</div>
-            <div className="sidebar__brand-sub">{portalLabel}</div>
+            <div style={{
+              fontFamily: "var(--font-display)",
+              fontSize: "1.5rem",
+              lineHeight: 1.2,
+              background: "linear-gradient(135deg, var(--primary), var(--primary-light))",
+              backgroundClip: "text",
+              WebkitBackgroundClip: "text",
+              color: "transparent",
+            }}>SSP-PEP</div>
+            <div style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: "0.65rem",
+              letterSpacing: "1.5px",
+              color: "var(--text-muted)",
+              textTransform: "uppercase",
+            }}>{portalLabel}</div>
           </div>
         </div>
 
-        {/* User info line */}
-        <div className="sidebar__user-info">
-          <span className="sidebar__user-role">{roleName}</span>
-          <span className="sidebar__user-divider">·</span>
-          <span className="sidebar__user-school">{schoolName}</span>
+        {/* ── User info ── */}
+        <div style={{
+          padding: "14px 20px 12px",
+          fontSize: "0.75rem",
+          fontWeight: 500,
+          color: "var(--text-secondary)",
+          borderBottom: "1px solid var(--border-color)",
+          display: "flex",
+          gap: 6,
+          flexWrap: "wrap",
+          flexShrink: 0,
+        }}>
+          <span style={{ color: "var(--primary-light)" }}>{roleName}</span>
+          <span style={{ color: "var(--text-muted)" }}>·</span>
+          <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>{schoolName}</span>
+          {schoolDistrict && (
+            <>
+              <span style={{ color: "var(--text-muted)" }}>·</span>
+              <span style={{ color: "var(--text-muted)", fontSize: "0.7rem" }}>{schoolDistrict}</span>
+            </>
+          )}
         </div>
 
-        {/* Navigation */}
-        <nav className="sidebar__nav">
-          <span className="sidebar__nav-label">{navSectionLabel}</span>
-          <ul className="sidebar__nav-list">
+        {/* ── Navigation ── */}
+        <nav style={{ flex: 1, padding: "20px 16px", overflowY: "auto" }}>
+          <span style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: "0.65rem",
+            letterSpacing: "1.5px",
+            textTransform: "uppercase",
+            color: "var(--text-muted)",
+            marginBottom: 16,
+            paddingLeft: 12,
+            display: "block",
+          }}>{navSectionLabel}</span>
+
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 4 }}>
             {navItems.map((item) => {
               const active = currentTab === item.id;
               return (
                 <li key={item.id}>
                   <button
-                    onClick={() => {
-                      onTabChange(item.id);
-                      onClose?.();
+                    onClick={() => { onTabChange(item.id); onClose?.(); }}
+                    className={`sb-nav-btn${active ? " sb-nav-btn--active" : ""}`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 14,
+                      width: "100%",
+                      padding: "10px 16px",
+                      borderRadius: "var(--radius-lg)",
+                      color: active ? "var(--primary)" : "var(--text-secondary)",
+                      background: active ? "var(--primary-dim)" : "transparent",
+                      border: "none",
+                      borderLeft: `3px solid ${active ? "var(--primary)" : "transparent"}`,
+                      fontFamily: "var(--font-body)",
+                      fontWeight: 500,
+                      fontSize: "0.85rem",
+                      cursor: "pointer",
+                      transition: "all var(--transition-base)",
+                      textAlign: "left",
+                      minHeight: 42,
                     }}
-                    className={`sidebar__nav-item${active ? " sidebar__nav-item--active" : ""}`}
                   >
-                    <span className="sidebar__nav-icon">{item.icon}</span>
-                    <span className="sidebar__nav-text">{item.label}</span>
-                    {item.badge && <span className="sidebar__nav-badge">{item.badge}</span>}
+                    <span style={{ width: 22, height: 22, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      {item.icon}
+                    </span>
+                    <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {item.label}
+                    </span>
+                    {item.badge && (
+                      <span style={{
+                        marginLeft: "auto",
+                        background: "var(--primary)",
+                        color: "#fff",
+                        fontSize: "0.6rem",
+                        fontWeight: 700,
+                        padding: "2px 8px",
+                        borderRadius: 40,
+                        flexShrink: 0,
+                      }}>{item.badge}</span>
+                    )}
                   </button>
                 </li>
               );
@@ -408,25 +277,72 @@ export default function HeadTeacherSidebar({
           </ul>
         </nav>
 
-        {/* Footer */}
-        <div className="sidebar__footer">
-          <div className="sidebar__weather">
-            <span className="sidebar__weather-temp">{weather.temp}°C</span>
-            <span className="sidebar__weather-condition">
-              <span className="sidebar__weather-emoji">{getWeatherEmoji(weather.condition)}</span>
+        {/* ── Footer ── */}
+        <div style={{
+          marginTop: "auto",
+          padding: "16px 16px 20px",
+          borderTop: "1px solid var(--border-color)",
+          flexShrink: 0,
+        }}>
+          {/* Weather widget */}
+          <div style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "8px 12px",
+            justifyContent: "space-between",
+            background: "var(--surface)",
+            border: "1px solid var(--border-color)",
+            borderRadius: "var(--radius-xl)",
+            padding: "10px 14px",
+            marginBottom: 14,
+            fontSize: "0.75rem",
+            fontWeight: 500,
+            color: "var(--text-secondary)",
+          }}>
+            <span style={{ fontWeight: 700, color: "var(--primary-light)" }}>{weather.temp}°C</span>
+            <span>
+              <span style={{ marginRight: 4, fontSize: "0.85rem" }}>{getWeatherEmoji(weather.condition)}</span>
               {weather.condition}
             </span>
-            <span className="sidebar__weather-time">{weather.time}</span>
-            <span className="sidebar__weather-date">{weather.date}</span>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.7rem", color: "var(--text-muted)" }}>
+              {weather.time}
+            </span>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.7rem", color: "var(--text-muted)" }}>
+              {weather.date}
+            </span>
           </div>
-          <button className="sidebar__signout" onClick={onSignOut}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
-              <path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+
+          {/* Sign out */}
+          <button
+            className="sb-signout"
+            onClick={onSignOut}
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+              padding: 10,
+              background: "transparent",
+              border: "1px solid var(--border-color)",
+              borderRadius: "var(--radius-lg)",
+              fontFamily: "var(--font-body)",
+              fontSize: "0.8rem",
+              fontWeight: 500,
+              color: "var(--text-secondary)",
+              cursor: "pointer",
+              transition: "all var(--transition-base)",
+              minHeight: 40,
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} width={18} height={18}>
+              <path strokeLinecap="round" strokeLinejoin="round"
+                d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
             </svg>
             <span>Sign Out</span>
           </button>
         </div>
       </aside>
-    </div>
+    </>
   );
 }
