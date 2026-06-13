@@ -9,33 +9,82 @@ import { createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "fir
 import Sidebar, { NAV_ITEMS } from "./side_bar";
 import { getInitialTheme, applyTheme, toggleTheme as flipTheme } from "../../utils/theme";
 import "./admin_dashboard.css";
+console.log("ENV CHECK:", import.meta.env.VITE_EMAILJS_PUBLIC_KEY);
 
-// ─── EMAIL CONFIG ─────────────────────────────────────────────────────────────
-const EMAILJS_SERVICE_ID           = "acalink_101";
-const EMAILJS_PUBLIC_KEY           = "0onfJrfekd5sOwhKF";
-const EMAILJS_STAFF_TEMPLATE_ID    = "Acalink_welcomEmail";
-const EMAILJS_GUARDIAN_TEMPLATE_ID = "acalink-guardianwelcom";
+// ─── EMAIL CONFIG (from .env.local) ──────────────────────────────────────────
+// With this:
+const EMAILJS_SERVICE_ID           = import.meta.env.VITE_EMAILJS_SERVICE_ID           || "";
+const EMAILJS_PUBLIC_KEY           = import.meta.env.VITE_EMAILJS_PUBLIC_KEY           || "";
+const EMAILJS_STAFF_TEMPLATE_ID    = import.meta.env.VITE_EMAILJS_STAFF_TEMPLATE_ID    || "";
+const EMAILJS_GUARDIAN_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_GUARDIAN_TEMPLATE_ID || "";
+const APP_URL                      = import.meta.env.VITE_APP_URL || window.location.origin;
+// ─── SMS helper (calls our /api/send-sms route) ───────────────────────────────
+// Replace the sendSms function in your admin_dashboard.jsx with this:
 
+async function sendSms(to, message) {
+  if (!to) return { success: false, reason: "no_number" };
+  try {
+    const res = await fetch("http://localhost:3001/api/send-sms", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ to: to.trim(), message }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      console.error("SMS failed:", data);
+      return { success: false, reason: data.error || "api_error" };
+    }
+    return { success: true };
+  } catch (err) {
+    console.error("SMS error:", err);
+    return { success: false, reason: "network_error" };
+  }
+}
+
+// ─── EMAIL helper ─────────────────────────────────────────────────────────────
 async function sendEmail({ templateId, toEmail, toName, params }) {
   try {
+    const payload = {
+      service_id:  EMAILJS_SERVICE_ID,
+      template_id: templateId,
+      user_id:     EMAILJS_PUBLIC_KEY,
+      template_params: {
+        to_name:     toName,
+        to_email:    toEmail,
+        reply_to:    toEmail,
+        school_name: params.school_name  || "",
+        user_role:   params.user_role    || "",
+        login_email: params.login_email  || "",
+        password:    params.password     || "",
+        login_url:   params.login_url    || "",
+      },
+    };
+
+    console.log("📧 EmailJS sending to:", toEmail);
+    console.log("📧 Service ID :", EMAILJS_SERVICE_ID);
+    console.log("📧 Template ID:", templateId);
+    console.log("📧 Public Key :", EMAILJS_PUBLIC_KEY);
+
     const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-      method: "POST",
+      method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        service_id: EMAILJS_SERVICE_ID,
-        template_id: templateId,
-        user_id: EMAILJS_PUBLIC_KEY,
-        template_params: {
-          to_name: toName, to_email: toEmail, reply_to: toEmail,
-          school_name: params.school_name, user_role: params.user_role,
-          login_email: params.login_email, password: params.password,
-          login_url: params.login_url,
-        },
-      }),
+      body:    JSON.stringify(payload),
     });
-    if (!response.ok) throw new Error(await response.text());
+
+    const text = await response.text();
+
+    if (!response.ok) {
+      console.error("❌ EmailJS error:", response.status, text);
+      return false;
+    }
+
+    console.log("✅ Email sent to:", toEmail);
     return true;
-  } catch (err) { console.error("Email send failed:", err); return false; }
+
+  } catch (err) {
+    console.error("❌ Email send failed:", err.message);
+    return false;
+  }
 }
 
 function generatePassword() {
@@ -46,7 +95,7 @@ function generatePassword() {
 
 function generateStudentCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const seg = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random()*chars.length)]).join("");
+  const seg   = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random()*chars.length)]).join("");
   return `STU-${seg()}-${seg()}`;
 }
 
@@ -73,16 +122,10 @@ const IC = {
   copy:     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} width={16} height={16}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75"/></svg>,
   info:     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} width={16} height={16}><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/></svg>,
   mail:     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} width={16} height={16}><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>,
-  sun: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} width={18} height={18}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 7a5 5 0 100 10A5 5 0 0012 7z"/>
-    </svg>
-  ),
-  moon: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} width={18} height={18}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/>
-    </svg>
-  ),
+  sms:      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} width={16} height={16}><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/></svg>,
+  phone:    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} width={16} height={16}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/></svg>,
+  sun: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} width={18} height={18}><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 7a5 5 0 100 10A5 5 0 0012 7z"/></svg>,
+  moon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} width={18} height={18}><path strokeLinecap="round" strokeLinejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>,
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -113,6 +156,18 @@ function fmtDate(ts) {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+// Format phone to international — adds +265 prefix if local Malawian number
+function normalisePhone(raw = "") {
+  const stripped = raw.replace(/\s+/g, "").replace(/[^+\d]/g, "");
+  if (!stripped) return "";
+  if (stripped.startsWith("+")) return stripped;
+  // Malawian local: 09xxxxxxxx or 08xxxxxxxx → +265 9xxxxxxxx
+  if (/^0[89]\d{8}$/.test(stripped)) return "+265" + stripped.slice(1);
+  // Already without country code but 9-digit
+  if (/^[89]\d{8}$/.test(stripped)) return "+265" + stripped;
+  return stripped; // return as-is; API will validate
+}
+
 // ─── Shared UI ────────────────────────────────────────────────────────────────
 const RoleBadge = ({ role }) => {
   const r = roleMap[role] || { label: role, badgeClass: "badge--blue" };
@@ -124,6 +179,26 @@ const StatusPill = ({ active }) => (
     <span className="status-pill__dot" />
     {active ? "Active" : "Suspended"}
   </span>
+);
+
+// Small inline icon badges for notification delivery status
+const NotifStatus = ({ email, sms }) => (
+  <div style={{ display: "flex", gap: 4, marginTop: 4, flexWrap: "wrap" }}>
+    {email !== undefined && (
+      <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 6, fontFamily: "var(--font-mono)", letterSpacing: 0.5,
+        background: email ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.12)",
+        color: email ? "#4ade80" : "#f87171" }}>
+        {email ? "✓ Email" : "✗ Email"}
+      </span>
+    )}
+    {sms !== undefined && (
+      <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 6, fontFamily: "var(--font-mono)", letterSpacing: 0.5,
+        background: sms ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.12)",
+        color: sms ? "#4ade80" : "#f87171" }}>
+        {sms ? "✓ SMS" : "✗ SMS"}
+      </span>
+    )}
+  </div>
 );
 
 const Modal = ({ title, onClose, children, size = "md" }) => (
@@ -140,9 +215,7 @@ const Modal = ({ title, onClose, children, size = "md" }) => (
 
 const Field = ({ label, required, error, children }) => (
   <div className="field">
-    {label && (
-      <label className={`field__label${required ? " field__label--required" : ""}`}>{label}</label>
-    )}
+    {label && <label className={`field__label${required ? " field__label--required" : ""}`}>{label}</label>}
     {children}
     {error && <span className="field__error">{error}</span>}
   </div>
@@ -207,7 +280,6 @@ function StudentCodeBadge({ code }) {
   );
 }
 
-// ─── Inline action button (table rows) ───────────────────────────────────────
 function ActionBtn({ onClick, icon, title, hoverBg = "rgba(79,110,247,0.07)" }) {
   const [hovered, setHovered] = useState(false);
   return (
@@ -217,15 +289,11 @@ function ActionBtn({ onClick, icon, title, hoverBg = "rgba(79,110,247,0.07)" }) 
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        padding: 7,
-        borderRadius: 8,
+        padding: 7, borderRadius: 8,
         background: hovered ? hoverBg : "none",
-        border: "none",
-        cursor: "pointer",
+        border: "none", cursor: "pointer",
         color: hovered ? "var(--accent-lt)" : "var(--text3)",
-        transition: "all .2s",
-        display: "flex",
-        alignItems: "center",
+        transition: "all .2s", display: "flex", alignItems: "center",
       }}
     >
       {icon}
@@ -245,8 +313,9 @@ function UserManagement({ schoolCode, schoolName }) {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError]                 = useState("");
   const [successMsg, setSuccessMsg]       = useState("");
-  const [form, setForm]                   = useState({ name: "", email: "", role: "", phone: "" });
-  const [formErrors, setFormErrors]       = useState({});
+  // form includes phone for SMS
+  const [form, setForm]       = useState({ name: "", email: "", role: "", phone: "" });
+  const [formErrors, setFormErrors] = useState({});
 
   useEffect(() => { fetchUsers(); }, []);
 
@@ -273,37 +342,71 @@ function UserManagement({ schoolCode, schoolName }) {
     const errs = validateForm(form);
     if (Object.keys(errs).length) { setFormErrors(errs); return; }
     setActionLoading(true); setError(""); setSuccessMsg("");
+
     const autoPassword = generatePassword();
+    const phone        = normalisePhone(form.phone);
+
     try {
       const cred = await createUserWithEmailAndPassword(auth, form.email.trim(), autoPassword);
       await setDoc(doc(db, "users", cred.user.uid), {
-        uid: cred.user.uid, name: form.name.trim(), email: form.email.trim(),
-        role: form.role, phone: form.phone.trim() || "", schoolCode,
-        status: "active", mustChangePassword: true, createdAt: serverTimestamp(),
+        uid: cred.user.uid,
+        name: form.name.trim(),
+        email: form.email.trim(),
+        role: form.role,
+        phone,
+        schoolCode,
+        status: "active",
+        mustChangePassword: true,
+        createdAt: serverTimestamp(),
       });
-      await sendEmail({
+
+      // ── Email notification ──
+      const emailSent = await sendEmail({
         templateId: EMAILJS_STAFF_TEMPLATE_ID,
-        toEmail: form.email.trim(), toName: form.name.trim(),
+        toEmail: form.email.trim(),
+        toName:  form.name.trim(),
         params: {
-          school_name: schoolName, user_role: roleMap[form.role]?.label || form.role,
-          login_email: form.email.trim(), password: autoPassword,
-          login_url: window.location.origin + "/login",
+          school_name: schoolName,
+          user_role:   roleMap[form.role]?.label || form.role,
+          login_email: form.email.trim(),
+          password:    autoPassword,
+          login_url:   `${APP_URL}/login`,
         },
       });
+
+      // ── SMS notification (if phone provided) ──
+      let smsSent = false;
+      if (phone) {
+        const smsResult = await sendSms(
+          phone,
+          `Welcome to ${schoolName}!\nYour account has been created.\nRole: ${roleMap[form.role]?.label || form.role}\nEmail: ${form.email.trim()}\nPassword: ${autoPassword}\nLogin: ${APP_URL}/login\n\nChange your password after first login.`
+        );
+        smsSent = smsResult.success;
+      }
+
       setShowAdd(false);
       setForm({ name: "", email: "", role: "", phone: "" });
-      setSuccessMsg(`Account created! Credentials sent to ${form.email.trim()}.`);
+
+      const channels = [emailSent && "email", smsSent && "SMS"].filter(Boolean).join(" & ");
+      setSuccessMsg(`Account created! Credentials sent via ${channels || "— check manually"}.`);
       fetchUsers();
     } catch (err) {
-      setError(err.code === "auth/email-already-in-use" ? "This email is already registered." : "Failed: " + err.message);
+      setError(err.code === "auth/email-already-in-use"
+        ? "This email is already registered."
+        : "Failed: " + err.message);
     }
     setActionLoading(false);
   }
 
   async function handleEdit(e) {
-    e.preventDefault(); setActionLoading(true); setError("");
+    e.preventDefault();
+    setActionLoading(true); setError("");
     try {
-      await updateDoc(doc(db, "users", showEdit.id), { name: form.name.trim(), role: form.role, phone: form.phone.trim() });
+      await updateDoc(doc(db, "users", showEdit.id), {
+        name:  form.name.trim(),
+        role:  form.role,
+        phone: normalisePhone(form.phone),
+      });
       setShowEdit(null); fetchUsers();
     } catch (err) { setError("Update failed: " + err.message); }
     setActionLoading(false);
@@ -311,20 +414,43 @@ function UserManagement({ schoolCode, schoolName }) {
 
   async function toggleStatus(user) {
     try {
-      await updateDoc(doc(db, "users", user.id), { status: user.status === "active" ? "suspended" : "active" });
+      await updateDoc(doc(db, "users", user.id), {
+        status: user.status === "active" ? "suspended" : "active",
+      });
       fetchUsers();
     } catch (err) { console.error(err); }
   }
 
-  async function handleDelete() {
-    setActionLoading(true);
-    try { await deleteDoc(doc(db, "users", showDelete.id)); setShowDelete(null); fetchUsers(); }
-    catch (err) { setError("Delete failed."); }
-    setActionLoading(false);
+async function handleDelete() {
+  setActionLoading(true);
+// Fetch both docs to compare schoolCodes
+  const adminDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
+  const targetDoc = await getDoc(doc(db, "users", showDelete.id));
+  
+  console.log("Admin schoolCode :", adminDoc.data()?.schoolCode);
+  console.log("Target schoolCode:", targetDoc.data()?.schoolCode);
+  console.log("Match:", adminDoc.data()?.schoolCode === targetDoc.data()?.schoolCode);
+    try {
+    const res = await fetch("/api/delete-user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uid: showDelete.id }),
+    });
+    const data = await res.json();
+    console.log("Delete response:", res.status, data);
+    if (!res.ok) throw new Error(data.error || "Auth deletion failed");
+    await deleteDoc(doc(db, "users", showDelete.id));
+    setShowDelete(null);
+    fetchUsers();
+  } catch (err) {
+    console.error("Delete error:", err);
+    setError("Delete failed: " + err.message);
   }
+  setActionLoading(false);
+}
 
   function openEdit(user) {
-    setForm({ name: user.name || "", email: user.email || "", role: user.role || "", phone: user.phone || "" });
+    setForm({ name: user.name||"", email: user.email||"", role: user.role||"", phone: user.phone||"" });
     setFormErrors({}); setError(""); setShowEdit(user);
   }
   function openAdd() {
@@ -355,18 +481,11 @@ function UserManagement({ schoolCode, schoolName }) {
       )}
 
       <div className="filter-pills">
-        <button
-          onClick={() => setRoleFilter("all")}
-          className={`filter-pill ${roleFilter === "all" ? "filter-pill--active" : "filter-pill--inactive"}`}
-        >
+        <button onClick={() => setRoleFilter("all")} className={`filter-pill ${roleFilter === "all" ? "filter-pill--active" : "filter-pill--inactive"}`}>
           All ({users.length})
         </button>
         {roleCounts.map(r => (
-          <button
-            key={r.value}
-            onClick={() => setRoleFilter(r.value)}
-            className={`filter-pill ${roleFilter === r.value ? "filter-pill--active" : "filter-pill--inactive"}`}
-          >
+          <button key={r.value} onClick={() => setRoleFilter(r.value)} className={`filter-pill ${roleFilter === r.value ? "filter-pill--active" : "filter-pill--inactive"}`}>
             {r.label} ({r.count})
           </button>
         ))}
@@ -374,71 +493,66 @@ function UserManagement({ schoolCode, schoolName }) {
 
       <div className="search-wrap">
         <span className="search-wrap__icon">{IC.search}</span>
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search by name or email…"
-          className="search-wrap__input"
-        />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or email…" className="search-wrap__input" />
       </div>
 
       <div className="card">
         {loading ? (
           <div style={{ padding: "48px", display: "flex", justifyContent: "center" }}><Spinner /></div>
         ) : filtered.length === 0 ? (
-          <EmptyState
-            icon={IC.users}
-            title="No users found"
+          <EmptyState icon={IC.users} title="No users found"
             sub={search ? "Try a different search" : "Add your first staff member"}
             action={<Btn onClick={openAdd} variant="gold" size="sm">{IC.plus} Add User</Btn>}
           />
         ) : (
           <div className="data-table-wrap">
-<table className="data-table data-table--stack">
-            <thead>
-              <tr>
-                <th>User</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Added</th>
-                <th style={{ textAlign: "right" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(u => (
-                <tr key={u.id}>
-                  <td data-label="User">
-                    <div className="flex-gap-3">
-                      <div className="avatar avatar--navy">{initials(u.name)}</div>
-                      <div>
-                        <div className="data-table__primary">{u.name}</div>
-                        <div className="data-table__meta">{u.email}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td data-label="Role"><RoleBadge role={u.role} /></td>
-                  <td data-label="Status"><StatusPill active={u.status !== "suspended"} /></td>
-                  <td style={{ fontSize: 12, color: "var(--text3)" }} data-label="Added">{fmtDate(u.createdAt)}</td>
-                  <td data-label="Actions">
-                    <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
-                      <ActionBtn onClick={() => openEdit(u)} icon={IC.edit} title="Edit" />
-                      <ActionBtn onClick={() => toggleStatus(u)} icon={IC.shield} title={u.status === "suspended" ? "Activate" : "Suspend"} hoverBg="rgba(251,191,36,0.12)" />
-                      <ActionBtn onClick={() => setShowDelete(u)} icon={IC.trash} title="Delete" hoverBg="rgba(239,68,68,0.1)" />
-                    </div>
-                  </td>
+            <table className="data-table data-table--stack">
+              <thead>
+                <tr>
+                  <th>User</th><th>Role</th><th>Status</th><th>Added</th>
+                  <th style={{ textAlign: "right" }}>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-</div>
+              </thead>
+              <tbody>
+                {filtered.map(u => (
+                  <tr key={u.id}>
+                    <td data-label="User">
+                      <div className="flex-gap-3">
+                        <div className="avatar avatar--navy">{initials(u.name)}</div>
+                        <div>
+                          <div className="data-table__primary">{u.name}</div>
+                          <div className="data-table__meta">{u.email}</div>
+                          {u.phone && <div className="data-table__meta" style={{ display: "flex", gap: 4, alignItems: "center" }}>{IC.phone} {u.phone}</div>}
+                        </div>
+                      </div>
+                    </td>
+                    <td data-label="Role"><RoleBadge role={u.role} /></td>
+                    <td data-label="Status"><StatusPill active={u.status !== "suspended"} /></td>
+                    <td style={{ fontSize: 12, color: "var(--text3)" }} data-label="Added">{fmtDate(u.createdAt)}</td>
+                    <td data-label="Actions">
+                      <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
+                        <ActionBtn onClick={() => openEdit(u)} icon={IC.edit} title="Edit" />
+                        <ActionBtn onClick={() => toggleStatus(u)} icon={IC.shield} title={u.status === "suspended" ? "Activate" : "Suspend"} hoverBg="rgba(251,191,36,0.12)" />
+                        <ActionBtn onClick={() => setShowDelete(u)} icon={IC.trash} title="Delete" hoverBg="rgba(239,68,68,0.1)" />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
+      {/* ── Add User Modal ── */}
       {showAdd && (
         <Modal title="Add New Staff User" onClose={() => setShowAdd(false)} size="lg">
           <form onSubmit={handleAdd} className="space-y-4">
             {error && <div className="alert alert--error">{IC.warning}<span>{error}</span></div>}
-            <div className="alert alert--info">{IC.mail}<span>A secure auto-generated password will be emailed to the user upon account creation.</span></div>
+            <div className="alert alert--info">
+              {IC.mail}
+              <span>A secure auto-generated password will be sent to the user by email and/or SMS upon account creation.</span>
+            </div>
             <div className="grid-2">
               <Input label="Full Name" required value={form.name} onChange={e => setForm(p => ({...p, name: e.target.value}))} placeholder="Jane Mwale" error={formErrors.name} />
               <Select label="Role" required value={form.role} onChange={e => setForm(p => ({...p, role: e.target.value}))} error={formErrors.role}>
@@ -447,15 +561,28 @@ function UserManagement({ schoolCode, schoolName }) {
               </Select>
             </div>
             <Input label="Email Address" required type="email" value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} placeholder="jane@school.mw" error={formErrors.email} />
-            <Input label="Phone Number" type="tel" value={form.phone} onChange={e => setForm(p => ({...p, phone: e.target.value}))} placeholder="+265 9xx xxx xxx" />
+            {/* Phone is now clearly labelled for SMS */}
+            <div>
+              <Input
+                label="Phone Number (for SMS notification)"
+                type="tel"
+                value={form.phone}
+                onChange={e => setForm(p => ({...p, phone: e.target.value}))}
+                placeholder="+265 9xx xxx xxx or 09xxxxxxxx"
+              />
+              <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 4, display: "flex", gap: 5, alignItems: "center" }}>
+                {IC.sms} If provided, login credentials will also be sent via SMS.
+              </p>
+            </div>
             <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 8 }}>
               <Btn type="button" variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Btn>
-              <Btn type="submit" variant="gold" loading={actionLoading}>{IC.mail} Create &amp; Send</Btn>
+              <Btn type="submit" variant="gold" loading={actionLoading}>{IC.mail} Create &amp; Notify</Btn>
             </div>
           </form>
         </Modal>
       )}
 
+      {/* ── Edit User Modal ── */}
       {showEdit && (
         <Modal title="Edit User" onClose={() => setShowEdit(null)} size="md">
           <form onSubmit={handleEdit} className="space-y-4">
@@ -465,7 +592,10 @@ function UserManagement({ schoolCode, schoolName }) {
               <option value="">Select role…</option>
               {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </Select>
-            <Input label="Phone Number" type="tel" value={form.phone} onChange={e => setForm(p => ({...p, phone: e.target.value}))} />
+            <div>
+              <Input label="Phone Number" type="tel" value={form.phone} onChange={e => setForm(p => ({...p, phone: e.target.value}))} placeholder="+265 9xx xxx xxx" />
+              <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 4, display: "flex", gap: 5, alignItems: "center" }}>{IC.sms} Used for future SMS notifications.</p>
+            </div>
             <p style={{ fontSize: 11, color: "var(--text3)" }}>Email and password changes must be done through Firebase Console.</p>
             <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 8 }}>
               <Btn type="button" variant="ghost" onClick={() => setShowEdit(null)}>Cancel</Btn>
@@ -475,6 +605,7 @@ function UserManagement({ schoolCode, schoolName }) {
         </Modal>
       )}
 
+      {/* ── Delete User Modal ── */}
       {showDelete && (
         <Modal title="Delete User" onClose={() => setShowDelete(null)} size="md">
           <div className="space-y-4">
@@ -498,16 +629,16 @@ function UserManagement({ schoolCode, schoolName }) {
 
 // ─── MODULE 2: Student Management ─────────────────────────────────────────────
 function StudentManagement({ schoolCode, schoolName }) {
-  const [activeTab, setActiveTab]         = useState("list");
-  const [students, setStudents]           = useState([]);
-  const [classes, setClasses]             = useState([]);
-  const [loading, setLoading]             = useState(true);
-  const [search, setSearch]               = useState("");
-  const [classFilter, setClassFilter]     = useState("all");
-  const [showDetail, setShowDetail]       = useState(null);
-  const [showDelete, setShowDelete]       = useState(null);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [error, setError]                 = useState("");
+  const [activeTab, setActiveTab]             = useState("list");
+  const [students, setStudents]               = useState([]);
+  const [classes, setClasses]                 = useState([]);
+  const [loading, setLoading]                 = useState(true);
+  const [search, setSearch]                   = useState("");
+  const [classFilter, setClassFilter]         = useState("all");
+  const [showDetail, setShowDetail]           = useState(null);
+  const [showDelete, setShowDelete]           = useState(null);
+  const [actionLoading, setActionLoading]     = useState(false);
+  const [error, setError]                     = useState("");
 
   const EMPTY_REG = {
     firstName: "", lastName: "", dob: "", gender: "",
@@ -515,9 +646,9 @@ function StudentManagement({ schoolCode, schoolName }) {
     guardianEmail: "", guardianRelation: "",
     district: "", village: "", classId: "",
   };
-  const [regForm, setRegForm]               = useState(EMPTY_REG);
-  const [regErrors, setRegErrors]           = useState({});
-  const [newStudentResult, setNewStudentResult] = useState(null);
+  const [regForm, setRegForm]                         = useState(EMPTY_REG);
+  const [regErrors, setRegErrors]                     = useState({});
+  const [newStudentResult, setNewStudentResult]       = useState(null);
 
   const [transferCode, setTransferCode]         = useState("");
   const [transferFound, setTransferFound]       = useState(null);
@@ -548,13 +679,13 @@ function StudentManagement({ schoolCode, schoolName }) {
 
   function validateReg(f) {
     const e = {};
-    if (!f.firstName.trim()) e.firstName = "First name required.";
-    if (!f.lastName.trim())  e.lastName  = "Last name required.";
-    if (!f.dob)              e.dob       = "Date of birth required.";
-    if (!f.gender)           e.gender    = "Select gender.";
-    if (!f.guardianName.trim())  e.guardianName  = "Guardian name required.";
+    if (!f.firstName.trim())     e.firstName    = "First name required.";
+    if (!f.lastName.trim())      e.lastName     = "Last name required.";
+    if (!f.dob)                  e.dob          = "Date of birth required.";
+    if (!f.gender)               e.gender       = "Select gender.";
+    if (!f.guardianName.trim())  e.guardianName = "Guardian name required.";
     if (!f.guardianPhone.trim()) e.guardianPhone = "Guardian phone required.";
-    if (!f.classId)          e.classId   = "Select a class.";
+    if (!f.classId)              e.classId      = "Select a class.";
     if (f.guardianEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.guardianEmail)) e.guardianEmail = "Enter a valid email.";
     return e;
   }
@@ -569,13 +700,16 @@ function StudentManagement({ schoolCode, schoolName }) {
     const fullName       = `${regForm.firstName.trim()} ${regForm.lastName.trim()}`;
     const cls            = classes.find(c => c.id === regForm.classId);
     const parentPassword = generatePassword();
+    const guardianPhone  = normalisePhone(regForm.guardianPhone);
 
     try {
       const studentData = {
-        studentCode, firstName: regForm.firstName.trim(), lastName: regForm.lastName.trim(),
+        studentCode,
+        firstName: regForm.firstName.trim(), lastName: regForm.lastName.trim(),
         fullName, dob: regForm.dob, gender: regForm.gender,
         nationalId: regForm.nationalId.trim() || "",
-        guardianName: regForm.guardianName.trim(), guardianPhone: regForm.guardianPhone.trim(),
+        guardianName: regForm.guardianName.trim(),
+        guardianPhone,
         guardianEmail: regForm.guardianEmail.trim() || "",
         guardianRelation: regForm.guardianRelation.trim() || "Parent/Guardian",
         district: regForm.district, village: regForm.village.trim() || "",
@@ -587,22 +721,42 @@ function StudentManagement({ schoolCode, schoolName }) {
       };
       await addDoc(collection(db, "students"), studentData);
 
+      // ── Email to guardian ──
       let emailSent = false;
       if (regForm.guardianEmail.trim()) {
-        await sendEmail({
+        emailSent = await sendEmail({
           templateId: EMAILJS_GUARDIAN_TEMPLATE_ID,
-          toEmail: regForm.guardianEmail.trim(), toName: regForm.guardianName.trim(),
+          toEmail: regForm.guardianEmail.trim(),
+          toName:  regForm.guardianName.trim(),
           params: {
-            student_name: fullName, student_code: studentCode,
-            school_name: schoolName, class_name: cls?.name || "",
+            student_name:   fullName,
+            student_code:   studentCode,
+            school_name:    schoolName,
+            class_name:     cls?.name || "",
             parent_password: parentPassword,
-            portal_url: window.location.origin + "/parent-portal",
-            login_note: `Use Student Code: ${studentCode} and the password above to log into the parent portal.`,
+            portal_url:     `${APP_URL}/parent-portal`,
+            login_note:     `Use Student Code: ${studentCode} and the password above to log into the parent portal.`,
           },
         });
-        emailSent = true;
       }
-      setNewStudentResult({ code: studentCode, guardianEmail: regForm.guardianEmail.trim(), emailSent });
+
+      // ── SMS to guardian ──
+      let smsSent = false;
+      if (guardianPhone) {
+        const smsResult = await sendSms(
+          guardianPhone,
+          `${schoolName}: ${fullName} has been enrolled in ${cls?.name || "school"}.\nStudent Code: ${studentCode}\nParent Portal: ${APP_URL}/parent-portal\nPassword: ${parentPassword}\nKeep this code safe — it's used for transfers too.`
+        );
+        smsSent = smsResult.success;
+      }
+
+      setNewStudentResult({
+        code: studentCode,
+        guardianEmail: regForm.guardianEmail.trim(),
+        guardianPhone,
+        emailSent,
+        smsSent,
+      });
       setRegForm(EMPTY_REG); setRegErrors({});
       fetchStudents();
     } catch (err) { setError("Registration failed: " + err.message); }
@@ -637,9 +791,21 @@ function StudentManagement({ schoolCode, schoolName }) {
         { schoolCode, schoolName, joinedAt: new Date().toISOString(), action: "transferred_in" },
       ];
       await updateDoc(doc(db, "students", transferFound.id), {
-        schoolCode, schoolName, classId: transferClassId, className: cls?.name || "",
-        status: "active", transferHistory: newHistory, lastTransferAt: serverTimestamp(),
+        schoolCode, schoolName,
+        classId: transferClassId, className: cls?.name || "",
+        status: "active", transferHistory: newHistory,
+        lastTransferAt: serverTimestamp(),
       });
+
+      // ── SMS to guardian on transfer ──
+      const guardianPhone = normalisePhone(transferFound.guardianPhone || "");
+      if (guardianPhone) {
+        await sendSms(
+          guardianPhone,
+          `${transferFound.fullName} has been transferred to ${schoolName}, ${cls?.name || "a new class"}.\nStudent Code: ${transferFound.studentCode}\nIf this was not authorised, contact your previous school.`
+        );
+      }
+
       setTransferSuccess(`${transferFound.fullName} has been transferred to ${schoolName} — ${cls?.name || "selected class"}.`);
       setTransferFound(null); setTransferCode(""); setTransferClassId("");
       fetchStudents();
@@ -661,9 +827,9 @@ function StudentManagement({ schoolCode, schoolName }) {
   });
 
   const tabs = [
-    { id: "list",     label: "Student List",    icon: IC.users    },
-    { id: "register", label: "Register Student", icon: IC.plus     },
-    { id: "transfer", label: "Transfer In",      icon: IC.transfer },
+    { id: "list",     label: "Student List",     icon: IC.users    },
+    { id: "register", label: "Register Student",  icon: IC.plus     },
+    { id: "transfer", label: "Transfer In",       icon: IC.transfer },
   ];
 
   function resetTabState() { setError(""); setNewStudentResult(null); setTransferSuccess(""); setTransferError(""); }
@@ -679,16 +845,14 @@ function StudentManagement({ schoolCode, schoolName }) {
 
       <div className="sub-tabs" style={{ overflowX: "auto" }}>
         {tabs.map(t => (
-          <button
-            key={t.id}
-            onClick={() => { setActiveTab(t.id); resetTabState(); }}
-            className={`sub-tab${activeTab === t.id ? " sub-tab--active" : ""}`}
-          >
+          <button key={t.id} onClick={() => { setActiveTab(t.id); resetTabState(); }}
+            className={`sub-tab${activeTab === t.id ? " sub-tab--active" : ""}`}>
             {t.icon}<span>{t.label}</span>
           </button>
         ))}
       </div>
 
+      {/* ── LIST TAB ── */}
       {activeTab === "list" && (
         <div className="space-y-4">
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -712,48 +876,49 @@ function StudentManagement({ schoolCode, schoolName }) {
               />
             ) : (
               <div className="data-table-wrap">
-<table className="data-table data-table--stack">
-                <thead>
-                  <tr>
-                    <th>Student</th><th>Code</th><th>Class</th><th>Guardian</th><th>Status</th>
-                    <th style={{ textAlign: "right" }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map(s => (
-                    <tr key={s.id}>
-                      <td data-label="Student">
-                        <div className="flex-gap-3">
-                          <div className={`avatar ${s.gender === "Female" ? "avatar--pink" : "avatar--blue"}`}>{initials(s.fullName)}</div>
-                          <div>
-                            <div className="data-table__primary">{s.fullName}</div>
-                            <div className="data-table__meta">{s.gender} · {s.dob || "—"}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td data-label="Code"><StudentCodeBadge code={s.studentCode} /></td>
-                      <td style={{ fontSize: 13, color: "var(--text2)" }} data-label="Class">{s.className || "—"}</td>
-                      <td data-label="Guardian">
-                        <div style={{ fontSize: 12, color: "var(--text2)" }}>{s.guardianName || "—"}</div>
-                        <div style={{ fontSize: 11, color: "var(--text3)" }}>{s.guardianPhone || ""}</div>
-                      </td>
-                      <td data-label="Status"><StatusPill active={s.status !== "suspended"} /></td>
-                      <td data-label="Actions">
-                        <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
-                          <ActionBtn onClick={() => setShowDetail(s)} icon={IC.eye} title="View profile" />
-                          <ActionBtn onClick={() => setShowDelete(s)} icon={IC.trash} title="Remove" hoverBg="rgba(239,68,68,0.1)" />
-                        </div>
-                      </td>
+                <table className="data-table data-table--stack">
+                  <thead>
+                    <tr>
+                      <th>Student</th><th>Code</th><th>Class</th><th>Guardian</th><th>Status</th>
+                      <th style={{ textAlign: "right" }}>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-</div>
+                  </thead>
+                  <tbody>
+                    {filtered.map(s => (
+                      <tr key={s.id}>
+                        <td data-label="Student">
+                          <div className="flex-gap-3">
+                            <div className={`avatar ${s.gender === "Female" ? "avatar--pink" : "avatar--blue"}`}>{initials(s.fullName)}</div>
+                            <div>
+                              <div className="data-table__primary">{s.fullName}</div>
+                              <div className="data-table__meta">{s.gender} · {s.dob || "—"}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td data-label="Code"><StudentCodeBadge code={s.studentCode} /></td>
+                        <td style={{ fontSize: 13, color: "var(--text2)" }} data-label="Class">{s.className || "—"}</td>
+                        <td data-label="Guardian">
+                          <div style={{ fontSize: 12, color: "var(--text2)" }}>{s.guardianName || "—"}</div>
+                          <div style={{ fontSize: 11, color: "var(--text3)" }}>{s.guardianPhone || ""}</div>
+                        </td>
+                        <td data-label="Status"><StatusPill active={s.status !== "suspended"} /></td>
+                        <td data-label="Actions">
+                          <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
+                            <ActionBtn onClick={() => setShowDetail(s)} icon={IC.eye} title="View profile" />
+                            <ActionBtn onClick={() => setShowDelete(s)} icon={IC.trash} title="Remove" hoverBg="rgba(239,68,68,0.1)" />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>
       )}
 
+      {/* ── REGISTER TAB ── */}
       {activeTab === "register" && (
         <div style={{ maxWidth: 680 }}>
           {newStudentResult ? (
@@ -768,13 +933,21 @@ function StudentManagement({ schoolCode, schoolName }) {
                 <StudentCodeBadge code={newStudentResult.code} />
                 <span style={{ fontSize: 11, color: "var(--text3)" }}>Used for transfers and parent portal login</span>
               </div>
-              {newStudentResult.guardianEmail ? (
-                newStudentResult.emailSent
-                  ? <div className="alert alert--success">{IC.mail}<span>Credentials sent to <strong>{newStudentResult.guardianEmail}</strong></span></div>
-                  : <div className="alert alert--warning">{IC.warning}<span>Email may have failed. Share the code manually.</span></div>
-              ) : (
-                <div className="alert alert--info">{IC.info}<span>No guardian email provided. Share the student code manually.</span></div>
-              )}
+
+              {/* Notification delivery summary */}
+              <div style={{ marginBottom: 16 }}>
+                <p style={{ fontSize: 12, color: "var(--text3)", marginBottom: 8 }}>Guardian notifications:</p>
+                <NotifStatus
+                  email={newStudentResult.guardianEmail ? newStudentResult.emailSent : undefined}
+                  sms={newStudentResult.guardianPhone ? newStudentResult.smsSent : undefined}
+                />
+                {!newStudentResult.guardianEmail && !newStudentResult.guardianPhone && (
+                  <div className="alert alert--info" style={{ marginTop: 8 }}>
+                    {IC.info}<span>No contact details provided. Share the student code manually.</span>
+                  </div>
+                )}
+              </div>
+
               <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 20 }}>
                 <Btn variant="ghost" onClick={() => { setNewStudentResult(null); setActiveTab("list"); }}>View Students</Btn>
                 <Btn variant="gold" onClick={() => setNewStudentResult(null)}>Register Another</Btn>
@@ -783,6 +956,8 @@ function StudentManagement({ schoolCode, schoolName }) {
           ) : (
             <form onSubmit={handleRegister} className="card" style={{ padding: 28 }}>
               {error && <div className="alert alert--error" style={{ marginBottom: 16 }}>{IC.warning}<span>{error}</span></div>}
+
+              {/* Personal Info */}
               <div style={{ marginBottom: 24 }}>
                 <span className="section-tag">Personal Information</span>
                 <div className="grid-2" style={{ marginTop: 12 }}>
@@ -803,18 +978,43 @@ function StudentManagement({ schoolCode, schoolName }) {
                   <Input label="Village / Area" value={regForm.village} onChange={e => setRegForm(p => ({...p, village: e.target.value}))} placeholder="Home village or area" />
                 </div>
               </div>
+
+              {/* Guardian Info */}
               <div style={{ marginBottom: 24 }}>
                 <span className="section-tag">Guardian / Parent Information</span>
                 <div className="grid-2" style={{ marginTop: 12 }}>
                   <Input label="Guardian Full Name" required value={regForm.guardianName} onChange={e => setRegForm(p => ({...p, guardianName: e.target.value}))} placeholder="John Banda" error={regErrors.guardianName} />
-                  <Input label="Guardian Phone" required value={regForm.guardianPhone} onChange={e => setRegForm(p => ({...p, guardianPhone: e.target.value}))} placeholder="+265 9xx xxx xxx" error={regErrors.guardianPhone} />
+                  <div>
+                    <Input
+                      label="Guardian Phone (for SMS)"
+                      required
+                      value={regForm.guardianPhone}
+                      onChange={e => setRegForm(p => ({...p, guardianPhone: e.target.value}))}
+                      placeholder="+265 9xx xxx xxx or 09xxxxxxxx"
+                      error={regErrors.guardianPhone}
+                    />
+                    <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 4, display: "flex", gap: 5, alignItems: "center" }}>
+                      {IC.sms} Student code and portal credentials sent via SMS.
+                    </p>
+                  </div>
                   <Input label="Relationship" value={regForm.guardianRelation} onChange={e => setRegForm(p => ({...p, guardianRelation: e.target.value}))} placeholder="Father / Mother / Uncle…" />
                 </div>
                 <div style={{ marginTop: 16 }}>
-                  <Input label="Guardian Email (for parent portal)" type="email" value={regForm.guardianEmail} onChange={e => setRegForm(p => ({...p, guardianEmail: e.target.value}))} placeholder="guardian@example.com" error={regErrors.guardianEmail} />
-                  <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 5, display: "flex", gap: 6, alignItems: "center" }}>{IC.info} If provided, guardian receives student code + parent portal credentials.</p>
+                  <Input
+                    label="Guardian Email (optional — for parent portal email)"
+                    type="email"
+                    value={regForm.guardianEmail}
+                    onChange={e => setRegForm(p => ({...p, guardianEmail: e.target.value}))}
+                    placeholder="guardian@example.com"
+                    error={regErrors.guardianEmail}
+                  />
+                  <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 5, display: "flex", gap: 6, alignItems: "center" }}>
+                    {IC.mail} If provided, guardian also receives credentials by email.
+                  </p>
                 </div>
               </div>
+
+              {/* Class */}
               <div style={{ marginBottom: 24 }}>
                 <span className="section-tag">Academic Placement</span>
                 <div style={{ marginTop: 12 }}>
@@ -825,21 +1025,23 @@ function StudentManagement({ schoolCode, schoolName }) {
                   </Select>
                 </div>
               </div>
+
               <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 8 }}>
                 <Btn type="button" variant="ghost" onClick={() => setRegForm(EMPTY_REG)}>Clear Form</Btn>
-                <Btn type="submit" variant="gold" loading={actionLoading}>{IC.students} Register Student</Btn>
+                <Btn type="submit" variant="gold" loading={actionLoading}>{IC.students} Register &amp; Notify</Btn>
               </div>
             </form>
           )}
         </div>
       )}
 
+      {/* ── TRANSFER TAB ── */}
       {activeTab === "transfer" && (
         <div style={{ maxWidth: 680 }} className="space-y-5">
           <div className="alert alert--info">
             {IC.info}
             <div style={{ fontSize: 12, lineHeight: 1.6 }}>
-              <strong>How transfers work:</strong> Enter the student's code (STU-XXXX-XXXX). Their full record is retrieved and linked to this school. Previous school data is unchanged.
+              <strong>How transfers work:</strong> Enter the student's code (STU-XXXX-XXXX). Their full record is retrieved and linked to this school. The guardian will receive an SMS confirming the transfer.
             </div>
           </div>
           {transferSuccess ? (
@@ -849,6 +1051,7 @@ function StudentManagement({ schoolCode, schoolName }) {
               </div>
               <p style={{ fontFamily: "var(--font-display)", fontSize: "1.1rem", color: "var(--text)", marginBottom: 8 }}>Transfer Complete</p>
               <p style={{ fontSize: 13, color: "var(--text3)", marginBottom: 20 }}>{transferSuccess}</p>
+              <p style={{ fontSize: 12, color: "var(--text3)", marginBottom: 20 }}>Guardian has been notified via SMS (if phone number is on record).</p>
               <div style={{ display: "flex", justifyContent: "center", gap: 10 }}>
                 <Btn variant="ghost" onClick={() => { setTransferSuccess(""); setActiveTab("list"); }}>View Students</Btn>
                 <Btn variant="gold" onClick={() => setTransferSuccess("")}>Transfer Another</Btn>
@@ -882,13 +1085,21 @@ function StudentManagement({ schoolCode, schoolName }) {
                     </div>
                     <div className="grid-2" style={{ fontSize: 12, gap: 8 }}>
                       {[
-                        ["Gender", transferFound.gender], ["DOB", transferFound.dob||"—"],
-                        ["Guardian", transferFound.guardianName], ["Phone", transferFound.guardianPhone],
-                        ["Previous School", transferFound.schoolName||transferFound.schoolCode], ["Previous Class", transferFound.className||"—"],
+                        ["Gender", transferFound.gender],
+                        ["DOB", transferFound.dob||"—"],
+                        ["Guardian", transferFound.guardianName],
+                        ["Phone", transferFound.guardianPhone||"—"],
+                        ["Previous School", transferFound.schoolName||transferFound.schoolCode],
+                        ["Previous Class", transferFound.className||"—"],
                       ].map(([k, v]) => (
                         <div key={k}><span style={{ color: "var(--text3)" }}>{k}: </span><strong style={{ color: "var(--text)" }}>{v}</strong></div>
                       ))}
                     </div>
+                    {transferFound.guardianPhone && (
+                      <p style={{ fontSize: 11, color: "var(--teal-lt)", marginTop: 12, display: "flex", gap: 5, alignItems: "center" }}>
+                        {IC.sms} Guardian will receive an SMS notification on transfer.
+                      </p>
+                    )}
                   </div>
                   <Select label="Assign to Class at This School" required value={transferClassId} onChange={e => setTransferClassId(e.target.value)}>
                     <option value="">Select class…</option>
@@ -905,6 +1116,7 @@ function StudentManagement({ schoolCode, schoolName }) {
         </div>
       )}
 
+      {/* ── Student Profile Modal ── */}
       {showDetail && (
         <Modal title="Student Profile" onClose={() => setShowDetail(null)} size="lg">
           <div className="space-y-5">
@@ -918,11 +1130,16 @@ function StudentManagement({ schoolCode, schoolName }) {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, borderRadius: 14, overflow: "hidden" }}>
               {[
-                ["Date of Birth", showDetail.dob||"—"], ["National ID", showDetail.nationalId||"—"],
-                ["District", showDetail.district||"—"], ["Village", showDetail.village||"—"],
-                ["Guardian", showDetail.guardianName||"—"], ["Relationship", showDetail.guardianRelation||"—"],
-                ["Guardian Phone", showDetail.guardianPhone||"—"], ["Guardian Email", showDetail.guardianEmail||"—"],
-                ["Enrolled", fmtDate(showDetail.createdAt)], ["Parent Portal", showDetail.guardianEmail ? "Email sent ✓" : "No email provided"],
+                ["Date of Birth",   showDetail.dob||"—"],
+                ["National ID",     showDetail.nationalId||"—"],
+                ["District",        showDetail.district||"—"],
+                ["Village",         showDetail.village||"—"],
+                ["Guardian",        showDetail.guardianName||"—"],
+                ["Relationship",    showDetail.guardianRelation||"—"],
+                ["Guardian Phone",  showDetail.guardianPhone||"—"],
+                ["Guardian Email",  showDetail.guardianEmail||"—"],
+                ["Enrolled",        fmtDate(showDetail.createdAt)],
+                ["Notifications",   [showDetail.guardianEmail && "Email", showDetail.guardianPhone && "SMS"].filter(Boolean).join(" + ") || "None on record"],
               ].map(([k, v]) => (
                 <div key={k} style={{ background: "var(--bg-card)", padding: "10px 16px", border: "1px solid var(--border)" }}>
                   <p style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: 2, textTransform: "uppercase", color: "var(--text3)", marginBottom: 3 }}>{k}</p>
@@ -934,6 +1151,7 @@ function StudentManagement({ schoolCode, schoolName }) {
         </Modal>
       )}
 
+      {/* ── Delete Student Modal ── */}
       {showDelete && (
         <Modal title="Remove Student" onClose={() => setShowDelete(null)} size="md">
           <div className="space-y-4">
@@ -982,7 +1200,7 @@ function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
   async function handleSaveSchool(e) {
     e.preventDefault(); setLoading(true); setError(""); setSaved(false);
     try {
-      await updateDoc(doc(db, "schools", schoolCode), { ...form, name: form.name.trim(), address: form.address.trim(), phone: form.phone.trim(), email: form.email.trim(), updatedAt: serverTimestamp() });
+      await updateDoc(doc(db, "schools", schoolCode), { ...form, name: form.name.trim(), address: form.address.trim(), phone: normalisePhone(form.phone), email: form.email.trim(), updatedAt: serverTimestamp() });
       setSaved(true); if (onUpdate) onUpdate({ ...schoolData, ...form });
       setTimeout(() => setSaved(false), 3000);
     } catch (err) { setError("Save failed: " + err.message); }
@@ -990,13 +1208,8 @@ function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
   }
 
   function openClassModal(cls = null) {
-    if (cls) {
-      setClassForm({ name: cls.name||"", level: cls.level||"primary", subjects: cls.subjects||[] });
-      setEditingClass(cls);
-    } else {
-      setClassForm({ name: "", level: "primary", subjects: [] });
-      setEditingClass(null);
-    }
+    if (cls) { setClassForm({ name: cls.name||"", level: cls.level||"primary", subjects: cls.subjects||[] }); setEditingClass(cls); }
+    else { setClassForm({ name: "", level: "primary", subjects: [] }); setEditingClass(null); }
     setShowClassModal(true);
   }
 
@@ -1024,9 +1237,7 @@ function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
   function toggleSubject(subject) {
     setClassForm(prev => ({
       ...prev,
-      subjects: prev.subjects.includes(subject)
-        ? prev.subjects.filter(s => s !== subject)
-        : [...prev.subjects, subject],
+      subjects: prev.subjects.includes(subject) ? prev.subjects.filter(s => s !== subject) : [...prev.subjects, subject],
     }));
   }
 
@@ -1055,6 +1266,7 @@ function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
           </div>
         </div>
       </div>
+
       <div className="card">
         <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border)", background: "var(--bg2)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <div>
@@ -1083,9 +1295,7 @@ function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
                     </div>
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {cls.subjects?.map((sub, i) => (
-                      <span key={i} className="badge badge--teal">{sub}</span>
-                    ))}
+                    {cls.subjects?.map((sub, i) => <span key={i} className="badge badge--teal">{sub}</span>)}
                   </div>
                 </div>
               ))}
@@ -1093,6 +1303,7 @@ function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
           )}
         </div>
       </div>
+
       {showClassModal && (
         <Modal title={editingClass ? "Edit Class" : "Add New Class"} onClose={() => setShowClassModal(false)} size="lg">
           <div className="space-y-5">
@@ -1130,9 +1341,9 @@ function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
 function Billing({ schoolData }) {
   const status = schoolData?.subscription_status || "trial";
   const plans = [
-    { id: "trial",    name: "Trial",    price: "Free",       period: "30 days",  desc: "For schools getting started.", features: ["Up to 5 users", "Core modules", "Email support"], current: status === "trial" },
-    { id: "standard", name: "Standard", price: "MWK 45,000", period: "/ month",  desc: "Best for growing schools.", features: ["Up to 30 users", "All modules", "Priority support", "Data exports"], current: status === "standard" },
-    { id: "premium",  name: "Premium",  price: "MWK 95,000", period: "/ month",  desc: "Full power for large institutions.", features: ["Unlimited users", "All modules + API", "24/7 support", "Custom reports", "Multi-branch"], current: status === "premium" },
+    { id: "trial",    name: "Trial",    price: "Free",       period: "30 days", desc: "For schools getting started.", features: ["Up to 5 users", "Core modules", "Email support"], current: status === "trial" },
+    { id: "standard", name: "Standard", price: "MWK 45,000", period: "/ month", desc: "Best for growing schools.", features: ["Up to 30 users", "All modules", "Priority support", "Data exports"], current: status === "standard" },
+    { id: "premium",  name: "Premium",  price: "MWK 95,000", period: "/ month", desc: "Full power for large institutions.", features: ["Unlimited users", "All modules + API", "24/7 support", "Custom reports", "Multi-branch"], current: status === "premium" },
   ];
 
   return (
@@ -1158,11 +1369,7 @@ function Billing({ schoolData }) {
             <p className="plan-card__price">{plan.price} <span className="plan-card__period">{plan.period}</span></p>
             <p className="plan-card__desc">{plan.desc}</p>
             <ul className="plan-card__features">
-              {plan.features.map(f => (
-                <li key={f} className="plan-card__feature">
-                  <span className="plan-card__feature-icon">{IC.check}</span>{f}
-                </li>
-              ))}
+              {plan.features.map(f => <li key={f} className="plan-card__feature"><span className="plan-card__feature-icon">{IC.check}</span>{f}</li>)}
             </ul>
             {plan.current
               ? <div style={{ textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--teal-lt)", letterSpacing: 1 }}>CURRENT PLAN</div>
@@ -1181,12 +1388,12 @@ function Billing({ schoolData }) {
 
 // ─── MODULE 5: Announcements ──────────────────────────────────────────────────
 function Announcements({ schoolCode, userName }) {
-  const [items, setItems]             = useState([]);
-  const [loading, setLoading]         = useState(true);
-  const [showAdd, setShowAdd]         = useState(false);
+  const [items, setItems]                 = useState([]);
+  const [loading, setLoading]             = useState(true);
+  const [showAdd, setShowAdd]             = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [form, setForm]               = useState({ title: "", body: "", audience: "all", priority: "normal" });
-  const [error, setError]             = useState("");
+  const [form, setForm]                   = useState({ title: "", body: "", audience: "all", priority: "normal" });
+  const [error, setError]                 = useState("");
 
   useEffect(() => { fetchAnnouncements(); }, []);
 
@@ -1354,8 +1561,8 @@ function Overview({ userData, schoolData, schoolCode, setTab }) {
   ];
 
   const moduleCards = [
-    { tab: "users",         icon: IC.users,    title: "User Management",    desc: "Create and manage staff, teacher, bursar, and librarian accounts." },
-    { tab: "students",      icon: IC.students, title: "Student Management", desc: "Register students with unique codes and transfer between schools." },
+    { tab: "users",         icon: IC.users,    title: "User Management",    desc: "Create and manage staff accounts. Credentials sent via email + SMS." },
+    { tab: "students",      icon: IC.students, title: "Student Management", desc: "Register students with unique codes. Guardian notified via SMS + email." },
     { tab: "settings",      icon: IC.school,   title: "School Settings",    desc: "Update school profile, classes, subjects, and contact information." },
     { tab: "billing",       icon: IC.billing,  title: "Subscription",       desc: "View your current plan and upgrade options." },
     { tab: "announcements", icon: IC.bell,     title: "Announcements",      desc: "Broadcast notices to staff, teachers, and parents." },
@@ -1418,13 +1625,9 @@ export default function AdminDashboard() {
   const [loading,    setLoading]      = useState(true);
   const [authError,  setAuthError]    = useState("");
 
-  // ── Theme state ──
   const [theme, setTheme] = useState(getInitialTheme);
   useEffect(() => { applyTheme(theme); }, [theme]);
-
-  function handleToggleTheme() {
-    setTheme((t) => flipTheme(t));
-  }
+  function handleToggleTheme() { setTheme(t => flipTheme(t)); }
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
@@ -1453,7 +1656,6 @@ export default function AdminDashboard() {
   const schoolCode     = userData?.schoolCode || "";
   const currentNavItem = NAV_ITEMS.find(i => i.id === currentTab);
 
-  // ── Loading screen ──
   if (loading) return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ textAlign: "center" }}>
@@ -1463,13 +1665,10 @@ export default function AdminDashboard() {
     </div>
   );
 
-  // ── Auth error ──
   if (authError) return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: "var(--bg2)", borderRadius: 20, border: "1px solid var(--border)", padding: 40, maxWidth: 380, textAlign: "center" }}>
-        <div style={{ width: 48, height: 48, background: "rgba(239,68,68,0.12)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", color: "#f87171" }}>
-          {IC.warning}
-        </div>
+        <div style={{ width: 48, height: 48, background: "rgba(239,68,68,0.12)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", color: "#f87171" }}>{IC.warning}</div>
         <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", marginBottom: 20 }}>{authError}</p>
         <button onClick={handleSignOut} className="btn btn--accent btn--md">Back to Sign In</button>
       </div>
@@ -1478,23 +1677,19 @@ export default function AdminDashboard() {
 
   return (
     <div className="dashboard-shell">
-      {/* Sidebar */}
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         currentTab={currentTab}
         onTabChange={(tab) => { setCurrentTab(tab); setSidebarOpen(false); }}
         schoolName={schoolName}
-          navItems={NAV_ITEMS}  
+        navItems={NAV_ITEMS}
         schoolDistrict={schoolDistrict}
         schoolCode={schoolCode}
         onSignOut={handleSignOut}
       />
 
-      {/* Main content area */}
       <div className="main-area">
-
-        {/* Top bar */}
         <header className="topbar">
           <div className="topbar__left">
             <button className="topbar__menu-btn" onClick={() => setSidebarOpen(v => !v)}>
@@ -1505,22 +1700,14 @@ export default function AdminDashboard() {
               <div className="topbar__subtitle">System Administrator · {schoolName}</div>
             </div>
           </div>
-
           <div className="topbar__right">
             <div className="topbar__status">
               <span className="topbar__status-dot" />
               <span className="topbar__status-text">Online</span>
             </div>
-
-            {/* ── Theme toggle button ── */}
-            <button
-              onClick={handleToggleTheme}
-              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              className="theme-toggle-btn"
-            >
+            <button onClick={handleToggleTheme} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} className="theme-toggle-btn">
               {theme === "dark" ? IC.sun : IC.moon}
             </button>
-
             <div style={{ textAlign: "right" }}>
               <div className="topbar-user-name">{displayName}</div>
               <div className="topbar__user-role">System Admin</div>
@@ -1529,7 +1716,6 @@ export default function AdminDashboard() {
           </div>
         </header>
 
-        {/* Page content */}
         <main className="page-content">
           {currentTab === "overview"      && <Overview userData={userData} schoolData={schoolData} schoolCode={schoolCode} setTab={setCurrentTab} />}
           {currentTab === "users"         && <UserManagement schoolCode={schoolCode} schoolName={schoolName} />}
@@ -1540,10 +1726,9 @@ export default function AdminDashboard() {
           {currentTab === "audit"         && <AuditLog schoolCode={schoolCode} />}
         </main>
 
-        {/* Footer */}
         <footer className="dashboard-footer">
           <span>© 2026 SSP-PEP · Ministry of Education, Malawi</span>
-          <span>v1.4.0</span>
+          <span>v1.4.1</span>
         </footer>
       </div>
     </div>

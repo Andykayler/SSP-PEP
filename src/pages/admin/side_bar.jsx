@@ -177,7 +177,7 @@ export default function HeadTeacherSidebar({
               backgroundClip: "text",
               WebkitBackgroundClip: "text",
               color: "transparent",
-            }}>SSP-PEP</div>
+            }}>ACALINK</div>
             <div style={{
               fontFamily: "var(--font-mono)",
               fontSize: "0.65rem",
