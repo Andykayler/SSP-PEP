@@ -1,105 +1,96 @@
 // pages/bursar/modules/Receipts.jsx
 import { useState, useEffect, useRef } from "react";
 import { db } from "../../../firebase";
-import { collection, query, where, getDocs, orderBy, limit } from "firebase/firestore";
+import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import { Search, X, Printer, Receipt as ReceiptIcon } from "lucide-react";
+import "./staff-management.css"; 
 
-const IC = {
-  search:  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 15.803a7.5 7.5 0 0010.607 10.607z"/></svg>,
-  close:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>,
-  print:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z"/></svg>,
-  eye:     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>,
-  check:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>,
-};
+// ─── Avatar Helper ──────────────────────────────────────────────────────────
+function initials(name = "") {
+  return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+}
 
-const Spinner = () => (
-  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-  </svg>
-);
+const AVATAR_TONES = [
+  "bg-blue-500/20 text-blue-300",
+  "bg-violet-500/20 text-violet-300",
+  "bg-emerald-500/20 text-emerald-300",
+  "bg-orange-500/20 text-orange-300",
+  "bg-rose-500/20 text-rose-300",
+  "bg-cyan-500/20 text-cyan-300",
+];
+function avatarColor(name = "") {
+  return AVATAR_TONES[name.charCodeAt(0) % AVATAR_TONES.length] || AVATAR_TONES[0];
+}
 
-const Btn = ({ children, variant = "primary", size = "md", loading, className = "", ...props }) => {
-  const base = "inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all disabled:opacity-50";
-  const sizes = { sm: "px-3 py-1.5 text-xs", md: "px-4 py-2.5 text-sm", lg: "px-6 py-3 text-sm" };
-  const variants = {
-    primary: "bg-app-primary text-white hover:bg-app-primary/90",
-    gold:    "bg-app-warning text-app-text hover:brightness-105",
-    ghost:   "border border-app-border text-app-text/70 hover:bg-app-primary/5",
-    teal:    "bg-teal-600 text-white hover:bg-teal-700",
-  };
-  return <button {...props} disabled={loading || props.disabled} className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}>{loading ? <Spinner /> : children}</button>;
-};
-
-const fmt = (n) => `MWK ${Number(n || 0).toLocaleString()}`;
-
-const ACADEMIC_YEARS = ["2024/2025", "2025/2026", "2026/2027"];
-
-// ─── Printable Receipt Component ──────────────────────────────────────────────
+// ─── Printable Receipt ──────────────────────────────────────────────────────
 function PrintableReceipt({ payment, schoolName, onClose }) {
   const receiptRef = useRef(null);
 
   function handlePrint() {
-    const content = receiptRef.current.innerHTML;
-    const printWindow = window.open("", "_blank", "width=400,height=600");
+    const printWindow = window.open("", "_blank", "width=380,height=620");
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
           <title>Receipt - ${payment.receiptNo}</title>
           <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: 'Courier New', monospace; font-size: 12px; color: #000; background: #fff; }
-            .receipt { width: 320px; margin: 0 auto; padding: 16px; }
-            .header { text-align: center; margin-bottom: 12px; border-bottom: 2px dashed #000; padding-bottom: 12px; }
-            .school-name { font-size: 16px; font-weight: bold; text-transform: uppercase; }
-            .receipt-title { font-size: 13px; font-weight: bold; margin-top: 4px; letter-spacing: 0.1em; }
-            .receipt-no { font-size: 10px; margin-top: 2px; }
-            .section { margin: 10px 0; }
-            .row { display: flex; justify-content: space-between; margin: 4px 0; font-size: 11px; }
-            .row .label { color: #555; }
-            .row .value { font-weight: bold; text-align: right; }
-            .divider { border-top: 1px dashed #000; margin: 8px 0; }
-            .amount-row { display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; margin: 8px 0; border-top: 2px solid #000; padding-top: 8px; }
-            .footer { text-align: center; margin-top: 16px; padding-top: 12px; border-top: 2px dashed #000; font-size: 10px; color: #555; }
-            .stamp { text-align: center; margin: 12px 0; font-size: 16px; font-weight: bold; letter-spacing: 0.15em; border: 3px solid #000; padding: 6px; display: inline-block; transform: rotate(-5deg); color: #006600; }
+            @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap');
+            * { margin:0; padding:0; box-sizing:border-box; }
+            body { font-family: 'DM Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.4; color: #111; background: #fff; padding: 20px; }
+            .receipt { max-width: 320px; margin: 0 auto; border: 2px solid #ddd; padding: 24px 20px; background: white; }
+            .header { text-align: center; border-bottom: 2px dashed #333; padding-bottom: 16px; margin-bottom: 16px; }
+            .school { font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+            .title { font-size: 13px; font-weight: 600; margin-top: 4px; color: #222; }
+            .no { font-family: 'DM Mono', monospace; font-size: 11px; color: #666; margin-top: 4px; }
+            .info { margin: 14px 0; }
+            .row { display: flex; justify-content: space-between; margin: 5px 0; font-size: 12.5px; }
+            .label { color: #555; }
+            .amt { font-size: 15px; font-weight: 700; border-top: 2px solid #111; padding-top: 10px; margin-top: 12px; }
+            .stamp { display: inline-block; border: 3px solid #166534; color: #166534; padding: 4px 18px; font-weight: 900; font-size: 15px; transform: rotate(-6deg); margin: 18px 0; }
+            .footer { text-align: center; margin-top: 20px; font-size: 10.5px; color: #666; border-top: 1px dashed #ccc; padding-top: 12px; }
           </style>
         </head>
-        <body>
+        <body onload="window.print(); setTimeout(() => window.close(), 800)">
           <div class="receipt">
             <div class="header">
-              <div class="school-name">${schoolName}</div>
-              <div class="receipt-title">OFFICIAL PAYMENT RECEIPT</div>
-              <div class="receipt-no">${payment.receiptNo}</div>
+              <div class="school">${schoolName}</div>
+              <div class="title">OFFICIAL PAYMENT RECEIPT</div>
+              <div class="no">${payment.receiptNo}</div>
             </div>
-            <div class="section">
-              <div class="row"><span class="label">Date</span><span class="value">${payment.paymentDate}</span></div>
-              <div class="row"><span class="label">Academic Year</span><span class="value">${payment.academicYear}</span></div>
-              <div class="row"><span class="label">Term</span><span class="value">${payment.term}</span></div>
+
+            <div class="info">
+              <div class="row"><span class="label">Date</span><span>${payment.paymentDate}</span></div>
+              <div class="row"><span class="label">Academic Year</span><span>${payment.academicYear}</span></div>
+              <div class="row"><span class="label">Term</span><span>${payment.term}</span></div>
             </div>
-            <div class="divider"></div>
-            <div class="section">
-              <div class="row"><span class="label">Student Name</span><span class="value">${payment.studentName}</span></div>
-              <div class="row"><span class="label">Student Code</span><span class="value">${payment.studentCode}</span></div>
-              <div class="row"><span class="label">Class</span><span class="value">${payment.className}</span></div>
+
+            <div class="info" style="border-top:1px dashed #ccc; padding-top:12px;">
+              <div class="row"><span class="label">Student</span><span>${payment.studentName}</span></div>
+              <div class="row"><span class="label">Code</span><span>${payment.studentCode}</span></div>
+              <div class="row"><span class="label">Class</span><span>${payment.className}</span></div>
             </div>
-            <div class="divider"></div>
-            <div class="section">
-              <div class="row"><span class="label">Payment Method</span><span class="value">${payment.method}</span></div>
-              ${payment.referenceNo ? `<div class="row"><span class="label">Reference No.</span><span class="value">${payment.referenceNo}</span></div>` : ""}
-              ${payment.notes ? `<div class="row"><span class="label">Notes</span><span class="value">${payment.notes}</span></div>` : ""}
+
+            <div class="info" style="border-top:1px dashed #ccc; padding-top:12px;">
+              <div class="row"><span class="label">Method</span><span>${payment.method}</span></div>
+              ${payment.referenceNo ? `<div class="row"><span class="label">Ref No.</span><span>${payment.referenceNo}</span></div>` : ''}
+              ${payment.notes ? `<div class="row"><span class="label">Notes</span><span>${payment.notes}</span></div>` : ''}
             </div>
-            <div class="amount-row">
+
+            <div class="amt flex justify-between">
               <span>AMOUNT PAID</span>
-              <span>${fmt(payment.amount)}</span>
+              <span>${`MWK ${Number(payment.amount).toLocaleString()}`}</span>
             </div>
-            <div style="text-align:center; margin: 12px 0;">
-              <span class="stamp">PAID</span>
+
+            <div class="text-center">
+              <div class="stamp">PAID</div>
             </div>
+
             <div class="footer">
-              <div>Recorded by: ${payment.recordedBy}</div>
-              <div style="margin-top: 4px;">This is an official receipt. Please retain for your records.</div>
-              <div style="margin-top: 4px;">SSP-PEP · Ministry of Education, Malawi</div></div>
-          <script>window.onload = function() { window.print(); window.close(); }</script>
+              Recorded by: ${payment.recordedBy}<br>
+              Please keep this receipt for your records.<br>
+              SSP-PEP • Ministry of Education, Malawi
+            </div>
+          </div>
         </body>
       </html>
     `);
@@ -107,52 +98,57 @@ function PrintableReceipt({ payment, schoolName, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6"
-      style={{ backgroundColor: "rgba(15,32,68,0.45)", backdropFilter: "blur(3px)" }}>
-      <div className="bg-app-surface rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden my-auto">
-        <div className="bg-app-primary px-6 py-4 flex items-center justify-between">
-          <h3 className="text-white font-semibold text-base">Receipt Preview</h3>
-          <button onClick={onClose} className="text-white/60 hover:text-white">{IC.close}</button>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-container" style={{ maxWidth: "420px" }}>
+        <div className="modal-header">
+          <h3>Receipt Preview</h3>
+          <button onClick={onClose} className="modal-close"><X size={18} /></button>
         </div>
-        <div className="p-6 max-h-[75vh] overflow-y-auto">
-          {/* Preview */}
-          <div ref={receiptRef} className="border-2 border-dashed border-gray-300 rounded-xl p-5 font-mono text-xs bg-gray-50">
-            <div className="text-center mb-3 pb-3 border-b-2 border-dashed border-gray-400">
-              <p className="font-bold text-base uppercase">{schoolName}</p>
-              <p className="font-bold text-sm tracking-widest mt-1">OFFICIAL PAYMENT RECEIPT</p>
-              <p className="text-gray-500 mt-0.5">{payment.receiptNo}</p>
+        <div className="modal-body p-0">
+          <div ref={receiptRef} className="p-8 bg-white border border-border rounded-t-3xl font-mono text-sm">
+            <div className="text-center mb-6 border-b border-dashed pb-6">
+              <div className="font-bold text-lg tracking-wider uppercase">{schoolName}</div>
+              <div className="font-semibold mt-1">OFFICIAL PAYMENT RECEIPT</div>
+              <div className="text-xs text-muted mt-1 font-mono">{payment.receiptNo}</div>
             </div>
-            <div className="space-y-1 mb-3">
-              {[["Date", payment.paymentDate], ["Academic Year", payment.academicYear], ["Term", payment.term]].map(([k, v]) => (
-                <div key={k} className="flex justify-between"><span className="text-gray-500">{k}</span><span className="font-bold">{v}</span></div>
-              ))}
+
+            <div className="space-y-4 text-sm">
+              <div className="flex justify-between"><span className="text-muted">Date</span><span>{payment.paymentDate}</span></div>
+              <div className="flex justify-between"><span className="text-muted">Academic Year</span><span>{payment.academicYear}</span></div>
+              <div className="flex justify-between"><span className="text-muted">Term</span><span>{payment.term}</span></div>
             </div>
-            <div className="border-t border-dashed border-gray-300 pt-2 mb-3 space-y-1">
-              {[["Student", payment.studentName], ["Code", payment.studentCode], ["Class", payment.className]].map(([k, v]) => (
-                <div key={k} className="flex justify-between"><span className="text-gray-500">{k}</span><span className="font-bold">{v}</span></div>
-              ))}
+
+            <div className="my-6 border-t border-dashed pt-6 space-y-4 text-sm">
+              <div className="flex justify-between"><span className="text-muted">Student</span><span className="font-medium">{payment.studentName}</span></div>
+              <div className="flex justify-between"><span className="text-muted">Code</span><span>{payment.studentCode}</span></div>
+              <div className="flex justify-between"><span className="text-muted">Class</span><span>{payment.className}</span></div>
             </div>
-            <div className="border-t border-dashed border-gray-300 pt-2 mb-3 space-y-1">
-              {[["Method", payment.method], payment.referenceNo && ["Ref No.", payment.referenceNo]].filter(Boolean).map(([k, v]) => (
-                <div key={k} className="flex justify-between"><span className="text-gray-500">{k}</span><span className="font-bold">{v}</span></div>
-              ))}
+
+            <div className="border-t border-dashed pt-6 space-y-4 text-sm">
+              <div className="flex justify-between"><span className="text-muted">Method</span><span>{payment.method}</span></div>
+              {payment.referenceNo && <div className="flex justify-between"><span className="text-muted">Ref No.</span><span>{payment.referenceNo}</span></div>}
             </div>
-            <div className="border-t-2 border-gray-800 pt-2 flex justify-between font-bold text-sm">
-              <span>AMOUNT PAID</span><span>{fmt(payment.amount)}</span>
+
+            <div className="mt-8 pt-6 border-t-2 border-black flex justify-between items-end font-bold text-lg">
+              <span>AMOUNT PAID</span>
+              <span>{`MWK ${Number(payment.amount).toLocaleString()}`}</span>
             </div>
-            <div className="text-center my-3">
-              <span className="inline-block border-4 border-green-700 text-green-700 font-black text-lg px-4 py-1 tracking-widest" style={{ transform: "rotate(-5deg)", display: "inline-block" }}>PAID</span>
+
+            <div className="flex justify-center my-8">
+              <div className="border-4 border-success text-success font-black text-xl px-8 py-1 tracking-[3px] rotate-[-6deg]">PAID</div>
             </div>
-            <div className="border-t-2 border-dashed border-gray-400 pt-2 text-center text-gray-500 space-y-0.5">
-              <p>Recorded by: {payment.recordedBy}</p>
-              <p>Official receipt — retain for your records</p>
-              <p>SSP-PEP · Ministry of Education, Malawi</p>
+
+            <div className="text-center text-xs text-muted border-t pt-6">
+              Recorded by: {payment.recordedBy}<br />
+              SSP-PEP • Ministry of Education, Malawi
             </div>
           </div>
 
-          <div className="flex gap-3 mt-5 justify-end">
-            <Btn variant="ghost" size="sm" onClick={onClose}>Close</Btn>
-            <Btn variant="teal" size="sm" onClick={handlePrint}>{IC.print} Print Receipt</Btn>
+          <div className="p-6 flex gap-3 border-t">
+            <button onClick={onClose} className="btn btn--secondary flex-1">Close</button>
+            <button onClick={handlePrint} className="btn btn--accent flex-1">
+              <Printer size={16} /> Print Receipt
+            </button>
           </div>
         </div>
       </div>
@@ -160,19 +156,23 @@ function PrintableReceipt({ payment, schoolName, onClose }) {
   );
 }
 
-// ─── Main Receipts Module ─────────────────────────────────────────────────────
+const fmt = (n) => `MWK ${Number(n || 0).toLocaleString()}`;
+const ACADEMIC_YEARS = ["2024/2025", "2025/2026", "2026/2027"];
+
+// ─── Main Component ─────────────────────────────────────────────────────────
 export default function Receipts({ schoolCode, schoolName }) {
   const [payments, setPayments] = useState([]);
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
+
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState("all");
   const [academicYear, setAcademicYear] = useState("2025/2026");
+
   const [previewPayment, setPreviewPayment] = useState(null);
 
   useEffect(() => {
     fetchData();
-    // Listen for printReceipt event from Payments module
     const handler = (e) => setPreviewPayment(e.detail);
     window.addEventListener("printReceipt", handler);
     return () => window.removeEventListener("printReceipt", handler);
@@ -182,114 +182,137 @@ export default function Receipts({ schoolCode, schoolName }) {
     setLoading(true);
     try {
       const [pySnap, clSnap] = await Promise.all([
-        getDocs(query(collection(db, "payments"), where("schoolCode", "==", schoolCode), where("academicYear", "==", academicYear), orderBy("createdAt", "desc"))),
+        getDocs(query(
+          collection(db, "payments"),
+          where("schoolCode", "==", schoolCode),
+          where("academicYear", "==", academicYear),
+          orderBy("createdAt", "desc")
+        )),
         getDocs(query(collection(db, "school_classes"), where("schoolCode", "==", schoolCode))),
       ]);
-      setPayments(pySnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setClasses(clSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-    } catch (e) { console.error(e); }
+      setPayments(pySnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setClasses(clSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (e) {
+      console.error(e);
+    }
     setLoading(false);
   }
 
-  const filtered = payments.filter(p => {
-    const ms = !search || p.receiptNo?.toLowerCase().includes(search.toLowerCase()) || p.studentName?.toLowerCase().includes(search.toLowerCase()) || p.studentCode?.toLowerCase().includes(search.toLowerCase());
-    const mc = classFilter === "all" || p.classId === classFilter;
-    return ms && mc;
+  const filtered = payments.filter((p) => {
+    const q = search.toLowerCase();
+    const matchSearch = !search || 
+      p.receiptNo?.toLowerCase().includes(q) || 
+      p.studentName?.toLowerCase().includes(q) || 
+      p.studentCode?.toLowerCase().includes(q);
+    const matchClass = classFilter === "all" || p.classId === classFilter;
+    return matchSearch && matchClass;
   });
-
-  const methodBadge = {
-    "Cash": "bg-emerald-100 text-emerald-700",
-    "Airtel Money": "bg-red-100 text-red-700",
-    "TNM Mpamba": "bg-yellow-100 text-yellow-800",
-    "National Bank Transfer": "bg-blue-100 text-blue-700",
-    "Standard Bank Transfer": "bg-indigo-100 text-indigo-700",
-    "NBS Transfer": "bg-purple-100 text-purple-700",
-    "Cheque": "bg-gray-100 text-gray-700",
-  };
-
-  function initials(name = "") {
-    return name.split(" ").filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("");
-  }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-app-text">Receipts</h2>
-          <p className="text-sm text-app-text/50 mt-0.5">View and reprint payment receipts</p>
+          <h2 style={{ fontFamily: "'Playfair Display', serif" }}>Receipts</h2>
+          <p className="text-muted">View, search and reprint official receipts</p>
         </div>
-        <div className="flex gap-3">
-          <select value={academicYear} onChange={e => setAcademicYear(e.target.value)} className="px-3.5 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none appearance-none">
-            {ACADEMIC_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-        </div>
+        <select 
+          value={academicYear} 
+          onChange={(e) => setAcademicYear(e.target.value)} 
+          className="form-input form-input--compact"
+        >
+          {ACADEMIC_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-app-text/30">{IC.search}</span>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by receipt no., student name or code…" className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none focus:border-[#0F2044]/30 transition-all" />
+      <div className="filter-bar">
+        <div className="search-wrapper flex-1">
+          <Search className="search-icon" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search receipt, student..."
+            className="search-input"
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-4 top-1/2 -translate-y-1/2 text-muted">
+              <X size={16} />
+            </button>
+          )}
         </div>
-        <select value={classFilter} onChange={e => setClassFilter(e.target.value)} className="px-3.5 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none appearance-none">
+
+        <select 
+          value={classFilter} 
+          onChange={(e) => setClassFilter(e.target.value)} 
+          className="form-input form-input--compact"
+        >
           <option value="all">All Classes</option>
-          {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
       </div>
 
       {/* Table */}
-      <div className="bg-app-surface rounded-2xl border border-app-border overflow-hidden">
+      <div className="card overflow-hidden">
         {loading ? (
-          <div className="p-12 flex justify-center"><Spinner /></div>
+          <div className="py-20 flex flex-col items-center justify-center text-muted">
+            <div className="spinner" style={{ width: "38px", height: "38px" }} />
+            <p className="mt-6">Loading receipts...</p>
+          </div>
         ) : filtered.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="w-14 h-14 bg-app-primary/5 rounded-2xl flex items-center justify-center mx-auto mb-4 text-app-text/30">{IC.print}</div>
-            <p className="font-semibold text-app-text mb-1">No receipts found</p>
-            <p className="text-sm text-app-text/50">Receipts are generated when payments are recorded</p>
+          <div className="empty-state py-24">
+            <ReceiptIcon size={52} className="text-muted mb-4" />
+            <div className="empty-state__title">No receipts found</div>
+            <p className="empty-state__sub">Receipts appear after recording payments</p>
           </div>
         ) : (
           <div className="data-table-wrap">
-<table className="data-table data-table--stack">
-            <thead>
-              <tr className="border-b border-[#0F2044]/5">
-                <th>Receipt No.</th>
-                <th>Student</th>
-                <th>Method</th>
-                <th>Date</th>
-                <th>Amount</th>
-                <th>Print</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#0F2044]/5">
-              {filtered.map(p => (
-                <tr key={p.id} className="hover:bg-app-bg/60 transition-colors">
-                  <td className="px-5 py-3.5" data-label="Receipt No.">
-                    <span className="font-mono text-xs font-bold text-app-text bg-app-bg px-2.5 py-1 rounded-lg">{p.receiptNo}</span>
-                  </td>
-                  <td className="px-5 py-3.5" data-label="Student">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-app-primary text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">{initials(p.studentName)}</div>
-                      <div>
-                        <p className="text-sm font-semibold text-app-text">{p.studentName}</p>
-                        <p className="text-xs text-app-text/40">{p.className}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5 hidden sm:table-cell" data-label="Method">
-                    <span className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-semibold ${methodBadge[p.method] || "bg-gray-100 text-gray-700"}`}>{p.method}</span>
-                  </td>
-                  <td className="px-5 py-3.5 text-xs text-app-text/60 hidden md:table-cell" data-label="Date">{p.paymentDate}</td>
-                  <td className="px-5 py-3.5 text-right font-bold text-emerald-700" data-label="Amount">{fmt(p.amount)}</td>
-                  <td className="px-5 py-3.5 text-right" data-label="Print">
-                    <button onClick={() => setPreviewPayment(p)} className="p-2 rounded-lg hover:bg-app-primary/5 text-app-text/50 hover:text-app-text transition-colors" title="View & Print">
-                      {IC.print}
-                    </button>
-                  </td>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Receipt</th>
+                  <th>Student</th>
+                  <th>Method</th>
+                  <th>Date</th>
+                  <th className="text-right">Amount</th>
+                  <th className="w-12"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-</div>
+              </thead>
+              <tbody>
+                {filtered.map((p) => (
+                  <tr key={p.id} className="hover:bg-primary-dim">
+                    <td data-label="Receipt">
+                      <span className="font-mono text-sm font-medium">{p.receiptNo}</span>
+                    </td>
+                    <td data-label="Student">
+                      <div className="flex items-center gap-3">
+                        <div className={`assignment-avatar text-xs ${avatarColor(p.studentName)}`}>
+                          {initials(p.studentName)}
+                        </div>
+                        <div>
+                          <div className="font-medium">{p.studentName}</div>
+                          <div className="text-xs text-muted">{p.className}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td data-label="Method">
+                      <span className="tag">{p.method}</span>
+                    </td>
+                    <td data-label="Date" className="text-muted">{p.paymentDate}</td>
+                    <td data-label="Amount" className="text-right font-semibold text-success">{fmt(p.amount)}</td>
+                    <td className="text-right">
+                      <button 
+                        onClick={() => setPreviewPayment(p)} 
+                        className="icon-btn"
+                        title="View & Print"
+                      >
+                        <Printer size={17} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

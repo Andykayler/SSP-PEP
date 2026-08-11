@@ -21,34 +21,23 @@ const PERIODS = [
   { number: 8, label: "P8", start: "15:00", end: "15:50" },
 ];
 
-// ─── status config ────────────────────────────────────────────────────────────
+// ─── status config — colors are pulled straight from the CSS custom
+// properties so this stays in sync with theme / light-dark switching ────────
 const STATUS = {
   planned: {
     label: "Planned",
-    bg: "bg-amber-100",
-    text: "text-amber-800",
-    blockBg: "bg-amber-50",
-    blockText: "text-amber-700",
-    blockBorder: "border-amber-200",
-    dot: "bg-amber-500",
+    pill: { background: "var(--warning-pale)", color: "var(--warning-light)", border: "1px solid rgba(232,168,0,0.2)" },
+    icon: { background: "var(--warning-pale)", color: "var(--warning-light)", border: "1px solid rgba(232,168,0,0.2)" },
   },
   "in-progress": {
     label: "In progress",
-    bg: "bg-blue-100",
-    text: "text-blue-800",
-    blockBg: "bg-blue-50",
-    blockText: "text-blue-700",
-    blockBorder: "border-blue-200",
-    dot: "bg-blue-500",
+    pill: { background: "var(--primary-pale)", color: "var(--primary-light)", border: "1px solid var(--border-color)" },
+    icon: { background: "var(--primary-pale)", color: "var(--primary-light)", border: "1px solid var(--border-color)" },
   },
   completed: {
     label: "Completed",
-    bg: "bg-emerald-100",
-    text: "text-emerald-800",
-    blockBg: "bg-emerald-50",
-    blockText: "text-emerald-700",
-    blockBorder: "border-emerald-200",
-    dot: "bg-emerald-500",
+    pill: { background: "var(--success-pale)", color: "var(--success-light)", border: "1px solid rgba(34,197,94,0.22)" },
+    icon: { background: "var(--success-pale)", color: "var(--success-light)", border: "1px solid rgba(34,197,94,0.22)" },
   },
 };
 
@@ -71,8 +60,62 @@ function getPeriod(num) {
   return PERIODS.find((p) => p.number === Number(num)) || null;
 }
 
-function Spinner({ size = 20 }) {
-  return <Loader2 size={size} className="animate-spin text-app-text/40 inline-block" />;
+// ─── shared inline style helpers (no dedicated class exists for these in
+// admin_dashboard.css, so they're built from the same CSS custom properties) ─
+const iconBtnStyle = {
+  display: "flex", alignItems: "center", justifyContent: "center",
+  width: 32, height: 32, padding: 0, background: "var(--surface)",
+  border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)",
+  color: "var(--text-muted)", cursor: "pointer", flexShrink: 0,
+  transition: "all var(--transition-base)",
+};
+
+function primaryBtnStyle(disabled) {
+  return {
+    display: "flex", alignItems: "center", gap: 8,
+    padding: "10px 20px", borderRadius: "var(--radius-md)",
+    background: disabled ? "var(--border-color)" : "var(--primary)",
+    color: disabled ? "var(--text-muted)" : "#fff",
+    border: "none", fontSize: 13, fontWeight: 500,
+    cursor: disabled ? "not-allowed" : "pointer",
+    transition: "all var(--transition-base)",
+    opacity: disabled ? 0.6 : 1,
+    fontFamily: "var(--font-body)",
+  };
+}
+
+const ghostBtnStyle = {
+  flex: 1, padding: "12px 0", borderRadius: "var(--radius-md)",
+  background: "var(--surface)", border: "1px solid var(--border-color)",
+  color: "var(--text-secondary)", fontSize: 13, fontWeight: 500,
+  cursor: "pointer", transition: "all var(--transition-base)",
+};
+
+const saveBtnStyle = (disabled) => ({
+  flex: 1, padding: "12px 0", borderRadius: "var(--radius-md)",
+  background: disabled ? "var(--border-color)" : "linear-gradient(135deg, var(--warning), var(--warning-light))",
+  color: disabled ? "var(--text-muted)" : "#1a0f00",
+  border: "none", fontWeight: 600, fontSize: 13,
+  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+  cursor: disabled ? "not-allowed" : "pointer",
+  transition: "all var(--transition-base)",
+});
+
+const inputStyle = {
+  width: "100%", padding: "10px 14px", borderRadius: "var(--radius-md)",
+  border: "1px solid var(--border-color)", background: "var(--input-bg)",
+  color: "var(--text-primary)", fontSize: 13, outline: "none",
+  fontFamily: "var(--font-body)", boxSizing: "border-box",
+};
+
+const labelStyle = {
+  fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: "1px",
+  color: "var(--text-muted)", textTransform: "uppercase",
+  marginBottom: 6, display: "block", fontWeight: 600,
+};
+
+function Spinner({ size = 16 }) {
+  return <Loader2 size={size} style={{ animation: "spin 0.65s linear infinite", color: "currentColor" }} />;
 }
 
 function Toast({ message, type = "success", onClose }) {
@@ -80,116 +123,110 @@ function Toast({ message, type = "success", onClose }) {
     const t = setTimeout(onClose, 3200);
     return () => clearTimeout(t);
   }, [onClose]);
+  const ok = type === "success";
   return (
-    <div className={`fixed bottom-6 right-6 z-[200] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl text-sm font-medium
-      ${type === "success" ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}`}>
-      {type === "success" ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+    <div style={{
+      position: "fixed", bottom: 24, right: 24, zIndex: 200,
+      display: "flex", alignItems: "center", gap: 10,
+      padding: "13px 20px", borderRadius: "var(--radius-md)",
+      background: ok ? "var(--success)" : "#ef4444",
+      color: "#fff", fontSize: 13, fontWeight: 500,
+      boxShadow: "var(--shadow-lg)",
+    }}>
+      {ok ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
       {message}
     </div>
   );
 }
 
-// ─── period block ─────────────────────────────────────────────────────────────
-function PeriodBlock({ periodNumber, status = "planned" }) {
+// ─── period tile (replaces the old Tailwind PeriodBlock) ─────────────────────
+function PeriodTile({ periodNumber, statusKey }) {
   const period = getPeriod(periodNumber);
-  const s = STATUS[status] || STATUS.planned;
-
+  const cfg = STATUS[statusKey] || STATUS.planned;
   return (
-    <div className={`w-14 flex flex-col items-center justify-center rounded-2xl border ${s.blockBorder} ${s.blockBg} py-3 min-h-[64px] shrink-0`}>
+    <div style={{
+      width: 56, display: "flex", flexDirection: "column", alignItems: "center",
+      justifyContent: "center", borderRadius: "var(--radius-md)",
+      background: cfg.pill.background, border: cfg.pill.border,
+      padding: "10px 4px", minHeight: 62, flexShrink: 0,
+    }}>
       {period ? (
         <>
-          <span className={`text-[11px] font-bold tracking-wide ${s.blockText}`}>{period.label}</span>
-          <span className={`text-[10px] mt-0.5 ${s.blockText} opacity-80`}>{period.start}</span>
-          <span className={`text-[9px] mt-0.5 ${s.blockText} opacity-55`}>{period.end}</span>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700, color: cfg.pill.color, letterSpacing: "0.5px" }}>
+            {period.label}
+          </span>
+          <span style={{ fontSize: 10, marginTop: 3, color: cfg.pill.color, opacity: 0.85 }}>{period.start}</span>
+          <span style={{ fontSize: 9, color: cfg.pill.color, opacity: 0.55 }}>{period.end}</span>
         </>
       ) : (
         <>
-          <Clock size={13} className={`${s.blockText} opacity-60`} />
-          <span className={`text-[10px] mt-1 font-medium ${s.blockText} opacity-60`}>—</span>
+          <Clock size={13} style={{ color: cfg.pill.color, opacity: 0.6 }} />
+          <span style={{ fontSize: 10, marginTop: 4, color: cfg.pill.color, opacity: 0.6, fontWeight: 500 }}>—</span>
         </>
       )}
     </div>
   );
 }
 
-// ─── plan card ────────────────────────────────────────────────────────────────
-function PlanCard({ plan, onView, onEdit, onDelete }) {
-  const s = STATUS[plan.status] || STATUS.planned;
+// ─── plan row (cc-row pattern, same one used for "Today's Schedule" on the
+// Overview dashboard) ──────────────────────────────────────────────────────
+function PlanRow({ plan, onView, onEdit, onDelete }) {
+  const cfg = STATUS[plan.status] || STATUS.planned;
+  const period = getPeriod(plan.periodNumber);
 
   return (
-    <div className="bg-app-surface rounded-2xl border border-app-border p-4 flex gap-4 hover:border-app-border transition-all group">
-      <PeriodBlock periodNumber={plan.periodNumber} status={plan.status} />
+    <div className="cc-row" style={{ alignItems: "flex-start" }}>
+      <PeriodTile periodNumber={plan.periodNumber} statusKey={plan.status} />
 
-      <div className="flex-1 min-w-0">
-        <div className="flex flex-wrap items-center gap-2 mb-2">
-          <span className="text-xs px-2.5 py-0.5 bg-app-bg border border-app-border rounded-lg text-app-text/70 font-medium">
-            {plan.className}
-          </span>
-          <span className="text-xs px-2.5 py-0.5 bg-app-bg border border-app-border rounded-lg text-app-text/70 font-medium">
-            {plan.subject}
-          </span>
-          <span className={`text-xs px-2.5 py-0.5 rounded-lg font-semibold flex items-center gap-1.5 ${s.bg} ${s.text}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-            {s.label}
+      <div className="cc-row__info">
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginBottom: 6 }}>
+          <span className="badge badge--blue">{plan.className}</span>
+          <span className="badge badge--teal">{plan.subject}</span>
+          <span className="status-pill" style={cfg.pill}>
+            <span className="status-pill__dot" />
+            {cfg.label}
           </span>
         </div>
 
-        <h3 className="font-semibold text-app-text text-sm leading-snug mb-1 truncate">
+        <div className="cc-row__name" style={{ fontSize: 14, whiteSpace: "normal", fontFamily: "var(--font-display)", letterSpacing: "0.3px" }}>
           {plan.topic}
-        </h3>
+        </div>
 
         {plan.objectives && (
-          <p className="text-xs text-app-text/55 leading-relaxed line-clamp-2 mb-2">
+          <p className="cc-row__meta" style={{ whiteSpace: "normal", marginTop: 4, lineHeight: 1.55, maxWidth: 560 }}>
             {plan.objectives}
           </p>
         )}
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-          <span className="text-[11px] text-app-text/40 flex items-center gap-1">
-            <Calendar size={11} />
-            {dayLabel(plan.date)}, {fmt(plan.date)}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 8 }}>
+          <span className="cc-row__meta" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <Calendar size={11} /> {dayLabel(plan.date)}, {fmt(plan.date)}
           </span>
-          {plan.periodNumber && (
-            <span className="text-[11px] text-app-text/40 flex items-center gap-1">
-              <Clock size={11} />
-              {(() => {
-                const p = getPeriod(plan.periodNumber);
-                return p ? `${p.start} – ${p.end}` : `Period ${plan.periodNumber}`;
-              })()}
+          {period && (
+            <span className="cc-row__meta" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <Clock size={11} /> {period.start} – {period.end}
             </span>
           )}
           {plan.week && (
-            <span className="text-[11px] text-app-text/40">Wk {plan.week} · {plan.term}</span>
+            <span className="cc-row__meta">Wk {plan.week} · {plan.term}</span>
           )}
           {plan.assessment && (
-            <span className="text-[11px] text-app-text/40 hidden lg:inline truncate max-w-[200px]">
+            <span className="cc-row__meta" style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {plan.assessment}
             </span>
           )}
         </div>
       </div>
 
-      <div className="flex flex-col gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          onClick={() => onView(plan)}
-          className="p-2 hover:bg-blue-50 text-app-text/40 hover:text-blue-600 rounded-xl transition-colors"
-          title="View"
-        >
-          <Eye size={15} />
+      <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "flex-start", marginTop: 2 }}>
+        <button onClick={() => onView(plan)} style={iconBtnStyle} title="View">
+          <Eye size={14} />
         </button>
-        <button
-          onClick={() => onEdit(plan)}
-          className="p-2 hover:bg-amber-50 text-app-text/40 hover:text-amber-600 rounded-xl transition-colors"
-          title="Edit"
-        >
-          <Edit2 size={15} />
+        <button onClick={() => onEdit(plan)} style={iconBtnStyle} title="Edit">
+          <Edit2 size={14} />
         </button>
-        <button
-          onClick={() => onDelete(plan.id)}
-          className="p-2 hover:bg-red-50 text-app-text/40 hover:text-red-500 rounded-xl transition-colors"
-          title="Delete"
-        >
-          <Trash2 size={15} />
+        <button onClick={() => onDelete(plan.id)} style={{ ...iconBtnStyle, color: "#ef4444" }} title="Delete">
+          <Trash2 size={14} />
         </button>
       </div>
     </div>
@@ -236,7 +273,7 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
     })();
   }, [userId]);
 
-  // ── FIXED: removed orderBy("date") to avoid requiring a composite index.
+  // ── removed orderBy("date") to avoid requiring a composite index.
   // Plans are sorted client-side instead.
   const fetchPlans = async () => {
     if (!userId) return;
@@ -325,12 +362,12 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
   const noAssignments = !assignLoading && myClasses.length === 0;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-app-text">Lesson plans</h2>
-          <p className="text-sm text-app-text/55 mt-0.5">
+          <h2 className="module-title">Lesson Plans</h2>
+          <p className="module-sub">
             {assignLoading
               ? "Loading your assignments…"
               : myClasses.length > 0
@@ -339,17 +376,13 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
-          <button
-            onClick={fetchPlans}
-            className="p-2.5 bg-app-surface border border-app-border rounded-xl hover:bg-app-bg transition-colors text-app-text/60"
-            title="Refresh"
-          >
+          <button onClick={fetchPlans} style={iconBtnStyle} title="Refresh">
             <RefreshCw size={16} />
           </button>
           <button
             onClick={() => setShowNew(true)}
             disabled={noAssignments}
-            className="flex items-center gap-2 px-5 py-2.5 bg-app-primary text-white rounded-2xl hover:bg-[#1A2F5C] transition-colors font-medium text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            style={primaryBtnStyle(noAssignments)}
           >
             <Plus size={16} /> New plan
           </button>
@@ -357,25 +390,54 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
       </div>
 
       {noAssignments && (
-        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl text-sm">
-          <AlertCircle size={16} className="shrink-0 mt-0.5" />
+        <div className="alert alert--warning">
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
           No classes assigned. Your head teacher must assign classes from the Staff Management page first.
         </div>
       )}
 
-      {/* Filter bar */}
+      {/* Status overview */}
+      <div>
+        <div className="sec-eyebrow">Plan status</div>
+        <div className="stat-strip">
+          {[
+            { label: "Total plans",  value: counts.all,           icon: <BookOpen width={16} height={16} />,  variant: "" },
+            { label: "Planned",      value: counts.planned,       icon: <Clock width={16} height={16} />,     variant: "gold" },
+            { label: "In progress",  value: counts["in-progress"],icon: <RefreshCw width={16} height={16} />, variant: "" },
+            { label: "Completed",    value: counts.completed,     icon: <CheckCircle width={16} height={16} />, variant: "teal" },
+          ].map((s, i) => (
+            <div key={s.label} className="stat-card">
+              <div className="stat-card__top">
+                <div className={`stat-card__icon${s.variant ? ` stat-card__icon--${s.variant}` : ""}`}>
+                  {s.icon}
+                </div>
+                <span className="stat-card__label">{s.label}</span>
+              </div>
+              <div className="stat-card__value">{s.value}</div>
+              <div className="stat-card__bar">
+                <div
+                  className={`stat-card__bar-fill${s.variant ? ` stat-card__bar-fill--${s.variant}` : ""}`}
+                  style={{ width: `${counts.all ? Math.round((s.value / Math.max(counts.all, 1)) * 100) : 0}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Search + status filter */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-app-text/35" />
+        <div className="search-wrap" style={{ flex: 1 }}>
+          <Search size={14} className="search-wrap__icon" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search topics, classes, subjects…"
-            className="w-full pl-9 pr-4 py-2.5 bg-app-surface border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/30 text-app-text"
+            className="search-wrap__input"
           />
         </div>
-        <div className="flex gap-1.5">
+        <div className="filter-pills">
           {[
             { id: "all",         label: "All" },
             { id: "planned",     label: "Planned" },
@@ -385,49 +447,56 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
             <button
               key={f.id}
               onClick={() => setStatusFilter(f.id)}
-              className={`px-3.5 py-2 text-xs font-medium rounded-xl transition-all whitespace-nowrap
-                ${statusFilter === f.id
-                  ? "bg-app-primary text-white"
-                  : "bg-app-surface border border-app-border text-app-text/60 hover:border-[#0F2044]/25"
-                }`}
+              className={`filter-pill ${statusFilter === f.id ? "filter-pill--active" : "filter-pill--inactive"}`}
             >
               {f.label}
-              <span className={`ml-1.5 ${statusFilter === f.id ? "opacity-60" : "opacity-40"}`}>
-                {counts[f.id]}
-              </span>
+              <span style={{ marginLeft: 6, opacity: 0.7 }}>{counts[f.id]}</span>
             </button>
           ))}
         </div>
       </div>
 
       {/* Plans list */}
-      <div className="space-y-2.5">
-        {loading ? (
-          <div className="bg-app-surface rounded-2xl border border-app-border py-20 flex flex-col items-center gap-3 text-app-text/40">
-            <Spinner size={28} />
-            <p className="text-sm">Loading lesson plans…</p>
+      <div className="cc">
+        <div className="cc__head">
+          <div className="cc__head-left">
+            <BookOpen width={18} height={18} />
+            <h3>Lesson Plans</h3>
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="bg-app-surface rounded-2xl border border-app-border py-20 text-center">
-            <BookOpen size={28} className="mx-auto mb-3 text-app-text/20" />
-            <p className="text-sm text-app-text/35">
-              {plans.length === 0 ? "No lesson plans yet. Create your first one." : "No plans match your filter."}
-            </p>
-          </div>
-        ) : (
-          filtered.map((plan) => (
-            <PlanCard
-              key={plan.id}
-              plan={plan}
-              onView={setViewPlan}
-              onEdit={setEditPlan}
-              onDelete={deletePlan}
-            />
-          ))
-        )}
+        </div>
+        <div className="cc__body" style={{ padding: 0 }}>
+          {loading ? (
+            <div style={{ padding: "56px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+              <div className="spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
+              <p className="module-sub">Loading lesson plans…</p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state__icon"><BookOpen size={22} /></div>
+              <div className="empty-state__title">
+                {plans.length === 0 ? "No lesson plans yet" : "No plans match your filter"}
+              </div>
+              <p className="empty-state__sub">
+                {plans.length === 0
+                  ? "Create your first lesson plan to start tracking curriculum coverage."
+                  : "Try a different search term or status filter."}
+              </p>
+            </div>
+          ) : (
+            filtered.map((plan) => (
+              <PlanRow
+                key={plan.id}
+                plan={plan}
+                onView={setViewPlan}
+                onEdit={setEditPlan}
+                onDelete={deletePlan}
+              />
+            ))
+          )}
+        </div>
       </div>
 
-      <p className="text-center text-[11px] text-app-text/35 pt-1">
+      <p className="module-sub" style={{ textAlign: "center" }}>
         Lesson plans track curriculum coverage and support MANEB syllabus requirements.
       </p>
 
@@ -500,46 +569,58 @@ function PlanModal({ plan, myClasses, mySubjects, onSave, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-app-surface rounded-3xl w-full max-w-2xl max-h-[94vh] overflow-hidden shadow-2xl flex flex-col">
-        <div className="bg-app-primary px-7 py-5 flex items-center justify-between shrink-0">
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+      backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 50, padding: 16,
+    }}>
+      <div style={{
+        background: "var(--card-bg)", borderRadius: "var(--radius-xl)",
+        width: "100%", maxWidth: 640, maxHeight: "94vh", overflow: "hidden",
+        boxShadow: "var(--shadow-lg)", display: "flex", flexDirection: "column",
+        border: "1px solid var(--border-strong)",
+      }}>
+        {/* Header */}
+        <div style={{
+          background: "var(--hero-bg)", padding: "20px 28px",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          borderBottom: "1px solid var(--border-strong)", flexShrink: 0,
+        }}>
           <div>
-            <h3 className="text-white font-bold text-lg">
+            <h3 style={{ fontFamily: "var(--font-display)", fontSize: "1.15rem", color: "var(--text-primary)", letterSpacing: "0.5px" }}>
               {isEdit ? "Edit lesson plan" : "New lesson plan"}
             </h3>
-            {isEdit && <p className="text-white/50 text-xs mt-0.5 truncate max-w-xs">{plan.topic}</p>}
+            {isEdit && (
+              <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3, maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {plan.topic}
+              </p>
+            )}
           </div>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors p-1">
-            <X size={22} />
+          <button onClick={onClose} style={{ ...iconBtnStyle, background: "transparent", border: "none", color: "var(--text-muted)" }}>
+            <X size={20} />
           </button>
         </div>
 
-        <div className="overflow-y-auto p-7 space-y-5 flex-1">
+        {/* Body */}
+        <div style={{ overflowY: "auto", padding: 28, display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded-xl flex gap-2">
-              <AlertCircle size={15} className="shrink-0 mt-0.5" /> {error}
+            <div className="alert alert--error">
+              <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} /> {error}
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div>
-              <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">CLASS</label>
-              <select
-                value={form.className}
-                onChange={(e) => set("className", e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 bg-app-surface text-app-text"
-              >
+              <label style={labelStyle}>Class</label>
+              <select value={form.className} onChange={(e) => set("className", e.target.value)} style={inputStyle}>
                 {myClasses.length === 0 && <option value="">No classes assigned</option>}
                 {myClasses.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">SUBJECT</label>
-              <select
-                value={form.subject}
-                onChange={(e) => set("subject", e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 bg-app-surface text-app-text"
-              >
+              <label style={labelStyle}>Subject</label>
+              <select value={form.subject} onChange={(e) => set("subject", e.target.value)} style={inputStyle}>
                 {mySubjects.length === 0 && <option value="">No subjects assigned</option>}
                 {mySubjects.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -547,44 +628,35 @@ function PlanModal({ plan, myClasses, mySubjects, onSave, onClose }) {
           </div>
 
           <div>
-            <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">TOPIC / CHAPTER *</label>
+            <label style={labelStyle}>Topic / Chapter *</label>
             <input
               type="text"
               placeholder="e.g. Factorisation of quadratic expressions"
               value={form.topic}
               onChange={(e) => set("topic", e.target.value)}
-              className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
+              style={inputStyle}
             />
           </div>
 
           <div>
-            <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">LEARNING OBJECTIVES *</label>
+            <label style={labelStyle}>Learning objectives *</label>
             <textarea
               rows={3}
               placeholder="By the end of the lesson, students should be able to…"
               value={form.objectives}
               onChange={(e) => set("objectives", e.target.value)}
-              className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm resize-y focus:outline-none focus:border-[#0F2044]/40 text-app-text"
+              style={{ ...inputStyle, resize: "vertical" }}
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div>
-              <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">DATE</label>
-              <input
-                type="date"
-                value={form.date}
-                onChange={(e) => set("date", e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
-              />
+              <label style={labelStyle}>Date</label>
+              <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={inputStyle} />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">PERIOD</label>
-              <select
-                value={form.periodNumber}
-                onChange={(e) => set("periodNumber", Number(e.target.value))}
-                className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 bg-app-surface text-app-text"
-              >
+              <label style={labelStyle}>Period</label>
+              <select value={form.periodNumber} onChange={(e) => set("periodNumber", Number(e.target.value))} style={inputStyle}>
                 {PERIODS.map((p) => (
                   <option key={p.number} value={p.number}>
                     Period {p.number}  ({p.start} – {p.end})
@@ -592,32 +664,24 @@ function PlanModal({ plan, myClasses, mySubjects, onSave, onClose }) {
                 ))}
               </select>
               {selectedPeriod && (
-                <p className="text-[11px] text-app-text/40 mt-1 pl-1">
+                <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
                   {selectedPeriod.start} – {selectedPeriod.end}
                 </p>
               )}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div>
-              <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">WEEK</label>
+              <label style={labelStyle}>Week</label>
               <input
-                type="number"
-                min={1} max={16}
-                placeholder="e.g. 12"
-                value={form.week}
-                onChange={(e) => set("week", e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
+                type="number" min={1} max={16} placeholder="e.g. 12"
+                value={form.week} onChange={(e) => set("week", e.target.value)} style={inputStyle}
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">TERM</label>
-              <select
-                value={form.term}
-                onChange={(e) => set("term", e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 bg-app-surface text-app-text"
-              >
+              <label style={labelStyle}>Term</label>
+              <select value={form.term} onChange={(e) => set("term", e.target.value)} style={inputStyle}>
                 <option>Term 1</option>
                 <option>Term 2</option>
                 <option>Term 3</option>
@@ -625,74 +689,64 @@ function PlanModal({ plan, myClasses, mySubjects, onSave, onClose }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div>
-              <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">RESOURCES</label>
+              <label style={labelStyle}>Resources</label>
               <input
-                type="text"
-                placeholder="Textbook, graph boards…"
-                value={form.resources}
-                onChange={(e) => set("resources", e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
+                type="text" placeholder="Textbook, graph boards…"
+                value={form.resources} onChange={(e) => set("resources", e.target.value)} style={inputStyle}
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">ASSESSMENT</label>
+              <label style={labelStyle}>Assessment</label>
               <input
-                type="text"
-                placeholder="Class exercise + Homework"
-                value={form.assessment}
-                onChange={(e) => set("assessment", e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
+                type="text" placeholder="Class exercise + Homework"
+                value={form.assessment} onChange={(e) => set("assessment", e.target.value)} style={inputStyle}
               />
             </div>
           </div>
 
           <div>
-            <label className="text-[11px] font-bold text-app-text/50 mb-1.5 block tracking-wide">NOTES</label>
+            <label style={labelStyle}>Notes</label>
             <textarea
-              rows={2}
-              placeholder="Any extra notes…"
-              value={form.notes}
-              onChange={(e) => set("notes", e.target.value)}
-              className="w-full px-3.5 py-2.5 border border-app-border rounded-xl text-sm resize-y focus:outline-none focus:border-[#0F2044]/40 text-app-text"
+              rows={2} placeholder="Any extra notes…"
+              value={form.notes} onChange={(e) => set("notes", e.target.value)}
+              style={{ ...inputStyle, resize: "vertical" }}
             />
           </div>
 
           <div>
-            <label className="text-[11px] font-bold text-app-text/50 mb-2 block tracking-wide">STATUS</label>
-            <div className="flex gap-2 flex-wrap">
-              {Object.entries(STATUS).map(([key, s]) => (
-                <label
-                  key={key}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer text-sm font-medium transition-all
-                    ${form.status === key
-                      ? `border-current ${s.bg} ${s.text}`
-                      : "border-app-border text-app-text/50 hover:border-[#0F2044]/25"
-                    }`}
-                >
-                  <input type="radio" name="status" checked={form.status === key}
-                    onChange={() => set("status", key)} className="sr-only" />
-                  <span className={`w-2 h-2 rounded-full ${form.status === key ? s.dot : "bg-app-primary/20"}`} />
-                  {s.label}
-                </label>
-              ))}
+            <label style={labelStyle}>Status</label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {Object.entries(STATUS).map(([key, s]) => {
+                const active = form.status === key;
+                return (
+                  <label
+                    key={key}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "9px 16px", borderRadius: "var(--radius-md)",
+                      cursor: "pointer", fontSize: 13, fontWeight: 500,
+                      transition: "all var(--transition-base)",
+                      background: active ? s.pill.background : "var(--surface)",
+                      color: active ? s.pill.color : "var(--text-secondary)",
+                      border: active ? s.pill.border : "1px solid var(--border-color)",
+                    }}
+                  >
+                    <input type="radio" name="status" checked={active} onChange={() => set("status", key)} style={{ display: "none" }} />
+                    <span className="status-pill__dot" style={{ background: active ? "currentColor" : "var(--text-muted)" }} />
+                    {s.label}
+                  </label>
+                );
+              })}
             </div>
           </div>
         </div>
 
-        <div className="px-7 py-5 border-t border-app-border flex gap-3 shrink-0">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 border border-app-border rounded-2xl font-medium text-app-text/60 hover:bg-app-bg transition-colors text-sm"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 py-3 bg-app-warning hover:brightness-105 disabled:opacity-60 text-app-text font-bold rounded-2xl flex items-center justify-center gap-2 transition-all text-sm"
-          >
+        {/* Footer */}
+        <div style={{ padding: "18px 28px", borderTop: "1px solid var(--border-color)", display: "flex", gap: 12, flexShrink: 0 }}>
+          <button onClick={onClose} style={ghostBtnStyle}>Cancel</button>
+          <button onClick={handleSave} disabled={saving} style={saveBtnStyle(saving)}>
             {saving ? <Spinner size={16} /> : <Save size={16} />}
             {isEdit ? "Update plan" : "Save plan"}
           </button>
@@ -704,76 +758,94 @@ function PlanModal({ plan, myClasses, mySubjects, onSave, onClose }) {
 
 // ─── view modal ───────────────────────────────────────────────────────────────
 function ViewModal({ plan, onClose }) {
-  const s = STATUS[plan.status] || STATUS.planned;
+  const cfg = STATUS[plan.status] || STATUS.planned;
   const period = getPeriod(plan.periodNumber);
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-app-surface rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl">
-        <div className="bg-app-primary px-7 py-5 flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span className="text-xs px-2.5 py-0.5 bg-app-surface/15 text-white/80 rounded-lg font-medium">{plan.className}</span>
-              <span className="text-xs px-2.5 py-0.5 bg-app-surface/15 text-white/80 rounded-lg font-medium">{plan.subject}</span>
-              <span className={`text-xs px-2.5 py-0.5 rounded-lg font-semibold ${s.bg} ${s.text}`}>{s.label}</span>
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+      backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 50, padding: 16,
+    }}>
+      <div style={{
+        background: "var(--card-bg)", borderRadius: "var(--radius-xl)",
+        width: "100%", maxWidth: 560, overflow: "hidden",
+        boxShadow: "var(--shadow-lg)", border: "1px solid var(--border-strong)",
+      }}>
+        {/* Header */}
+        <div style={{ background: "var(--hero-bg)", padding: "20px 28px", borderBottom: "1px solid var(--border-strong)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+              <span className="badge badge--blue">{plan.className}</span>
+              <span className="badge badge--teal">{plan.subject}</span>
+              <span className="status-pill" style={cfg.pill}>
+                <span className="status-pill__dot" />
+                {cfg.label}
+              </span>
             </div>
-            <h3 className="text-white font-bold text-lg leading-snug">{plan.topic}</h3>
+            <h3 style={{ fontFamily: "var(--font-display)", fontSize: "1.2rem", color: "var(--text-primary)", lineHeight: 1.3 }}>
+              {plan.topic}
+            </h3>
           </div>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors p-1 shrink-0">
-            <X size={20} />
+          <button onClick={onClose} style={{ ...iconBtnStyle, background: "transparent", border: "none", color: "var(--text-muted)", flexShrink: 0 }}>
+            <X size={18} />
           </button>
         </div>
 
-        <div className="p-7 space-y-5">
-          <div className={`flex items-center gap-4 p-4 rounded-2xl border ${s.blockBorder} ${s.blockBg}`}>
-            <div className="flex flex-col items-center justify-center w-12 shrink-0">
-              <span className={`text-sm font-bold ${s.blockText}`}>{period?.label || "—"}</span>
-              {period && <span className={`text-[10px] mt-0.5 ${s.blockText} opacity-70`}>{period.start}</span>}
-              {period && <span className={`text-[10px] ${s.blockText} opacity-50`}>{period.end}</span>}
+        <div style={{ padding: 28, display: "flex", flexDirection: "column", gap: 20 }}>
+          {/* Date / period strip */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 16, padding: 16,
+            borderRadius: "var(--radius-md)", background: cfg.pill.background, border: cfg.pill.border,
+          }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 48, flexShrink: 0 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: cfg.pill.color, fontFamily: "var(--font-mono)" }}>
+                {period?.label || "—"}
+              </span>
+              {period && <span style={{ fontSize: 10, marginTop: 2, color: cfg.pill.color, opacity: 0.75 }}>{period.start}</span>}
+              {period && <span style={{ fontSize: 10, color: cfg.pill.color, opacity: 0.55 }}>{period.end}</span>}
             </div>
-            <div className={`h-8 w-px ${s.blockBorder} border-l`} />
-            <div className="flex-1 grid grid-cols-2 gap-x-6 text-sm">
+            <div style={{ width: 1, height: 32, background: cfg.pill.color, opacity: 0.2 }} />
+            <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, fontSize: 13 }}>
               <div>
-                <p className={`text-[10px] font-bold tracking-wide ${s.blockText} opacity-60 mb-0.5`}>DATE</p>
-                <p className={`font-medium ${s.blockText}`}>{dayLabel(plan.date)}, {fmt(plan.date)}</p>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.5px", color: cfg.pill.color, opacity: 0.65, marginBottom: 3, fontFamily: "var(--font-mono)" }}>DATE</p>
+                <p style={{ fontWeight: 500, color: cfg.pill.color }}>{dayLabel(plan.date)}, {fmt(plan.date)}</p>
               </div>
               <div>
-                <p className={`text-[10px] font-bold tracking-wide ${s.blockText} opacity-60 mb-0.5`}>WEEK / TERM</p>
-                <p className={`font-medium ${s.blockText}`}>Wk {plan.week || "—"} · {plan.term}</p>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.5px", color: cfg.pill.color, opacity: 0.65, marginBottom: 3, fontFamily: "var(--font-mono)" }}>WEEK / TERM</p>
+                <p style={{ fontWeight: 500, color: cfg.pill.color }}>Wk {plan.week || "—"} · {plan.term}</p>
               </div>
             </div>
           </div>
 
           <div>
-            <p className="text-[11px] font-bold text-app-text/45 mb-2 tracking-wide">LEARNING OBJECTIVES</p>
-            <div className="bg-app-bg p-4 rounded-xl text-sm leading-relaxed text-app-text/80 border border-[#0F2044]/5">
+            <p style={labelStyle}>Learning objectives</p>
+            <div style={{ background: "var(--surface)", padding: 16, borderRadius: "var(--radius-md)", fontSize: 13, lineHeight: 1.6, color: "var(--text-secondary)", border: "1px solid var(--border-color)" }}>
               {plan.objectives}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, fontSize: 13 }}>
             <div>
-              <p className="text-[11px] font-bold text-app-text/45 mb-1 tracking-wide">RESOURCES</p>
-              <p className="text-app-text/70">{plan.resources || "—"}</p>
+              <p style={labelStyle}>Resources</p>
+              <p style={{ color: "var(--text-secondary)" }}>{plan.resources || "—"}</p>
             </div>
             <div>
-              <p className="text-[11px] font-bold text-app-text/45 mb-1 tracking-wide">ASSESSMENT</p>
-              <p className="text-app-text/70">{plan.assessment || "—"}</p>
+              <p style={labelStyle}>Assessment</p>
+              <p style={{ color: "var(--text-secondary)" }}>{plan.assessment || "—"}</p>
             </div>
           </div>
 
           {plan.notes && (
-            <div className="text-sm">
-              <p className="text-[11px] font-bold text-app-text/45 mb-1 tracking-wide">NOTES</p>
-              <p className="text-app-text/60 leading-relaxed">{plan.notes}</p>
+            <div>
+              <p style={labelStyle}>Notes</p>
+              <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>{plan.notes}</p>
             </div>
           )}
 
-          <div className="pt-3 border-t border-app-border flex justify-end">
-            <button
-              onClick={onClose}
-              className="px-6 py-2.5 border border-app-border rounded-xl hover:bg-app-bg text-sm font-medium transition-colors text-app-text/70"
-            >
+          <div style={{ paddingTop: 12, borderTop: "1px solid var(--border-color)", display: "flex", justifyContent: "flex-end" }}>
+            <button onClick={onClose} style={{ ...ghostBtnStyle, flex: "none", padding: "10px 24px" }}>
               Close
             </button>
           </div>

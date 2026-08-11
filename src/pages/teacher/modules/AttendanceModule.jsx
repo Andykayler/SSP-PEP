@@ -11,10 +11,6 @@ import {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function Spinner({ size = 20 }) {
-  return <Loader2 size={size} className="animate-spin text-app-text/40 inline-block" />;
-}
-
 function fullName(s) {
   return s.fullName || `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() || "—";
 }
@@ -47,37 +43,86 @@ function attendanceDocId(schoolCode, classId, date) {
   return `${schoolCode}_${classId}_${date}`;
 }
 
-// ─── Status config ─────────────────────────────────────────────────────────────
+// ─── Status config — colors pulled from the shared CSS custom properties ─────
 
 const STATUS_CONFIG = {
   Present: {
-    label: "Present",
-    bg: "bg-emerald-100",
-    text: "text-emerald-700",
-    activeBg: "bg-emerald-600",
-    activeText: "text-white",
-    icon: CheckCircle,
-    color: "text-emerald-600",
+    label: "Present", icon: CheckCircle,
+    solid: "var(--success)", pale: "var(--success-pale)", text: "var(--success-light)", border: "1px solid rgba(34,197,94,0.22)",
   },
   Late: {
-    label: "Late",
-    bg: "bg-amber-100",
-    text: "text-amber-700",
-    activeBg: "bg-amber-500",
-    activeText: "text-white",
-    icon: Clock,
-    color: "text-amber-500",
+    label: "Late", icon: Clock,
+    solid: "var(--warning)", pale: "var(--warning-pale)", text: "var(--warning-light)", border: "1px solid rgba(232,168,0,0.2)",
   },
   Absent: {
-    label: "Absent",
-    bg: "bg-red-100",
-    text: "text-red-700",
-    activeBg: "bg-red-600",
-    activeText: "text-white",
-    icon: XCircle,
-    color: "text-red-600",
+    label: "Absent", icon: XCircle,
+    solid: "#ef4444", pale: "var(--danger-pale)", text: "var(--danger-light)", border: "1px solid rgba(239,68,68,0.2)",
   },
 };
+
+// ─── Shared inline style helpers ──────────────────────────────────────────────
+
+const iconBtnStyle = {
+  display: "flex", alignItems: "center", justifyContent: "center",
+  width: 36, height: 36, padding: 0, background: "var(--surface)",
+  border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)",
+  color: "var(--text-muted)", cursor: "pointer", flexShrink: 0,
+  transition: "all var(--transition-base)",
+};
+
+const primaryBtnStyle = (disabled) => ({
+  display: "flex", alignItems: "center", gap: 8,
+  padding: "10px 22px", borderRadius: "var(--radius-md)",
+  background: disabled ? "var(--border-color)" : "var(--primary)",
+  color: disabled ? "var(--text-muted)" : "#fff",
+  border: "none", fontSize: 13, fontWeight: 500,
+  cursor: disabled ? "not-allowed" : "pointer",
+  transition: "all var(--transition-base)",
+  opacity: disabled ? 0.6 : 1, fontFamily: "var(--font-body)",
+});
+
+const ghostBtnStyle = (disabled) => ({
+  display: "flex", alignItems: "center", gap: 8,
+  padding: "10px 18px", borderRadius: "var(--radius-md)",
+  background: "var(--surface)", border: "1px solid var(--border-color)",
+  color: "var(--text-secondary)", fontSize: 13, fontWeight: 500,
+  cursor: disabled ? "not-allowed" : "pointer",
+  opacity: disabled ? 0.4 : 1, transition: "all var(--transition-base)",
+});
+
+const inputStyle = {
+  width: "100%", padding: "11px 14px", borderRadius: "var(--radius-md)",
+  border: "1px solid var(--border-color)", background: "var(--input-bg)",
+  color: "var(--text-primary)", fontSize: 13, outline: "none",
+  fontFamily: "var(--font-body)", boxSizing: "border-box",
+};
+
+const labelStyle = {
+  fontFamily: "var(--font-mono)", fontSize: 9.5, letterSpacing: "1.5px",
+  color: "var(--text-muted)", textTransform: "uppercase",
+  marginBottom: 6, display: "block", fontWeight: 600,
+};
+
+const thStyle = {
+  padding: "13px 18px", textAlign: "left", fontFamily: "var(--font-mono)",
+  fontSize: 9.5, fontWeight: 700, letterSpacing: "1px", textTransform: "uppercase",
+  color: "var(--text-muted)", whiteSpace: "nowrap",
+};
+
+const tdStyle = { padding: "13px 18px", verticalAlign: "middle" };
+
+function markBtnStyle(active, cfg) {
+  return {
+    padding: "6px 12px", fontSize: 11, fontWeight: 600, borderRadius: "var(--radius-md)",
+    border: "none", cursor: "pointer", transition: "all var(--transition-base)",
+    background: active ? cfg.solid : cfg.pale,
+    color: active ? "#fff" : cfg.text,
+  };
+}
+
+function Spinner({ size = 16 }) {
+  return <Loader2 size={size} style={{ animation: "spin 0.65s linear infinite" }} />;
+}
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
@@ -317,13 +362,8 @@ export default function AttendanceModule({ userId, schoolCode }) {
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2
-            className="text-3xl font-bold text-app-text"
-            style={{ fontFamily: "'Playfair Display', serif" }}
-          >
-            Take Attendance
-          </h2>
-          <p className="text-app-text/60 mt-1">
+          <h2 className="module-title">Take Attendance</h2>
+          <p className="module-sub">
             {isLoading
               ? "Loading…"
               : noAssignment
@@ -335,27 +375,20 @@ export default function AttendanceModule({ userId, schoolCode }) {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              fetchStudents();
-            }}
-            disabled={isLoading}
-            className="p-2.5 bg-app-surface border border-app-border rounded-xl hover:bg-app-bg transition-colors text-app-text/60 disabled:opacity-40"
-            title="Refresh"
-          >
+          <button onClick={fetchStudents} disabled={isLoading} style={{ ...iconBtnStyle, opacity: isLoading ? 0.4 : 1 }} title="Refresh">
             <RefreshCw size={16} />
           </button>
           <button
             onClick={handleExport}
             disabled={filtered.length === 0 || isLoading}
-            className="flex items-center gap-2 px-4 py-2.5 border border-app-border hover:border-[#0F2044] rounded-2xl text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-app-text"
+            style={ghostBtnStyle(filtered.length === 0 || isLoading)}
           >
             <Download size={15} /> Export
           </button>
           <button
             onClick={handleSave}
             disabled={saving || isLoading || students.length === 0}
-            className="flex items-center gap-2 bg-app-primary hover:bg-black text-white px-6 py-2.5 rounded-2xl font-medium disabled:opacity-60 transition-all text-sm"
+            style={primaryBtnStyle(saving || isLoading || students.length === 0)}
           >
             {saving ? <Spinner size={16} /> : <Save size={16} />}
             {saving ? "Saving…" : "Save Attendance"}
@@ -365,22 +398,22 @@ export default function AttendanceModule({ userId, schoolCode }) {
 
       {/* ── Save feedback ────────────────────────────────────────────────────── */}
       {saveStatus === "saved" && (
-        <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 text-emerald-700 px-5 py-3 rounded-2xl text-sm">
-          <CheckCircle size={16} />
+        <div className="alert alert--success">
+          <CheckCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
           Attendance saved successfully for {selectedClass?.name} on {fmtDate(selectedDate)}.
         </div>
       )}
       {saveStatus === "error" && (
-        <div className="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 px-5 py-3 rounded-2xl text-sm">
-          <AlertCircle size={16} />
+        <div className="alert alert--error">
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
           Failed to save attendance. Please try again.
         </div>
       )}
 
       {/* ── No assignments ───────────────────────────────────────────────────── */}
       {noAssignment && (
-        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl text-sm">
-          <AlertCircle size={16} className="shrink-0 mt-0.5" />
+        <div className="alert alert--warning">
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
           No classes have been assigned to you yet. Ask your head teacher to assign classes
           from the Staff Management page.
         </div>
@@ -388,119 +421,127 @@ export default function AttendanceModule({ userId, schoolCode }) {
 
       {/* ── Error ────────────────────────────────────────────────────────────── */}
       {error && (
-        <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl text-sm">
-          <AlertCircle size={16} className="shrink-0 mt-0.5" />
+        <div className="alert alert--error">
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
           {error}
         </div>
       )}
 
       {/* ── Summary cards ────────────────────────────────────────────────────── */}
       {!noAssignment && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
-            { label: "Present",  value: presentCount,  Icon: CheckCircle, color: "text-emerald-600", cardBg: "bg-emerald-50 border-emerald-100" },
-            { label: "Absent",   value: absentCount,   Icon: XCircle,     color: "text-red-600",     cardBg: "bg-red-50 border-red-100" },
-            { label: "Late",     value: lateCount,     Icon: Clock,       color: "text-amber-500",   cardBg: "bg-amber-50 border-amber-100" },
-            { label: "Total",    value: students.length, Icon: Users,     color: "text-app-text",   cardBg: "bg-app-surface border-app-border" },
-          ].map(({ label, value, Icon, color, cardBg }) => (
-            <div key={label} className={`rounded-3xl p-5 border ${cardBg}`}>
-              <div className="flex items-center gap-3">
-                <Icon className={`w-7 h-7 ${color}`} />
-                <div>
-                  <p className={`text-2xl font-bold ${color}`}>
-                    {isLoading ? <Spinner size={18} /> : value}
-                  </p>
-                  <p className="text-xs text-app-text/50">{label}</p>
+        <div>
+          <div className="sec-eyebrow">Today at a glance</div>
+          <div className="stat-strip">
+            {[
+              { label: "Present",  value: presentCount,    icon: <CheckCircle width={16} height={16} />, variant: "teal" },
+              { label: "Absent",   value: absentCount,     icon: <XCircle width={16} height={16} />,     variant: "" },
+              { label: "Late",     value: lateCount,       icon: <Clock width={16} height={16} />,       variant: "gold" },
+              { label: "Total",    value: students.length, icon: <Users width={16} height={16} />,       variant: "" },
+            ].map((c) => (
+              <div key={c.label} className="stat-card">
+                <div className="stat-card__top">
+                  <div className={`stat-card__icon${c.variant ? ` stat-card__icon--${c.variant}` : ""}`}>{c.icon}</div>
+                  <span className="stat-card__label">{c.label}</span>
+                </div>
+                <div className="stat-card__value">{isLoading ? "…" : c.value}</div>
+                <div className="stat-card__bar">
+                  <div
+                    className={`stat-card__bar-fill${c.variant ? ` stat-card__bar-fill--${c.variant}` : ""}`}
+                    style={{ width: students.length ? `${Math.round((c.value / students.length) * 100)}%` : "0%" }}
+                  />
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
       {/* ── Filters ──────────────────────────────────────────────────────────── */}
       {!noAssignment && (
-        <div className="bg-app-surface rounded-3xl p-5 border border-app-border flex flex-col md:flex-row gap-4 items-end">
-          {/* Class selector */}
-          <div className="flex-1">
-            <label className="block text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5">CLASS</label>
-            <div className="relative">
-              <select
-                value={filterClassId}
-                onChange={(e) => {
-                  setFilterClassId(e.target.value);
-                  setSaveStatus("");
-                }}
-                disabled={isLoading || classes.length === 0}
-                className="w-full appearance-none pl-4 pr-10 py-3 bg-app-surface border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text disabled:opacity-50"
-              >
-                {classes.length === 0 && <option value="">No classes</option>}
-                {classes.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
+        <div className="cc">
+          <div className="cc__body" style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-end", padding: 20 }}>
+            {/* Class selector */}
+            <div style={{ flex: "1 1 180px" }}>
+              <label style={labelStyle}>Class</label>
+              <div style={{ position: "relative" }}>
+                <select
+                  value={filterClassId}
+                  onChange={(e) => { setFilterClassId(e.target.value); setSaveStatus(""); }}
+                  disabled={isLoading || classes.length === 0}
+                  style={{ ...inputStyle, appearance: "none", paddingRight: 32, opacity: (isLoading || classes.length === 0) ? 0.5 : 1 }}
+                >
+                  {classes.length === 0 && <option value="">No classes</option>}
+                  {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <ChevronDown size={14} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
+              </div>
             </div>
-          </div>
 
-          {/* Date picker */}
-          <div className="flex-1">
-            <label className="block text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5">DATE</label>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => {
-                setSelectedDate(e.target.value);
-                setSaveStatus("");
-              }}
-              className="w-full px-4 py-3 border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
-            />
-          </div>
-
-          {/* Search */}
-          <div className="flex-1">
-            <label className="block text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5">SEARCH</label>
-            <div className="relative">
-              <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-app-text/40" />
+            {/* Date picker */}
+            <div style={{ flex: "1 1 180px" }}>
+              <label style={labelStyle}>Date</label>
               <input
-                type="text"
-                placeholder="Name or student code…"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-[#FAFAF8] border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/30"
+                type="date"
+                value={selectedDate}
+                onChange={(e) => { setSelectedDate(e.target.value); setSaveStatus(""); }}
+                style={inputStyle}
               />
             </div>
-          </div>
 
-          {/* Bulk actions */}
-          <div className="flex gap-2 shrink-0">
-            <button
-              onClick={() => markAll("Present")}
-              disabled={students.length === 0 || isLoading}
-              className="flex items-center gap-1.5 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-2xl transition-all disabled:opacity-40"
-            >
-              <CheckCircle size={14} /> All Present
-            </button>
-            <button
-              onClick={() => markAll("Absent")}
-              disabled={students.length === 0 || isLoading}
-              className="flex items-center gap-1.5 px-4 py-3 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-2xl transition-all disabled:opacity-40"
-            >
-              <XCircle size={14} /> All Absent
-            </button>
+            {/* Search */}
+            <div style={{ flex: "1 1 200px" }}>
+              <label style={labelStyle}>Search</label>
+              <div className="search-wrap">
+                <Search size={14} className="search-wrap__icon" />
+                <input
+                  type="text"
+                  placeholder="Name or student code…"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="search-wrap__input"
+                />
+              </div>
+            </div>
+
+            {/* Bulk actions */}
+            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+              <button
+                onClick={() => markAll("Present")}
+                disabled={students.length === 0 || isLoading}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6, padding: "11px 16px",
+                  borderRadius: "var(--radius-md)", border: "none", fontSize: 11.5, fontWeight: 700,
+                  background: STATUS_CONFIG.Present.solid, color: "#fff", cursor: "pointer",
+                  opacity: (students.length === 0 || isLoading) ? 0.4 : 1,
+                }}
+              >
+                <CheckCircle size={14} /> All Present
+              </button>
+              <button
+                onClick={() => markAll("Absent")}
+                disabled={students.length === 0 || isLoading}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6, padding: "11px 16px",
+                  borderRadius: "var(--radius-md)", border: "none", fontSize: 11.5, fontWeight: 700,
+                  background: STATUS_CONFIG.Absent.solid, color: "#fff", cursor: "pointer",
+                  opacity: (students.length === 0 || isLoading) ? 0.4 : 1,
+                }}
+              >
+                <XCircle size={14} /> All Absent
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* ── Attendance table ─────────────────────────────────────────────────── */}
-      <div className="bg-app-surface rounded-3xl border border-app-border overflow-hidden">
-
-        {/* Table header bar */}
-        <div className="px-6 py-4 bg-app-bg border-b border-app-border flex justify-between items-center">
-          <div className="font-semibold text-app-text text-sm">
-            {selectedClass ? `${selectedClass.name} · Roll Call` : "Roll Call"}
+      <div className="cc">
+        <div className="cc__head">
+          <div className="cc__head-left">
+            <Users width={18} height={18} />
+            <h3>{selectedClass ? `${selectedClass.name} · Roll Call` : "Roll Call"}</h3>
           </div>
-          <div className="text-xs text-app-text/50">
+          <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
             {isLoading
               ? "Loading…"
               : unmarkedCount > 0
@@ -508,18 +549,21 @@ export default function AttendanceModule({ userId, schoolCode }) {
               : students.length > 0
               ? "All students marked ✓"
               : ""}
-          </div>
+          </span>
         </div>
 
         {isLoading ? (
-          <div className="py-24 flex flex-col items-center gap-3 text-app-text/40">
-            <Spinner size={28} />
-            <p className="text-sm">Loading attendance…</p>
+          <div style={{ padding: "56px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+            <div className="spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
+            <p className="module-sub">Loading attendance…</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="py-24 flex flex-col items-center gap-3 text-app-text/30">
-            <Users size={36} />
-            <p className="text-sm font-medium text-app-text/40">
+          <div className="empty-state">
+            <div className="empty-state__icon"><Users size={22} /></div>
+            <div className="empty-state__title">
+              {students.length === 0 ? "No students enrolled" : "No matches"}
+            </div>
+            <p className="empty-state__sub">
               {students.length === 0
                 ? `No students enrolled in ${selectedClass?.name || "this class"} yet.`
                 : "No students match your search."}
@@ -527,139 +571,124 @@ export default function AttendanceModule({ userId, schoolCode }) {
           </div>
         ) : (
           <div className="data-table-wrap">
-<table className="data-table data-table--stack">
-            <thead className="bg-app-bg border-b border-app-border">
-              <tr>
-                {[
-                  ["Student",      "text-left",   ""],
-                  ["Student Code", "text-left",   "hidden md:table-cell"],
-                  ["Status",       "text-center", ""],
-                  ["Time",         "text-center", "hidden sm:table-cell"],
-                  ["Remark",       "text-left",   "hidden lg:table-cell"],
-                  ["Mark",         "text-center", ""],
-                ].map(([label, align, hidden]) => (
-                  <th
-                    key={label}
-                    className={`px-5 py-3.5 ${align} text-[10px] font-bold tracking-widest uppercase text-app-text/40 ${hidden}`}
-                  >
-                    {label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#0F2044]/5">
-              {filtered.map((student) => {
-                const record    = attendance[student.id] || {};
-                const status    = record.status || "";
-                const isFemale  = student.gender === "Female";
-                const name      = fullName(student);
-                const statusCfg = STATUS_CONFIG[status];
+            <table className="data-table data-table--stack">
+              <thead style={{ background: "var(--surface)", borderBottom: "1px solid var(--border-color)" }}>
+                <tr>
+                  <th style={thStyle}>Student</th>
+                  <th style={thStyle} className="hidden md:table-cell">Student Code</th>
+                  <th style={{ ...thStyle, textAlign: "center" }}>Status</th>
+                  <th style={{ ...thStyle, textAlign: "center" }} className="hidden sm:table-cell">Time</th>
+                  <th style={thStyle} className="hidden lg:table-cell">Remark</th>
+                  <th style={{ ...thStyle, textAlign: "center" }}>Mark</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((student, i) => {
+                  const record    = attendance[student.id] || {};
+                  const status    = record.status || "";
+                  const isFemale  = student.gender === "Female";
+                  const name      = fullName(student);
+                  const cfg       = STATUS_CONFIG[status];
 
-                return (
-                  <tr
-                    key={student.id}
-                    className={`transition-colors ${
-                      status === "Present" ? "hover:bg-emerald-50/40" :
-                      status === "Late"    ? "hover:bg-amber-50/40" :
-                      status === "Absent"  ? "hover:bg-red-50/30" :
-                      "hover:bg-[#FAFAF8]"
-                    }`}
-                  >
-                    {/* Name + avatar */}
-                    <td className="px-5 py-3.5" data-label="Field">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${isFemale ? "bg-pink-100 text-pink-700" : "bg-blue-100 text-blue-700"}`}>
-                          {initials(name)}
+                  return (
+                    <tr
+                      key={student.id}
+                      style={{
+                        borderBottom: i < filtered.length - 1 ? "1px solid var(--primary-dim)" : "none",
+                        transition: "background 0.15s",
+                      }}
+                    >
+                      {/* Name + avatar */}
+                      <td style={tdStyle} data-label="Student">
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div className={`avatar ${isFemale ? "avatar--pink" : "avatar--blue"}`} style={{ width: 34, height: 34, fontSize: 11 }}>
+                            {initials(name)}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{name}</div>
+                            <div style={{ fontSize: 10.5, color: "var(--text-muted)" }}>{student.dob || ""}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="text-sm font-semibold text-app-text">{name}</div>
-                          <div className="text-xs text-app-text/40">{student.dob || ""}</div>
-                        </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Student code */}
-                    <td className="px-5 py-3.5 hidden md:table-cell" data-label="Field">
-                      <span className="font-mono text-xs font-bold text-app-text/70 bg-app-bg px-2.5 py-1 rounded-lg border border-app-border tracking-widest">
-                        {student.studentCode}
-                      </span>
-                    </td>
-
-                    {/* Status badge */}
-                    <td className="px-5 py-3.5 text-center" data-label="Field">
-                      {status ? (
-                        <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl ${statusCfg.bg} ${statusCfg.text}`}>
-                          {status === "Present" && <CheckCircle size={11} />}
-                          {status === "Late"    && <Clock size={11} />}
-                          {status === "Absent"  && <XCircle size={11} />}
-                          {status}
+                      {/* Student code */}
+                      <td style={tdStyle} className="hidden md:table-cell" data-label="Student Code">
+                        <span className="student-code-badge">
+                          <span className="student-code-badge__text">{student.studentCode}</span>
                         </span>
-                      ) : (
-                        <span className="inline-block text-xs font-medium px-3 py-1.5 rounded-xl bg-app-bg text-app-text/35">
-                          Unmarked
+                      </td>
+
+                      {/* Status badge */}
+                      <td style={{ ...tdStyle, textAlign: "center" }} data-label="Status">
+                        {status ? (
+                          <span className="status-pill" style={{ background: cfg.pale, color: cfg.text, border: cfg.border }}>
+                            <span className="status-pill__dot" />
+                            {status}
+                          </span>
+                        ) : (
+                          <span className="status-pill" style={{ background: "var(--surface)", color: "var(--text-muted)", border: "1px solid var(--border-color)" }}>
+                            Unmarked
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Time */}
+                      <td style={{ ...tdStyle, textAlign: "center" }} className="hidden sm:table-cell" data-label="Time">
+                        <span style={{ fontSize: 12, color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>
+                          {record.time || "—"}
                         </span>
-                      )}
-                    </td>
+                      </td>
 
-                    {/* Time */}
-                    <td className="px-5 py-3.5 text-center hidden sm:table-cell" data-label="Field">
-                      <span className="text-xs text-app-text/60 font-mono">
-                        {record.time || "—"}
-                      </span>
-                    </td>
+                      {/* Remark */}
+                      <td style={tdStyle} className="hidden lg:table-cell" data-label="Remark">
+                        <input
+                          type="text"
+                          placeholder="Add remark…"
+                          value={record.remark || ""}
+                          onChange={(e) => updateRemark(student.id, e.target.value)}
+                          style={{
+                            width: "100%", background: "transparent", border: "1px solid transparent",
+                            borderRadius: "var(--radius-md)", padding: "6px 10px", fontSize: 12, outline: "none",
+                            color: "var(--text-secondary)",
+                          }}
+                          onFocus={(e) => { e.target.style.border = "1px solid var(--border-color)"; e.target.style.background = "var(--surface)"; }}
+                          onBlur={(e) => { e.target.style.border = "1px solid transparent"; e.target.style.background = "transparent"; }}
+                        />
+                      </td>
 
-                    {/* Remark */}
-                    <td className="px-5 py-3.5 hidden lg:table-cell" data-label="Field">
-                      <input
-                        type="text"
-                        placeholder="Add remark…"
-                        value={record.remark || ""}
-                        onChange={(e) => updateRemark(student.id, e.target.value)}
-                        className="w-full bg-transparent border border-transparent focus:border-app-border focus:bg-app-bg rounded-xl px-3 py-1.5 text-xs outline-none transition-all placeholder:text-app-text/25 text-app-text/70"
-                      />
-                    </td>
-
-                    {/* Mark buttons */}
-                    <td className="px-5 py-3.5" data-label="Field">
-                      <div className="flex gap-1 justify-center flex-wrap">
-                        {["Present", "Late", "Absent"].map((s) => {
-                          const cfg    = STATUS_CONFIG[s];
-                          const active = status === s;
-                          return (
+                      {/* Mark buttons */}
+                      <td style={tdStyle} data-label="Mark">
+                        <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>
+                          {["Present", "Late", "Absent"].map((s) => (
                             <button
                               key={s}
                               onClick={() => markStudent(student.id, s)}
-                              className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all ${
-                                active
-                                  ? `${cfg.activeBg} ${cfg.activeText}`
-                                  : `${cfg.bg} ${cfg.text} hover:opacity-80`
-                              }`}
+                              style={markBtnStyle(status === s, STATUS_CONFIG[s])}
                             >
                               {s}
                             </button>
-                          );
-                        })}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-</div>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
       {/* ── Unmarked warning ─────────────────────────────────────────────────── */}
       {!isLoading && unmarkedCount > 0 && students.length > 0 && (
-        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl text-sm">
-          <AlertCircle size={16} className="shrink-0 mt-0.5" />
+        <div className="alert alert--warning">
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
           {unmarkedCount} student{unmarkedCount !== 1 ? "s are" : " is"} still unmarked.
           Save will record them with no status. Consider using "All Present" or "All Absent" to bulk-mark first.
         </div>
       )}
 
-      <p className="text-center text-xs text-app-text/40 pt-1">
+      <p className="module-sub" style={{ textAlign: "center" }}>
         Attendance is saved per class per date and synced with the Admin Dashboard.
         Past records can be reloaded by selecting a previous date.
       </p>

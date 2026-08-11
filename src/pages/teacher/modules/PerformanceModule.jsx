@@ -7,46 +7,112 @@ import {
 import {
   Award, AlertTriangle, RefreshCw, Loader2, CheckCircle,
   AlertCircle, Search, ChevronDown, Users,
-  BarChart2, Edit3, Save,
+  BarChart2, Edit3, Save, PieChart, Info,
 } from "lucide-react";
 
 function fullName(s) {
   return s.fullName || `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() || "—";
 }
 
-// ─── MANEB Grade Scale (MSCE) ─────────────────────────────────────────────────
-const MANEB_GRADES = [
-  { grade: 1, min: 80, max: 100, remark: "Distinction", color: "text-emerald-700", bg: "bg-emerald-100", border: "border-emerald-200" },
-  { grade: 2, min: 70, max: 79,  remark: "Distinction", color: "text-emerald-600", bg: "bg-emerald-50",  border: "border-emerald-200" },
-  { grade: 3, min: 65, max: 69,  remark: "Credit",      color: "text-blue-700",    bg: "bg-blue-100",    border: "border-blue-200" },
-  { grade: 4, min: 60, max: 64,  remark: "Credit",      color: "text-blue-600",    bg: "bg-blue-50",     border: "border-blue-200" },
-  { grade: 5, min: 55, max: 59,  remark: "Credit",      color: "text-sky-600",     bg: "bg-sky-50",      border: "border-sky-200" },
-  { grade: 6, min: 50, max: 54,  remark: "Credit",      color: "text-sky-500",     bg: "bg-sky-50",      border: "border-sky-200" },
-  { grade: 7, min: 45, max: 49,  remark: "Pass",        color: "text-amber-600",   bg: "bg-amber-50",    border: "border-amber-200" },
-  { grade: 8, min: 40, max: 44,  remark: "Pass",        color: "text-amber-500",   bg: "bg-amber-50",    border: "border-amber-200" },
-  { grade: 9, min: 0,  max: 39,  remark: "Fail",        color: "text-red-600",     bg: "bg-red-50",      border: "border-red-200" },
+// ─── Assessment components & their weight toward the overall term grade ──────
+const ASSESSMENT_TYPES = [
+  { id: "CA1",     label: "CA 1",         weight: 0.10 },
+  { id: "CA2",     label: "CA 2",         weight: 0.10 },
+  { id: "MidTerm", label: "Mid-Term",     weight: 0.20 },
+  { id: "EndTerm", label: "End of Term",  weight: 0.60 },
 ];
+
+function computeWeighted(perComponentScores) {
+  let weightedSum = 0, weightUsed = 0;
+  ASSESSMENT_TYPES.forEach(({ id, weight }) => {
+    const v = perComponentScores[id];
+    if (v !== null && v !== undefined && v !== "") {
+      weightedSum += Number(v) * weight;
+      weightUsed += weight;
+    }
+  });
+  if (weightUsed === 0) return null;
+  return {
+    score: Math.round((weightedSum / weightUsed) * 10) / 10,
+    complete: weightUsed >= 0.999,
+  };
+}
+
+// ─── MANEB Grade Scale (MSCE) — bucketed onto the shared success/primary/
+// warning/danger palette instead of nine bespoke colors ──────────────────────
+const MANEB_GRADES = [
+  { grade: 1, min: 80, max: 100, remark: "Distinction", tone: "success" },
+  { grade: 2, min: 70, max: 79,  remark: "Distinction", tone: "success" },
+  { grade: 3, min: 65, max: 69,  remark: "Credit",      tone: "primary" },
+  { grade: 4, min: 60, max: 64,  remark: "Credit",      tone: "primary" },
+  { grade: 5, min: 55, max: 59,  remark: "Credit",      tone: "primary" },
+  { grade: 6, min: 50, max: 54,  remark: "Credit",      tone: "primary" },
+  { grade: 7, min: 45, max: 49,  remark: "Pass",        tone: "warning" },
+  { grade: 8, min: 40, max: 44,  remark: "Pass",        tone: "warning" },
+  { grade: 9, min: 0,  max: 39,  remark: "Fail",        tone: "danger" },
+];
+
+const TONE = {
+  success: { bg: "var(--success-pale)", color: "var(--success-light)", border: "1px solid rgba(34,197,94,0.22)" },
+  primary: { bg: "var(--primary-pale)", color: "var(--primary-light)", border: "1px solid var(--border-color)" },
+  warning: { bg: "var(--warning-pale)", color: "var(--warning-light)", border: "1px solid rgba(232,168,0,0.2)" },
+  danger:  { bg: "var(--danger-pale)",  color: "var(--danger-light)",  border: "1px solid rgba(239,68,68,0.2)" },
+};
 
 function getGradeInfo(score) {
   if (score === null || score === undefined || score === "") return null;
   const n = Number(score);
   if (isNaN(n)) return null;
-  return MANEB_GRADES.find(g => n >= g.min && n <= g.max) || MANEB_GRADES[MANEB_GRADES.length - 1];
+  const g = MANEB_GRADES.find(g => n >= g.min && n <= g.max) || MANEB_GRADES[MANEB_GRADES.length - 1];
+  return { ...g, ...TONE[g.tone] };
 }
 
-function GradeBadge({ score, small = false }) {
-  const g = getGradeInfo(score);
-  if (!g) return <span className="text-app-text/30 text-xs">—</span>;
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border font-bold
-      ${small ? "text-[10px]" : "text-xs"} ${g.bg} ${g.color} ${g.border}`}>
-      G{g.grade} <span className="font-normal opacity-70">{g.remark}</span>
-    </span>
-  );
-}
+// ─── shared inline style helpers (same set used across Homework / Lesson
+// Plans modules, so all teacher-portal pages read as one design system) ──────
+const iconBtnStyle = {
+  display: "flex", alignItems: "center", justifyContent: "center",
+  width: 34, height: 34, padding: 0, background: "var(--surface)",
+  border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)",
+  color: "var(--text-muted)", cursor: "pointer", flexShrink: 0,
+  transition: "all var(--transition-base)",
+};
+
+const primaryBtnStyle = (disabled) => ({
+  display: "flex", alignItems: "center", gap: 8,
+  padding: "10px 20px", borderRadius: "var(--radius-md)",
+  background: disabled ? "var(--border-color)" : "var(--primary)",
+  color: disabled ? "var(--text-muted)" : "#fff",
+  border: "none", fontSize: 13, fontWeight: 500,
+  cursor: disabled ? "not-allowed" : "pointer",
+  transition: "all var(--transition-base)",
+  opacity: disabled ? 0.6 : 1, fontFamily: "var(--font-body)",
+});
+
+const saveBtnStyle = (disabled) => ({
+  display: "flex", alignItems: "center", gap: 8,
+  padding: "10px 20px", borderRadius: "var(--radius-md)",
+  background: disabled ? "var(--border-color)" : "linear-gradient(135deg, var(--warning), var(--warning-light))",
+  color: disabled ? "var(--text-muted)" : "#1a0f00",
+  border: "none", fontWeight: 600, fontSize: 13,
+  cursor: disabled ? "not-allowed" : "pointer",
+  transition: "all var(--transition-base)",
+});
+
+const inputStyle = {
+  padding: "10px 14px", borderRadius: "var(--radius-md)",
+  border: "1px solid var(--border-color)", background: "var(--input-bg)",
+  color: "var(--text-primary)", fontSize: 13, outline: "none",
+  fontFamily: "var(--font-body)", boxSizing: "border-box",
+};
+
+const labelStyle = {
+  fontFamily: "var(--font-mono)", fontSize: 9.5, letterSpacing: "1.5px",
+  color: "var(--text-muted)", textTransform: "uppercase",
+  marginBottom: 6, display: "block", fontWeight: 600,
+};
 
 function Spinner({ size = 20 }) {
-  return <Loader2 size={size} className="animate-spin text-app-text/40 inline-block" />;
+  return <Loader2 size={size} style={{ animation: "spin 0.65s linear infinite", color: "var(--text-muted)" }} />;
 }
 
 function Toast({ message, type = "success", onClose }) {
@@ -54,13 +120,29 @@ function Toast({ message, type = "success", onClose }) {
     const t = setTimeout(onClose, 3500);
     return () => clearTimeout(t);
   }, [onClose]);
+  const ok = type === "success";
   return (
-    <div className={`fixed bottom-6 right-6 z-[200] flex items-center gap-3 px-5 py-3.5
-      rounded-2xl shadow-xl text-sm font-medium
-      ${type === "success" ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}`}>
-      {type === "success" ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+    <div style={{
+      position: "fixed", bottom: 24, right: 24, zIndex: 200,
+      display: "flex", alignItems: "center", gap: 10,
+      padding: "13px 20px", borderRadius: "var(--radius-md)",
+      background: ok ? "var(--success)" : "#ef4444",
+      color: "#fff", fontSize: 13, fontWeight: 500,
+      boxShadow: "var(--shadow-lg)",
+    }}>
+      {ok ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
       {message}
     </div>
+  );
+}
+
+function GradeBadge({ score }) {
+  const g = getGradeInfo(score);
+  if (!g) return <span style={{ color: "var(--text-muted)", opacity: 0.4, fontSize: 12 }}>—</span>;
+  return (
+    <span className="status-pill" style={{ background: g.bg, color: g.color, border: g.border }}>
+      <span className="status-pill__dot" /> G{g.grade} · {g.remark}
+    </span>
   );
 }
 
@@ -80,8 +162,8 @@ function ScoreCell({ value, onCommit, disabled }) {
 
   const g = getGradeInfo(value);
   return (
-    <td className="px-3 py-3 text-center align-middle" style={{ minWidth: 88 }}>
-      <div className="flex flex-col items-center gap-1">
+    <td style={{ padding: "10px 12px", textAlign: "center", verticalAlign: "middle", minWidth: 88 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
         <input
           type="number" min={0} max={100}
           value={local}
@@ -90,14 +172,18 @@ function ScoreCell({ value, onCommit, disabled }) {
           onFocus={() => setEditing(true)}
           onBlur={handleBlur}
           placeholder="—"
-          className={`w-16 text-center rounded-xl border py-1.5 text-sm font-semibold outline-none transition-all
-            ${disabled ? "bg-app-bg text-app-text/30 border-transparent cursor-not-allowed"
-            : editing ? "border-[#F4B400] bg-app-surface shadow-sm text-app-text"
-            : g ? `${g.bg} ${g.color} ${g.border}` : "border-app-border bg-app-surface text-app-text/40"}
-          `}
+          style={{
+            width: 64, textAlign: "center", borderRadius: "var(--radius-md)",
+            padding: "7px 0", fontSize: 13, fontWeight: 600, outline: "none",
+            fontFamily: "var(--font-body)", transition: "all var(--transition-base)",
+            background: disabled ? "var(--bg-primary)" : editing ? "var(--surface)" : g ? g.bg : "var(--surface)",
+            color: disabled ? "var(--text-muted)" : editing ? "var(--text-primary)" : g ? g.color : "var(--text-muted)",
+            border: editing ? "1px solid var(--warning)" : g ? g.border : "1px solid var(--border-color)",
+            cursor: disabled ? "not-allowed" : "text",
+          }}
         />
         {!editing && g && (
-          <span className={`text-[9px] font-bold tracking-wide ${g.color}`}>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.3px", color: g.color }}>
             G{g.grade} · {g.remark}
           </span>
         )}
@@ -108,8 +194,7 @@ function ScoreCell({ value, onCommit, disabled }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function PerformanceModule({ userId, schoolCode }) {
-  // ── class/subject assignments (mirrors StudentModule pattern) ──────────────
-  const [classes,       setClasses]       = useState([]); // resolved school_classes docs
+  const [classes,       setClasses]       = useState([]);
   const [mySubjects,    setMySubjects]    = useState([]);
   const [selectedClassId,   setSelectedClassId]   = useState("");
   const [classesReady,  setClassesReady]  = useState(false);
@@ -118,6 +203,7 @@ export default function PerformanceModule({ userId, schoolCode }) {
   const noAssignment = classesReady && studentsReady && classes.length === 0;
 
   const [selectedTerm, setSelectedTerm] = useState("Term 1 2026");
+  const [selectedAssessment, setSelectedAssessment] = useState(ASSESSMENT_TYPES[0].id);
   const [viewMode,     setViewMode]     = useState("marks");
   const [search,       setSearch]       = useState("");
 
@@ -128,9 +214,17 @@ export default function PerformanceModule({ userId, schoolCode }) {
   const [dirty,    setDirty]    = useState(false);
   const [error,    setError]    = useState("");
 
+  const [overallData,  setOverallData]  = useState({});
+  const [overallReady, setOverallReady] = useState(false);
+
   const showToast = (msg, type = "success") => setToast({ message: msg, type });
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
+  const selectedAssessmentLabel = ASSESSMENT_TYPES.find(a => a.id === selectedAssessment)?.label || "";
+
+  const marksDocId = useCallback((assessmentType) => (
+    `${schoolCode}_${selectedClassId}_${selectedTerm.replace(/\s+/g, "_")}_${userId}_${assessmentType}`
+  ), [schoolCode, selectedClassId, selectedTerm, userId]);
 
   // 1. Load teacher profile → assigned class names → resolve to school_classes docs
   useEffect(() => {
@@ -182,7 +276,7 @@ export default function PerformanceModule({ userId, schoolCode }) {
     return () => { cancelled = true; };
   }, [userId, schoolCode]);
 
-  // 2. Fetch students by classId (exactly as StudentModule does)
+  // 2. Fetch students by classId
   const fetchStudents = useCallback(async () => {
     if (!schoolCode || !selectedClassId) return;
     setStudentsReady(false);
@@ -213,26 +307,20 @@ export default function PerformanceModule({ userId, schoolCode }) {
     if (classesReady && selectedClassId) fetchStudents();
   }, [fetchStudents, classesReady, selectedClassId]);
 
-  // 3. Load saved marks whenever class or term changes
+  // 3. Load saved marks whenever class, term, or assessment component changes
   const loadMarks = useCallback(async () => {
-    if (!selectedClassId || !schoolCode || !selectedTerm || !userId) return;
+    if (!selectedClassId || !schoolCode || !selectedTerm || !userId || !selectedAssessment) return;
     try {
-      const docId = `${schoolCode}_${selectedClassId}_${selectedTerm.replace(/\s+/g, "_")}_${userId}`;
-      const snap = await getDoc(doc(db, "ca_marks", docId));
-      if (snap.exists()) {
-        setMarks(snap.data().marks || {});
-      } else {
-        setMarks({});
-      }
+      const snap = await getDoc(doc(db, "ca_marks", marksDocId(selectedAssessment)));
+      setMarks(snap.exists() ? (snap.data().marks || {}) : {});
       setDirty(false);
     } catch (err) {
       console.error("loadMarks:", err);
     }
-  }, [selectedClassId, selectedTerm, schoolCode, userId]);
+  }, [selectedClassId, selectedTerm, selectedAssessment, schoolCode, userId, marksDocId]);
 
   useEffect(() => { loadMarks(); }, [loadMarks]);
 
-  // 4. Update a mark locally
   const updateMark = (studentId, subject, score) => {
     setMarks(prev => ({
       ...prev,
@@ -241,24 +329,23 @@ export default function PerformanceModule({ userId, schoolCode }) {
     setDirty(true);
   };
 
-  // 5. Save all marks to Firestore
   const saveAllMarks = async () => {
     if (!dirty) return;
     setSaving(true);
     try {
-      const docId = `${schoolCode}_${selectedClassId}_${selectedTerm.replace(/\s+/g, "_")}_${userId}`;
-      await setDoc(doc(db, "ca_marks", docId), {
+      await setDoc(doc(db, "ca_marks", marksDocId(selectedAssessment)), {
         schoolCode,
-        classId:   selectedClassId,
-        className: selectedClass?.name || "",
-        term:      selectedTerm,
-        teacherId: userId,
-        subjects:  mySubjects,
+        classId:        selectedClassId,
+        className:      selectedClass?.name || "",
+        term:           selectedTerm,
+        assessmentType: selectedAssessment,
+        teacherId:      userId,
+        subjects:       mySubjects,
         marks,
-        updatedAt: serverTimestamp(),
+        updatedAt:      serverTimestamp(),
       });
       setDirty(false);
-      showToast("Marks saved successfully.");
+      showToast(`${selectedAssessmentLabel} marks saved successfully.`);
     } catch (err) {
       console.error(err);
       showToast("Failed to save marks: " + err.message, "error");
@@ -267,7 +354,45 @@ export default function PerformanceModule({ userId, schoolCode }) {
     }
   };
 
-  // ── helpers ───────────────────────────────────────────────────────────────
+  // 6. Overall tab — combine all four components with their weights
+  const loadOverall = useCallback(async () => {
+    if (!selectedClassId || !schoolCode || !selectedTerm || !userId || students.length === 0) return;
+    setOverallReady(false);
+    try {
+      const snaps = await Promise.all(
+        ASSESSMENT_TYPES.map(({ id }) => getDoc(doc(db, "ca_marks", marksDocId(id))))
+      );
+      const byAssessment = {};
+      ASSESSMENT_TYPES.forEach(({ id }, i) => {
+        byAssessment[id] = snaps[i].exists() ? (snaps[i].data().marks || {}) : {};
+      });
+
+      const combined = {};
+      students.forEach((s) => {
+        combined[s.id] = {};
+        mySubjects.forEach((subj) => {
+          const perComponent = {};
+          ASSESSMENT_TYPES.forEach(({ id }) => {
+            const v = byAssessment[id]?.[s.id]?.[subj];
+            if (v !== null && v !== undefined && v !== "") perComponent[id] = v;
+          });
+          combined[s.id][subj] = computeWeighted(perComponent);
+        });
+      });
+      setOverallData(combined);
+    } catch (err) {
+      console.error("loadOverall:", err);
+      showToast("Could not load combined overall marks.", "error");
+    } finally {
+      setOverallReady(true);
+    }
+  }, [selectedClassId, selectedTerm, schoolCode, userId, students, mySubjects, marksDocId]);
+
+  useEffect(() => {
+    if (viewMode === "overall" && studentsReady && selectedClassId) loadOverall();
+  }, [viewMode, loadOverall, studentsReady, selectedClassId]);
+
+  // ── derived data ─────────────────────────────────────────────────────────
   const getStudentAvg = (studentId) => {
     const m = marks[studentId] || {};
     const scores = mySubjects.map(s => m[s]).filter(v => v !== null && v !== undefined && v !== "");
@@ -304,158 +429,217 @@ export default function PerformanceModule({ userId, schoolCode }) {
   const needsHelp = ranked.filter(s => s.average >= 40 && s.average < 50).length;
   const topPass   = ranked.filter(s => s.average >= 70).length;
 
-  const noStudents = classesReady && studentsReady && students.length === 0 && selectedClassId;
+  const overallStudents = students.map((s) => {
+    const subjMap = overallData[s.id] || {};
+    const scores = mySubjects.map((subj) => subjMap[subj]?.score).filter((v) => v !== null && v !== undefined);
+    const allComplete = mySubjects.length > 0 && mySubjects.every((subj) => subjMap[subj]?.complete);
+    const average = scores.length ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10 : null;
+    return { ...s, subjMap, average, complete: allComplete };
+  });
 
+  const overallRanked = [...overallStudents]
+    .filter((s) => s.average !== null)
+    .sort((a, b) => b.average - a.average)
+    .map((s, i) => ({ ...s, rank: i + 1 }));
+
+  const overallAllWithRank = overallStudents.map((s) => {
+    const r = overallRanked.find((r) => r.id === s.id);
+    return { ...s, rank: r?.rank ?? null };
+  });
+
+  const overallFiltered = overallAllWithRank.filter((s) =>
+    !search ||
+    fullName(s).toLowerCase().includes(search.toLowerCase()) ||
+    s.studentCode?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const noStudents = classesReady && studentsReady && students.length === 0 && selectedClassId;
   const TERMS = ["Term 1 2026", "Term 2 2026", "Term 3 2025", "Term 1 2025", "Term 2 2025"];
 
+  const VIEW_TABS = [
+    { id: "marks",     icon: Edit3,     label: "Marks" },
+    { id: "ranking",   icon: Award,     label: "Ranking" },
+    { id: "analytics", icon: BarChart2, label: "Analytics" },
+    { id: "overall",   icon: PieChart,  label: "Overall" },
+  ];
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-app-text">Student Performance</h2>
-          <p className="text-sm text-app-text/55 mt-0.5">
+          <h2 className="module-title">Student Performance</h2>
+          <p className="module-sub">
             {isLoading
               ? "Loading assignments…"
               : noAssignment
               ? "No classes assigned yet"
-              : `${selectedClass?.name || ""} · Continuous Assessment · MANEB grade scale (1–9)`}
+              : viewMode === "overall"
+              ? `${selectedClass?.name || ""} · Overall (weighted) · ${selectedTerm} · MANEB grade scale (1–9)`
+              : `${selectedClass?.name || ""} · ${selectedAssessmentLabel} · MANEB grade scale (1–9)`}
           </p>
         </div>
-        <div className="flex gap-2 shrink-0 flex-wrap">
+        <div className="flex items-center gap-2">
           <button
-            onClick={fetchStudents}
+            onClick={() => (viewMode === "overall" ? loadOverall() : fetchStudents())}
             disabled={isLoading}
-            className="p-2.5 bg-app-surface border border-app-border rounded-xl hover:bg-app-bg transition-colors text-app-text/60 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ ...iconBtnStyle, opacity: isLoading ? 0.4 : 1 }}
             title="Refresh"
           >
             <RefreshCw size={16} />
           </button>
-          {dirty && (
-            <button
-              onClick={saveAllMarks}
-              disabled={saving}
-              className="flex items-center gap-2 px-5 py-2.5 bg-app-warning text-app-text rounded-2xl hover:brightness-105 transition-all font-bold text-sm disabled:opacity-60"
-            >
+          {dirty && viewMode !== "overall" && (
+            <button onClick={saveAllMarks} disabled={saving} style={saveBtnStyle(saving)}>
               {saving ? <Spinner size={15} /> : <Save size={15} />}
-              Save marks
+              Save {selectedAssessmentLabel} marks
             </button>
           )}
         </div>
       </div>
 
       {noAssignment && (
-        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl text-sm">
-          <AlertCircle size={16} className="shrink-0 mt-0.5" />
+        <div className="alert alert--warning">
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
           No classes assigned yet. Ask your head teacher to assign classes from Staff Management.
         </div>
       )}
 
       {error && (
-        <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl text-sm">
-          <AlertCircle size={16} className="shrink-0 mt-0.5" />
+        <div className="alert alert--error">
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
           {error}
         </div>
       )}
 
       {/* ── Controls ── */}
-      <div className="flex flex-wrap gap-3 items-end">
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
         <div>
-          <label className="text-[10px] font-bold tracking-widest text-app-text/45 block mb-1">CLASS</label>
-          <select
-            value={selectedClassId}
-            onChange={e => { setSelectedClassId(e.target.value); setDirty(false); }}
-            disabled={isLoading || classes.length === 0}
-            className="px-4 py-2.5 bg-app-surface border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text font-medium disabled:opacity-50"
-          >
-            {classes.length === 0 && <option value="">No classes</option>}
-            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <label style={labelStyle}>Class</label>
+          <div style={{ position: "relative" }}>
+            <select
+              value={selectedClassId}
+              onChange={e => { setSelectedClassId(e.target.value); setDirty(false); }}
+              disabled={isLoading || classes.length === 0}
+              style={{ ...inputStyle, appearance: "none", paddingRight: 32, minWidth: 150, opacity: (isLoading || classes.length === 0) ? 0.5 : 1 }}
+            >
+              {classes.length === 0 && <option value="">No classes</option>}
+              {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
+          </div>
         </div>
+
         <div>
-          <label className="text-[10px] font-bold tracking-widest text-app-text/45 block mb-1">TERM</label>
-          <select
-            value={selectedTerm}
-            onChange={e => setSelectedTerm(e.target.value)}
-            className="px-4 py-2.5 bg-app-surface border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
-          >
-            {TERMS.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
+          <label style={labelStyle}>Term</label>
+          <div style={{ position: "relative" }}>
+            <select
+              value={selectedTerm}
+              onChange={e => { setSelectedTerm(e.target.value); setDirty(false); }}
+              style={{ ...inputStyle, appearance: "none", paddingRight: 32, minWidth: 140 }}
+            >
+              {TERMS.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
+          </div>
         </div>
-        <div className="relative flex-1 min-w-[180px]">
-          <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-app-text/35" />
+
+        {viewMode !== "overall" && (
+          <div>
+            <label style={labelStyle}>Assessment</label>
+            <div style={{ position: "relative" }}>
+              <select
+                value={selectedAssessment}
+                onChange={e => { setSelectedAssessment(e.target.value); setDirty(false); }}
+                style={{ ...inputStyle, appearance: "none", paddingRight: 32, minWidth: 150 }}
+              >
+                {ASSESSMENT_TYPES.map(a => (
+                  <option key={a.id} value={a.id}>{a.label} ({Math.round(a.weight * 100)}%)</option>
+                ))}
+              </select>
+              <ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
+            </div>
+          </div>
+        )}
+
+        <div className="search-wrap" style={{ flex: 1, minWidth: 180 }}>
+          <Search size={14} className="search-wrap__icon" />
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search students…"
-            className="w-full pl-9 pr-4 py-2.5 bg-app-surface border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/30 text-app-text"
+            className="search-wrap__input"
           />
         </div>
-        <div className="flex gap-1 ml-auto">
-          {[
-            { id: "marks",     icon: Edit3,    label: "Marks" },
-            { id: "ranking",   icon: Award,    label: "Ranking" },
-            { id: "analytics", icon: BarChart2, label: "Analytics" },
-          ].map(({ id, icon: Icon, label }) => (
+
+        <div className="filter-pills">
+          {VIEW_TABS.map(({ id, icon: Icon, label }) => (
             <button
               key={id}
               onClick={() => setViewMode(id)}
-              className={`flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold rounded-xl transition-all
-                ${viewMode === id ? "bg-app-primary text-white" : "bg-app-surface border border-app-border text-app-text/60 hover:border-[#0F2044]/25"}`}
+              className={`filter-pill ${viewMode === id ? "filter-pill--active" : "filter-pill--inactive"}`}
             >
-              <Icon size={13} />{label}
+              <Icon size={13} style={{ marginRight: 5, verticalAlign: -2 }} />{label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* ── Summary cards ── */}
-      {ranked.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: "Class average", value: classAvg !== null ? `${classAvg}%` : "—", sub: classAvg !== null ? getGradeInfo(classAvg)?.remark : "", color: "text-app-text" },
-            { label: "Distinctions (G1–G2)", value: topPass, sub: `≥70%`, color: "text-emerald-700" },
-            { label: "Needs support (G8)", value: needsHelp, sub: "40–49%", color: "text-amber-600" },
-            { label: "Failing (G9)", value: atRisk, sub: "<40%", color: "text-red-600" },
-          ].map(c => (
-            <div key={c.label} className="bg-app-surface rounded-2xl border border-app-border p-4">
-              <p className="text-[11px] text-app-text/50 mb-1">{c.label}</p>
-              <p className={`text-2xl font-bold ${c.color}`}>{c.value}</p>
-              <p className="text-[10px] text-app-text/40 mt-0.5">{c.sub}</p>
-            </div>
-          ))}
+      {/* ── Summary cards (per-assessment tabs only) ── */}
+      {viewMode !== "overall" && ranked.length > 0 && (
+        <div>
+          <div className="sec-eyebrow">Assessment overview</div>
+          <div className="stat-strip">
+            {[
+              { label: "Class average",         value: classAvg !== null ? `${classAvg}%` : "—", icon: <BarChart2 width={16} height={16} />, variant: "" },
+              { label: "Distinctions (G1–G2)",  value: topPass,   icon: <Award width={16} height={16} />, variant: "teal" },
+              { label: "Needs support (G8)",    value: needsHelp, icon: <AlertTriangle width={16} height={16} />, variant: "gold" },
+              { label: "Failing (G9)",          value: atRisk,    icon: <AlertCircle width={16} height={16} />, variant: "" },
+            ].map((c) => (
+              <div key={c.label} className="stat-card">
+                <div className="stat-card__top">
+                  <div className={`stat-card__icon${c.variant ? ` stat-card__icon--${c.variant}` : ""}`}>{c.icon}</div>
+                  <span className="stat-card__label">{c.label}</span>
+                </div>
+                <div className="stat-card__value">{c.value}</div>
+                <div className="stat-card__bar">
+                  <div className={`stat-card__bar-fill${c.variant ? ` stat-card__bar-fill--${c.variant}` : ""}`} style={{ width: "60%" }} />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {/* ── MANEB scale reference ── */}
-      <details className="group">
-        <summary className="text-[11px] text-app-text/45 cursor-pointer select-none hover:text-app-text/70 transition-colors flex items-center gap-1.5">
-          <ChevronDown size={12} className="group-open:rotate-180 transition-transform" />
-          MANEB Grade Scale Reference
+      <details>
+        <summary style={{ fontSize: 11, color: "var(--text-muted)", cursor: "pointer", userSelect: "none", display: "flex", alignItems: "center", gap: 6 }}>
+          <ChevronDown size={12} /> MANEB Grade Scale Reference
         </summary>
-        <div className="mt-2 flex flex-wrap gap-1.5 pl-4">
-          {MANEB_GRADES.map(g => (
-            <span key={g.grade}
-              className={`text-[10px] px-2.5 py-1 rounded-lg border font-semibold ${g.bg} ${g.color} ${g.border}`}>
-              G{g.grade}: {g.min}{g.grade < 9 ? `–${g.max}` : "+"}% · {g.remark}
-            </span>
-          ))}
+        <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6, paddingLeft: 18 }}>
+          {MANEB_GRADES.map(g => {
+            const t = TONE[g.tone];
+            return (
+              <span key={g.grade} style={{ fontSize: 10, padding: "5px 10px", borderRadius: "var(--radius-md)", background: t.bg, color: t.color, border: t.border, fontWeight: 600 }}>
+                G{g.grade}: {g.min}{g.grade < 9 ? `–${g.max}` : "+"}% · {g.remark}
+              </span>
+            );
+          })}
         </div>
       </details>
 
-      {isLoading && (
-        <div className="bg-app-surface rounded-2xl border border-app-border py-16 flex flex-col items-center gap-3">
-          <Spinner size={28} />
-          <p className="text-sm text-app-text/40">Loading…</p>
+      {(viewMode !== "overall" ? isLoading : (isLoading || !overallReady)) && (
+        <div style={{ padding: "56px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+          <div className="spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
+          <p className="module-sub">Loading…</p>
         </div>
       )}
 
       {noStudents && !isLoading && (
-        <div className="bg-app-surface rounded-2xl border border-app-border py-16 text-center">
-          <Users size={28} className="mx-auto mb-3 text-app-text/20" />
-          <p className="text-sm text-app-text/40 font-medium">No students found in {selectedClass?.name || "this class"}</p>
-          <p className="text-xs text-app-text/30 mt-1">Students need to be enrolled in this class first.</p>
+        <div className="empty-state">
+          <div className="empty-state__icon"><Users size={22} /></div>
+          <div className="empty-state__title">No students found in {selectedClass?.name || "this class"}</div>
+          <p className="empty-state__sub">Students need to be enrolled in this class first.</p>
         </div>
       )}
 
@@ -463,52 +647,45 @@ export default function PerformanceModule({ userId, schoolCode }) {
         <>
           {/* ════ MARKS VIEW ════ */}
           {viewMode === "marks" && (
-            <div className="bg-app-surface rounded-2xl border border-app-border overflow-hidden">
-              <div className="px-5 py-3.5 border-b border-app-border flex items-center justify-between bg-app-bg">
-                <div>
-                  <h3 className="font-semibold text-app-text text-sm">
-                    Enter / Edit CA Marks — {selectedClass?.name || ""} · {selectedTerm}
-                  </h3>
-                  <p className="text-[10px] text-app-text/45 mt-0.5">
-                    Marks are out of 100. MANEB grade is auto-calculated per subject.
-                  </p>
+            <div className="cc">
+              <div className="cc__head">
+                <div className="cc__head-left">
+                  <Edit3 width={18} height={18} />
+                  <h3>Enter / Edit {selectedAssessmentLabel} Marks</h3>
                 </div>
                 {dirty && (
-                  <span className="text-[10px] text-amber-600 font-semibold bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
-                    Unsaved changes
+                  <span className="status-pill" style={{ background: "var(--warning-pale)", color: "var(--warning-light)", border: "1px solid rgba(232,168,0,0.2)" }}>
+                    <span className="status-pill__dot" /> Unsaved changes
                   </span>
                 )}
               </div>
+              <p className="module-sub" style={{ padding: "0 20px", marginTop: -4 }}>
+                Marks are out of 100 · contributes {Math.round((ASSESSMENT_TYPES.find(a => a.id === selectedAssessment)?.weight || 0) * 100)}% to the Overall term grade
+              </p>
 
-              <div className="data-table-wrap">
-                <table className="data-table data-table--stack">
+              <div className="cc__body" style={{ padding: 0, overflowX: "auto" }}>
+                <table className="data-table data-table--stack" style={{ width: "100%" }}>
                   <thead>
-                    <tr className="border-b border-app-border bg-app-surface">
-                      <th>
-                        STUDENT
-                      </th>
+                    <tr>
+                      <th style={{ textAlign: "left", padding: "10px 20px" }}>Student</th>
                       {mySubjects.map(subj => (
-                        <th key={subj} className="px-3 py-3 text-center text-[11px] font-bold tracking-wide text-app-text/50 whitespace-nowrap">
+                        <th key={subj} style={{ padding: "10px 12px", textAlign: "center", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
                           {subj}
                         </th>
                       ))}
-                      <th>
-                        AVERAGE
-                      </th>
-                      <th>
-                        RANK
-                      </th>
+                      <th style={{ padding: "10px 12px", textAlign: "center" }}>Average</th>
+                      <th style={{ padding: "10px 12px", textAlign: "center" }}>Rank</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#0F2044]/5">
+                  <tbody>
                     {filtered.map((student) => {
                       const avg = student.average;
                       const avgGrade = getGradeInfo(avg);
                       return (
-                        <tr key={student.id} className="hover:bg-[#FAFAF8] transition-colors">
-                          <td className="px-5 py-3 sticky left-0 bg-app-surface" data-label="STUDENT">
-                            <p className="font-semibold text-app-text text-sm">{fullName(student)}</p>
-                            <p className="text-[10px] text-app-text/40">{student.studentCode || student.id}</p>
+                        <tr key={student.id}>
+                          <td style={{ padding: "12px 20px" }} data-label="Student">
+                            <p style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)" }}>{fullName(student)}</p>
+                            <p style={{ fontSize: 10.5, color: "var(--text-muted)" }}>{student.studentCode || student.id}</p>
                           </td>
                           {mySubjects.map(subj => (
                             <ScoreCell
@@ -517,30 +694,23 @@ export default function PerformanceModule({ userId, schoolCode }) {
                               onCommit={score => updateMark(student.id, subj, score)}
                             />
                           ))}
-                          <td className="px-3 py-3 text-center" data-label="Field">
+                          <td style={{ padding: "10px 12px", textAlign: "center" }} data-label="Average">
                             {avg !== null ? (
-                              <div className="flex flex-col items-center gap-0.5">
-                                <span className={`font-bold text-base ${avgGrade?.color || "text-app-text"}`}>
-                                  {avg}%
-                                </span>
-                                {avgGrade && (
-                                  <span className={`text-[9px] font-bold ${avgGrade.color}`}>
-                                    G{avgGrade.grade} · {avgGrade.remark}
-                                  </span>
-                                )}
+                              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                                <span style={{ fontWeight: 700, fontSize: 15, color: avgGrade?.color || "var(--text-primary)" }}>{avg}%</span>
+                                {avgGrade && <span style={{ fontSize: 9, fontWeight: 700, color: avgGrade.color }}>G{avgGrade.grade} · {avgGrade.remark}</span>}
                               </div>
-                            ) : <span className="text-app-text/25 text-xs">—</span>}
+                            ) : <span style={{ color: "var(--text-muted)", opacity: 0.4, fontSize: 12 }}>—</span>}
                           </td>
-                          <td className="px-3 py-3 text-center" data-label="AVERAGE">
+                          <td style={{ padding: "10px 12px", textAlign: "center" }} data-label="Rank">
                             {student.rank ? (
-                              <span className={`inline-flex items-center justify-center w-7 h-7 rounded-xl text-xs font-bold
-                                ${student.rank === 1 ? "bg-app-warning text-app-text"
-                                : student.rank === 2 ? "bg-gray-200 text-gray-700"
-                                : student.rank === 3 ? "bg-amber-100 text-amber-700"
-                                : "bg-app-bg text-app-text/50"}`}>
-                                {student.rank}
-                              </span>
-                            ) : <span className="text-app-text/20 text-xs">—</span>}
+                              <span style={{
+                                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                width: 28, height: 28, borderRadius: "var(--radius-md)", fontSize: 12, fontWeight: 700,
+                                background: student.rank === 1 ? "var(--warning)" : student.rank <= 3 ? "var(--warning-pale)" : "var(--surface)",
+                                color: student.rank === 1 ? "#1a0f00" : student.rank <= 3 ? "var(--warning-light)" : "var(--text-muted)",
+                              }}>{student.rank}</span>
+                            ) : <span style={{ color: "var(--text-muted)", opacity: 0.3, fontSize: 12 }}>—</span>}
                           </td>
                         </tr>
                       );
@@ -549,17 +719,13 @@ export default function PerformanceModule({ userId, schoolCode }) {
                 </table>
               </div>
 
-              <div className="px-5 py-3 border-t border-app-border bg-app-bg flex items-center justify-between">
-                <p className="text-[10px] text-app-text/45">
-                  {students.length} student{students.length !== 1 ? "s" : ""} · {mySubjects.length} subject{mySubjects.length !== 1 ? "s" : ""} · CA contributes 40% to final MSCE grade                </p>
-                <button
-                  onClick={saveAllMarks}
-                  disabled={!dirty || saving}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-app-warning text-app-text text-xs font-bold rounded-xl
-                    disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-105 transition-all"
-                >
+              <div style={{ padding: "14px 20px", borderTop: "1px solid var(--border-color)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                <p className="module-sub" style={{ margin: 0 }}>
+                  {students.length} student{students.length !== 1 ? "s" : ""} · {mySubjects.length} subject{mySubjects.length !== 1 ? "s" : ""} · one of four components combined on the Overall tab
+                </p>
+                <button onClick={saveAllMarks} disabled={!dirty || saving} style={saveBtnStyle(!dirty || saving)}>
                   {saving ? <Spinner size={13} /> : <Save size={13} />}
-                  Save all marks
+                  Save {selectedAssessmentLabel} marks
                 </button>
               </div>
             </div>
@@ -567,60 +733,51 @@ export default function PerformanceModule({ userId, schoolCode }) {
 
           {/* ════ RANKING VIEW ════ */}
           {viewMode === "ranking" && (
-            <div className="bg-app-surface rounded-2xl border border-app-border overflow-hidden">
-              <div className="px-5 py-4 border-b border-app-border bg-app-bg">
-                <h3 className="font-semibold text-app-text text-sm">
-                  Class Ranking — {selectedClass?.name || ""} · {selectedTerm}
-                </h3>
-                <p className="text-[10px] text-app-text/45 mt-0.5">
-                  Ranked by overall average across all taught subjects
-                </p>
+            <div className="cc">
+              <div className="cc__head">
+                <div className="cc__head-left">
+                  <Award width={18} height={18} />
+                  <h3>Class Ranking — {selectedAssessmentLabel} · {selectedTerm}</h3>
+                </div>
               </div>
-              <div className="p-4 space-y-2">
+              <div className="cc__body" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {ranked.length === 0 && (
-                  <p className="text-center text-sm text-app-text/40 py-10">
-                    No marks entered yet. Enter marks in the Marks view first.
-                  </p>
+                  <div className="empty-state">
+                    <div className="empty-state__icon"><Award size={22} /></div>
+                    <div className="empty-state__title">No marks entered yet</div>
+                    <p className="empty-state__sub">Enter marks in the Marks view first.</p>
+                  </div>
                 )}
                 {ranked.map((student) => {
                   const g = getGradeInfo(student.average);
                   return (
-                    <div
-                      key={student.id}
-                      className={`flex items-center gap-4 p-4 rounded-2xl border transition-all
-                        ${student.rank <= 3 ? "border-[#F4B400]/30 bg-app-warning/4" : "border-app-border bg-app-surface"}`}
-                    >
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm shrink-0
-                        ${student.rank === 1 ? "bg-app-warning text-app-text"
-                        : student.rank === 2 ? "bg-gray-300 text-gray-800"
-                        : student.rank === 3 ? "bg-amber-200 text-amber-800"
-                        : "bg-app-bg text-app-text/50"}`}>
+                    <div key={student.id} className="cc-row" style={{ alignItems: "center" }}>
+                      <div style={{
+                        width: 40, height: 40, borderRadius: "var(--radius-md)", flexShrink: 0,
+                        display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14,
+                        background: student.rank === 1 ? "var(--warning)" : student.rank <= 3 ? "var(--warning-pale)" : "var(--surface)",
+                        color: student.rank === 1 ? "#1a0f00" : student.rank <= 3 ? "var(--warning-light)" : "var(--text-muted)",
+                        border: "1px solid var(--border-color)",
+                      }}>
                         {student.rank}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-app-text text-sm truncate">{fullName(student)}</p>
-                        <div className="flex flex-wrap gap-1 mt-1">
+                      <div className="cc-row__info">
+                        <div className="cc-row__name" style={{ fontSize: 14 }}>{fullName(student)}</div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
                           {mySubjects.map(subj => {
                             const score = student.subjectMarks[subj];
                             const sg = getGradeInfo(score);
                             return score !== null && score !== undefined ? (
-                              <span key={subj} className={`text-[9px] px-1.5 py-0.5 rounded border font-medium
-                                ${sg ? `${sg.bg} ${sg.color} ${sg.border}` : "bg-gray-50 text-gray-500 border-gray-200"}`}>
+                              <span key={subj} style={{ fontSize: 9.5, padding: "3px 8px", borderRadius: "var(--radius-md)", fontWeight: 600, background: sg ? sg.bg : "var(--surface)", color: sg ? sg.color : "var(--text-muted)", border: sg ? sg.border : "1px solid var(--border-color)" }}>
                                 {subj}: {score}%
                               </span>
                             ) : null;
                           })}
                         </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <p className={`text-xl font-bold ${g?.color || "text-app-text"}`}>
-                          {student.average}%
-                        </p>
-                        {g && (
-                          <p className={`text-[10px] font-semibold ${g.color}`}>
-                            Grade {g.grade} · {g.remark}
-                          </p>
-                        )}
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <p style={{ fontSize: 20, fontWeight: 700, color: g?.color || "var(--text-primary)", fontFamily: "var(--font-display)" }}>{student.average}%</p>
+                        {g && <p style={{ fontSize: 10, fontWeight: 700, color: g.color }}>Grade {g.grade} · {g.remark}</p>}
                       </div>
                     </div>
                   );
@@ -632,29 +789,26 @@ export default function PerformanceModule({ userId, schoolCode }) {
           {/* ════ ANALYTICS VIEW ════ */}
           {viewMode === "analytics" && (
             <div className="space-y-4">
-              {/* Grade distribution */}
-              <div className="bg-app-surface rounded-2xl border border-app-border p-5">
-                <h3 className="font-semibold text-app-text text-sm mb-4">Grade Distribution — {selectedClass?.name || ""}</h3>
-                <div className="space-y-2.5">
+              <div className="cc">
+                <div className="cc__head">
+                  <div className="cc__head-left">
+                    <BarChart2 width={18} height={18} />
+                    <h3>Grade Distribution — {selectedAssessmentLabel}</h3>
+                  </div>
+                </div>
+                <div className="cc__body" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {MANEB_GRADES.map(g => {
-                    const count = ranked.filter(s => {
-                      const sg = getGradeInfo(s.average);
-                      return sg?.grade === g.grade;
-                    }).length;
+                    const t = TONE[g.tone];
+                    const count = ranked.filter(s => getGradeInfo(s.average)?.grade === g.grade).length;
                     const pct = ranked.length ? Math.round((count / ranked.length) * 100) : 0;
                     return (
-                      <div key={g.grade} className="flex items-center gap-3">
-                        <span className={`text-[10px] font-bold w-20 shrink-0 ${g.color}`}>
-                          G{g.grade} {g.remark}
-                        </span>
-                        <div className="flex-1 bg-app-bg rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full transition-all duration-500 ${g.bg.replace("bg-", "bg-").replace("-50", "-400").replace("-100", "-500")}`}
-                            style={{ width: `${pct}%`, backgroundColor: g.grade <= 2 ? "#10b981" : g.grade <= 6 ? "#3b82f6" : g.grade <= 8 ? "#f59e0b" : "#ef4444" }}
-                          />
+                      <div key={g.grade} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, width: 92, flexShrink: 0, color: t.color }}>G{g.grade} {g.remark}</span>
+                        <div style={{ flex: 1, height: 8, borderRadius: 99, background: "var(--primary-dim)", overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99, background: t.color, transition: "width 0.5s" }} />
                         </div>
-                        <span className="text-[11px] font-semibold text-app-text/60 w-12 text-right">
-                          {count} <span className="text-app-text/30">({pct}%)</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", width: 64, textAlign: "right" }}>
+                          {count} <span style={{ color: "var(--text-muted)" }}>({pct}%)</span>
                         </span>
                       </div>
                     );
@@ -662,11 +816,15 @@ export default function PerformanceModule({ userId, schoolCode }) {
                 </div>
               </div>
 
-              {/* Per-subject average */}
               {mySubjects.length > 0 && (
-                <div className="bg-app-surface rounded-2xl border border-app-border p-5">
-                  <h3 className="font-semibold text-app-text text-sm mb-4">Subject Averages</h3>
-                  <div className="space-y-3">
+                <div className="cc">
+                  <div className="cc__head">
+                    <div className="cc__head-left">
+                      <BarChart2 width={18} height={18} />
+                      <h3>Subject Averages</h3>
+                    </div>
+                  </div>
+                  <div className="cc__body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     {mySubjects.map(subj => {
                       const scores = students
                         .map(s => marks[s.id]?.[subj])
@@ -677,27 +835,19 @@ export default function PerformanceModule({ userId, schoolCode }) {
                         : null;
                       const g = getGradeInfo(avg);
                       return (
-                        <div key={subj} className="flex items-center gap-3">
-                          <span className="text-xs font-medium text-app-text/70 w-32 shrink-0 truncate">{subj}</span>
-                          <div className="flex-1 bg-app-bg rounded-full h-2.5">
+                        <div key={subj} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", width: 128, flexShrink: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{subj}</span>
+                          <div style={{ flex: 1, height: 9, borderRadius: 99, background: "var(--primary-dim)", overflow: "hidden" }}>
                             {avg !== null && (
-                              <div
-                                className="h-2.5 rounded-full transition-all duration-700"
-                                style={{
-                                  width: `${avg}%`,
-                                  backgroundColor: avg >= 70 ? "#10b981" : avg >= 50 ? "#3b82f6" : avg >= 40 ? "#f59e0b" : "#ef4444"
-                                }}
-                              />
+                              <div style={{ height: "100%", width: `${avg}%`, borderRadius: 99, background: g?.color || "var(--primary-light)", transition: "width 0.7s" }} />
                             )}
                           </div>
                           {avg !== null ? (
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <span className={`text-sm font-bold ${g?.color || "text-app-text"}`}>{avg}%</span>
-                              {g && <span className={`text-[9px] font-semibold ${g.color}`}>G{g.grade}</span>}
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: g?.color || "var(--text-primary)" }}>{avg}%</span>
+                              {g && <span style={{ fontSize: 9, fontWeight: 700, color: g.color }}>G{g.grade}</span>}
                             </div>
-                          ) : (
-                            <span className="text-xs text-app-text/30 shrink-0">No data</span>
-                          )}
+                          ) : <span style={{ fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>No data</span>}
                         </div>
                       );
                     })}
@@ -705,34 +855,32 @@ export default function PerformanceModule({ userId, schoolCode }) {
                 </div>
               )}
 
-              {/* At-risk students */}
               {ranked.filter(s => s.average < 50).length > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <AlertTriangle size={16} className="text-amber-600" />
-                    <h3 className="font-semibold text-amber-800 text-sm">Students Needing Support</h3>
+                <div className="cc" style={{ background: "var(--warning-pale)", borderColor: "rgba(232,168,0,0.2)" }}>
+                  <div className="cc__head" style={{ borderColor: "rgba(232,168,0,0.2)" }}>
+                    <div className="cc__head-left">
+                      <AlertTriangle width={18} height={18} style={{ color: "var(--warning-light)" }} />
+                      <h3 style={{ color: "var(--warning-light)" }}>Students Needing Support</h3>
+                    </div>
                   </div>
-                  <div className="space-y-2">
+                  <div className="cc__body" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {ranked.filter(s => s.average < 50).map(s => {
                       const g = getGradeInfo(s.average);
-                      const weakSubjects = mySubjects
-                        .filter(subj => {
-                          const sc = s.subjectMarks[subj];
-                          return sc !== null && sc !== undefined && Number(sc) < 50;
-                        });
+                      const weakSubjects = mySubjects.filter(subj => {
+                        const sc = s.subjectMarks[subj];
+                        return sc !== null && sc !== undefined && Number(sc) < 50;
+                      });
                       return (
-                        <div key={s.id} className="flex items-center justify-between bg-app-surface border border-amber-200 rounded-xl px-4 py-2.5">
+                        <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--card-bg)", border: "1px solid rgba(232,168,0,0.2)", borderRadius: "var(--radius-md)", padding: "10px 16px" }}>
                           <div>
-                            <p className="font-semibold text-app-text text-sm">{fullName(s)}</p>
+                            <p style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)" }}>{fullName(s)}</p>
                             {weakSubjects.length > 0 && (
-                              <p className="text-[10px] text-amber-700 mt-0.5">
-                                Struggling: {weakSubjects.join(", ")}
-                              </p>
+                              <p style={{ fontSize: 10.5, color: "var(--warning-light)", marginTop: 2 }}>Struggling: {weakSubjects.join(", ")}</p>
                             )}
                           </div>
-                          <div className="text-right">
-                            <p className={`font-bold text-base ${g?.color}`}>{s.average}%</p>
-                            <p className={`text-[10px] font-semibold ${g?.color}`}>Grade {g?.grade} · {g?.remark}</p>
+                          <div style={{ textAlign: "right" }}>
+                            <p style={{ fontWeight: 700, fontSize: 15, color: g?.color }}>{s.average}%</p>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: g?.color }}>Grade {g?.grade} · {g?.remark}</p>
                           </div>
                         </div>
                       );
@@ -740,6 +888,138 @@ export default function PerformanceModule({ userId, schoolCode }) {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ════ OVERALL (WEIGHTED) VIEW ════ */}
+          {viewMode === "overall" && (
+            <div className="space-y-4">
+              <div className="alert alert--info" style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <Info size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+                <span style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+                  Overall combines {ASSESSMENT_TYPES.map(a => `${a.label} (${Math.round(a.weight * 100)}%)`).join(" · ")}.
+                  Scores marked <strong>Provisional</strong> are calculated from whichever components have been entered so far and will shift once the remaining ones are saved.
+                </span>
+              </div>
+
+              {overallRanked.length > 0 && (
+                <div>
+                  <div className="sec-eyebrow">Overall term overview</div>
+                  <div className="stat-strip">
+                    {(() => {
+                      const ov = overallRanked;
+                      const ovAvg = ov.length ? Math.round((ov.reduce((a, b) => a + b.average, 0) / ov.length) * 10) / 10 : null;
+                      const ovAtRisk = ov.filter(s => s.average < 40).length;
+                      const ovNeedsHelp = ov.filter(s => s.average >= 40 && s.average < 50).length;
+                      const ovTop = ov.filter(s => s.average >= 70).length;
+                      return [
+                        { label: "Overall class average", value: ovAvg !== null ? `${ovAvg}%` : "—", icon: <PieChart width={16} height={16} />, variant: "" },
+                        { label: "Distinctions (G1–G2)",   value: ovTop,      icon: <Award width={16} height={16} />, variant: "teal" },
+                        { label: "Needs support (G8)",     value: ovNeedsHelp,icon: <AlertTriangle width={16} height={16} />, variant: "gold" },
+                        { label: "Failing (G9)",           value: ovAtRisk,  icon: <AlertCircle width={16} height={16} />, variant: "" },
+                      ].map(c => (
+                        <div key={c.label} className="stat-card">
+                          <div className="stat-card__top">
+                            <div className={`stat-card__icon${c.variant ? ` stat-card__icon--${c.variant}` : ""}`}>{c.icon}</div>
+                            <span className="stat-card__label">{c.label}</span>
+                          </div>
+                          <div className="stat-card__value">{c.value}</div>
+                          <div className="stat-card__bar">
+                            <div className={`stat-card__bar-fill${c.variant ? ` stat-card__bar-fill--${c.variant}` : ""}`} style={{ width: "60%" }} />
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              <div className="cc">
+                <div className="cc__head">
+                  <div className="cc__head-left">
+                    <PieChart width={18} height={18} />
+                    <h3>Overall Term Grade — {selectedTerm}</h3>
+                  </div>
+                </div>
+
+                {!overallReady ? (
+                  <div style={{ padding: "56px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                    <Spinner size={24} />
+                    <p className="module-sub">Combining assessment components…</p>
+                  </div>
+                ) : (
+                  <div className="cc__body" style={{ padding: 0, overflowX: "auto" }}>
+                    <table className="data-table data-table--stack" style={{ width: "100%" }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: "left", padding: "10px 20px" }}>Student</th>
+                          {mySubjects.map(subj => (
+                            <th key={subj} style={{ padding: "10px 12px", textAlign: "center", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", whiteSpace: "nowrap" }}>{subj}</th>
+                          ))}
+                          <th style={{ padding: "10px 12px", textAlign: "center" }}>Overall</th>
+                          <th style={{ padding: "10px 12px", textAlign: "center" }}>Rank</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {overallFiltered.map((student) => {
+                          const avgGrade = getGradeInfo(student.average);
+                          return (
+                            <tr key={student.id}>
+                              <td style={{ padding: "12px 20px" }} data-label="Student">
+                                <p style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)" }}>{fullName(student)}</p>
+                                <p style={{ fontSize: 10.5, color: "var(--text-muted)" }}>{student.studentCode || student.id}</p>
+                                {!student.complete && student.average !== null && (
+                                  <span style={{ display: "inline-block", marginTop: 4, fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: "var(--radius-md)", background: "var(--warning-pale)", color: "var(--warning-light)" }}>
+                                    Provisional
+                                  </span>
+                                )}
+                              </td>
+                              {mySubjects.map(subj => {
+                                const cell = student.subjMap[subj];
+                                const g = getGradeInfo(cell?.score);
+                                return (
+                                  <td key={subj} style={{ padding: "10px 12px", textAlign: "center" }} data-label={subj}>
+                                    {cell ? (
+                                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                                        <span style={{ fontWeight: 600, fontSize: 13, color: g?.color || "var(--text-primary)" }}>{cell.score}%</span>
+                                        {!cell.complete && <span style={{ fontSize: 8.5, fontWeight: 700, color: "var(--warning-light)" }}>partial</span>}
+                                      </div>
+                                    ) : <span style={{ color: "var(--text-muted)", opacity: 0.4, fontSize: 12 }}>—</span>}
+                                  </td>
+                                );
+                              })}
+                              <td style={{ padding: "10px 12px", textAlign: "center" }} data-label="Overall">
+                                {student.average !== null ? (
+                                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                                    <span style={{ fontWeight: 700, fontSize: 15, color: avgGrade?.color || "var(--text-primary)" }}>{student.average}%</span>
+                                    {avgGrade && <span style={{ fontSize: 9, fontWeight: 700, color: avgGrade.color }}>G{avgGrade.grade} · {avgGrade.remark}</span>}
+                                  </div>
+                                ) : <span style={{ color: "var(--text-muted)", opacity: 0.4, fontSize: 12 }}>—</span>}
+                              </td>
+                              <td style={{ padding: "10px 12px", textAlign: "center" }} data-label="Rank">
+                                {student.rank ? (
+                                  <span style={{
+                                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                    width: 28, height: 28, borderRadius: "var(--radius-md)", fontSize: 12, fontWeight: 700,
+                                    background: student.rank === 1 ? "var(--warning)" : student.rank <= 3 ? "var(--warning-pale)" : "var(--surface)",
+                                    color: student.rank === 1 ? "#1a0f00" : student.rank <= 3 ? "var(--warning-light)" : "var(--text-muted)",
+                                  }}>{student.rank}</span>
+                                ) : <span style={{ color: "var(--text-muted)", opacity: 0.3, fontSize: 12 }}>—</span>}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border-color)" }}>
+                  <p className="module-sub" style={{ margin: 0 }}>
+                    Overall is read-only here — go to the Marks tab and select CA 1, CA 2, Mid-Term, or End of Term to enter scores for a specific component.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </>

@@ -1,166 +1,133 @@
 import { useState } from "react";
 import { Clock, Calendar, Download, Eye, Edit2 } from "lucide-react";
 
+const iconBtnStyle = {
+  display: "flex", alignItems: "center", justifyContent: "center",
+  width: 34, height: 34, padding: 0, background: "var(--surface)",
+  border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)",
+  color: "var(--text-muted)", cursor: "pointer", flexShrink: 0,
+  transition: "all var(--transition-base)",
+};
+
 export default function TimetableModule() {
   const [selectedDay, setSelectedDay] = useState("Monday");
-
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
   // Teacher's personal timetable (only Mr. Martin Khumbata's classes)
+  // NOTE: still static demo data, same as before — this module isn't wired to
+  // Firestore yet. Happy to hook it up to a `timetable` collection (mirroring
+  // the teacherId/schoolCode pattern used in Homework and Lesson Plans) if
+  // you want it live.
   const [myTimetable] = useState([
-    {
-      id: 1,
-      day: "Monday",
-      time: "07:30 - 08:20",
-      subject: "Mathematics",
-      className: "Form 3A",
-      room: "Block B - Rm 12",
-      notes: "Chapter 7 - Quadratic Equations",
-    },
-    {
-      id: 2,
-      day: "Monday",
-      time: "09:30 - 10:20",
-      subject: "Mathematics",
-      className: "Form 4B",
-      room: "Block A - Rm 07",
-      notes: "Revision for Mid-term",
-    },
-    {
-      id: 3,
-      day: "Tuesday",
-      time: "08:30 - 09:20",
-      subject: "Physics",
-      className: "Form 3A",
-      room: "Science Lab",
-      notes: "Practical: Motion",
-    },
-    {
-      id: 4,
-      day: "Tuesday",
-      time: "11:30 - 12:20",
-      subject: "Mathematics",
-      className: "Form 4B",
-      room: "Block B - Rm 12",
-      notes: "",
-    },
-    {
-      id: 5,
-      day: "Wednesday",
-      time: "07:30 - 08:20",
-      subject: "Physics",
-      className: "Form 3A",
-      room: "Science Lab",
-      notes: "Theory + Practical",
-    },
-    {
-      id: 6,
-      day: "Thursday",
-      time: "08:30 - 09:20",
-      subject: "Mathematics",
-      className: "Form 3A",
-      room: "Block B - Rm 12",
-      notes: "",
-    },
+    { id: 1, day: "Monday",    time: "07:30 - 08:20", subject: "Mathematics", className: "Form 3A", room: "Block B - Rm 12", notes: "Chapter 7 - Quadratic Equations" },
+    { id: 2, day: "Monday",    time: "09:30 - 10:20", subject: "Mathematics", className: "Form 4B", room: "Block A - Rm 07", notes: "Revision for Mid-term" },
+    { id: 3, day: "Tuesday",   time: "08:30 - 09:20", subject: "Physics",     className: "Form 3A", room: "Science Lab",     notes: "Practical: Motion" },
+    { id: 4, day: "Tuesday",   time: "11:30 - 12:20", subject: "Mathematics", className: "Form 4B", room: "Block B - Rm 12", notes: "" },
+    { id: 5, day: "Wednesday", time: "07:30 - 08:20", subject: "Physics",     className: "Form 3A", room: "Science Lab",     notes: "Theory + Practical" },
+    { id: 6, day: "Thursday",  time: "08:30 - 09:20", subject: "Mathematics", className: "Form 3A", room: "Block B - Rm 12", notes: "" },
   ]);
 
   const filteredTimetable = myTimetable.filter(item => item.day === selectedDay);
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-app-text" style={{ fontFamily: "'Playfair Display', serif" }}>
-            My Timetable
-          </h2>
-          <p className="text-app-text/60">Mr. Martin Khumbata • Mathematics & Physics Teacher</p>
+          <h2 className="module-title">My Timetable</h2>
+          <p className="module-sub">Mr. Martin Khumbata · Mathematics &amp; Physics Teacher</p>
         </div>
 
-        <button className="flex items-center gap-2 px-6 py-3 border border-app-border hover:bg-app-bg rounded-2xl text-sm font-medium transition-colors">
-          <Download className="w-5 h-5" /> Download Weekly Schedule
+        <button style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "10px 20px", borderRadius: "var(--radius-md)",
+          background: "var(--surface)", border: "1px solid var(--border-color)",
+          color: "var(--text-secondary)", fontSize: 13, fontWeight: 500,
+          cursor: "pointer", transition: "all var(--transition-base)",
+        }}>
+          <Download size={15} /> Download Weekly Schedule
         </button>
       </div>
 
-      {/* Day Selector */}
-      <div className="bg-app-surface rounded-3xl p-2 border border-app-border inline-flex">
+      {/* ── Day selector ── */}
+      <div className="filter-pills">
         {days.map(day => (
           <button
             key={day}
             onClick={() => setSelectedDay(day)}
-            className={`px-6 py-3 text-sm font-medium rounded-2xl transition-all ${
-              selectedDay === day 
-                ? "bg-app-primary text-white shadow-md" 
-                : "hover:bg-[#FAFAF8] text-app-text/70"
-            }`}
+            className={`filter-pill ${selectedDay === day ? "filter-pill--active" : "filter-pill--inactive"}`}
           >
             {day}
           </button>
         ))}
       </div>
 
-      {/* Timetable */}
-      <div className="bg-app-surface rounded-3xl border border-app-border overflow-hidden">
-        <div className="px-6 py-4 bg-app-bg border-b flex items-center justify-between">
-          <div className="font-semibold text-app-text">{selectedDay}'s Schedule</div>
-          <div className="text-xs text-app-text/50">
-            {filteredTimetable.length} period{filteredTimetable.length !== 1 ? 's' : ''}
+      {/* ── Timetable ── */}
+      <div className="cc">
+        <div className="cc__head">
+          <div className="cc__head-left">
+            <Calendar width={18} height={18} />
+            <h3>{selectedDay}'s Schedule</h3>
           </div>
+          <span className="module-sub" style={{ margin: 0 }}>
+            {filteredTimetable.length} period{filteredTimetable.length !== 1 ? "s" : ""}
+          </span>
         </div>
 
-        {filteredTimetable.length > 0 ? (
-          <div className="divide-y">
-            {filteredTimetable.map((entry) => (
-              <div key={entry.id} className="p-6 hover:bg-[#FAFAF8] transition-colors flex flex-col md:flex-row md:items-center gap-6">
-                <div className="flex-shrink-0">
-                  <div className="flex items-center gap-3">
-                    <Clock className="w-5 h-5 text-app-text/60" />
-                    <div className="font-mono text-lg font-semibold text-app-text">{entry.time}</div>
-                  </div>
+        <div className="cc__body" style={{ padding: 0 }}>
+          {filteredTimetable.length > 0 ? (
+            filteredTimetable.map((entry) => (
+              <div key={entry.id} className="cc-row" style={{ alignItems: "flex-start" }}>
+                <div style={{
+                  width: 56, borderRadius: "var(--radius-md)", background: "var(--primary-pale)",
+                  border: "1px solid var(--border-color)", display: "flex", flexDirection: "column",
+                  alignItems: "center", justifyContent: "center", padding: "10px 4px", minHeight: 62, flexShrink: 0,
+                }}>
+                  <Clock size={14} style={{ color: "var(--primary-light)" }} />
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, marginTop: 4, color: "var(--primary-light)", fontWeight: 700 }}>
+                    {entry.time.split(" - ")[0]}
+                  </span>
+                  <span style={{ fontSize: 9, color: "var(--primary-light)", opacity: 0.7 }}>
+                    {entry.time.split(" - ")[1]}
+                  </span>
                 </div>
 
-                <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-xs text-app-text/60">CLASS</p>
-                    <p className="font-medium">{entry.className}</p>
+                <div className="cc-row__info">
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <span className="badge badge--blue">{entry.className}</span>
+                    <span className="badge badge--teal">{entry.subject}</span>
                   </div>
-                  <div>
-                    <p className="text-xs text-app-text/60">SUBJECT</p>
-                    <p className="font-medium text-app-text">{entry.subject}</p>
+
+                  <div className="cc-row__name" style={{ fontSize: 14, fontFamily: "var(--font-display)", letterSpacing: "0.3px" }}>
+                    {entry.room}
                   </div>
-                  <div>
-                    <p className="text-xs text-app-text/60">ROOM</p>
-                    <p className="font-medium font-mono">{entry.room}</p>
-                  </div>
+
+                  {entry.notes && (
+                    <p className="cc-row__meta" style={{ whiteSpace: "normal", marginTop: 4, lineHeight: 1.55, maxWidth: 480 }}>
+                      {entry.notes}
+                    </p>
+                  )}
                 </div>
 
-                {entry.notes && (
-                  <div className="md:w-64 text-sm text-app-text/70 italic">
-                    {entry.notes}
-                  </div>
-                )}
-
-                <div className="flex gap-2 md:ml-auto">
-                  <button className="p-3 hover:bg-blue-50 text-blue-600 rounded-2xl transition-colors">
-                    <Eye className="w-4 h-4" />
-                  </button>
-                  <button className="p-3 hover:bg-amber-50 text-amber-600 rounded-2xl transition-colors">
-                    <Edit2 className="w-4 h-4" />
-                  </button>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0, marginTop: 2 }}>
+                  <button style={iconBtnStyle} title="View"><Eye size={14} /></button>
+                  <button style={iconBtnStyle} title="Edit"><Edit2 size={14} /></button>
                 </div>
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="py-20 text-center text-app-text/50">
-            No classes scheduled for {selectedDay}.
-          </div>
-        )}
+            ))
+          ) : (
+            <div className="empty-state">
+              <div className="empty-state__icon"><Calendar size={22} /></div>
+              <div className="empty-state__title">No classes scheduled</div>
+              <p className="empty-state__sub">Nothing on your timetable for {selectedDay}.</p>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="text-center text-xs text-app-text/50">
+      <p className="module-sub" style={{ textAlign: "center" }}>
         This is your personal teaching schedule. Changes should be requested through the School Administrator.
-      </div>
+      </p>
     </div>
   );
 }

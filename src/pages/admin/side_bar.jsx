@@ -45,7 +45,6 @@ export default function HeadTeacherSidebar({
   navItems,
   navSectionLabel = "School Leadership",
   portalLabel = "Admin Portal",
-  roleName = "System Admin",
   schoolName = "Your School",
   schoolDistrict = "",
   schoolCode = "",
@@ -200,7 +199,6 @@ export default function HeadTeacherSidebar({
           flexWrap: "wrap",
           flexShrink: 0,
         }}>
-          <span style={{ color: "var(--primary-light)" }}>{roleName}</span>
           <span style={{ color: "var(--text-muted)" }}>·</span>
           <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>{schoolName}</span>
           {schoolDistrict && (

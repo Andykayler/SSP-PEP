@@ -10,10 +10,6 @@ import {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function Spinner({ size = 20 }) {
-  return <Loader2 size={size} className="animate-spin text-app-text/40 inline-block" />;
-}
-
 function initials(name = "") {
   return name
     .split(" ")
@@ -27,9 +23,43 @@ function fullName(s) {
   return s.fullName || `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() || "—";
 }
 
+// ─── shared inline style helpers ──────────────────────────────────────────────
+const iconBtnStyle = {
+  display: "flex", alignItems: "center", justifyContent: "center",
+  width: 34, height: 34, padding: 0, background: "var(--surface)",
+  border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)",
+  color: "var(--text-muted)", cursor: "pointer", flexShrink: 0,
+  transition: "all var(--transition-base)",
+};
+
+const inputStyle = {
+  padding: "11px 14px", borderRadius: "var(--radius-md)",
+  border: "1px solid var(--border-color)", background: "var(--input-bg)",
+  color: "var(--text-primary)", fontSize: 13, outline: "none",
+  fontFamily: "var(--font-body)", boxSizing: "border-box",
+};
+
+const labelStyle = {
+  fontFamily: "var(--font-mono)", fontSize: 9.5, letterSpacing: "1.5px",
+  color: "var(--text-muted)", textTransform: "uppercase",
+  marginBottom: 6, display: "block", fontWeight: 600,
+};
+
+function Spinner({ size = 20 }) {
+  return <Loader2 size={size} style={{ animation: "spin 0.65s linear infinite", color: "var(--text-muted)" }} />;
+}
+
+const avatarStyle = (isFemale) => ({
+  width: 36, height: 36, borderRadius: "var(--radius-md)", flexShrink: 0,
+  display: "flex", alignItems: "center", justifyContent: "center",
+  fontSize: 12, fontWeight: 700,
+  background: isFemale ? "rgba(219,39,119,0.10)" : "var(--primary-pale)",
+  color: isFemale ? "#be185d" : "var(--primary-light)",
+});
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function Studentmodule({ userId, schoolCode }) {
+export default function StudentModule({ userId, schoolCode }) {
   const [students,      setStudents]      = useState([]);
   const [classes,       setClasses]       = useState([]);
   const [filterClassId, setFilterClassId] = useState("");
@@ -37,7 +67,6 @@ export default function Studentmodule({ userId, schoolCode }) {
   const [viewStudent,   setViewStudent]   = useState(null);
   const [error,         setError]         = useState("");
 
-  // Unified loading state — true until BOTH classes and students are resolved
   const [classesReady,  setClassesReady]  = useState(false);
   const [studentsReady, setStudentsReady] = useState(false);
   const isLoading    = !classesReady || !studentsReady;
@@ -46,17 +75,15 @@ export default function Studentmodule({ userId, schoolCode }) {
   // ── Step 1 & 2: Load teacher's classes (user doc → resolve names → docs) ──
   useEffect(() => {
     if (!userId || !schoolCode) return;
-
     let cancelled = false;
 
     (async () => {
       setClassesReady(false);
-      setStudentsReady(false); // reset students too; we'll refetch once classId is set
+      setStudentsReady(false);
       setClasses([]);
       setError("");
 
       try {
-        // 1a. Fetch assigned class names from user profile
         const userSnap = await getDoc(doc(db, "users", userId));
         if (cancelled) return;
 
@@ -67,11 +94,10 @@ export default function Studentmodule({ userId, schoolCode }) {
         if (assignedNames.length === 0) {
           setClasses([]);
           setClassesReady(true);
-          setStudentsReady(true); // nothing to fetch
+          setStudentsReady(true);
           return;
         }
 
-        // 1b. Resolve names → school_classes documents
         const snap = await getDocs(
           query(collection(db, "school_classes"), where("schoolCode", "==", schoolCode))
         );
@@ -84,11 +110,9 @@ export default function Studentmodule({ userId, schoolCode }) {
         setClasses(myClasses);
         setClassesReady(true);
 
-        // Set default selected class (triggers student fetch via separate effect)
         if (myClasses.length > 0) {
           setFilterClassId(myClasses[0].id);
         } else {
-          // No matching classes — nothing more to load
           setStudentsReady(true);
         }
       } catch (err) {
@@ -171,16 +195,11 @@ export default function Studentmodule({ userId, schoolCode }) {
   return (
     <div className="space-y-6">
 
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2
-            className="text-3xl font-bold text-app-text"
-            style={{ fontFamily: "'Playfair Display', serif" }}
-          >
-            My Students
-          </h2>
-          <p className="text-app-text/60 mt-1">
+          <h2 className="module-title">My Students</h2>
+          <p className="module-sub">
             {isLoading
               ? "Loading your assignments…"
               : noAssignment
@@ -188,274 +207,276 @@ export default function Studentmodule({ userId, schoolCode }) {
               : `${classes.map((c) => c.name).join(" · ")} · ${filtered.length} student${filtered.length !== 1 ? "s" : ""} shown`}
           </p>
         </div>
-
         <div className="flex items-center gap-2">
-          <button
-            onClick={fetchStudents}
-            disabled={isLoading}
-            className="p-2.5 bg-app-surface border border-app-border rounded-xl hover:bg-app-bg transition-colors text-app-text/60 disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Refresh"
-          >
+          <button onClick={fetchStudents} disabled={isLoading} style={{ ...iconBtnStyle, opacity: isLoading ? 0.4 : 1 }} title="Refresh">
             <RefreshCw size={16} />
           </button>
-        
         </div>
       </div>
 
-      {/* ── No assignments warning ─────────────────────────────────────────── */}
       {noAssignment && (
-        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl text-sm">
-          <AlertCircle size={16} className="shrink-0 mt-0.5" />
-          No classes have been assigned to you yet. Ask your head teacher to assign
-          classes from the Staff Management page.
+        <div className="alert alert--warning">
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+          No classes have been assigned to you yet. Ask your head teacher to assign classes from the Staff Management page.
         </div>
       )}
 
-      {/* ── Error ─────────────────────────────────────────────────────────── */}
       {error && (
-        <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl text-sm">
-          <AlertCircle size={16} className="shrink-0 mt-0.5" />
+        <div className="alert alert--error">
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
           {error}
         </div>
       )}
 
-      {/* ── Filters (only shown when classes exist) ────────────────────────── */}
+      {/* ── Filters ── */}
       {!noAssignment && (
-        <div className="bg-app-surface rounded-3xl p-5 border border-app-border flex flex-col md:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1 relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-app-text/40 w-4 h-4" />
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="search-wrap" style={{ flex: 1 }}>
+            <Search size={14} className="search-wrap__icon" />
             <input
               type="text"
               placeholder="Search by name or student code…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-4 py-3 bg-[#FAFAF8] border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/30"
+              className="search-wrap__input"
             />
           </div>
 
-          {/* Class selector */}
-          <div className="relative">
+          <div style={{ position: "relative", flexShrink: 0, minWidth: 160 }}>
             <select
               value={filterClassId}
               onChange={(e) => setFilterClassId(e.target.value)}
               disabled={isLoading || classes.length === 0}
-              className="appearance-none pl-4 pr-10 py-3 bg-app-surface border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text min-w-[160px] disabled:opacity-50"
+              style={{ ...inputStyle, appearance: "none", paddingRight: 32, width: "100%", opacity: (isLoading || classes.length === 0) ? 0.5 : 1 }}
             >
               {classes.length === 0 && <option value="">No classes</option>}
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
+              {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
+            <ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
           </div>
 
-          {/* Export */}
           <button
             onClick={handleExport}
             disabled={filtered.length === 0 || isLoading}
-            className="flex items-center gap-2 px-5 py-3 border border-app-border hover:border-[#0F2044] rounded-2xl text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
+              padding: "0 20px", borderRadius: "var(--radius-md)",
+              border: "1px solid var(--border-color)", background: "var(--surface)",
+              color: "var(--text-secondary)", fontSize: 13, fontWeight: 500,
+              cursor: (filtered.length === 0 || isLoading) ? "not-allowed" : "pointer",
+              opacity: (filtered.length === 0 || isLoading) ? 0.4 : 1,
+              transition: "all var(--transition-base)",
+            }}
           >
             <Download size={15} /> Export CSV
           </button>
         </div>
       )}
 
-      {/* ── Table ─────────────────────────────────────────────────────────── */}
-      <div className="bg-app-surface rounded-3xl border border-app-border overflow-hidden">
+      {/* ── Table ── */}
+      <div className="cc">
         {isLoading ? (
-          <div className="py-24 flex flex-col items-center gap-3 text-app-text/40">
-            <Spinner size={28} />
-            <p className="text-sm">Loading students…</p>
+          <div style={{ padding: "56px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+            <div className="spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
+            <p className="module-sub">Loading students…</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="py-24 flex flex-col items-center gap-3 text-app-text/30">
-            <Users size={36} />
-            <p className="text-sm font-medium text-app-text/40">
+          <div className="empty-state">
+            <div className="empty-state__icon"><Users size={22} /></div>
+            <div className="empty-state__title">
+              {students.length === 0 ? "No students enrolled" : "No matches"}
+            </div>
+            <p className="empty-state__sub">
               {students.length === 0
                 ? `No students enrolled in ${selectedClass?.name || "this class"} yet.`
                 : "No students match your search."}
             </p>
           </div>
         ) : (
-          <div className="data-table-wrap">
-<table className="data-table data-table--stack">
-            <thead className="bg-app-bg border-b border-app-border">
-              <tr>
-                {[
-                  ["Student",      "text-left",   ""],
-                  ["Student Code", "text-left",   "hidden md:table-cell"],
-                  ["Gender",       "text-center", "hidden sm:table-cell"],
-                  ["Guardian",     "text-left",   "hidden lg:table-cell"],
-                  ["Status",       "text-center", "hidden lg:table-cell"],
-                  ["Actions",      "text-center", ""],
-                ].map(([label, align, hidden]) => (
-                  <th
-                    key={label}
-                    className={`px-6 py-4 ${align} text-[10px] font-bold tracking-widest uppercase text-app-text/40 ${hidden}`}
-                  >
-                    {label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#0F2044]/5">
-              {filtered.map((student) => {
-                const name      = fullName(student);
-                const isFemale  = student.gender === "Female";
-                const suspended = student.status === "suspended";
+          <div className="cc__body" style={{ padding: 0, overflowX: "auto" }}>
+            <table className="data-table data-table--stack" style={{ width: "100%" }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left", padding: "12px 20px" }}>Student</th>
+                  <th style={{ textAlign: "left", padding: "12px" }} className="hidden md:table-cell">Student Code</th>
+                  <th style={{ textAlign: "center", padding: "12px" }} className="hidden sm:table-cell">Gender</th>
+                  <th style={{ textAlign: "left", padding: "12px" }} className="hidden lg:table-cell">Guardian</th>
+                  <th style={{ textAlign: "center", padding: "12px" }} className="hidden lg:table-cell">Status</th>
+                  <th style={{ textAlign: "center", padding: "12px" }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((student) => {
+                  const name      = fullName(student);
+                  const isFemale  = student.gender === "Female";
+                  const suspended = student.status === "suspended";
 
-                return (
-                  <tr key={student.id} className="hover:bg-[#FAFAF8] transition-colors">
-                    {/* Name + avatar */}
-                    <td className="px-6 py-4" data-label="Field">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${isFemale ? "bg-pink-100 text-pink-700" : "bg-blue-100 text-blue-700"}`}>
-                          {initials(name)}
+                  return (
+                    <tr key={student.id}>
+                      <td style={{ padding: "12px 20px" }} data-label="Student">
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div style={avatarStyle(isFemale)}>{initials(name)}</div>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{name}</div>
+                            <div style={{ fontSize: 10.5, color: "var(--text-muted)" }}>{student.dob || "—"}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="text-sm font-semibold text-app-text">{name}</div>
-                          <div className="text-xs text-app-text/40">{student.dob || "—"}</div>
+                      </td>
+
+                      <td style={{ padding: 12 }} className="hidden md:table-cell" data-label="Student Code">
+                        <span style={{
+                          fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700,
+                          color: "var(--text-secondary)", background: "var(--surface)",
+                          padding: "4px 10px", borderRadius: "var(--radius-md)",
+                          border: "1px solid var(--border-color)", letterSpacing: "0.5px",
+                        }}>
+                          {student.studentCode}
+                        </span>
+                      </td>
+
+                      <td style={{ padding: 12, textAlign: "center" }} className="hidden sm:table-cell" data-label="Gender">
+                        <span style={{
+                          fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: "var(--radius-md)",
+                          background: isFemale ? "rgba(219,39,119,0.08)" : "var(--primary-pale)",
+                          color: isFemale ? "#be185d" : "var(--primary-light)",
+                        }}>
+                          {student.gender || "—"}
+                        </span>
+                      </td>
+
+                      <td style={{ padding: 12 }} className="hidden lg:table-cell" data-label="Guardian">
+                        <div style={{ fontSize: 11.5, color: "var(--text-secondary)", fontWeight: 500 }}>{student.guardianName || "—"}</div>
+                        <div style={{ fontSize: 10.5, color: "var(--text-muted)" }}>{student.guardianPhone || ""}</div>
+                      </td>
+
+                      <td style={{ padding: 12, textAlign: "center" }} className="hidden lg:table-cell" data-label="Status">
+                        <span className="status-pill" style={suspended
+                          ? { background: "var(--danger-pale)", color: "var(--danger-light)", border: "1px solid rgba(239,68,68,0.2)" }
+                          : { background: "var(--success-pale)", color: "var(--success-light)", border: "1px solid rgba(34,197,94,0.22)" }}>
+                          <span className="status-pill__dot" /> {suspended ? "Suspended" : "Active"}
+                        </span>
+                      </td>
+
+                      <td style={{ padding: 12, textAlign: "center" }} data-label="Actions">
+                        <div style={{ display: "flex", justifyContent: "center", gap: 6 }}>
+                          <button
+                            onClick={() => setViewStudent(student)}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 500,
+                              background: "var(--primary-pale)", color: "var(--primary-light)",
+                              padding: "7px 12px", borderRadius: "var(--radius-md)", border: "none", cursor: "pointer",
+                              transition: "all var(--transition-base)",
+                            }}
+                          >
+                            <TrendingUp size={13} /> View
+                          </button>
+                          <button
+                            title="Marks — see Performance"
+                            style={{
+                              display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 500,
+                              background: "var(--warning-pale)", color: "var(--warning-light)",
+                              padding: "7px 12px", borderRadius: "var(--radius-md)", border: "none", cursor: "pointer",
+                              transition: "all var(--transition-base)",
+                            }}
+                          >
+                            <Award size={13} /> Marks
+                          </button>
                         </div>
-                      </div>
-                    </td>
-
-                    {/* Student code */}
-                    <td className="px-6 py-4 hidden md:table-cell" data-label="Field">
-                      <span className="font-mono text-xs font-bold text-app-text/70 bg-app-bg px-2.5 py-1 rounded-lg border border-app-border tracking-widest">
-                        {student.studentCode}
-                      </span>
-                    </td>
-
-                    {/* Gender */}
-                    <td className="px-6 py-4 text-center hidden sm:table-cell" data-label="Field">
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-lg ${isFemale ? "bg-pink-50 text-pink-700" : "bg-blue-50 text-blue-700"}`}>
-                        {student.gender || "—"}
-                      </span>
-                    </td>
-
-                    {/* Guardian */}
-                    <td className="px-6 py-4 hidden lg:table-cell" data-label="Field">
-                      <div className="text-xs text-app-text/70 font-medium">{student.guardianName || "—"}</div>
-                      <div className="text-xs text-app-text/40">{student.guardianPhone || ""}</div>
-                    </td>
-
-                    {/* Status */}
-                    <td className="px-6 py-4 text-center hidden lg:table-cell" data-label="Field">
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${suspended ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
-                        {suspended ? "Suspended" : "Active"}
-                      </span>
-                    </td>
-
-                    {/* Actions */}
-                    <td className="px-6 py-4" data-label="Field">
-                      <div className="flex justify-center gap-2">
-                        <button
-                          onClick={() => setViewStudent(student)}
-                          className="flex items-center gap-1 text-xs bg-app-primary/5 hover:bg-app-primary/10 text-app-text/70 hover:text-app-text px-3 py-2 rounded-xl transition-colors"
-                        >
-                          <TrendingUp size={13} /> View
-                        </button>
-                        <button
-                          className="flex items-center gap-1 text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 px-3 py-2 rounded-xl transition-colors"
-                          title="Marks — coming soon"
-                        >
-                          <Award size={13} /> Marks
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-</div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
-      <p className="text-center text-xs text-app-text/40 pt-1">
-        Showing students enrolled in your assigned classes only. To enrol or transfer
-        a student, contact the School Administrator.
+      <p className="module-sub" style={{ textAlign: "center" }}>
+        Showing students enrolled in your assigned classes only. To enrol or transfer a student, contact the School Administrator.
       </p>
 
-      {/* ── Student detail modal ───────────────────────────────────────────── */}
+      {/* ── Student detail modal ── */}
       {viewStudent && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+            backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 16,
+          }}
           onClick={(e) => e.target === e.currentTarget && setViewStudent(null)}
         >
-          <div className="bg-app-surface rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
-            {/* Modal header */}
-            <div className="bg-app-primary px-7 py-5 flex items-start justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-bold ${viewStudent.gender === "Female" ? "bg-pink-200 text-pink-800" : "bg-blue-200 text-blue-800"}`}>
+          <div style={{
+            background: "var(--card-bg)", borderRadius: "var(--radius-xl)",
+            width: "100%", maxWidth: 460, overflow: "hidden",
+            boxShadow: "var(--shadow-lg)", border: "1px solid var(--border-strong)",
+          }}>
+            {/* Header */}
+            <div style={{ background: "var(--hero-bg)", padding: "20px 26px", borderBottom: "1px solid var(--border-strong)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ ...avatarStyle(viewStudent.gender === "Female"), width: 46, height: 46, fontSize: 14 }}>
                   {initials(fullName(viewStudent))}
                 </div>
                 <div>
-                  <h3 className="text-white font-bold text-lg leading-tight">
+                  <h3 style={{ fontFamily: "var(--font-display)", fontSize: "1.1rem", color: "var(--text-primary)", lineHeight: 1.3 }}>
                     {fullName(viewStudent)}
                   </h3>
-                  <p className="text-white/50 text-xs mt-0.5">
+                  <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>
                     {viewStudent.className} · {viewStudent.gender}
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setViewStudent(null)}
-                className="text-white/50 hover:text-white transition-colors p-1"
-              >
-                <X size={20} />
+              <button onClick={() => setViewStudent(null)} style={{ ...iconBtnStyle, background: "transparent", border: "none", flexShrink: 0 }}>
+                <X size={18} />
               </button>
             </div>
 
-            <div className="p-7 space-y-5">
-              {/* Student code + status */}
-              <div className="flex items-center justify-between p-4 bg-app-bg rounded-2xl border border-app-border">
+            <div style={{ padding: 26, display: "flex", flexDirection: "column", gap: 18 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 16, background: "var(--surface)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)" }}>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40 mb-1">
-                    Student Code
-                  </p>
-                  <span className="font-mono text-sm font-bold text-app-text tracking-widest">
+                  <p style={labelStyle}>Student Code</p>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "0.5px" }}>
                     {viewStudent.studentCode}
                   </span>
                 </div>
-                <span className={`text-xs font-semibold px-3 py-1.5 rounded-xl ${viewStudent.status === "suspended" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
-                  {viewStudent.status === "suspended" ? "Suspended" : "Active"}
+                <span className="status-pill" style={viewStudent.status === "suspended"
+                  ? { background: "var(--danger-pale)", color: "var(--danger-light)", border: "1px solid rgba(239,68,68,0.2)" }
+                  : { background: "var(--success-pale)", color: "var(--success-light)", border: "1px solid rgba(34,197,94,0.22)" }}>
+                  <span className="status-pill__dot" /> {viewStudent.status === "suspended" ? "Suspended" : "Active"}
                 </span>
               </div>
 
-              {/* Details grid */}
-              <div className="grid grid-cols-2 gap-px bg-app-primary/5 rounded-2xl overflow-hidden text-sm">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, background: "var(--primary-dim)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
                 {[
                   ["Date of Birth", viewStudent.dob        || "—"],
                   ["District",      viewStudent.district   || "—"],
                   ["Village",       viewStudent.village    || "—"],
                   ["National ID",   viewStudent.nationalId || "—"],
                 ].map(([k, v]) => (
-                  <div key={k} className="bg-app-surface px-4 py-3">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-app-text/40 mb-0.5">{k}</p>
-                    <p className="font-medium text-app-text">{v}</p>
+                  <div key={k} style={{ background: "var(--card-bg)", padding: "12px 16px" }}>
+                    <p style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px", color: "var(--text-muted)", marginBottom: 2, fontFamily: "var(--font-mono)" }}>{k}</p>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)" }}>{v}</p>
                   </div>
                 ))}
               </div>
 
-              {/* Guardian */}
-              <div className="p-4 bg-app-bg rounded-2xl border border-app-border space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40">
-                  Guardian / Parent
-                </p>
-                <p className="text-sm font-semibold text-app-text">
-                  {viewStudent.guardianName || "—"}
-                </p>
-                <p className="text-xs text-app-text/50">
+              <div style={{ padding: 16, background: "var(--surface)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)" }}>
+                <p style={labelStyle}>Guardian / Parent</p>
+                <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{viewStudent.guardianName || "—"}</p>
+                <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>
                   {viewStudent.guardianRelation || "Parent/Guardian"} · {viewStudent.guardianPhone || "—"}
                 </p>
               </div>
 
-              <div className="flex justify-end pt-1">
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
                 <button
                   onClick={() => setViewStudent(null)}
-                  className="px-6 py-2.5 border border-app-border rounded-xl hover:bg-app-bg text-sm font-medium transition-colors text-app-text/70"
+                  style={{
+                    padding: "10px 24px", borderRadius: "var(--radius-md)",
+                    background: "var(--bg-primary)", border: "1px solid var(--border-color)",
+                    color: "var(--text-secondary)", fontSize: 13, fontWeight: 500, cursor: "pointer",
+                    transition: "all var(--transition-base)",
+                  }}
                 >
                   Close
                 </button>

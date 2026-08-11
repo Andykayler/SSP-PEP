@@ -1,8 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { auth, db } from "../../firebase";
-import { doc, getDoc } from "firebase/firestore";
+import {
+  doc, getDoc, getDocs, collection, query, where,
+} from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
-import { Users, BookOpen, Calendar, Award, TrendingUp, AlertTriangle, Home, FileText } from "lucide-react";
+import {
+  Users, BookOpen, Calendar, Award, TrendingUp, AlertTriangle,
+  Home, FileText, CheckCircle, Clock,
+} from "lucide-react";
 
 import DashboardShell from "../../components/DashboardShell";
 import Studentmodule from "./modules/student";
@@ -14,12 +19,35 @@ import PerformanceModule from "./modules/PerformanceModule";
 import HomeworkModule from "./modules/homework";
 import "../admin/admin_dashboard.css";
 
-const teacherStats = [
-  { label: "My Students", value: "187", change: "+3", variant: "" },
-  { label: "Classes Taught", value: "6", change: "Active", variant: "teal" },
-  { label: "Today's Attendance", value: "92%", change: "-2%", variant: "gold" },
-  { label: "Pending Marks", value: "3", change: "Classes", variant: "" },
+// Keep this in sync with the term shown in PerformanceModule's TERMS list
+// and used to build the ca_marks document id (schoolCode_classId_term_userId).
+const CURRENT_TERM = "Term 2 2026";
+
+// Mirrors the period table used in ClassModule / lesson plan modules,
+// just enough to render start/end times on the dashboard schedule.
+const PERIODS = [
+  { number: 1, start: "07:30", end: "08:20" },
+  { number: 2, start: "08:30", end: "09:20" },
+  { number: 3, start: "09:30", end: "10:20" },
+  { number: 4, start: "10:30", end: "11:20" },
+  { number: 5, start: "11:30", end: "12:20" },
+  { number: 6, start: "13:00", end: "13:50" },
+  { number: 7, start: "14:00", end: "14:50" },
+  { number: 8, start: "15:00", end: "15:50" },
 ];
+function periodTime(num) {
+  const p = PERIODS.find((x) => x.number === Number(num));
+  return p ? `${p.start}` : "—";
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function greeting() {
+  const h = new Date().getHours();
+  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+}
 
 const quickActions = [
   { label: "Take Attendance", icon: <TrendingUp width={22} height={22} />, tab: "attendance", variant: "teal" },
@@ -28,17 +56,31 @@ const quickActions = [
   { label: "View Timetable", icon: <Calendar width={22} height={22} />, tab: "timetable", variant: "navy" },
 ];
 
-function greeting() {
-  const h = new Date().getHours();
-  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
-}
-
 export default function TeacherDashboard() {
   const [currentTab, setCurrentTab] = useState("overview");
   const [userId, setUserId] = useState(null);
   const [schoolCode, setSchoolCode] = useState(null);
   const [profile, setProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+
+  // ── Assigned classes (resolved to school_classes docs) ─────────────────────
+  const [classes, setClasses] = useState([]);
+  const [classesReady, setClassesReady] = useState(false);
+
+  // ── Aggregated overview data pulled from the real modules' collections ─────
+  const [overview, setOverview] = useState({
+    totalStudents: 0,
+    presentCount: 0,
+    markedCount: 0,
+    classesTaken: 0,
+    pendingMarksClasses: [],
+    disciplinePendingCount: 0,
+    overdueHomeworkCount: 0,
+    upcomingHomework: [],
+    todayPlans: [],
+  });
+  const [overviewReady, setOverviewReady] = useState(false);
+  const [overviewError, setOverviewError] = useState("");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -63,6 +105,207 @@ export default function TeacherDashboard() {
     return unsub;
   }, []);
 
+  // ── Resolve assignedClasses (names) → school_classes docs ───────────────────
+  useEffect(() => {
+    if (!schoolCode || !profile) return;
+    let cancelled = false;
+
+    (async () => {
+      setClassesReady(false);
+      try {
+        const assignedNames = profile.assignedClasses || [];
+        if (assignedNames.length === 0) {
+          if (!cancelled) {
+            setClasses([]);
+            setClassesReady(true);
+          }
+          return;
+        }
+        const snap = await getDocs(
+          query(collection(db, "school_classes"), where("schoolCode", "==", schoolCode))
+        );
+        if (cancelled) return;
+        const myClasses = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((c) => assignedNames.includes(c.name));
+        setClasses(myClasses);
+        setClassesReady(true);
+      } catch (err) {
+        console.error("Failed to load class assignments:", err);
+        if (!cancelled) setClassesReady(true);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [schoolCode, profile]);
+
+  // ── Pull real numbers for the overview from students / attendance /
+  //    ca_marks / discipline_cases / homework / lesson_plans ─────────────────
+  useEffect(() => {
+    if (!classesReady) return;
+    if (!userId || !schoolCode || classes.length === 0) {
+      setOverviewReady(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      setOverviewReady(false);
+      setOverviewError("");
+      const today = todayISO();
+      const classIds = classes.map((c) => c.id);
+      const termKey = CURRENT_TERM.replace(/\s+/g, "_");
+      const failedSections = [];
+
+      // Each section below is fetched and caught independently. That way a
+      // permission error on one collection (e.g. a ca_marks doc that hasn't
+      // been created yet) can't wipe out data we already successfully loaded
+      // from another collection, such as the student counts.
+
+      // 1. Students enrolled across all my classes
+      let totalStudents = 0;
+      try {
+        const studentSnaps = await Promise.all(
+          classIds.map((id) =>
+            getDocs(query(
+              collection(db, "students"),
+              where("schoolCode", "==", schoolCode),
+              where("classId", "==", id)
+            ))
+          )
+        );
+        totalStudents = studentSnaps.reduce((sum, s) => sum + s.size, 0);
+      } catch (err) {
+        console.error("overview: failed to load students:", err);
+        failedSections.push("students");
+      }
+
+      // 2. Today's attendance per class
+      let presentCount = 0, markedCount = 0, classesTaken = 0;
+      try {
+        const attendanceSnaps = await Promise.all(
+          classIds.map((id) => getDoc(doc(db, "attendance", `${schoolCode}_${id}_${today}`)))
+        );
+        attendanceSnaps.forEach((snap) => {
+          if (snap.exists()) {
+            classesTaken += 1;
+            const records = snap.data().records || {};
+            Object.values(records).forEach((r) => {
+              if (r?.status) {
+                markedCount += 1;
+                if (r.status === "Present" || r.status === "Late") presentCount += 1;
+              }
+            });
+          }
+        });
+      } catch (err) {
+        console.error("overview: failed to load attendance:", err);
+        failedSections.push("attendance");
+      }
+
+      // 3. CA marks entered for the current term, per class
+      // Note: getDoc() on a ca_marks doc that doesn't exist yet (no marks
+      // saved for that class/term) requires the Firestore rule to explicitly
+      // allow reads when resource == null — otherwise every class without
+      // marks yet throws "Missing or insufficient permissions" here.
+      let pendingMarksClasses = [];
+      try {
+        const marksSnaps = await Promise.all(
+          classIds.map((id) =>
+            getDoc(doc(db, "ca_marks", `${schoolCode}_${id}_${termKey}_${userId}`))
+          )
+        );
+        pendingMarksClasses = classes.filter((c, i) => {
+          const snap = marksSnaps[i];
+          return !snap.exists() || Object.keys(snap.data()?.marks || {}).length === 0;
+        });
+      } catch (err) {
+        console.error("overview: failed to load ca_marks:", err);
+        failedSections.push("marks");
+      }
+
+      // 4. Discipline cases this teacher logged that are still pending review
+      let disciplinePendingCount = 0;
+      try {
+        const discSnap = await getDocs(
+          query(
+            collection(db, "discipline_cases"),
+            where("schoolCode", "==", schoolCode),
+            where("reportedByUid", "==", userId),
+            where("status", "==", "Pending Review")
+          )
+        );
+        disciplinePendingCount = discSnap.size;
+      } catch (err) {
+        console.error("overview: failed to load discipline cases:", err);
+        failedSections.push("discipline");
+      }
+
+      // 5. Homework — overdue with unfinished submissions + upcoming deadlines
+      let overdueHomeworkCount = 0;
+      let upcomingHomework = [];
+      try {
+        const hwSnap = await getDocs(
+          query(
+            collection(db, "homework"),
+            where("teacherId", "==", userId),
+            where("schoolCode", "==", schoolCode)
+          )
+        );
+        const hwList = hwSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        overdueHomeworkCount = hwList.filter(
+          (h) => h.dueDate < today && (h.submitted || 0) < (h.totalStudents || 0)
+        ).length;
+        upcomingHomework = hwList
+          .filter((h) => h.dueDate >= today)
+          .sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""))
+          .slice(0, 3);
+      } catch (err) {
+        console.error("overview: failed to load homework:", err);
+        failedSections.push("homework");
+      }
+
+      // 6. Today's lesson plans, in period order
+      let todayPlans = [];
+      try {
+        const lpSnap = await getDocs(
+          query(
+            collection(db, "lesson_plans"),
+            where("teacherId", "==", userId),
+            where("schoolCode", "==", schoolCode),
+            where("date", "==", today)
+          )
+        );
+        todayPlans = lpSnap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (a.periodNumber || 0) - (b.periodNumber || 0));
+      } catch (err) {
+        console.error("overview: failed to load lesson plans:", err);
+        failedSections.push("schedule");
+      }
+
+      if (cancelled) return;
+      setOverview({
+        totalStudents,
+        presentCount,
+        markedCount,
+        classesTaken,
+        pendingMarksClasses,
+        disciplinePendingCount,
+        overdueHomeworkCount,
+        upcomingHomework,
+        todayPlans,
+      });
+      if (failedSections.length > 0) {
+        setOverviewError(`Some dashboard data couldn't be loaded (${failedSections.join(", ")}).`);
+      }
+      setOverviewReady(true);
+    })();
+
+    return () => { cancelled = true; };
+  }, [classesReady, classes, userId, schoolCode]);
+
   const moduleProps = { userId, schoolCode };
   const displayName = profile?.name || profile?.displayName || "Teacher";
   const displayRole = profile?.role === "head_teacher" ? "Head Teacher" : "Class Teacher";
@@ -79,6 +322,78 @@ export default function TeacherDashboard() {
   ];
 
   const currentNavItem = navItems.find((item) => item.id === currentTab);
+
+  // ── Derived, display-ready stat cards ───────────────────────────────────────
+  const statsLoading = authLoading || !classesReady || !overviewReady;
+
+  const attendancePct = overview.markedCount > 0
+    ? Math.round((overview.presentCount / overview.markedCount) * 100)
+    : null;
+
+  const teacherStats = useMemo(() => ([
+    {
+      label: "My Students",
+      value: statsLoading ? "…" : String(overview.totalStudents),
+      change: statsLoading ? "" : `${classes.length} class${classes.length !== 1 ? "es" : ""}`,
+      variant: "",
+    },
+    {
+      label: "Classes Taught",
+      value: statsLoading ? "…" : String(classes.length),
+      change: "Active",
+      variant: "teal",
+    },
+    {
+      label: "Today's Attendance",
+      value: statsLoading ? "…" : (attendancePct !== null ? `${attendancePct}%` : "—"),
+      change: statsLoading ? "" : `${overview.classesTaken}/${classes.length} classes marked`,
+      variant: "gold",
+    },
+    {
+      label: "Pending Marks",
+      value: statsLoading ? "…" : String(overview.pendingMarksClasses.length),
+      change: "Classes",
+      variant: "",
+    },
+  ]), [statsLoading, overview, classes.length, attendancePct]);
+
+  // ── Pending-actions list built from real data ───────────────────────────────
+  const pendingActions = useMemo(() => {
+    if (statsLoading) return [];
+    const actions = [];
+
+    if (classes.length > 0 && overview.classesTaken < classes.length) {
+      const remaining = classes.length - overview.classesTaken;
+      actions.push({
+        type: "warning",
+        text: `Attendance not yet taken for ${remaining} of ${classes.length} class${classes.length !== 1 ? "es" : ""} today`,
+      });
+    }
+
+    if (overview.pendingMarksClasses.length > 0) {
+      const names = overview.pendingMarksClasses.map((c) => c.name).join(", ");
+      actions.push({
+        type: "warning",
+        text: `Enter ${CURRENT_TERM} marks for ${names}`,
+      });
+    }
+
+    if (overview.disciplinePendingCount > 0) {
+      actions.push({
+        type: "error",
+        text: `${overview.disciplinePendingCount} discipline case${overview.disciplinePendingCount !== 1 ? "s" : ""} awaiting review`,
+      });
+    }
+
+    if (overview.overdueHomeworkCount > 0) {
+      actions.push({
+        type: "error",
+        text: `${overview.overdueHomeworkCount} homework assignment${overview.overdueHomeworkCount !== 1 ? "s" : ""} overdue with unsubmitted work`,
+      });
+    }
+
+    return actions;
+  }, [statsLoading, classes.length, overview]);
 
   if (authLoading) {
     return (
@@ -106,7 +421,7 @@ export default function TeacherDashboard() {
       currentTab={currentTab}
       onTabChange={setCurrentTab}
       title={currentTab === "overview" ? "Teacher Dashboard" : currentNavItem?.label}
-      subtitle={`${displayRole} · Term 2 · 2026 Academic Year`}
+      subtitle={`${displayRole} · ${CURRENT_TERM} Academic Year`}
       roleLabel={displayRole}
       userName={displayName}
       schoolName={profile?.schoolName || ""}
@@ -131,6 +446,16 @@ export default function TeacherDashboard() {
               {schoolCode && <div className="overview-hero__code">{schoolCode}</div>}
             </div>
           </div>
+
+          {classes.length === 0 && classesReady && (
+            <div className="alert alert--warning">
+              No classes have been assigned to you yet. Ask your head teacher to assign classes from Staff Management.
+            </div>
+          )}
+
+          {overviewError && (
+            <div className="alert alert--error">{overviewError}</div>
+          )}
 
           <div>
             <div className="sec-eyebrow">At a glance</div>
@@ -179,24 +504,38 @@ export default function TeacherDashboard() {
                 </div>
               </div>
               <div className="cc__body">
-                {[
-                  { time: "08:00", subject: "Mathematics 3A", class: "Form 3A", status: "Completed" },
-                  { time: "09:40", subject: "Physics 4B", class: "Form 4B", status: "In Progress" },
-                  { time: "11:20", subject: "Mathematics 3B", class: "Form 3B", status: "Upcoming" },
-                ].map((lesson, i) => (
-                  <div key={i} className="cc-row">
-                    <div className="cc-row__rank" style={{ borderRadius: 8, fontFamily: "var(--font-mono)", fontSize: 10 }}>{lesson.time}</div>
-                    <div className="cc-row__info">
-                      <div className="cc-row__name">{lesson.subject}</div>
-                      <div className="cc-row__meta">{lesson.class}</div>
-                    </div>
-                    <div className="cc-row__right">
-                      <span className={`status-pill status-pill--${lesson.status === "Completed" ? "active" : "suspended"}`} style={lesson.status === "Upcoming" ? { background: "var(--warning-pale)", color: "var(--warning-light)", border: "1px solid rgba(232,168,0,0.2)" } : undefined}>
-                        {lesson.status}
-                      </span>
-                    </div>
+                {statsLoading ? (
+                  <div className="cc-row"><span className="module-sub">Loading schedule…</span></div>
+                ) : overview.todayPlans.length === 0 ? (
+                  <div className="cc-row">
+                    <span className="module-sub">No lessons scheduled for today. Add one from Class Planning.</span>
                   </div>
-                ))}
+                ) : (
+                  overview.todayPlans.map((lesson) => {
+                    const status = lesson.status === "completed" ? "Completed"
+                      : lesson.status === "in-progress" ? "In Progress"
+                      : "Upcoming";
+                    return (
+                      <div key={lesson.id} className="cc-row">
+                        <div className="cc-row__rank" style={{ borderRadius: 8, fontFamily: "var(--font-mono)", fontSize: 10 }}>
+                          {periodTime(lesson.periodNumber)}
+                        </div>
+                        <div className="cc-row__info">
+                          <div className="cc-row__name">{lesson.subject} — {lesson.topic}</div>
+                          <div className="cc-row__meta">{lesson.className}</div>
+                        </div>
+                        <div className="cc-row__right">
+                          <span
+                            className={`status-pill status-pill--${status === "Completed" ? "active" : "suspended"}`}
+                            style={status === "Upcoming" ? { background: "var(--warning-pale)", color: "var(--warning-light)", border: "1px solid rgba(232,168,0,0.2)" } : undefined}
+                          >
+                            {status}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
 
@@ -209,14 +548,50 @@ export default function TeacherDashboard() {
                   </div>
                 </div>
                 <div className="cc__body" style={{ padding: "12px 20px" }}>
-                  <div className="alert alert--warning" style={{ marginBottom: 8 }}>Enter marks for Form 3A Mid-term Test</div>
-                  <div className="alert alert--error">Submit attendance for yesterday&apos;s Physics 4B</div>
+                  {statsLoading ? (
+                    <p className="module-sub">Loading…</p>
+                  ) : pendingActions.length === 0 ? (
+                    <div className="alert alert--success" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <CheckCircle size={16} /> You&apos;re all caught up — no pending actions.
+                    </div>
+                  ) : (
+                    pendingActions.map((a, i) => (
+                      <div key={i} className={`alert alert--${a.type}`} style={{ marginBottom: i < pendingActions.length - 1 ? 8 : 0 }}>
+                        {a.text}
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
               <div className="cc">
-                <div className="cc__head"><h3>Recent Parent Messages</h3></div>
+                <div className="cc__head"><h3>Upcoming Homework</h3></div>
                 <div className="cc__body" style={{ padding: "16px 20px" }}>
-                  <p className="module-sub">3 unread messages from parents regarding student performance.</p>
+                  {statsLoading ? (
+                    <p className="module-sub">Loading…</p>
+                  ) : overview.upcomingHomework.length === 0 ? (
+                    <p className="module-sub">No upcoming homework deadlines.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {overview.upcomingHomework.map((hw) => {
+                        const rate = hw.totalStudents > 0
+                          ? Math.round(((hw.submitted || 0) / hw.totalStudents) * 100)
+                          : 0;
+                        return (
+                          <div key={hw.id} className="flex items-center justify-between gap-3" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div>
+                              <p className="module-title" style={{ fontSize: 13, marginBottom: 2 }}>{hw.title}</p>
+                              <p className="module-sub" style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}>
+                                <Clock size={11} /> {hw.className} · Due {hw.dueDate}
+                              </p>
+                            </div>
+                            <span className="status-pill status-pill--active" style={{ whiteSpace: "nowrap" }}>
+                              {hw.submitted || 0}/{hw.totalStudents || 0} ({rate}%)
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

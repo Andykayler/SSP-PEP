@@ -1,41 +1,25 @@
 // pages/bursar/modules/Reports.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { db } from "../../../firebase";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
-
-const IC = {
-  download: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>,
-  chart:    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>,
-  warning:  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>,
-  check:    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>,
-};
-
-const Spinner = () => (
-  <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
-    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-  </svg>
-);
-
-const Btn = ({ children, variant = "primary", size = "md", loading, className = "", ...props }) => {
-  const base = "inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all disabled:opacity-50";
-  const sizes = { sm: "px-3 py-1.5 text-xs", md: "px-4 py-2.5 text-sm", lg: "px-6 py-3 text-sm" };
-  const variants = {
-    primary: "bg-app-primary text-white hover:bg-app-primary/90",
-    gold:    "bg-app-warning text-app-text hover:brightness-105",
-    ghost:   "border border-app-border text-app-text/70 hover:bg-app-primary/5",
-    teal:    "bg-teal-600 text-white hover:bg-teal-700",
-  };
-  return <button {...props} disabled={loading || props.disabled} className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}>{loading ? <Spinner /> : children}</button>;
-};
+import { Download, TrendingUp, Users, AlertTriangle, Receipt, BarChart3 } from "lucide-react";
+import "./staff-management.css"; 
 
 const fmt = (n) => `MWK ${Number(n || 0).toLocaleString()}`;
+const ACADEMIC_YEARS = ["2024/2025", "2025/2026", "2026/2027"];
 
 function initials(name = "") {
-  return name.split(" ").filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("");
+  return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
 }
 
-const ACADEMIC_YEARS = ["2024/2025", "2025/2026", "2026/2027"];
+const AVATAR_TONES = [
+  "bg-blue-500/20 text-blue-300", "bg-violet-500/20 text-violet-300",
+  "bg-emerald-500/20 text-emerald-300", "bg-orange-500/20 text-orange-300",
+];
+
+function avatarColor(name = "") {
+  return AVATAR_TONES[name.charCodeAt(0) % AVATAR_TONES.length] || AVATAR_TONES[0];
+}
 
 export default function Reports({ schoolCode, schoolName }) {
   const [students, setStudents] = useState([]);
@@ -43,11 +27,14 @@ export default function Reports({ schoolCode, schoolName }) {
   const [feeAssignments, setFeeAssignments] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+
   const [academicYear, setAcademicYear] = useState("2025/2026");
-  const [activeReport, setActiveReport] = useState("summary");
+  const [activeTab, setActiveTab] = useState("overview");
   const [classFilter, setClassFilter] = useState("all");
 
-  useEffect(() => { fetchAll(); }, [academicYear]);
+  useEffect(() => {
+    fetchAll();
+  }, [academicYear]);
 
   async function fetchAll() {
     setLoading(true);
@@ -56,392 +43,318 @@ export default function Reports({ schoolCode, schoolName }) {
         getDocs(query(collection(db, "students"), where("schoolCode", "==", schoolCode))),
         getDocs(query(collection(db, "school_classes"), where("schoolCode", "==", schoolCode))),
         getDocs(query(collection(db, "fee_assignments"), where("schoolCode", "==", schoolCode), where("academicYear", "==", academicYear))),
-        getDocs(query(collection(db, "payments"), where("schoolCode", "==", schoolCode), where("academicYear", "==", academicYear))),
+        getDocs(query(collection(db, "payments"), where("schoolCode", "==", schoolCode), where("academicYear", "==", academicYear), orderBy("createdAt", "desc"))),
       ]);
+
       setStudents(stSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setClasses(clSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.order - b.order));
+      setClasses(clSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
       setFeeAssignments(faSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       setPayments(pySnap.docs.map(d => ({ id: d.id, ...d.data() })));
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+    }
     setLoading(false);
   }
 
-  // Compute per-student financials
-  function getStudentFinancials(studentId) {
-    const assigned = feeAssignments.filter(fa => fa.studentId === studentId);
-    const totalCharged = assigned.reduce((s, fa) => s + (fa.amount || 0), 0);
-    const totalPaid = payments.filter(p => p.studentId === studentId).reduce((s, p) => s + (p.amount || 0), 0);
-    return { totalCharged, totalPaid, balance: totalCharged - totalPaid };
-  }
+  // Enriched student data
+  const enriched = useMemo(() => {
+    return students.map(s => {
+      const assigned = feeAssignments.filter(fa => fa.studentId === s.id);
+      const totalCharged = assigned.reduce((sum, fa) => sum + (fa.amount || 0), 0);
+      const totalPaid = payments.filter(p => p.studentId === s.id).reduce((sum, p) => sum + (p.amount || 0), 0);
+      return { ...s, totalCharged, totalPaid, balance: totalCharged - totalPaid };
+    });
+  }, [students, feeAssignments, payments]);
 
-  const enriched = students.map(s => ({ ...s, ...getStudentFinancials(s.id) }));
+  const summary = useMemo(() => {
+    return enriched.reduce((acc, s) => {
+      acc.totalCharged += s.totalCharged;
+      acc.totalPaid += s.totalPaid;
+      acc.totalBalance += Math.max(s.balance, 0);
+      if (s.totalCharged > 0) {
+        if (s.balance <= 0) acc.fullyPaid++;
+        else if (s.totalPaid > 0) acc.partial++;
+        else acc.unpaid++;
+      } else acc.noFees++;
+      return acc;
+    }, { totalCharged: 0, totalPaid: 0, totalBalance: 0, fullyPaid: 0, partial: 0, unpaid: 0, noFees: 0 });
+  }, [enriched]);
 
-  // Overall summary
-  const summary = enriched.reduce((acc, s) => {
-    acc.totalCharged += s.totalCharged;
-    acc.totalPaid += s.totalPaid;
-    acc.totalBalance += s.balance;
-    if (s.totalCharged > 0) {
-      if (s.balance <= 0) acc.paid++;
-      else if (s.totalPaid > 0) acc.partial++;
-      else acc.unpaid++;
-    } else { acc.noFees++; }
-    return acc;
-  }, { totalCharged: 0, totalPaid: 0, totalBalance: 0, paid: 0, partial: 0, unpaid: 0, noFees: 0 });
+  const collectionRate = summary.totalCharged > 0 ? Math.round((summary.totalPaid / summary.totalCharged) * 100) : 0;
 
   // Class breakdown
-  const classBreakdown = classes.map(cls => {
-    const classStudents = enriched.filter(s => s.classId === cls.id);
-    const totalCharged = classStudents.reduce((s, st) => s + st.totalCharged, 0);
-    const totalPaid = classStudents.reduce((s, st) => s + st.totalPaid, 0);
-    const balance = totalCharged - totalPaid;
-    const rate = totalCharged > 0 ? Math.round((totalPaid / totalCharged) * 100) : 0;
-    return { ...cls, studentCount: classStudents.length, totalCharged, totalPaid, balance, rate };
-  }).filter(c => c.studentCount > 0);
+  const classBreakdown = useMemo(() => {
+    return classes.map(cls => {
+      const clsStudents = enriched.filter(s => s.classId === cls.id);
+      const charged = clsStudents.reduce((sum, s) => sum + s.totalCharged, 0);
+      const paid = clsStudents.reduce((sum, s) => sum + s.totalPaid, 0);
+      return {
+        ...cls,
+        studentCount: clsStudents.length,
+        charged,
+        paid,
+        balance: charged - paid,
+        rate: charged > 0 ? Math.round((paid / charged) * 100) : 0
+      };
+    }).filter(c => c.studentCount > 0);
+  }, [classes, enriched]);
+
+  // Outstanding students
+  const outstanding = useMemo(() => {
+    return enriched
+      .filter(s => s.balance > 0 && (classFilter === "all" || s.classId === classFilter))
+      .sort((a, b) => b.balance - a.balance);
+  }, [enriched, classFilter]);
 
   // Monthly collections
-  const monthlyData = payments.reduce((acc, p) => {
-    const month = (p.paymentDate || "").substring(0, 7);
-    if (!month) return acc;
-    acc[month] = (acc[month] || 0) + p.amount;
-    return acc;
-  }, {});
-  const sortedMonths = Object.entries(monthlyData).sort(([a], [b]) => a.localeCompare(b));
-  const maxMonthly = Math.max(...sortedMonths.map(([, v]) => v), 1);
+  const monthlyCollections = useMemo(() => {
+    const map = {};
+    payments.forEach(p => {
+      const month = p.paymentDate?.slice(0, 7);
+      if (month) map[month] = (map[month] || 0) + p.amount;
+    });
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+  }, [payments]);
 
-  // Outstanding balances
-  const outstanding = enriched
-    .filter(s => s.balance > 0)
-    .filter(s => classFilter === "all" || s.classId === classFilter)
-    .sort((a, b) => b.balance - a.balance);
+  const exportCSV = () => {
+    const headers = ["Student Name", "Code", "Class", "Charged", "Paid", "Balance", "Status"];
+    const rows = enriched.map(s => [
+      s.fullName, s.studentCode, s.className || "",
+      s.totalCharged, s.totalPaid, s.balance,
+      s.balance <= 0 && s.totalCharged > 0 ? "Fully Paid" : s.totalPaid > 0 ? "Partial" : s.totalCharged > 0 ? "Unpaid" : "No Fees"
+    ]);
 
-  // Payment method breakdown
-  const methodBreakdown = payments.reduce((acc, p) => {
-    acc[p.method] = (acc[p.method] || 0) + p.amount;
-    return acc;
-  }, {});
-
-  // Export CSV
-  function exportCSV() {
-    const rows = [
-      ["Student Name", "Student Code", "Class", "Total Charged (MWK)", "Total Paid (MWK)", "Balance (MWK)", "Status"],
-      ...enriched.map(s => [
-        s.fullName,
-        s.studentCode,
-        s.className || "",
-        s.totalCharged,
-        s.totalPaid,
-        s.balance,
-        s.balance <= 0 && s.totalCharged > 0 ? "Paid" : s.totalPaid > 0 ? "Partial" : s.totalCharged > 0 ? "Unpaid" : "No Fees",
-      ])
-    ];
-    const csv = rows.map(r => r.map(v => `"${v}"`).join(",")).join("\n");
+    const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `fee-report-${academicYear.replace("/", "-")}.csv`; a.click();
+    a.href = url;
+    a.download = `fee-report-${academicYear}.csv`;
+    a.click();
     URL.revokeObjectURL(url);
-  }
+  };
 
-  const REPORT_TABS = [
-    { id: "summary", label: "Overview" },
-    { id: "classes", label: "By Class" },
-    { id: "outstanding", label: "Outstanding" },
-    { id: "collections", label: "Collections" },
+  const tabs = [
+    { id: "overview", label: "Overview", icon: BarChart3 },
+    { id: "classes", label: "By Class", icon: Users },
+    { id: "outstanding", label: "Outstanding", icon: AlertTriangle },
+    { id: "collections", label: "Collections", icon: Receipt },
   ];
 
-  if (loading) return (
-    <div className="bg-app-surface rounded-2xl border border-app-border p-16 flex flex-col items-center gap-3">
-      <Spinner />
-      <p className="text-sm text-app-text/50">Generating reports…</p>
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="card p-20 flex flex-col items-center justify-center">
+        <div className="spinner" style={{ width: "48px", height: "48px" }} />
+        <p className="mt-6 text-muted">Preparing financial intelligence...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-app-text">Financial Reports</h2>
-          <p className="text-sm text-app-text/50 mt-0.5">Fee collection summaries and outstanding balances</p>
+          <h2 style={{ fontFamily: "'Playfair Display', serif" }}>Financial Reports</h2>
+          <p className="text-muted">Real-time insights into fee collection performance</p>
         </div>
-        <div className="flex gap-3 flex-wrap">
-          <select value={academicYear} onChange={e => setAcademicYear(e.target.value)} className="px-3.5 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none appearance-none">
+
+        <div className="flex gap-3">
+          <select value={academicYear} onChange={e => setAcademicYear(e.target.value)} className="form-input form-input--compact">
             {ACADEMIC_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-          <Btn onClick={exportCSV} variant="ghost" size="md">{IC.download} Export CSV</Btn>
+          <button onClick={exportCSV} className="btn btn--secondary flex items-center gap-2">
+            <Download size={16} /> Export CSV
+          </button>
         </div>
       </div>
 
-      {/* Tab strip */}
-      <div className="flex gap-1 p-1 bg-app-primary/5 rounded-2xl w-fit flex-wrap">
-        {REPORT_TABS.map(t => (
-          <button key={t.id} onClick={() => setActiveReport(t.id)}
-            className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeReport === t.id ? "bg-app-surface text-app-text shadow-sm" : "text-app-text/50 hover:text-app-text"}`}>
-            {t.label}
-          </button>
-        ))}
+      {/* Tabs */}
+      <div className="tab-bar">
+        {tabs.map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`tab flex items-center gap-2 ${activeTab === tab.id ? "tab--active" : ""}`}
+            >
+              <Icon size={16} />
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
-      {/* ── Overview Tab ── */}
-      {activeReport === "summary" && (
-        <div className="space-y-5">
-          {/* Big numbers */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* OVERVIEW */}
+      {activeTab === "overview" && (
+        <div className="space-y-6">
+          <div className="stats-grid">
+            <div className="stat-card">
+              <div className="stat-card__label">Total Charged</div>
+              <div className="stat-card__value">{fmt(summary.totalCharged)}</div>
+              <div className="stat-card__sub">Across all students</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-card__label">Total Collected</div>
+              <div className="stat-card__value text-success">{fmt(summary.totalPaid)}</div>
+              <div className="stat-card__sub">{collectionRate}% collection rate</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-card__label">Outstanding</div>
+              <div className="stat-card__value text-danger">{fmt(summary.totalBalance)}</div>
+              <div className="stat-card__sub">{summary.unpaid + summary.partial} students</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-card__label">Collection Rate</div>
+              <div className="stat-card__value">{collectionRate}%</div>
+              <div className="h-2 bg-primary-dim rounded mt-3 overflow-hidden">
+                <div className="h-full bg-success transition-all" style={{ width: `${collectionRate}%` }} />
+              </div>
+            </div>
+          </div>
+
+          {/* Status Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: "Total Fees Charged", value: fmt(summary.totalCharged), sub: "All students", color: "bg-app-primary text-white", subColor: "text-white/50" },
-              { label: "Total Collected", value: fmt(summary.totalPaid), sub: `${summary.totalCharged > 0 ? Math.round((summary.totalPaid / summary.totalCharged) * 100) : 0}% collection rate`, color: "bg-emerald-600 text-white", subColor: "text-white/70" },
-              { label: "Outstanding Balance", value: fmt(summary.totalBalance), sub: `${summary.unpaid + summary.partial} students`, color: "bg-red-600 text-white", subColor: "text-white/70" },
-              { label: "Total Payments", value: payments.length, sub: `${academicYear}`, color: "bg-app-warning text-app-text", subColor: "text-app-text/60" },
-            ].map(({ label, value, sub, color, subColor }) => (
-              <div key={label} className={`rounded-2xl p-5 ${color}`}>
-                <p className={`text-xs font-semibold uppercase tracking-wider mb-2 ${subColor}`}>{label}</p>
-                <p className="text-2xl font-bold">{value}</p>
-                <p className={`text-xs mt-1 ${subColor}`}>{sub}</p>
+              { label: "Fully Paid", count: summary.fullyPaid, color: "success" },
+              { label: "Partial", count: summary.partial, color: "warning" },
+              { label: "Unpaid", count: summary.unpaid, color: "danger" },
+              { label: "No Fees", count: summary.noFees, color: "muted" },
+            ].map(({ label, count, color }) => (
+              <div key={label} className={`card p-5 border-l-4 ${color === "success" ? "border-success" : color === "warning" ? "border-warning" : color === "danger" ? "border-danger" : "border-border"}`}>
+                <div className="text-sm text-muted">{label}</div>
+                <div className="text-4xl font-bold mt-1">{count}</div>
+                <div className="text-xs text-muted mt-1">students</div>
               </div>
             ))}
           </div>
-
-          {/* Status breakdown */}
-          <div className="bg-app-surface rounded-2xl border border-app-border p-5">
-            <p className="text-xs font-bold uppercase tracking-widest text-app-text/40 mb-4">Student Payment Status</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {[
-                { label: "Fully Paid", count: summary.paid, color: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500" },
-                { label: "Partial", count: summary.partial, color: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
-                { label: "Unpaid", count: summary.unpaid, color: "bg-red-100 text-red-700", dot: "bg-red-500" },
-                { label: "No Fees Assigned", count: summary.noFees, color: "bg-gray-100 text-gray-600", dot: "bg-gray-400" },
-              ].map(({ label, count, color, dot }) => (
-                <div key={label} className={`rounded-2xl p-4 ${color}`}>
-                  <div className="flex items-center gap-2 mb-1"><span className={`w-2 h-2 rounded-full ${dot}`} /><p className="text-xs font-semibold">{label}</p></div>
-                  <p className="text-3xl font-bold">{count}</p>
-                  <p className="text-xs opacity-60">students</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Progress bar */}
-            {summary.totalCharged > 0 && (
-              <div className="mt-5">
-                <div className="flex justify-between text-xs text-app-text/50 mb-1.5">
-                  <span>Collection progress</span>
-                  <span>{Math.round((summary.totalPaid / summary.totalCharged) * 100)}%</span>
-                </div>
-                <div className="h-3 bg-app-primary/8 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${Math.min(100, (summary.totalPaid / summary.totalCharged) * 100)}%` }} />
-                </div>
-                <div className="flex justify-between text-xs mt-1">
-                  <span className="text-emerald-600 font-medium">{fmt(summary.totalPaid)} collected</span>
-                  <span className="text-red-500 font-medium">{fmt(summary.totalBalance)} remaining</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Payment method breakdown */}
-          {Object.keys(methodBreakdown).length > 0 && (
-            <div className="bg-app-surface rounded-2xl border border-app-border p-5">
-              <p className="text-xs font-bold uppercase tracking-widest text-app-text/40 mb-4">Collections by Payment Method</p>
-              <div className="space-y-3">
-                {Object.entries(methodBreakdown).sort(([, a], [, b]) => b - a).map(([method, amount]) => {
-                  const pct = summary.totalPaid > 0 ? (amount / summary.totalPaid) * 100 : 0;
-                  return (
-                    <div key={method}>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="font-medium text-app-text">{method}</span>
-                        <span className="text-app-text/60">{fmt(amount)} <span className="text-xs text-app-text/30">({Math.round(pct)}%)</span></span>
-                      </div>
-                      <div className="h-2 bg-app-primary/8 rounded-full overflow-hidden">
-                        <div className="h-full bg-app-warning rounded-full" style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
-      {/* ── Class Breakdown Tab ── */}
-      {activeReport === "classes" && (
-        <div className="bg-app-surface rounded-2xl border border-app-border overflow-hidden">
-          {classBreakdown.length === 0 ? (
-            <div className="p-12 text-center"><p className="text-app-text/50">No data available for this period.</p></div>
-          ) : (
-            <div className="data-table-wrap">
-<table className="data-table data-table--stack">
+      {/* BY CLASS */}
+      {activeTab === "classes" && (
+        <div className="card overflow-hidden">
+          <div className="data-table-wrap">
+            <table className="data-table">
               <thead>
-                <tr className="border-b border-[#0F2044]/5">
+                <tr>
                   <th>Class</th>
                   <th>Students</th>
                   <th>Charged</th>
                   <th>Collected</th>
-                  <th>Balance</th>
+                  <th>Outstanding</th>
                   <th>Rate</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#0F2044]/5">
+              <tbody>
                 {classBreakdown.map(cls => (
-                  <tr key={cls.id} className="hover:bg-app-bg/60 transition-colors">
-                    <td className="px-5 py-3.5" data-label="Class">
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-lg text-xs font-bold ${cls.level === "primary" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"}`}>{cls.level === "primary" ? "P" : "S"}</span>
-                        <span className="font-semibold text-app-text">{cls.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-right text-sm text-app-text/60" data-label="Students">{cls.studentCount}</td>
-                    <td className="px-5 py-3.5 text-right text-sm text-app-text/60 hidden sm:table-cell" data-label="Charged">{fmt(cls.totalCharged)}</td>
-                    <td className="px-5 py-3.5 text-right text-sm text-emerald-600 font-medium hidden sm:table-cell" data-label="Collected">{fmt(cls.totalPaid)}</td>
-                    <td className="px-5 py-3.5 text-right font-bold text-sm text-red-600" data-label="Balance">{fmt(cls.balance)}</td>
-                    <td className="px-5 py-3.5 hidden md:table-cell" data-label="Rate">
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="h-2 w-20 bg-app-primary/10 rounded-full overflow-hidden">
-                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${cls.rate}%` }} />
+                  <tr key={cls.id}>
+                    <td className="font-medium">{cls.name}</td>
+                    <td>{cls.studentCount}</td>
+                    <td className="text-right">{fmt(cls.charged)}</td>
+                    <td className="text-right text-success">{fmt(cls.paid)}</td>
+                    <td className="text-right text-danger">{fmt(cls.balance)}</td>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <div className="h-2 flex-1 bg-primary-dim rounded-full overflow-hidden">
+                          <div className="h-full bg-success" style={{ width: `${cls.rate}%` }} />
                         </div>
-                        <span className="text-xs font-semibold text-app-text/60 w-8">{cls.rate}%</span>
+                        <span className="text-sm font-medium w-12">{cls.rate}%</span>
                       </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-</div>
-          )}
+          </div>
         </div>
       )}
 
-      {/* ── Outstanding Tab ── */}
-      {activeReport === "outstanding" && (
+      {/* OUTSTANDING */}
+      {activeTab === "outstanding" && (
         <div className="space-y-4">
-          <div className="flex gap-3">
-            <select value={classFilter} onChange={e => setClassFilter(e.target.value)} className="px-3.5 py-2.5 text-sm rounded-xl border border-app-border bg-app-surface outline-none appearance-none">
+          <div className="flex justify-between items-center">
+            <select value={classFilter} onChange={e => setClassFilter(e.target.value)} className="form-input form-input--compact">
               <option value="all">All Classes</option>
               {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            <div className="px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold">
-              {outstanding.length} students · {fmt(outstanding.reduce((s, st) => s + st.balance, 0))} total outstanding
+            <div className="text-sm text-muted">
+              {outstanding.length} students • {fmt(outstanding.reduce((sum, s) => sum + s.balance, 0))} due
             </div>
           </div>
 
-          <div className="bg-app-surface rounded-2xl border border-app-border overflow-hidden">
+          <div className="card overflow-hidden">
             {outstanding.length === 0 ? (
-              <div className="p-12 text-center">
-                <div className="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-emerald-600">{IC.check}</div>
-                <p className="font-semibold text-app-text mb-1">No outstanding balances!</p>
-                <p className="text-sm text-app-text/50">All students are fully paid up for {academicYear}</p>
+              <div className="empty-state py-20">
+                <div className="empty-state__icon"><Check size={48} className="text-success" /></div>
+                <div className="empty-state__title">All Clear!</div>
+                <p className="empty-state__sub">No outstanding balances this term</p>
               </div>
             ) : (
               <div className="data-table-wrap">
-<table className="data-table data-table--stack">
-                <thead>
-                  <tr className="border-b border-[#0F2044]/5">
-                    <th>Student</th>
-                    <th>Class</th>
-                    <th>Charged</th>
-                    <th>Paid</th>
-                    <th>Balance Due</th>
-                    <th>Progress</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#0F2044]/5">
-                  {outstanding.map(s => {
-                    const pct = s.totalCharged > 0 ? Math.round((s.totalPaid / s.totalCharged) * 100) : 0;
-                    return (
-                      <tr key={s.id} className="hover:bg-app-bg/60 transition-colors">
-                        <td className="px-5 py-3.5" data-label="Student">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Student</th>
+                      <th>Class</th>
+                      <th>Charged</th>
+                      <th>Paid</th>
+                      <th>Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {outstanding.map(s => (
+                      <tr key={s.id}>
+                        <td>
                           <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${s.gender === "Female" ? "bg-pink-100 text-pink-700" : "bg-blue-100 text-blue-700"}`}>{initials(s.fullName)}</div>
+                            <div className={`assignment-avatar ${avatarColor(s.fullName)}`}>{initials(s.fullName)}</div>
                             <div>
-                              <div className="text-sm font-semibold text-app-text">{s.fullName}</div>
-                              <div className="text-xs text-app-text/40 font-mono">{s.studentCode}</div>
+                              <div className="font-medium">{s.fullName}</div>
+                              <div className="text-xs text-muted">{s.studentCode}</div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-5 py-3.5 text-sm text-app-text/60 hidden md:table-cell" data-label="Class">{s.className}</td>
-                        <td className="px-5 py-3.5 text-right text-sm text-app-text/60 hidden sm:table-cell" data-label="Charged">{fmt(s.totalCharged)}</td>
-                        <td className="px-5 py-3.5 text-right text-sm text-emerald-600 hidden sm:table-cell" data-label="Paid">{fmt(s.totalPaid)}</td>
-                        <td className="px-5 py-3.5 text-right font-bold text-red-600" data-label="Balance Due">{fmt(s.balance)}</td>
-                        <td className="px-5 py-3.5 hidden lg:table-cell" data-label="Progress">
-                          <div className="flex items-center gap-2">
-                            <div className="h-1.5 w-24 bg-app-primary/10 rounded-full overflow-hidden">
-                              <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
-                            </div>
-                            <span className="text-xs text-app-text/40">{pct}%</span>
-                          </div>
-                        </td>
+                        <td>{s.className}</td>
+                        <td className="text-right">{fmt(s.totalCharged)}</td>
+                        <td className="text-right text-success">{fmt(s.totalPaid)}</td>
+                        <td className="text-right font-bold text-danger">{fmt(s.balance)}</td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-</div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>
       )}
 
-      {/* ── Collections Timeline ── */}
-      {activeReport === "collections" && (
-        <div className="space-y-4">
-          <div className="bg-app-surface rounded-2xl border border-app-border p-6">
-            <p className="text-xs font-bold uppercase tracking-widest text-app-text/40 mb-5">Monthly Collections — {academicYear}</p>
-            {sortedMonths.length === 0 ? (
-              <div className="py-12 text-center text-app-text/50 text-sm">No payments recorded yet</div>
-            ) : (
-              <div className="space-y-3">
-                {sortedMonths.map(([month, amount]) => {
-                  const pct = (amount / maxMonthly) * 100;
-                  const [year, mo] = month.split("-");
-                  const label = new Date(Number(year), Number(mo) - 1).toLocaleString("en-GB", { month: "long", year: "numeric" });
+      {/* COLLECTIONS */}
+      {activeTab === "collections" && (
+        <div className="space-y-6">
+          <div className="card p-6">
+            <h3 className="font-semibold mb-5 flex items-center gap-2">
+              <TrendingUp size={18} /> Monthly Collection Trend
+            </h3>
+            {monthlyCollections.length > 0 ? (
+              <div className="space-y-5">
+                {monthlyCollections.map(([month, amount]) => {
+                  const [y, m] = month.split("-");
+                  const label = new Date(y, m - 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
                   return (
                     <div key={month} className="flex items-center gap-4">
-                      <div className="w-32 text-xs font-medium text-app-text/60 text-right flex-shrink-0">{label}</div>
-                      <div className="flex-1 h-8 bg-app-bg rounded-xl overflow-hidden">
-                        <div className="h-full bg-app-primary rounded-xl flex items-center justify-end pr-3 transition-all" style={{ width: `${Math.max(pct, 3)}%` }}>
-                          {pct > 20 && <span className="text-xs font-bold text-white">{fmt(amount)}</span>}
-                        </div>
+                      <div className="w-28 text-sm font-medium text-muted">{label}</div>
+                      <div className="flex-1 h-3 bg-primary-dim rounded-full overflow-hidden">
+                        <div className="h-full bg-primary" style={{ width: "100%" }} />
                       </div>
-                      {pct <= 20 && <div className="text-xs font-bold text-app-text/60 flex-shrink-0">{fmt(amount)}</div>}
+                      <div className="font-semibold text-right w-24">{fmt(amount)}</div>
                     </div>
                   );
                 })}
               </div>
+            ) : (
+              <p className="text-muted py-12 text-center">No payments recorded yet.</p>
             )}
-          </div>
-
-          {/* Recent transactions table */}
-          <div className="bg-app-surface rounded-2xl border border-app-border overflow-hidden">
-            <div className="px-5 py-4 border-b border-[#0F2044]/5 bg-app-bg flex items-center justify-between">
-              <p className="text-sm font-semibold text-app-text">All Transactions ({academicYear})</p>
-              <span className="text-xs text-app-text/40">{payments.length} records · {fmt(payments.reduce((s, p) => s + p.amount, 0))}</span>
-            </div>
-            <div className="data-table-wrap">
-<table className="data-table data-table--stack">
-              <thead>
-                <tr className="border-b border-[#0F2044]/5">
-                  <th>Student</th>
-                  <th>Receipt</th>
-                  <th>Method</th>
-                  <th>Date</th>
-                  <th>Amount</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#0F2044]/5">
-                {[...payments].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).map(p => (
-                  <tr key={p.id} className="hover:bg-app-bg/60 transition-colors">
-                    <td className="px-5 py-3" data-label="Student">
-                      <div className="text-sm font-medium text-app-text">{p.studentName}</div>
-                      <div className="text-xs text-app-text/40">{p.className}</div>
-                    </td>
-                    <td className="px-5 py-3 hidden md:table-cell" data-label="Receipt"><span className="font-mono text-xs text-app-text/50">{p.receiptNo}</span></td>
-                    <td className="px-5 py-3 text-xs text-app-text/60 hidden sm:table-cell" data-label="Method">{p.method}</td>
-                    <td className="px-5 py-3 text-xs text-app-text/40 hidden lg:table-cell" data-label="Date">{p.paymentDate}</td>
-                    <td className="px-5 py-3 text-right font-bold text-emerald-700 text-sm" data-label="Amount">{fmt(p.amount)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            </div>
           </div>
         </div>
       )}

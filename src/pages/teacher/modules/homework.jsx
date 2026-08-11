@@ -13,10 +13,6 @@ import {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function Spinner({ size = 20 }) {
-  return <Loader2 size={size} className="animate-spin text-app-text/40 inline-block" />;
-}
-
 function fmt(dateStr) {
   if (!dateStr) return "—";
   const d = new Date(dateStr);
@@ -29,100 +25,173 @@ function daysUntil(dateStr) {
   return Math.ceil((new Date(dateStr) - new Date(new Date().toDateString())) / 864e5);
 }
 
+// ─── Shared inline style helpers ──────────────────────────────────────────────
+
+const iconBtnStyle = {
+  display: "flex", alignItems: "center", justifyContent: "center",
+  width: 34, height: 34, padding: 0, background: "var(--surface)",
+  border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)",
+  color: "var(--text-muted)", cursor: "pointer", flexShrink: 0,
+  transition: "all var(--transition-base)",
+};
+
+const primaryBtnStyle = (disabled) => ({
+  display: "flex", alignItems: "center", gap: 8,
+  padding: "10px 20px", borderRadius: "var(--radius-md)",
+  background: disabled ? "var(--border-color)" : "var(--primary)",
+  color: disabled ? "var(--text-muted)" : "#fff",
+  border: "none", fontSize: 13, fontWeight: 500,
+  cursor: disabled ? "not-allowed" : "pointer",
+  transition: "all var(--transition-base)",
+  opacity: disabled ? 0.6 : 1, fontFamily: "var(--font-body)",
+});
+
+const ghostBtnStyle = {
+  flex: 1, padding: "12px 0", borderRadius: "var(--radius-md)",
+  background: "var(--bg-primary)", border: "1px solid var(--border-color)",
+  color: "var(--text-secondary)", fontSize: 13, fontWeight: 500,
+  cursor: "pointer", transition: "all var(--transition-base)",
+};
+
+const saveBtnStyle = (disabled) => ({
+  flex: 1, padding: "12px 0", borderRadius: "var(--radius-md)",
+  background: disabled ? "var(--border-color)" : "linear-gradient(135deg, var(--warning), var(--warning-light))",
+  color: disabled ? "var(--text-muted)" : "#1a0f00",
+  border: "none", fontWeight: 600, fontSize: 13,
+  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+  cursor: disabled ? "not-allowed" : "pointer",
+  transition: "all var(--transition-base)",
+});
+
+const inputStyle = {
+  width: "100%", padding: "11px 14px", borderRadius: "var(--radius-md)",
+  border: "1px solid var(--border-color)", background: "var(--input-bg)",
+  color: "var(--text-primary)", fontSize: 13, outline: "none",
+  fontFamily: "var(--font-body)", boxSizing: "border-box",
+};
+
+const labelStyle = {
+  fontFamily: "var(--font-mono)", fontSize: 9.5, letterSpacing: "1.5px",
+  color: "var(--text-muted)", textTransform: "uppercase",
+  marginBottom: 6, display: "block", fontWeight: 600,
+};
+
+function Spinner({ size = 15 }) {
+  return <Loader2 size={size} style={{ animation: "spin 0.65s linear infinite" }} />;
+}
+
 function Toast({ message, type = "success", onClose }) {
   useEffect(() => {
     const t = setTimeout(onClose, 3200);
     return () => clearTimeout(t);
   }, [onClose]);
+  const ok = type === "success";
   return (
-    <div className={`fixed bottom-6 right-6 z-[200] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl text-sm font-medium
-      ${type === "success" ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}`}>
-      {type === "success" ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+    <div style={{
+      position: "fixed", bottom: 24, right: 24, zIndex: 200,
+      display: "flex", alignItems: "center", gap: 10,
+      padding: "13px 20px", borderRadius: "var(--radius-md)",
+      background: ok ? "var(--success)" : "#ef4444",
+      color: "#fff", fontSize: 13, fontWeight: 500,
+      boxShadow: "var(--shadow-lg)",
+    }}>
+      {ok ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
       {message}
     </div>
   );
 }
 
-// ─── Homework Card ────────────────────────────────────────────────────────────
+// ─── Due-date tile (mirrors the period tile used on the Lesson Plans page) ───
+function DueTile({ dueDate, overdue, urgent }) {
+  const bg     = overdue ? "var(--danger-pale)" : urgent ? "var(--warning-pale)" : "var(--primary-pale)";
+  const color  = overdue ? "var(--danger-light)" : urgent ? "var(--warning-light)" : "var(--primary-light)";
+  const border = overdue ? "1px solid rgba(239,68,68,0.2)" : urgent ? "1px solid rgba(232,168,0,0.2)" : "1px solid var(--border-color)";
+  const d = new Date(dueDate);
+  const day   = isNaN(d) ? "—" : d.getDate();
+  const month = isNaN(d) ? "" : d.toLocaleDateString("en-GB", { month: "short" });
 
-function HomeworkCard({ hw, onView, onEdit, onDelete }) {
+  return (
+    <div style={{
+      width: 56, borderRadius: "var(--radius-md)", background: bg, border,
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      padding: "10px 4px", minHeight: 62, flexShrink: 0,
+    }}>
+      <span style={{ fontFamily: "var(--font-display)", fontSize: 19, color, lineHeight: 1 }}>{day}</span>
+      <span style={{ fontSize: 9, marginTop: 3, color, opacity: 0.85, textTransform: "uppercase", fontFamily: "var(--font-mono)", letterSpacing: "0.5px" }}>
+        {month}
+      </span>
+    </div>
+  );
+}
+
+// ─── Homework row (cc-row pattern) ────────────────────────────────────────────
+function HomeworkRow({ hw, onView, onEdit, onDelete }) {
   const days = daysUntil(hw.dueDate);
   const overdue = days !== null && days < 0;
   const urgent  = days !== null && days >= 0 && days <= 2;
-  const submissionRate = hw.totalStudents > 0
-    ? Math.round(((hw.submitted || 0) / hw.totalStudents) * 100)
-    : 0;
+  const rate = hw.totalStudents > 0 ? Math.round(((hw.submitted || 0) / hw.totalStudents) * 100) : 0;
+  const unsubmitted = (hw.totalStudents || 0) - (hw.submitted || 0);
 
   return (
-    <div className="bg-app-surface rounded-2xl border border-app-border overflow-hidden hover:border-app-border transition-all group">
-      <div className="px-6 py-4 bg-app-bg border-b border-app-border flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 mb-1.5">
-            <span className="text-xs px-2.5 py-0.5 bg-app-surface border border-app-border rounded-lg text-app-text/70 font-medium flex items-center gap-1">
-              <BookOpen size={10} /> {hw.className} · {hw.subject}
+    <div className="cc-row" style={{ alignItems: "flex-start" }}>
+      <DueTile dueDate={hw.dueDate} overdue={overdue} urgent={urgent} />
+
+      <div className="cc-row__info">
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginBottom: 6 }}>
+          <span className="badge badge--blue">{hw.className}</span>
+          <span className="badge badge--teal">{hw.subject}</span>
+          {overdue && (
+            <span className="status-pill" style={{ background: "var(--danger-pale)", color: "var(--danger-light)", border: "1px solid rgba(239,68,68,0.2)" }}>
+              <span className="status-pill__dot" /> Overdue
             </span>
-            {overdue && (
-              <span className="text-xs px-2.5 py-0.5 bg-red-100 text-red-700 rounded-lg font-semibold">Overdue</span>
-            )}
-            {urgent && !overdue && (
-              <span className="text-xs px-2.5 py-0.5 bg-amber-100 text-amber-700 rounded-lg font-semibold">Due soon</span>
-            )}
-          </div>
-          <h3 className="font-semibold text-app-text truncate">{hw.title}</h3>
-          {hw.description && (
-            <p className="text-xs text-app-text/55 mt-0.5 line-clamp-1">{hw.description}</p>
+          )}
+          {urgent && !overdue && (
+            <span className="status-pill" style={{ background: "var(--warning-pale)", color: "var(--warning-light)", border: "1px solid rgba(232,168,0,0.2)" }}>
+              <span className="status-pill__dot" /> Due soon
+            </span>
           )}
         </div>
 
-        <div className="flex items-center gap-6 shrink-0">
-          <div>
-            <p className="text-[10px] font-bold tracking-widest text-app-text/40 mb-0.5">DUE</p>
-            <p className={`text-sm font-semibold flex items-center gap-1 ${overdue ? "text-red-600" : urgent ? "text-amber-600" : "text-app-text"}`}>
-              <Calendar size={13} /> {fmt(hw.dueDate)}
-            </p>
+        <div className="cc-row__name" style={{ fontSize: 14, whiteSpace: "normal", fontFamily: "var(--font-display)", letterSpacing: "0.3px" }}>
+          {hw.title}
+        </div>
+
+        {hw.description && (
+          <p className="cc-row__meta" style={{ whiteSpace: "normal", marginTop: 4, lineHeight: 1.55, maxWidth: 520 }}>
+            {hw.description}
+          </p>
+        )}
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 8 }}>
+          <span className="cc-row__meta" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <Calendar size={11} /> Due {fmt(hw.dueDate)}
+          </span>
+          <span className="cc-row__meta" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <Clock size={11} /> Assigned {fmt(hw.dateAssigned)}
+          </span>
+          {unsubmitted > 0 && (
+            <span className="cc-row__meta" style={{ color: "var(--warning-light)" }}>
+              {unsubmitted} unsubmitted
+            </span>
+          )}
+        </div>
+
+        {/* Submission progress */}
+        <div style={{ marginTop: 10, maxWidth: 260 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--text-muted)", marginBottom: 4 }}>
+            <span>{hw.submitted || 0}/{hw.totalStudents || 0} submitted</span>
+            <span style={{ fontWeight: 700, color: "var(--success-light)" }}>{rate}%</span>
           </div>
-          <div>
-            <p className="text-[10px] font-bold tracking-widests text-app-text/40 mb-0.5">SUBMITTED</p>
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm font-semibold text-app-text">{hw.submitted || 0}/{hw.totalStudents || 0}</span>
-              <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-lg font-medium">{submissionRate}%</span>
-            </div>
+          <div style={{ height: 5, borderRadius: 99, background: "var(--primary-dim)", overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${rate}%`, background: "linear-gradient(90deg, var(--success), var(--secondary-light))", transition: "width 1s cubic-bezier(0.4,0,0.2,1)" }} />
           </div>
         </div>
       </div>
 
-      <div className="px-6 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-4 text-xs text-app-text/50">
-          <span className="flex items-center gap-1">
-            <Clock size={11} /> Assigned {fmt(hw.dateAssigned)}
-          </span>
-          {(hw.totalStudents - (hw.submitted || 0)) > 0 && (
-            <span className="flex items-center gap-1 text-amber-600">
-              <AlertCircle size={11} /> {hw.totalStudents - (hw.submitted || 0)} unsubmitted
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={() => onView(hw)}
-            className="flex items-center gap-1 text-xs bg-app-primary/5 hover:bg-app-primary/10 text-app-text/70 px-3 py-1.5 rounded-xl transition-colors"
-          >
-            <Eye size={13} /> View
-          </button>
-          <button
-            onClick={() => onEdit(hw)}
-            className="flex items-center gap-1 text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 px-3 py-1.5 rounded-xl transition-colors"
-          >
-            <Edit2 size={13} /> Edit
-          </button>
-          <button
-            onClick={() => onDelete(hw.id)}
-            className="flex items-center gap-1 text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded-xl transition-colors"
-          >
-            <Trash2 size={13} />
-          </button>
-        </div>
+      <div style={{ display: "flex", gap: 6, flexShrink: 0, marginTop: 2 }}>
+        <button onClick={() => onView(hw)} style={iconBtnStyle} title="View"><Eye size={14} /></button>
+        <button onClick={() => onEdit(hw)} style={iconBtnStyle} title="Edit"><Edit2 size={14} /></button>
+        <button onClick={() => onDelete(hw.id)} style={{ ...iconBtnStyle, color: "#ef4444" }} title="Delete"><Trash2 size={14} /></button>
       </div>
     </div>
   );
@@ -135,7 +204,6 @@ function HomeworkFormModal({ hw, myClasses, mySubjects, schoolCode, schoolClasse
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState("");
 
-  // Student count lookup state
   const [studentCount,        setStudentCount]        = useState(hw?.totalStudents ?? null);
   const [studentCountLoading, setStudentCountLoading] = useState(false);
 
@@ -150,11 +218,8 @@ function HomeworkFormModal({ hw, myClasses, mySubjects, schoolCode, schoolClasse
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  // Auto-fetch student count whenever class changes
   useEffect(() => {
     if (!form.className || !schoolCode) return;
-
-    // Look up classId from the pre-resolved map passed in from the parent
     const classId = schoolClassesMap[form.className];
     if (!classId) {
       setStudentCount(0);
@@ -172,16 +237,9 @@ function HomeworkFormModal({ hw, myClasses, mySubjects, schoolCode, schoolClasse
         where("classId",    "==", classId)
       )
     )
-      .then((snap) => {
-        if (!cancelled) setStudentCount(snap.size);
-      })
-      .catch((err) => {
-        console.error("student count fetch:", err);
-        if (!cancelled) setStudentCount(0);
-      })
-      .finally(() => {
-        if (!cancelled) setStudentCountLoading(false);
-      });
+      .then((snap) => { if (!cancelled) setStudentCount(snap.size); })
+      .catch((err) => { console.error("student count fetch:", err); if (!cancelled) setStudentCount(0); })
+      .finally(() => { if (!cancelled) setStudentCountLoading(false); });
 
     return () => { cancelled = true; };
   }, [form.className, schoolCode, schoolClassesMap]);
@@ -203,150 +261,114 @@ function HomeworkFormModal({ hw, myClasses, mySubjects, schoolCode, schoolClasse
     }
   };
 
+  const countPanel = studentCount === null && !studentCountLoading
+    ? { bg: "var(--surface)", border: "1px solid var(--border-color)", iconBg: "var(--primary-pale)", iconColor: "var(--primary-light)" }
+    : studentCount === 0
+    ? { bg: "var(--warning-pale)", border: "1px solid rgba(232,168,0,0.2)", iconBg: "var(--warning-pale)", iconColor: "var(--warning-light)" }
+    : { bg: "var(--success-pale)", border: "1px solid rgba(34,197,94,0.22)", iconBg: "var(--success-pale)", iconColor: "var(--success-light)" };
+
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-app-surface rounded-3xl w-full max-w-lg max-h-[94vh] overflow-hidden shadow-2xl flex flex-col">
-        <div className="bg-app-primary px-7 py-5 flex items-center justify-between shrink-0">
-          <h3 className="text-white font-bold text-lg">
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+      backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
+      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 16,
+    }}>
+      <div style={{
+        background: "var(--card-bg)", borderRadius: "var(--radius-xl)",
+        width: "100%", maxWidth: 560, maxHeight: "94vh", overflow: "hidden",
+        boxShadow: "var(--shadow-lg)", display: "flex", flexDirection: "column",
+        border: "1px solid var(--border-strong)",
+      }}>
+        <div style={{ background: "var(--hero-bg)", padding: "20px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border-strong)", flexShrink: 0 }}>
+          <h3 style={{ fontFamily: "var(--font-display)", fontSize: "1.15rem", color: "var(--text-primary)", letterSpacing: "0.5px" }}>
             {isEdit ? "Edit Homework" : "Assign New Homework"}
           </h3>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors p-1">
-            <X size={22} />
+          <button onClick={onClose} style={{ ...iconBtnStyle, background: "transparent", border: "none" }}>
+            <X size={20} />
           </button>
         </div>
 
-        <div className="overflow-y-auto p-7 space-y-5 flex-1">
+        <div style={{ overflowY: "auto", padding: 28, display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded-xl flex gap-2">
-              <AlertCircle size={15} className="shrink-0 mt-0.5" /> {error}
+            <div className="alert alert--error">
+              <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} /> {error}
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            {/* Class */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div>
-              <label className="text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5 block uppercase">Class</label>
-              <div className="relative">
-                <select
-                  value={form.className}
-                  onChange={(e) => set("className", e.target.value)}
-                  className="appearance-none w-full pl-4 pr-9 py-3 border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 bg-app-surface text-app-text"
-                >
+              <label style={labelStyle}>Class</label>
+              <div style={{ position: "relative" }}>
+                <select value={form.className} onChange={(e) => set("className", e.target.value)} style={{ ...inputStyle, appearance: "none", paddingRight: 32 }}>
                   {myClasses.length === 0 && <option value="">No classes assigned</option>}
                   {myClasses.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
+                <ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
               </div>
             </div>
-
-            {/* Subject */}
             <div>
-              <label className="text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5 block uppercase">Subject</label>
-              <div className="relative">
-                <select
-                  value={form.subject}
-                  onChange={(e) => set("subject", e.target.value)}
-                  className="appearance-none w-full pl-4 pr-9 py-3 border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 bg-app-surface text-app-text"
-                >
+              <label style={labelStyle}>Subject</label>
+              <div style={{ position: "relative" }}>
+                <select value={form.subject} onChange={(e) => set("subject", e.target.value)} style={{ ...inputStyle, appearance: "none", paddingRight: 32 }}>
                   {mySubjects.length === 0 && <option value="">No subjects assigned</option>}
                   {mySubjects.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
-                <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
+                <ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
               </div>
             </div>
           </div>
 
-          {/* Auto-resolved student count display */}
-          <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all
-            ${studentCount === null && !studentCountLoading
-              ? "bg-app-bg border-app-border"
-              : studentCount === 0
-              ? "bg-amber-50 border-amber-200"
-              : "bg-emerald-50 border-emerald-200"}`}>
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0
-              ${studentCount === 0 ? "bg-amber-100" : "bg-emerald-100"}`}>
-              {studentCountLoading
-                ? <Spinner size={14} />
-                : <Users size={14} className={studentCount === 0 ? "text-amber-600" : "text-emerald-600"} />}
+          {/* Auto-resolved student count */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: "var(--radius-md)", background: countPanel.bg, border: countPanel.border }}>
+            <div style={{ width: 32, height: 32, borderRadius: "var(--radius-md)", background: countPanel.iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              {studentCountLoading ? <Spinner size={14} /> : <Users size={14} style={{ color: countPanel.iconColor }} />}
             </div>
             <div>
-              <p className="text-[10px] font-bold tracking-widest text-app-text/50 uppercase">Students in class</p>
+              <p style={{ ...labelStyle, marginBottom: 2 }}>Students in class</p>
               {studentCountLoading ? (
-                <p className="text-sm text-app-text/50">Counting students…</p>
+                <p style={{ fontSize: 13, color: "var(--text-muted)" }}>Counting students…</p>
               ) : studentCount === null ? (
-                <p className="text-sm text-app-text/50">Select a class above</p>
+                <p style={{ fontSize: 13, color: "var(--text-muted)" }}>Select a class above</p>
               ) : studentCount === 0 ? (
-                <p className="text-sm font-semibold text-amber-700">No students enrolled in {form.className}</p>
+                <p style={{ fontSize: 13, fontWeight: 600, color: "var(--warning-light)" }}>No students enrolled in {form.className}</p>
               ) : (
-                <p className="text-sm font-semibold text-emerald-700">
-                  {studentCount} student{studentCount !== 1 ? "s" : ""} enrolled
-                </p>
+                <p style={{ fontSize: 13, fontWeight: 600, color: "var(--success-light)" }}>{studentCount} student{studentCount !== 1 ? "s" : ""} enrolled</p>
               )}
             </div>
           </div>
 
           <div>
-            <label className="text-[10px] font-bold tracking-widests text-app-text/50 mb-1.5 block uppercase">Title *</label>
-            <input
-              type="text"
-              placeholder="e.g. Quadratic Equations Exercise"
-              value={form.title}
-              onChange={(e) => set("title", e.target.value)}
-              className="w-full px-4 py-3 border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
-            />
+            <label style={labelStyle}>Title *</label>
+            <input type="text" placeholder="e.g. Quadratic Equations Exercise" value={form.title} onChange={(e) => set("title", e.target.value)} style={inputStyle} />
           </div>
 
           <div>
-            <label className="text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5 block uppercase">Description / Instructions</label>
-            <textarea
-              rows={3}
-              placeholder="Detailed instructions, page numbers, requirements…"
-              value={form.description}
-              onChange={(e) => set("description", e.target.value)}
-              className="w-full px-4 py-3 border border-app-border rounded-2xl text-sm resize-y focus:outline-none focus:border-[#0F2044]/40 text-app-text"
-            />
+            <label style={labelStyle}>Description / Instructions</label>
+            <textarea rows={3} placeholder="Detailed instructions, page numbers, requirements…" value={form.description} onChange={(e) => set("description", e.target.value)} style={{ ...inputStyle, resize: "vertical" }} />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div>
-              <label className="text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5 block uppercase">Due Date *</label>
-              <input
-                type="date"
-                value={form.dueDate}
-                onChange={(e) => set("dueDate", e.target.value)}
-                className="w-full px-4 py-3 border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
-              />
+              <label style={labelStyle}>Due Date *</label>
+              <input type="date" value={form.dueDate} onChange={(e) => set("dueDate", e.target.value)} style={inputStyle} />
             </div>
-
-            {/* Submitted count — only shown when editing */}
             {isEdit && (
               <div>
-                <label className="text-[10px] font-bold tracking-widest text-app-text/50 mb-1.5 block uppercase">Submitted Count</label>
+                <label style={labelStyle}>Submitted Count</label>
                 <input
-                  type="number"
-                  min={0}
-                  max={studentCount ?? undefined}
+                  type="number" min={0} max={studentCount ?? undefined}
                   value={form.submitted}
                   onChange={(e) => set("submitted", parseInt(e.target.value) || 0)}
-                  className="w-full px-4 py-3 border border-app-border rounded-2xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text"
+                  style={inputStyle}
                 />
               </div>
             )}
           </div>
         </div>
 
-        <div className="px-7 py-5 border-t border-app-border flex gap-3 shrink-0">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 border border-app-border rounded-2xl font-medium text-app-text/60 hover:bg-app-bg transition-colors text-sm"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving || studentCountLoading}
-            className="flex-1 py-3 bg-app-primary hover:bg-black disabled:opacity-60 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition-all text-sm"
-          >
+        <div style={{ padding: "18px 28px", borderTop: "1px solid var(--border-color)", display: "flex", gap: 12, flexShrink: 0 }}>
+          <button onClick={onClose} style={ghostBtnStyle}>Cancel</button>
+          <button onClick={handleSave} disabled={saving || studentCountLoading} style={saveBtnStyle(saving || studentCountLoading)}>
             {saving ? <Spinner size={15} /> : <Save size={15} />}
             {isEdit ? "Update" : "Assign Homework"}
           </button>
@@ -361,67 +383,75 @@ function HomeworkFormModal({ hw, myClasses, mySubjects, schoolCode, schoolClasse
 function ViewModal({ hw, onClose }) {
   const days = daysUntil(hw.dueDate);
   const overdue = days !== null && days < 0;
-  const submissionRate = hw.totalStudents > 0
-    ? Math.round(((hw.submitted || 0) / hw.totalStudents) * 100)
-    : 0;
+  const rate = hw.totalStudents > 0 ? Math.round(((hw.submitted || 0) / hw.totalStudents) * 100) : 0;
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+        backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
+        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 16,
+      }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-app-surface rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
-        <div className="bg-app-primary px-7 py-5 flex items-start justify-between gap-4">
+      <div style={{
+        background: "var(--card-bg)", borderRadius: "var(--radius-xl)",
+        width: "100%", maxWidth: 480, overflow: "hidden",
+        boxShadow: "var(--shadow-lg)", border: "1px solid var(--border-strong)",
+      }}>
+        <div style={{ background: "var(--hero-bg)", padding: "20px 26px", borderBottom: "1px solid var(--border-strong)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
           <div>
-            <div className="flex flex-wrap items-center gap-2 mb-1.5">
-              <span className="text-xs px-2.5 py-0.5 bg-app-surface/15 text-white/80 rounded-lg font-medium">{hw.className}</span>
-              <span className="text-xs px-2.5 py-0.5 bg-app-surface/15 text-white/80 rounded-lg font-medium">{hw.subject}</span>
-              {overdue && <span className="text-xs px-2.5 py-0.5 bg-red-400/30 text-red-200 rounded-lg font-semibold">Overdue</span>}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+              <span className="badge badge--blue">{hw.className}</span>
+              <span className="badge badge--teal">{hw.subject}</span>
+              {overdue && (
+                <span className="status-pill" style={{ background: "var(--danger-pale)", color: "var(--danger-light)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                  Overdue
+                </span>
+              )}
             </div>
-            <h3 className="text-white font-bold text-lg leading-tight">{hw.title}</h3>
+            <h3 style={{ fontFamily: "var(--font-display)", fontSize: "1.15rem", color: "var(--text-primary)", lineHeight: 1.3 }}>{hw.title}</h3>
           </div>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors p-1 shrink-0">
-            <X size={20} />
+          <button onClick={onClose} style={{ ...iconBtnStyle, background: "transparent", border: "none", flexShrink: 0 }}>
+            <X size={18} />
           </button>
         </div>
 
-        <div className="p-7 space-y-5">
-          <div className="p-4 bg-app-bg rounded-2xl border border-app-border">
-            <div className="flex justify-between items-center mb-2">
-              <p className="text-[10px] font-bold tracking-widest text-app-text/40 uppercase">Submission Progress</p>
-              <span className="text-sm font-bold text-app-text">{submissionRate}%</span>
+        <div style={{ padding: 26, display: "flex", flexDirection: "column", gap: 18 }}>
+          <div style={{ padding: 16, background: "var(--surface)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <p style={labelStyle}>Submission Progress</p>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{rate}%</span>
             </div>
-            <div className="w-full bg-app-primary/10 rounded-full h-2 mb-2">
-              <div className="bg-emerald-500 h-2 rounded-full transition-all" style={{ width: `${submissionRate}%` }} />
+            <div style={{ width: "100%", height: 6, borderRadius: 99, background: "var(--primary-dim)", overflow: "hidden", marginBottom: 8 }}>
+              <div style={{ height: "100%", width: `${rate}%`, background: "linear-gradient(90deg, var(--success), var(--secondary-light))" }} />
             </div>
-            <p className="text-xs text-app-text/50">{hw.submitted || 0} of {hw.totalStudents || 0} submitted</p>
+            <p style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{hw.submitted || 0} of {hw.totalStudents || 0} submitted</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-px bg-app-primary/5 rounded-2xl overflow-hidden text-sm">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, background: "var(--primary-dim)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
             {[
-              ["Assigned",  fmt(hw.dateAssigned)],
-              ["Due Date",  fmt(hw.dueDate)],
-              ["Class",     hw.className || "—"],
-              ["Subject",   hw.subject   || "—"],
+              ["Assigned", fmt(hw.dateAssigned)],
+              ["Due Date", fmt(hw.dueDate)],
+              ["Class",    hw.className || "—"],
+              ["Subject",  hw.subject   || "—"],
             ].map(([k, v]) => (
-              <div key={k} className="bg-app-surface px-4 py-3">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-app-text/40 mb-0.5">{k}</p>
-                <p className="font-medium text-app-text">{v}</p>
+              <div key={k} style={{ background: "var(--card-bg)", padding: "12px 16px" }}>
+                <p style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px", color: "var(--text-muted)", marginBottom: 2, fontFamily: "var(--font-mono)" }}>{k}</p>
+                <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)" }}>{v}</p>
               </div>
             ))}
           </div>
 
           {hw.description && (
-            <div className="p-4 bg-app-bg rounded-2xl border border-app-border">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/40 mb-1.5">Instructions</p>
-              <p className="text-sm text-app-text/70 leading-relaxed">{hw.description}</p>
+            <div style={{ padding: 16, background: "var(--surface)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)" }}>
+              <p style={labelStyle}>Instructions</p>
+              <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>{hw.description}</p>
             </div>
           )}
 
-          <div className="flex justify-end pt-1">
-            <button onClick={onClose} className="px-6 py-2.5 border border-app-border rounded-xl hover:bg-app-bg text-sm font-medium transition-colors text-app-text/70">
-              Close
-            </button>
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button onClick={onClose} style={{ ...ghostBtnStyle, flex: "none", padding: "10px 24px" }}>Close</button>
           </div>
         </div>
       </div>
@@ -435,7 +465,6 @@ export default function HomeworkModule({ userId, schoolCode }) {
   const [homework,      setHomework]      = useState([]);
   const [myClasses,     setMyClasses]     = useState([]);
   const [mySubjects,    setMySubjects]    = useState([]);
-  // Map of className → classId, built when loading assignments
   const [schoolClassesMap, setSchoolClassesMap] = useState({});
 
   const [assignLoading, setAssignLoading] = useState(true);
@@ -473,7 +502,6 @@ export default function HomeworkModule({ userId, schoolCode }) {
         setMySubjects(assignedSubjects);
 
         if (assignedNames.length > 0) {
-          // Resolve class names → classIds (same pattern as StudentModule)
           const snap = await getDocs(
             query(collection(db, "school_classes"), where("schoolCode", "==", schoolCode))
           );
@@ -582,6 +610,13 @@ export default function HomeworkModule({ userId, schoolCode }) {
   const overdueList = filtered.filter((h) => h.dueDate <  today);
   const displayList = activeTab === "active" ? activeList : overdueList;
 
+  const avgSubmission = homework.length
+    ? Math.round(
+        homework.reduce((sum, h) => sum + (h.totalStudents > 0 ? ((h.submitted || 0) / h.totalStudents) * 100 : 0), 0) /
+        homework.length
+      )
+    : 0;
+
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -589,10 +624,8 @@ export default function HomeworkModule({ userId, schoolCode }) {
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-app-text" style={{ fontFamily: "'Playfair Display', serif" }}>
-            Homework &amp; Assignments
-          </h2>
-          <p className="text-app-text/60 mt-1">
+          <h2 className="module-title">Homework &amp; Assignments</h2>
+          <p className="module-sub">
             {assignLoading
               ? "Loading your assignments…"
               : noAssignment
@@ -601,20 +634,11 @@ export default function HomeworkModule({ userId, schoolCode }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={fetchHomework}
-            disabled={isLoading}
-            className="p-2.5 bg-app-surface border border-app-border rounded-xl hover:bg-app-bg transition-colors text-app-text/60 disabled:opacity-40"
-            title="Refresh"
-          >
+          <button onClick={fetchHomework} disabled={isLoading} style={{ ...iconBtnStyle, opacity: isLoading ? 0.4 : 1 }} title="Refresh">
             <RefreshCw size={16} />
           </button>
           {!noAssignment && (
-            <button
-              onClick={() => setShowNew(true)}
-              disabled={isLoading}
-              className="flex items-center gap-2 bg-app-primary hover:bg-black text-white px-5 py-2.5 rounded-2xl font-medium text-sm transition-all disabled:opacity-40"
-            >
+            <button onClick={() => setShowNew(true)} disabled={isLoading} style={primaryBtnStyle(isLoading)}>
               <Plus size={15} /> Assign Homework
             </button>
           )}
@@ -622,103 +646,128 @@ export default function HomeworkModule({ userId, schoolCode }) {
       </div>
 
       {noAssignment && (
-        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl text-sm">
-          <AlertCircle size={16} className="shrink-0 mt-0.5" />
+        <div className="alert alert--warning">
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
           No classes have been assigned to you yet. Ask your head teacher to assign classes from Staff Management.
         </div>
       )}
 
       {error && (
-        <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl text-sm">
-          <AlertCircle size={16} className="shrink-0 mt-0.5" />
+        <div className="alert alert--error">
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
           {error}
+        </div>
+      )}
+
+      {/* ── Stats ── */}
+      {!noAssignment && (
+        <div>
+          <div className="sec-eyebrow">Homework overview</div>
+          <div className="stat-strip">
+            {[
+              { label: "Total assigned",  value: homework.length,     icon: <FileText width={16} height={16} />, variant: "" },
+              { label: "Active",          value: activeList.length,   icon: <BookOpen width={16} height={16} />, variant: "teal" },
+              { label: "Overdue",         value: overdueList.length,  icon: <AlertCircle width={16} height={16} />, variant: "" },
+              { label: "Avg. submission", value: `${avgSubmission}%`, icon: <CheckCircle width={16} height={16} />, variant: "gold" },
+            ].map((c) => (
+              <div key={c.label} className="stat-card">
+                <div className="stat-card__top">
+                  <div className={`stat-card__icon${c.variant ? ` stat-card__icon--${c.variant}` : ""}`}>{c.icon}</div>
+                  <span className="stat-card__label">{c.label}</span>
+                </div>
+                <div className="stat-card__value">{isLoading ? "…" : c.value}</div>
+                <div className="stat-card__bar">
+                  <div className={`stat-card__bar-fill${c.variant ? ` stat-card__bar-fill--${c.variant}` : ""}`} style={{ width: "60%" }} />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {/* ── Tabs + Filters ── */}
       {!noAssignment && (
         <div className="flex flex-col sm:flex-row gap-3">
-          <div className="bg-app-surface rounded-2xl p-1 border border-app-border inline-flex shrink-0">
+          <div className="filter-pills" style={{ flexShrink: 0 }}>
             {[
-              { id: "active",  label: "Active",  count: activeList.length  },
+              { id: "active",  label: "Active",  count: activeList.length },
               { id: "overdue", label: "Overdue", count: overdueList.length },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-5 py-2 text-sm font-medium rounded-xl transition-all flex items-center gap-2 ${
-                  activeTab === tab.id
-                    ? tab.id === "overdue" ? "bg-red-600 text-white" : "bg-app-primary text-white"
-                    : "text-app-text/60 hover:bg-[#FAFAF8]"
-                }`}
+                className={`filter-pill ${activeTab === tab.id ? "filter-pill--active" : "filter-pill--inactive"}`}
+                style={activeTab === tab.id && tab.id === "overdue" ? { background: "#ef4444", boxShadow: "0 3px 10px rgba(239,68,68,0.3)" } : undefined}
               >
-                {tab.label}
-                <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === tab.id ? "bg-app-surface/20" : "bg-app-primary/8"}`}>
-                  {tab.count}
-                </span>
+                {tab.label} <span style={{ marginLeft: 6, opacity: 0.7 }}>{tab.count}</span>
               </button>
             ))}
           </div>
 
-          <div className="relative flex-1">
-            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-app-text/35" />
+          <div className="search-wrap" style={{ flex: 1 }}>
+            <Search size={14} className="search-wrap__icon" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by title, class, or subject…"
-              className="w-full pl-9 pr-4 py-2.5 bg-app-surface border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/30 text-app-text"
+              className="search-wrap__input"
             />
           </div>
 
           {myClasses.length > 1 && (
-            <div className="relative shrink-0">
+            <div style={{ position: "relative", flexShrink: 0, minWidth: 150 }}>
               <select
                 value={classFilter}
                 onChange={(e) => setClassFilter(e.target.value)}
-                className="appearance-none pl-4 pr-9 py-2.5 bg-app-surface border border-app-border rounded-xl text-sm focus:outline-none focus:border-[#0F2044]/40 text-app-text min-w-[140px]"
+                style={{ ...inputStyle, appearance: "none", paddingRight: 32 }}
               >
                 <option value="all">All classes</option>
                 {myClasses.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
-              <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
+              <ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
             </div>
           )}
         </div>
       )}
 
       {/* ── List ── */}
-      <div className="space-y-3">
-        {isLoading ? (
-          <div className="bg-app-surface rounded-2xl border border-app-border py-24 flex flex-col items-center gap-3 text-app-text/40">
-            <Spinner size={28} />
-            <p className="text-sm">Loading homework…</p>
+      <div className="cc">
+        <div className="cc__head">
+          <div className="cc__head-left">
+            <FileText width={18} height={18} />
+            <h3>{activeTab === "active" ? "Active Homework" : "Overdue Homework"}</h3>
           </div>
-        ) : displayList.length === 0 ? (
-          <div className="bg-app-surface rounded-2xl border border-app-border py-24 flex flex-col items-center gap-3 text-app-text/30">
-            <FileText size={36} />
-            <p className="text-sm font-medium text-app-text/40">
-              {homework.length === 0
-                ? "No homework assigned yet. Create your first one."
-                : activeTab === "overdue"
-                ? "No overdue homework — great work!"
-                : "No homework matches your filter."}
-            </p>
-          </div>
-        ) : (
-          displayList.map((hw) => (
-            <HomeworkCard
-              key={hw.id}
-              hw={hw}
-              onView={setViewHw}
-              onEdit={setEditHw}
-              onDelete={deleteHomework}
-            />
-          ))
-        )}
+        </div>
+        <div className="cc__body" style={{ padding: 0 }}>
+          {isLoading ? (
+            <div style={{ padding: "56px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+              <div className="spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
+              <p className="module-sub">Loading homework…</p>
+            </div>
+          ) : displayList.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state__icon"><FileText size={22} /></div>
+              <div className="empty-state__title">
+                {homework.length === 0 ? "No homework assigned yet" : activeTab === "overdue" ? "Nothing overdue" : "No matches"}
+              </div>
+              <p className="empty-state__sub">
+                {homework.length === 0
+                  ? "Create your first homework assignment to get started."
+                  : activeTab === "overdue"
+                  ? "Great work — no overdue homework right now."
+                  : "No homework matches your filter."}
+              </p>
+            </div>
+          ) : (
+            displayList.map((hw) => (
+              <HomeworkRow key={hw.id} hw={hw} onView={setViewHw} onEdit={setEditHw} onDelete={deleteHomework} />
+            ))
+          )}
+        </div>
       </div>
 
-      <p className="text-center text-xs text-app-text/40 pt-1">
+      <p className="module-sub" style={{ textAlign: "center" }}>
         Homework is scoped to your assigned classes and subjects only.
       </p>
 
@@ -744,12 +793,8 @@ export default function HomeworkModule({ userId, schoolCode }) {
           onClose={() => setEditHw(null)}
         />
       )}
-      {viewHw && (
-        <ViewModal hw={viewHw} onClose={() => setViewHw(null)} />
-      )}
-      {toast && (
-        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
-      )}
+      {viewHw && <ViewModal hw={viewHw} onClose={() => setViewHw(null)} />}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

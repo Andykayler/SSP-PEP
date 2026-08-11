@@ -1,4 +1,4 @@
-// modules/PerformanceModule.jsx
+// modules/PerformanceModule.jsx  (Headteacher dashboard)
 import { useState, useEffect, useCallback } from "react";
 import { db } from "../../../firebase";
 import {
@@ -6,8 +6,38 @@ import {
 } from "firebase/firestore";
 import {
   Award, AlertTriangle, RefreshCw, Loader2, AlertCircle,
-  Search, ChevronDown, Users, BarChart2, Eye, X,
+  Search, ChevronDown, Users, BarChart2, Eye, X, PieChart, Info,
 } from "lucide-react";
+
+// ─── Assessment components & their weight toward the overall term grade ──────
+// Mirrors the teacher-side Performance module exactly — same ids are used as
+// the `assessmentType` field on each `ca_marks` document, so this is what
+// lets the headteacher dashboard split marks by component instead of
+// blending every submission for the term together.
+const ASSESSMENT_TYPES = [
+  { id: "CA1",     label: "CA 1",         weight: 0.10 },
+  { id: "CA2",     label: "CA 2",         weight: 0.10 },
+  { id: "MidTerm", label: "Mid-Term",     weight: 0.20 },
+  { id: "EndTerm", label: "End of Term",  weight: 0.60 },
+];
+
+function computeWeighted(perComponentScores) {
+  let weightedSum = 0, weightUsed = 0;
+  ASSESSMENT_TYPES.forEach(({ id, weight }) => {
+    const v = perComponentScores[id];
+    if (v !== null && v !== undefined && v !== "") {
+      weightedSum += Number(v) * weight;
+      weightUsed += weight;
+    }
+  });
+  if (weightUsed === 0) return null;
+  return {
+    score: Math.round((weightedSum / weightUsed) * 10) / 10,
+    complete: weightUsed >= 0.999,
+  };
+}
+
+const round1 = (n) => Math.round(n * 10) / 10;
 
 // ─── MANEB Grade Scale ────────────────────────────────────────────────────────
 const MANEB_GRADES = [
@@ -38,7 +68,10 @@ function fullName(s) {
 }
 
 // ─── Student Detail Modal ─────────────────────────────────────────────────────
-function StudentModal({ student, subjects, onClose }) {
+// `subjectRows` is always a flat [{ subject, score, complete }] array — for a
+// single-assessment view `complete` is just `true` whenever a score exists;
+// for the Overall view it reflects whether all four components were entered.
+function StudentModal({ student, subjectRows, assessmentLabel, isOverall, onClose }) {
   const g = getGradeInfo(student.average);
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -46,7 +79,7 @@ function StudentModal({ student, subjects, onClose }) {
         <div className="modal-header">
           <div>
             <h3>{fullName(student)}</h3>
-            <p>{student.className} · {student.studentCode || ""}</p>
+            <p>{student.className} · {student.studentCode || ""} · {assessmentLabel}</p>
           </div>
           <button onClick={onClose} className="modal-close">
             <X size={18} />
@@ -57,10 +90,15 @@ function StudentModal({ student, subjects, onClose }) {
           {/* Average */}
           <div className={`flex items-center justify-between p-4 rounded-2xl border mb-5 ${g ? `${g.bg} ${g.border}` : "bg-app-bg border-app-border"}`}>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/50 mb-0.5">Overall Average</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/50 mb-0.5">
+                {isOverall ? "Overall Average" : `${assessmentLabel} Average`}
+              </p>
               <p className={`text-3xl font-bold ${g?.color || "text-app-text"}`}>
                 {student.average !== null ? `${student.average}%` : "—"}
               </p>
+              {isOverall && !student.complete && student.average !== null && (
+                <p className="text-[10px] font-semibold text-warning mt-1">Provisional — not all components entered</p>
+              )}
             </div>
             {g && (
               <div className="text-right">
@@ -74,13 +112,12 @@ function StudentModal({ student, subjects, onClose }) {
           <div className="mb-5">
             <p className="text-[10px] font-bold uppercase tracking-widest text-app-text/50 mb-3">Subject Marks</p>
             <div className="space-y-2">
-              {subjects.map(subj => {
-                const score = student.subjectMarks?.[subj];
+              {subjectRows.map(({ subject, score, complete }) => {
                 const sg = getGradeInfo(score);
                 const hasScore = score !== null && score !== undefined && score !== "";
                 return (
-                  <div key={subj} className="flex items-center gap-3">
-                    <span className="text-xs text-app-text/70 font-medium w-32 shrink-0 truncate">{subj}</span>
+                  <div key={subject} className="flex items-center gap-3">
+                    <span className="text-xs text-app-text/70 font-medium w-32 shrink-0 truncate">{subject}</span>
                     <div className="flex-1 bg-app-bg rounded-full h-2">
                       {hasScore && (
                         <div
@@ -93,15 +130,18 @@ function StudentModal({ student, subjects, onClose }) {
                       )}
                     </div>
                     {hasScore ? (
-                      <span className={`text-xs font-bold w-20 text-right ${sg?.color || "text-app-text"}`}>
-                        {score}% {sg ? `· G${sg.grade}` : ""}
+                      <span className={`text-xs font-bold w-24 text-right ${sg?.color || "text-app-text"}`}>
+                        {score}% {sg ? `· G${sg.grade}` : ""}{isOverall && !complete ? " *" : ""}
                       </span>
                     ) : (
-                      <span className="text-xs text-app-text/30 w-20 text-right">No data</span>
+                      <span className="text-xs text-app-text/30 w-24 text-right">No data</span>
                     )}
                   </div>
                 );
               })}
+              {isOverall && subjectRows.some(r => !r.complete && r.score !== null) && (
+                <p className="text-[10px] text-app-text/40 mt-1">* provisional — awaiting remaining components</p>
+              )}
             </div>
           </div>
 
@@ -122,7 +162,7 @@ function StudentModal({ student, subjects, onClose }) {
           )}
 
           {/* Teacher */}
-          {student.teacherName && (
+          {student.teacherName && !isOverall && (
             <p className="text-xs text-app-text/40 text-center mb-4">
               Marks submitted by: {student.teacherName}
             </p>
@@ -144,19 +184,23 @@ export default function PerformanceModule({ schoolCode }) {
   const [classes,        setClasses]        = useState([]);
   const [selectedClassId,setSelectedClassId]= useState("all");
   const [selectedTerm,   setSelectedTerm]   = useState("Term 1 2026");
-  const [viewMode,       setViewMode]       = useState("ranking");
+  const [selectedAssessment, setSelectedAssessment] = useState(ASSESSMENT_TYPES[0].id);
+  const [viewMode,       setViewMode]       = useState("ranking"); // ranking | analytics | overall
   const [search,         setSearch]         = useState("");
   const [viewingStudent, setViewingStudent] = useState(null);
   const [error,          setError]          = useState("");
 
   const [allStudents,    setAllStudents]    = useState([]);
-  const [allMarksMap,    setAllMarksMap]    = useState({});
+  // classId -> assessmentType -> { subjects: [], marks: { studentId: { subject: score } }, teacherIds: [] }
+  const [marksByClassAssessment, setMarksByClassAssessment] = useState({});
   const [teacherNames,   setTeacherNames]   = useState({});
 
   const [classesReady,   setClassesReady]   = useState(false);
   const [dataReady,      setDataReady]      = useState(false);
 
   const isLoading = !classesReady || !dataReady;
+  const isOverall = viewMode === "overall";
+  const selectedAssessmentLabel = ASSESSMENT_TYPES.find(a => a.id === selectedAssessment)?.label || "";
 
   // Load classes
   useEffect(() => {
@@ -183,7 +227,8 @@ export default function PerformanceModule({ schoolCode }) {
     return () => { cancelled = true; };
   }, [schoolCode]);
 
-  // Fetch students and marks
+  // Fetch students and marks — grouped by class AND assessment component so
+  // CA1/CA2/Mid-Term/End-of-Term never overwrite one another.
   const fetchData = useCallback(async () => {
     if (!schoolCode || !classesReady) return;
     setDataReady(false);
@@ -208,26 +253,31 @@ export default function PerformanceModule({ schoolCode }) {
       const teacherUids = new Set();
 
       marksSnap.docs.forEach(d => {
-        const data = d.data();
-        const cid  = data.classId;
-        if (!map[cid]) map[cid] = { subjects: [], marks: {}, teacherIds: [] };
+        const data  = d.data();
+        const cid   = data.classId;
+        const atype = data.assessmentType;
+        if (!cid || !atype) return;
+
+        if (!map[cid]) map[cid] = {};
+        if (!map[cid][atype]) map[cid][atype] = { subjects: [], marks: {}, teacherIds: [] };
+        const bucket = map[cid][atype];
 
         (data.subjects || []).forEach(subj => {
-          if (!map[cid].subjects.includes(subj)) map[cid].subjects.push(subj);
+          if (!bucket.subjects.includes(subj)) bucket.subjects.push(subj);
         });
 
         Object.entries(data.marks || {}).forEach(([studentId, subjectMarks]) => {
-          if (!map[cid].marks[studentId]) map[cid].marks[studentId] = {};
-          Object.assign(map[cid].marks[studentId], subjectMarks);
+          if (!bucket.marks[studentId]) bucket.marks[studentId] = {};
+          Object.assign(bucket.marks[studentId], subjectMarks);
         });
 
         if (data.teacherId) {
-          map[cid].teacherIds.push(data.teacherId);
+          bucket.teacherIds.push(data.teacherId);
           teacherUids.add(data.teacherId);
         }
       });
 
-      setAllMarksMap(map);
+      setMarksByClassAssessment(map);
 
       const names = {};
       await Promise.all([...teacherUids].map(async uid => {
@@ -250,39 +300,64 @@ export default function PerformanceModule({ schoolCode }) {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Enrich students
-  const enrichedStudents = (() => {
+  const getBucket = (classId, assessmentType) =>
+    marksByClassAssessment[classId]?.[assessmentType] || { subjects: [], marks: {}, teacherIds: [] };
+
+  // ── Single-assessment view (Ranking / Analytics) ──────────────────────────
+  const singleAssessmentStudents = (() => {
     const classFilter = selectedClassId === "all" ? null : selectedClassId;
-    const relevantStudents = classFilter
-      ? allStudents.filter(s => s.classId === classFilter)
-      : allStudents;
+    const relevant = classFilter ? allStudents.filter(s => s.classId === classFilter) : allStudents;
 
-    return relevantStudents.map(student => {
-      const cid         = student.classId;
-      const classData   = allMarksMap[cid] || {};
-      const classObj    = classes.find(c => c.id === cid);
-      const subjectMarks= classData.marks?.[student.id] || {};
-      const subjects    = classData.subjects || [];
-      const scores      = subjects.map(s => subjectMarks[s]).filter(v => v !== null && v !== undefined && v !== "").map(Number);
-      const average     = scores.length
-        ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
-        : null;
-      const teacherName = (classData.teacherIds || []).map(uid => teacherNames[uid]).filter(Boolean).join(", ") || "—";
+    return relevant.map(student => {
+      const cid       = student.classId;
+      const classObj  = classes.find(c => c.id === cid);
+      const bucket    = getBucket(cid, selectedAssessment);
+      const subjectMarks = bucket.marks[student.id] || {};
+      const subjects  = bucket.subjects;
+      const scores    = subjects.map(s => subjectMarks[s]).filter(v => v !== null && v !== undefined && v !== "").map(Number);
+      const average   = scores.length ? round1(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+      const teacherName = [...new Set(bucket.teacherIds)].map(uid => teacherNames[uid]).filter(Boolean).join(", ") || "—";
 
-      return {
-        ...student,
-        className:   classObj?.name || "—",
-        subjectMarks,
-        subjects,
-        average,
-        teacherName,
-      };
+      return { ...student, className: classObj?.name || "—", subjectMarks, subjects, average, teacherName };
     });
   })();
 
+  // ── Overall (weighted) view — combines all four components per subject ───
+  const overallStudents = (() => {
+    const classFilter = selectedClassId === "all" ? null : selectedClassId;
+    const relevant = classFilter ? allStudents.filter(s => s.classId === classFilter) : allStudents;
+
+    return relevant.map(student => {
+      const cid      = student.classId;
+      const classObj = classes.find(c => c.id === cid);
+
+      const subjectsSet = new Set();
+      ASSESSMENT_TYPES.forEach(({ id }) => getBucket(cid, id).subjects.forEach(s => subjectsSet.add(s)));
+      const subjects = [...subjectsSet];
+
+      const subjMap = {};
+      subjects.forEach(subj => {
+        const perComponent = {};
+        ASSESSMENT_TYPES.forEach(({ id }) => {
+          const v = getBucket(cid, id).marks[student.id]?.[subj];
+          if (v !== null && v !== undefined && v !== "") perComponent[id] = v;
+        });
+        subjMap[subj] = computeWeighted(perComponent);
+      });
+
+      const scores   = subjects.map(s => subjMap[s]?.score).filter(v => v !== null && v !== undefined);
+      const complete = subjects.length > 0 && subjects.every(s => subjMap[s]?.complete);
+      const average  = scores.length ? round1(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+
+      return { ...student, className: classObj?.name || "—", subjects, subjMap, average, complete };
+    });
+  })();
+
+  const activeStudents = isOverall ? overallStudents : singleAssessmentStudents;
+
   // Rank within each class
   const studentsByClass = {};
-  enrichedStudents.forEach(s => {
+  activeStudents.forEach(s => {
     if (!studentsByClass[s.classId]) studentsByClass[s.classId] = [];
     studentsByClass[s.classId].push(s);
   });
@@ -291,10 +366,9 @@ export default function PerformanceModule({ schoolCode }) {
     withAvg.forEach((s, i) => { s.rank = i + 1; });
   });
 
-  const allSubjects = [...new Set(enrichedStudents.flatMap(s => s.subjects))].sort();
+  const allSubjects = [...new Set(activeStudents.flatMap(s => s.subjects))].sort();
 
-  // Filter and rank for ranking view
-  const filtered = enrichedStudents.filter(s => {
+  const filtered = activeStudents.filter(s => {
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -305,10 +379,10 @@ export default function PerformanceModule({ schoolCode }) {
   });
   const ranked = [...filtered].filter(s => s.average !== null).sort((a, b) => b.average - a.average);
 
-  // Stats
-  const studentsWithMarks = enrichedStudents.filter(s => s.average !== null);
+  // Stats — reflect whatever view is currently active
+  const studentsWithMarks = activeStudents.filter(s => s.average !== null);
   const classAvg = studentsWithMarks.length
-    ? Math.round((studentsWithMarks.reduce((a, b) => a + b.average, 0) / studentsWithMarks.length) * 10) / 10
+    ? round1(studentsWithMarks.reduce((a, b) => a + b.average, 0) / studentsWithMarks.length)
     : null;
   const distinctions = studentsWithMarks.filter(s => s.average >= 70).length;
   const failing      = studentsWithMarks.filter(s => s.average < 40).length;
@@ -317,13 +391,32 @@ export default function PerformanceModule({ schoolCode }) {
     : null;
   const noData = dataReady && studentsWithMarks.length === 0;
 
+  // Build the subject-rows the detail modal needs, in either mode
+  const subjectRowsFor = (student) => {
+    if (isOverall) {
+      return student.subjects.map(subject => ({
+        subject,
+        score: student.subjMap[subject]?.score ?? null,
+        complete: student.subjMap[subject]?.complete ?? false,
+      }));
+    }
+    return student.subjects.map(subject => ({
+      subject,
+      score: student.subjectMarks[subject] ?? null,
+      complete: true,
+    }));
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h2 style={{ fontFamily: "'Playfair Display', serif" }}>Student Performance</h2>
-          <p className="text-muted">Continuous Assessment · MANEB grade scale (1–9) · {selectedTerm}</p>
+          <p className="text-muted">
+            Continuous Assessment · MANEB grade scale (1–9) · {selectedTerm} ·{" "}
+            {isOverall ? "Overall (weighted)" : selectedAssessmentLabel}
+          </p>
         </div>
         <button onClick={fetchData} disabled={isLoading} className="icon-btn" title="Refresh">
           <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
@@ -382,6 +475,26 @@ export default function PerformanceModule({ schoolCode }) {
             <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
           </div>
         </div>
+
+        {/* Assessment component — irrelevant on the combined Overall tab */}
+        {!isOverall && (
+          <div>
+            <label className="field__label">ASSESSMENT</label>
+            <div className="relative">
+              <select
+                value={selectedAssessment}
+                onChange={e => setSelectedAssessment(e.target.value)}
+                className="field__select"
+              >
+                {ASSESSMENT_TYPES.map(a => (
+                  <option key={a.id} value={a.id}>{a.label} ({Math.round(a.weight * 100)}%)</option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
+            </div>
+          </div>
+        )}
+
         <div className="search-wrapper">
           <Search className="search-icon" size={14} />
           <input
@@ -394,8 +507,9 @@ export default function PerformanceModule({ schoolCode }) {
         </div>
         <div className="flex gap-1 ml-auto shrink-0">
           {[
-            { id: "ranking",   icon: Award,    label: "Ranking" },
+            { id: "ranking",   icon: Award,     label: "Ranking" },
             { id: "analytics", icon: BarChart2, label: "Analytics" },
+            { id: "overall",   icon: PieChart,  label: "Overall" },
           ].map(({ id, icon: Icon, label }) => (
             <button
               key={id}
@@ -407,6 +521,16 @@ export default function PerformanceModule({ schoolCode }) {
           ))}
         </div>
       </div>
+
+      {isOverall && (
+        <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 text-blue-800 p-3.5 rounded-2xl text-xs">
+          <Info size={14} className="shrink-0 mt-0.5" />
+          <span>
+            Overall combines {ASSESSMENT_TYPES.map(a => `${a.label} (${Math.round(a.weight * 100)}%)`).join(" · ")} for {selectedTerm}.
+            Students missing one or more components are marked <span className="font-semibold">Provisional</span>.
+          </span>
+        </div>
+      )}
 
       {/* MANEB scale reference */}
       <details className="group">
@@ -434,22 +558,27 @@ export default function PerformanceModule({ schoolCode }) {
       {!isLoading && noData && (
         <div className="empty-state">
           <Users size={32} className="text-muted" />
-          <p className="empty-state__sub">No marks have been submitted for {selectedTerm} yet.</p>
+          <p className="empty-state__sub">
+            {isOverall
+              ? `No marks have been submitted for ${selectedTerm} yet.`
+              : `No ${selectedAssessmentLabel} marks have been submitted for ${selectedTerm} yet.`}
+          </p>
           <p className="text-muted text-xs">Teachers submit CA marks from their Performance module.</p>
         </div>
       )}
 
       {!isLoading && !noData && (
         <>
-          {/* RANKING VIEW */}
-          {viewMode === "ranking" && (
+          {/* RANKING & OVERALL share the same ranked-list layout */}
+          {(viewMode === "ranking" || viewMode === "overall") && (
             <div className="card">
               <div className="cc__head">
                 <div className="cc__head-left">
-                  <Award size={18} />
+                  {isOverall ? <PieChart size={18} /> : <Award size={18} />}
                   <h3>
-                    {selectedClassId === "all" ? "School-wide Ranking" : `${classes.find(c => c.id === selectedClassId)?.name || ""} Ranking`}
-                    {" · "}{selectedTerm}
+                    {selectedClassId === "all" ? "School-wide" : classes.find(c => c.id === selectedClassId)?.name || ""}
+                    {" "}{isOverall ? "Overall Ranking" : "Ranking"} · {selectedTerm}
+                    {!isOverall && ` · ${selectedAssessmentLabel}`}
                   </h3>
                 </div>
                 <span className="text-muted text-xs">{ranked.length} student{ranked.length !== 1 ? "s" : ""}</span>
@@ -478,11 +607,16 @@ export default function PerformanceModule({ schoolCode }) {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-app-text text-sm truncate">{fullName(student)}</p>
-                          <p className="text-xs text-muted">{student.className}</p>
+                          <p className="text-xs text-muted">
+                            {student.className}
+                            {isOverall && !student.complete && student.average !== null && (
+                              <span className="ml-2 text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Provisional</span>
+                            )}
+                          </p>
                         </div>
                         <div className="hidden md:flex flex-wrap gap-1 max-w-xs">
                           {student.subjects.map(subj => {
-                            const score = student.subjectMarks[subj];
+                            const score = isOverall ? student.subjMap[subj]?.score : student.subjectMarks[subj];
                             const sg = getGradeInfo(score);
                             return score !== null && score !== undefined ? (
                               <span key={subj} className={`text-[9px] px-1.5 py-0.5 rounded border font-medium
@@ -516,7 +650,7 @@ export default function PerformanceModule({ schoolCode }) {
               {/* Grade distribution */}
               <div className="card p-6">
                 <h3 className="font-semibold text-app-text text-sm mb-4">
-                  Grade Distribution — {selectedClassId === "all" ? "All Classes" : classes.find(c => c.id === selectedClassId)?.name || ""}
+                  Grade Distribution — {selectedClassId === "all" ? "All Classes" : classes.find(c => c.id === selectedClassId)?.name || ""} · {selectedAssessmentLabel}
                 </h3>
                 <div className="space-y-2.5">
                   {MANEB_GRADES.map(g => {
@@ -546,12 +680,12 @@ export default function PerformanceModule({ schoolCode }) {
               {/* Per-class averages */}
               {selectedClassId === "all" && (
                 <div className="card p-6">
-                  <h3 className="font-semibold text-app-text text-sm mb-4">Class Averages Comparison</h3>
+                  <h3 className="font-semibold text-app-text text-sm mb-4">Class Averages Comparison — {selectedAssessmentLabel}</h3>
                   <div className="space-y-3">
                     {classes.map(cls => {
                       const clsStudents = studentsWithMarks.filter(s => s.classId === cls.id);
                       const avg = clsStudents.length
-                        ? Math.round((clsStudents.reduce((a, b) => a + b.average, 0) / clsStudents.length) * 10) / 10
+                        ? round1(clsStudents.reduce((a, b) => a + b.average, 0) / clsStudents.length)
                         : null;
                       const g = getGradeInfo(avg);
                       return (
@@ -587,16 +721,16 @@ export default function PerformanceModule({ schoolCode }) {
               {/* Per-subject averages */}
               {allSubjects.length > 0 && (
                 <div className="card p-6">
-                  <h3 className="font-semibold text-app-text text-sm mb-4">Subject Averages</h3>
+                  <h3 className="font-semibold text-app-text text-sm mb-4">Subject Averages — {selectedAssessmentLabel}</h3>
                   <div className="space-y-3">
                     {allSubjects.map(subj => {
-                      const scope  = selectedClassId === "all" ? enrichedStudents : enrichedStudents.filter(s => s.classId === selectedClassId);
+                      const scope  = selectedClassId === "all" ? activeStudents : activeStudents.filter(s => s.classId === selectedClassId);
                       const scores = scope
-                        .map(s => s.subjectMarks[subj])
+                        .map(s => s.subjectMarks?.[subj])
                         .filter(v => v !== null && v !== undefined && v !== "")
                         .map(Number);
                       const avg = scores.length
-                        ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
+                        ? round1(scores.reduce((a, b) => a + b, 0) / scores.length)
                         : null;
                       const g = getGradeInfo(avg);
                       return (
@@ -639,14 +773,14 @@ export default function PerformanceModule({ schoolCode }) {
                     <div className="flex items-center gap-2 mb-3">
                       <AlertTriangle size={16} className="text-warning" />
                       <h3 className="font-semibold text-warning-dark text-sm">
-                        Students Needing Support ({atRisk.length})
+                        Students Needing Support ({atRisk.length}) — {selectedAssessmentLabel}
                       </h3>
                     </div>
                     <div className="space-y-2">
                       {atRisk.map(s => {
                         const g = getGradeInfo(s.average);
                         const weakSubjects = s.subjects.filter(subj => {
-                          const sc = s.subjectMarks[subj];
+                          const sc = s.subjectMarks?.[subj];
                           return sc !== null && sc !== undefined && Number(sc) < 50;
                         });
                         return (
@@ -681,14 +815,16 @@ export default function PerformanceModule({ schoolCode }) {
       )}
 
       <p className="text-center text-xs text-muted pt-1">
-        Showing CA marks submitted by teachers. Select a class or term to filter.
+        Showing CA marks submitted by teachers. Select a class, term, or assessment component to filter, or view the Overall (weighted) tab for the combined term grade.
         Marks are read‑only — teachers manage entry from their Performance module.
       </p>
 
       {viewingStudent && (
         <StudentModal
           student={viewingStudent}
-          subjects={viewingStudent.subjects}
+          subjectRows={subjectRowsFor(viewingStudent)}
+          assessmentLabel={isOverall ? "Overall (weighted)" : selectedAssessmentLabel}
+          isOverall={isOverall}
           onClose={() => setViewingStudent(null)}
         />
       )}
