@@ -238,6 +238,13 @@ class FeesService {
       'recordedBy': recordedBy,
       'academicYear': _academicYear,
       'schoolCode': ctx['schoolCode'],
+      // A payment entered here is the parent's own claim — nothing has checked
+      // that the money arrived. These two fields are required by the Firestore
+      // rule for anonymous writes so the bursar's ledger can always tell a
+      // self-reported payment from one the bursar recorded. Do not drop them:
+      // the write is refused without them.
+      'source': 'parent_app',
+      'status': 'unverified',
       'createdAt': FieldValue.serverTimestamp(),
     });
 

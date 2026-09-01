@@ -185,7 +185,7 @@ export default function AttendanceOverview({ schoolCode }) {
             />
           </div>
           <button onClick={fetchData} disabled={loading} className="icon-btn" title="Refresh">
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            <RefreshCw size={16} className={loading ? "spin" : ""} />
           </button>
           <button onClick={handleExport} disabled={loading || !filteredSummary.length} className="btn-refresh">
             <Download size={14} /> Export
@@ -210,7 +210,7 @@ export default function AttendanceOverview({ schoolCode }) {
               <div className="w-12 h-12 rounded-xl bg-success/20 flex items-center justify-center">
                 <TrendingUp size={22} className="text-success" />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-success">Best Performing Class</p>
                 <p className="font-bold text-app-text truncate">{bestClass.name}</p>
                 <p className="text-sm text-success font-semibold">{bestClass.attendanceRate}% attendance · {bestClass.present} present</p>
@@ -222,7 +222,7 @@ export default function AttendanceOverview({ schoolCode }) {
               <div className="w-12 h-12 rounded-xl bg-warning/20 flex items-center justify-center">
                 <TrendingDown size={22} className="text-warning" />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-warning">Needs Attention</p>
                 <p className="font-bold text-app-text truncate">{worstClass.name}</p>
                 <p className="text-sm text-warning font-semibold">{worstClass.attendanceRate}% attendance · {worstClass.absent} absent</p>

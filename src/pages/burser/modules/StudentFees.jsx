@@ -8,12 +8,12 @@ import {
   Search, X, Check, Users, Info, AlertTriangle, RefreshCw,
   GraduationCap, Wallet, AlertCircle, CheckCircle2,
 } from "lucide-react";
-import "./staff-management.css"; 
+import "./staff-management.css";
 
 // ─── Shared Modal (aligned with FeeStructure) ─────────────────────────────────
 const Modal = ({ title, subtitle, onClose, children, wide = false }) => (
   <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-    <div className={`modal-container ${wide ? "max-w-3xl" : ""}`}>
+    <div className={`modal-container ${wide ? "modal-container--wide" : ""}`}>
       <div className="modal-header">
         <div>
           <h3>{title}</h3>
@@ -33,7 +33,7 @@ const Btn = ({ children, variant = "accent", size = "md", loading, className = "
     disabled={loading || props.disabled}
     className={`btn btn--${variant} ${size === "sm" ? "btn--sm" : ""} ${className}`}
   >
-    {loading ? <RefreshCw size={14} className="animate-spin" /> : children}
+    {loading ? <RefreshCw size={14} className="spin" /> : children}
   </button>
 );
 
@@ -42,18 +42,6 @@ const fmt = (n) => `MWK ${Number(n || 0).toLocaleString()}`;
 
 function initials(name = "") {
   return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
-}
-
-const AVATAR_TONES = [
-  "bg-blue-500/20 text-blue-300",
-  "bg-violet-500/20 text-violet-300",
-  "bg-emerald-500/20 text-emerald-300",
-  "bg-orange-500/20 text-orange-300",
-  "bg-rose-500/20 text-rose-300",
-  "bg-cyan-500/20 text-cyan-300",
-];
-function avatarColor(name = "") {
-  return AVATAR_TONES[name.charCodeAt(0) % AVATAR_TONES.length] || AVATAR_TONES[0];
 }
 
 // ─── Status Pill ────────────────────────────────────────────────────────────
@@ -73,10 +61,14 @@ function StatusPill({ percentage, balance, totalCharged }) {
 
 // ─── Progress Bar ───────────────────────────────────────────────────────────
 function ProgressBar({ percentage }) {
-  const color = percentage === 0 ? "bg-danger" : percentage >= 100 ? "bg-success" : "bg-warning";
+  const fillClass = percentage === 0
+    ? "progress-bar__fill--danger"
+    : percentage >= 100
+      ? "progress-bar__fill--success"
+      : "progress-bar__fill--warning";
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-primary-dim">
-      <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${Math.min(percentage, 100)}%` }} />
+    <div className="progress-bar">
+      <div className={`progress-bar__fill ${fillClass}`} style={{ width: `${Math.min(percentage, 100)}%` }} />
     </div>
   );
 }
@@ -84,25 +76,21 @@ function ProgressBar({ percentage }) {
 // ─── Summary Card ───────────────────────────────────────────────────────────
 function SummaryCard({ label, value, sub, accent = "blue" }) {
   const icons = {
-    blue: { Icon: GraduationCap, color: "text-primary-light", bg: "bg-primary-pale" },
-    emerald: { Icon: Wallet, color: "text-success", bg: "bg-success/10" },
-    red: { Icon: AlertCircle, color: "text-danger", bg: "bg-danger/10" },
-    gold: { Icon: CheckCircle2, color: "text-warning", bg: "bg-warning/10" },
+    blue: { Icon: GraduationCap, className: "stat-card__value--accent" },
+    emerald: { Icon: Wallet, className: "stat-card__value--success" },
+    red: { Icon: AlertCircle, className: "stat-card__value--danger" },
+    gold: { Icon: CheckCircle2, className: "stat-card__value--warning" },
   };
-  const { Icon, color, bg } = icons[accent] || icons.blue;
+  const { Icon, className } = icons[accent] || icons.blue;
 
   return (
     <div className="stat-card">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="stat-card__label">{label}</div>
-          <div className="stat-card__value mt-1">{value}</div>
-          {sub && <div className="stat-card__sub">{sub}</div>}
-        </div>
-        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${bg} ${color}`}>
-          <Icon size={22} />
-        </div>
+      <div className={className}>
+        <Icon size={22} />
       </div>
+      <div className="stat-card__label">{label}</div>
+      <div className="stat-card__value">{value}</div>
+      {sub && <div className="stat-card__sub">{sub}</div>}
     </div>
   );
 }
@@ -128,21 +116,23 @@ function FeePreviewRows({ studentIds, students, feeStructures, studentFees, assi
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 rounded-xl bg-primary-pale p-4 text-sm border border-primary/20">
-        <span className="font-semibold">{totalNew} new fee record(s)</span>
-        <span className="text-text-muted">•</span>
-        <span className="font-bold">{fmt(totalAmt)}</span>
-        {totalSkipped > 0 && <span className="text-warning text-xs">• {totalSkipped} skipped (already assigned)</span>}
+      <div className="alert alert--info">
+        <Info size={18} />
+        <div className="flex-between flex-wrap" style={{ flex: 1 }}>
+          <span className="font-semibold">{totalNew} new fee record(s)</span>
+          <span className="font-bold">{fmt(totalAmt)}</span>
+          {totalSkipped > 0 && <span className="text-warning">{totalSkipped} skipped (already assigned)</span>}
+        </div>
       </div>
 
       {studentIds.length <= 6 && previews.map(({ student, fees, skipped }) => (
         <div key={student?.id} className="card">
           <div className="assignment-card__header">
             <div className="font-semibold">{student?.fullName}</div>
-            {skipped > 0 && <span className="text-warning text-sm">{skipped} skipped</span>}
+            {skipped > 0 && <span className="text-warning">{skipped} skipped</span>}
           </div>
           {fees.length === 0 ? (
-            <div className="p-6 text-center text-muted">All fees already assigned for this term.</div>
+            <div className="empty-assignments">All fees already assigned for this term.</div>
           ) : (
             <div className="data-table-wrap">
               <table className="data-table">
@@ -169,7 +159,7 @@ function FeePreviewRows({ studentIds, students, feeStructures, studentFees, assi
       ))}
 
       {studentIds.length > 6 && (
-        <p className="text-center py-8 text-muted">
+        <p className="empty-assignments">
           Bulk preview hidden ({studentIds.length} students). Fees applied per class.
         </p>
       )}
@@ -183,9 +173,9 @@ function SkeletonSummaryCards() {
     <div className="stats-grid">
       {Array.from({ length: 4 }).map((_, i) => (
         <div key={i} className="stat-card">
-          <div className="skeleton-block w-3/4 h-3 mb-3" />
-          <div className="skeleton-block w-2/3 h-8 mb-2" />
-          <div className="skeleton-block w-1/2 h-3" />
+          <div className="skeleton-block" style={{ width: "75%", height: 12, marginBottom: 12 }} />
+          <div className="skeleton-block" style={{ width: "66%", height: 32, marginBottom: 8 }} />
+          <div className="skeleton-block" style={{ width: "50%", height: 12 }} />
         </div>
       ))}
     </div>
@@ -194,9 +184,9 @@ function SkeletonSummaryCards() {
 
 function SkeletonFilterBar() {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center bg-card p-4 rounded-2xl border border-border">
+    <div className="filter-bar">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="skeleton-block h-11 flex-1 rounded-xl" />
+        <div key={i} className="skeleton-block" style={{ height: 44, flex: 1, borderRadius: "var(--radius-lg)" }} />
       ))}
     </div>
   );
@@ -204,13 +194,13 @@ function SkeletonFilterBar() {
 
 function SkeletonStudentTable({ rows = 6 }) {
   return (
-    <div className="card overflow-hidden">
+    <div className="card">
       <div className="data-table-wrap">
         <table className="data-table">
           <thead>
             <tr>
               {Array.from({ length: 8 }).map((_, i) => (
-                <th key={i}><div className="skeleton-block h-3 w-20" /></th>
+                <th key={i}><div className="skeleton-block" style={{ height: 12, width: 80 }} /></th>
               ))}
             </tr>
           </thead>
@@ -218,7 +208,7 @@ function SkeletonStudentTable({ rows = 6 }) {
             {Array.from({ length: rows }).map((_, i) => (
               <tr key={i}>
                 {Array.from({ length: 8 }).map((_, j) => (
-                  <td key={j}><div className="skeleton-block h-5" /></td>
+                  <td key={j}><div className="skeleton-block" style={{ height: 20 }} /></td>
                 ))}
               </tr>
             ))}
@@ -300,8 +290,8 @@ export default function StudentFees({ schoolCode, schoolName }) {
 
   const filtered = useMemo(() => {
     let list = enriched.filter((s) => {
-      const matchSearch = !search || 
-        s.fullName?.toLowerCase().includes(search.toLowerCase()) || 
+      const matchSearch = !search ||
+        s.fullName?.toLowerCase().includes(search.toLowerCase()) ||
         s.studentCode?.toLowerCase().includes(search.toLowerCase());
       const matchClass = classFilter === "all" || s.classId === classFilter;
       const matchStatus = statusFilter === "all" ||
@@ -414,15 +404,15 @@ export default function StudentFees({ schoolCode, schoolName }) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex-between flex-wrap">
         <div>
-          <h2 style={{ fontFamily: "'Playfair Display', serif" }}>Student Fee Enrollment</h2>
+          <h2>Student Fee Enrollment</h2>
           <p className="text-muted">Assign terms and track fee status across all students.</p>
         </div>
-        <div className="flex gap-3 flex-wrap">
-          <select 
-            value={academicYear} 
-            onChange={(e) => setAcademicYear(e.target.value)} 
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={academicYear}
+            onChange={(e) => setAcademicYear(e.target.value)}
             className="form-input form-input--compact"
           >
             {ACADEMIC_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
@@ -450,7 +440,7 @@ export default function StudentFees({ schoolCode, schoolName }) {
           </div>
 
           {/* Filter Bar */}
-          <div className="filter-bar bg-card p-4 rounded-2xl border border-border">
+          <div className="filter-bar">
             <div className="search-wrapper flex-1">
               <Search className="search-icon" />
               <input
@@ -460,7 +450,11 @@ export default function StudentFees({ schoolCode, schoolName }) {
                 className="search-input"
               />
               {search && (
-                <button onClick={() => setSearch("")} className="absolute right-4 top-1/2 -translate-y-1/2 text-muted hover:text-primary">
+                <button
+                  onClick={() => setSearch("")}
+                  className="icon-btn"
+                  style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}
+                >
                   <X size={16} />
                 </button>
               )}
@@ -491,9 +485,9 @@ export default function StudentFees({ schoolCode, schoolName }) {
           </div>
 
           {/* Student Table */}
-          <div className="card overflow-hidden">
+          <div className="card">
             {filtered.length === 0 ? (
-              <div className="empty-state py-20">
+              <div className="empty-state">
                 <div className="empty-state__icon"><Info size={28} /></div>
                 <div className="empty-state__title">No students match your filters</div>
                 <p className="empty-state__sub">Try changing search or filters</p>
@@ -503,12 +497,11 @@ export default function StudentFees({ schoolCode, schoolName }) {
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th className="w-12">
-                        <input 
-                          type="checkbox" 
-                          checked={allFilteredSelected} 
-                          onChange={toggleAll} 
-                          className="accent-primary" 
+                      <th>
+                        <input
+                          type="checkbox"
+                          checked={allFilteredSelected}
+                          onChange={toggleAll}
                         />
                       </th>
                       <th>Student</th>
@@ -524,49 +517,48 @@ export default function StudentFees({ schoolCode, schoolName }) {
                     {filtered.map((s) => {
                       const isSelected = selectedIds.has(s.id);
                       return (
-                        <tr key={s.id} className={isSelected ? "bg-primary-pale" : ""}>
+                        <tr key={s.id} style={isSelected ? { background: "var(--primary-pale)" } : undefined}>
                           <td>
-                            <input 
-                              type="checkbox" 
-                              checked={isSelected} 
-                              onChange={() => toggleOne(s.id)} 
-                              className="accent-primary" 
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleOne(s.id)}
                             />
                           </td>
                           <td>
-                            <div className="flex items-center gap-3">
-                              <div className={`assignment-avatar text-sm ${avatarColor(s.fullName)}`}>
+                            <div className="flex gap-2 items-center">
+                              <div className="assignment-avatar">
                                 {initials(s.fullName)}
                               </div>
                               <div>
-                                <div className="font-medium">{s.fullName}</div>
-                                <div className="text-xs text-muted font-mono">{s.studentCode}</div>
+                                <div className="data-table__primary">{s.fullName}</div>
+                                <div className="data-table__meta">{s.studentCode}</div>
                               </div>
                             </div>
                           </td>
-                          <td className="text-sm">{s.className || "—"}</td>
+                          <td>{s.className || "—"}</td>
                           <td>
-                            <div className="flex flex-wrap gap-1">
+                            <div className="flex flex-wrap gap-2">
                               {s.assignedTerms.length === 0 ? (
-                                <span className="text-muted text-xs">None</span>
+                                <span className="text-muted">None</span>
                               ) : (
                                 s.assignedTerms.map((t, i) => (
-                                  <span key={i} className="tag tag--blue text-xs">{t}</span>
+                                  <span key={i} className="tag tag--blue">{t}</span>
                                 ))
                               )}
                             </div>
                           </td>
-                          <td className="text-right font-medium">{fmt(s.totalCharged)}</td>
+                          <td className="text-right">{fmt(s.totalCharged)}</td>
                           <td className="text-right font-semibold text-success">{fmt(s.totalPaid)}</td>
                           <td className={`text-right font-bold ${s.balance > 0 ? "text-danger" : "text-success"}`}>
                             {fmt(s.balance)}
                           </td>
                           <td>
-                            <div className="flex flex-col gap-1.5 items-start">
-                              <StatusPill 
-                                balance={s.balance} 
-                                percentage={s.percentage} 
-                                totalCharged={s.totalCharged} 
+                            <div className="space-y-2">
+                              <StatusPill
+                                balance={s.balance}
+                                percentage={s.percentage}
+                                totalCharged={s.totalCharged}
                               />
                               {s.totalCharged > 0 && <ProgressBar percentage={s.percentage} />}
                             </div>
@@ -580,10 +572,10 @@ export default function StudentFees({ schoolCode, schoolName }) {
             )}
 
             {filtered.length > 0 && (
-              <div className="px-6 py-3 border-t border-border text-xs text-muted flex justify-between items-center">
-                <span>Showing {filtered.length} of {enriched.length} students</span>
+              <div className="flex-between" style={{ padding: "12px 20px", borderTop: "1px solid var(--border-color)" }}>
+                <span className="text-muted">Showing {filtered.length} of {enriched.length} students</span>
                 {someSelected && (
-                  <button onClick={() => setSelectedIds(new Set())} className="text-primary hover:underline">
+                  <button onClick={() => setSelectedIds(new Set())} className="icon-btn" style={{ color: "var(--primary-light)", width: "auto", padding: "4px 8px" }}>
                     Clear selection ({selectedIds.size})
                   </button>
                 )}
@@ -596,8 +588,8 @@ export default function StudentFees({ schoolCode, schoolName }) {
       {/* Assign Modal */}
       {showAssignModal && (
         <Modal
-          title={bulkMode === "selected" 
-            ? `Assign ${assignTerm} to ${selectedIds.size} Students` 
+          title={bulkMode === "selected"
+            ? `Assign ${assignTerm} to ${selectedIds.size} Students`
             : `Assign ${assignTerm} to All Students`}
           subtitle="Fees will be applied based on each student's class"
           onClose={() => setShowAssignModal(false)}
@@ -606,15 +598,15 @@ export default function StudentFees({ schoolCode, schoolName }) {
           <div className="space-y-6">
             {someSelected && (
               <div className="flex gap-2">
-                <button 
+                <button
                   onClick={() => setBulkMode("all")}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-medium border ${bulkMode === "all" ? "border-primary bg-primary text-white" : "border-border"}`}
+                  className={`flex-1 choice-btn ${bulkMode === "all" ? "choice-btn--active" : ""}`}
                 >
                   All filtered ({filtered.length})
                 </button>
-                <button 
+                <button
                   onClick={() => setBulkMode("selected")}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-medium border ${bulkMode === "selected" ? "border-primary bg-primary text-white" : "border-border"}`}
+                  className={`flex-1 choice-btn ${bulkMode === "selected" ? "choice-btn--active" : ""}`}
                 >
                   Selected only ({selectedIds.size})
                 </button>
@@ -623,12 +615,12 @@ export default function StudentFees({ schoolCode, schoolName }) {
 
             <div>
               <label className="field__label">Term to Assign</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+              <div className="grid grid-cols-2 mt-2">
                 {TERMS.map((t) => (
                   <button
                     key={t}
                     onClick={() => setAssignTerm(t)}
-                    className={`py-3 rounded-xl border text-sm font-medium transition-all ${assignTerm === t ? "border-primary bg-primary text-white" : "border-border hover:bg-surface"}`}
+                    className={`choice-btn ${assignTerm === t ? "choice-btn--active" : ""}`}
                   >
                     {t}
                   </button>
@@ -637,7 +629,7 @@ export default function StudentFees({ schoolCode, schoolName }) {
             </div>
 
             <div>
-              <label className="field__label mb-2 block">Preview for {assignTerm}</label>
+              <label className="field__label block mb-2">Preview for {assignTerm}</label>
               <FeePreviewRows
                 studentIds={modalStudentIds}
                 students={students}
@@ -647,12 +639,12 @@ export default function StudentFees({ schoolCode, schoolName }) {
               />
             </div>
 
-            <div className="bg-primary-pale border border-primary/20 rounded-2xl p-4 text-sm text-primary-light flex gap-3">
-              <Info size={18} className="mt-0.5 flex-shrink-0" />
+            <div className="alert alert--info">
+              <Info size={18} />
               <div>Only new fees will be created. Duplicates are automatically skipped.</div>
             </div>
 
-            <div className="flex gap-3 pt-4">
+            <div className="flex gap-4 mt-4">
               <Btn variant="secondary" onClick={() => setShowAssignModal(false)} className="flex-1">Cancel</Btn>
               <Btn variant="accent" onClick={handleAssignTerm} loading={actionLoading} className="flex-1">
                 Confirm Assignment
@@ -664,10 +656,10 @@ export default function StudentFees({ schoolCode, schoolName }) {
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-[100] flex gap-3 rounded-2xl px-5 py-4 text-sm shadow-lg max-w-xs ${toast.type === "success" ? "bg-success text-white" : "bg-danger text-white"}`}>
+        <div className={`toast ${toast.type === "success" ? "toast--success" : "toast--error"}`}>
           {toast.type === "success" ? <Check size={18} /> : <AlertTriangle size={18} />}
           <span>{toast.message}</span>
-          <button onClick={() => setToast(null)} className="ml-auto"><X size={16} /></button>
+          <button onClick={() => setToast(null)} className="toast__close"><X size={16} /></button>
         </div>
       )}
     </div>

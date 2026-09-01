@@ -285,7 +285,7 @@ export default function PerformanceModule({ schoolCode }) {
           const snap = await getDoc(doc(db, "users", uid));
           if (snap.exists()) {
             const d = snap.data();
-            names[uid] = d.displayName || d.fullName || `${d.firstName ?? ""} ${d.lastName ?? ""}`.trim() || uid;
+            names[uid] = d.displayName || d.fullName || `${d.firstName ?? ""} ${d.lastName ?? ""}`.trim() || "Unknown Teacher";
           }
         } catch {}
       }));
@@ -419,7 +419,7 @@ export default function PerformanceModule({ schoolCode }) {
           </p>
         </div>
         <button onClick={fetchData} disabled={isLoading} className="icon-btn" title="Refresh">
-          <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
+          <RefreshCw size={16} className={isLoading ? "spin" : ""} />
         </button>
       </div>
 

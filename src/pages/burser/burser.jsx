@@ -88,6 +88,7 @@ function BursarOverview({ userData, schoolData, schoolCode, setTab }) {
 
 export default function BursarDashboard() {
   const [currentTab, setCurrentTab] = useState("overview");
+  const [uid, setUid] = useState("");
   const [userData, setUserData] = useState(null);
   const [schoolData, setSchoolData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -95,6 +96,7 @@ export default function BursarDashboard() {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser) setUid(fbUser.uid);
       if (!fbUser) { window.location.href = "/"; return; }
       try {
         const userSnap = await getDoc(doc(db, "users", fbUser.uid));
@@ -159,6 +161,7 @@ export default function BursarDashboard() {
       userName={displayName}
       schoolName={schoolName}
       schoolCode={schoolCode}
+      notificationRecipientId={uid}
       portalLabel="Bursar Portal"
       navSectionLabel="Finance Modules"
       footerVersion="v1.4.0 · Bursar"
@@ -169,7 +172,7 @@ export default function BursarDashboard() {
       )}
       {currentTab === "fee-structure" && <FeeStructure schoolCode={schoolCode} schoolName={schoolName} />}
       {currentTab === "student-fees" && <StudentFees schoolCode={schoolCode} schoolName={schoolName} />}
-      {currentTab === "payments" && <Payments schoolCode={schoolCode} schoolName={schoolName} />}
+      {currentTab === "payments" && <Payments schoolCode={schoolCode} schoolName={schoolName} bursarName={displayName} />}
       {currentTab === "receipts" && <Receipts schoolCode={schoolCode} schoolName={schoolName} />}
       {currentTab === "reports" && <Reports schoolCode={schoolCode} schoolName={schoolName} />}
     </DashboardShell>

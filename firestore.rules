@@ -1,0 +1,737 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper Functions ─────────────────────────────────────────────────────
+    function myData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function isAdmin() {
+      return myData().role == "admin";
+    }
+    function isHeadTeacher() {
+      return myData().role == "head_teacher";
+    }
+    function isBursar() {
+      return myData().role == "bursar";
+    }
+    function isAdminOrHead() {
+      return isAdmin() || isHeadTeacher();
+    }
+    function isFinance() {
+      return isAdmin() || isBursar();
+    }
+    function sameSchool(schoolCode) {
+      return myData().schoolCode == schoolCode;
+    }
+    function isMyClass() {
+      return myData().assignedClasses.hasAny([resource.data.className]) ||
+             myData().assignedClasses.hasAny([request.resource.data.className]);
+    }
+        // Helper for anonymous parent login (based on guardianPhone)
+    function isGuardianOfStudent(studentId) {
+      let studentPhone = get(/databases/$(database)/documents/students/$(studentId)).data.guardianPhone;
+      return request.auth != null &&
+             request.auth.token.firebase.sign_in_provider == 'anonymous' &&
+             studentPhone != null;
+    }
+
+    // ── Helpers added for notifications / activity / messaging ───────────────
+    // The ACALink parent app signs in anonymously, so it has NO users/{uid}
+    // document. Every helper above that calls myData() would therefore read a
+    // null document and error out for a parent session. These are safe to call
+    // from either side.
+    //
+    // Staff is defined as "signed in and not anonymous" rather than by an
+    // exists() probe on purpose: staff always authenticate with email/password,
+    // and a rules evaluation gets only ~20 document accesses per query, so
+    // pairing exists() with get() on the same path would halve the number of
+    // threads or notifications a single query could return.
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAnonParent() {
+      return isSignedIn() &&
+             request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+    function isStaff() {
+      return isSignedIn() && !isAnonParent();
+    }
+    function isStaffOfSchool(schoolCode) {
+      return isStaff() && myData().schoolCode == schoolCode;
+    }
+    // A guardian's inbox address. Matches `parentRecipientId()` in
+    // src/services/notifications.js and notifications_service.dart.
+    function isParentAddress(id) {
+      return id is string && id.matches('^parent:.+');
+    }
+    // Fields any staff member in a discussion may touch on someone else's
+    // thread — reacting, replying (which bumps the counters) and read receipts.
+    function touchesOnlyThreadCollabFields() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['reactions', 'participants', 'replyCount',
+                         'lastActivityAt', 'lastActivityAtMs', 'lastActivityBy',
+                         'seenBy']);
+    }
+    // Fields either side of a conversation may touch when sending or reading.
+    function touchesOnlyConversationFields() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['lastMessage', 'lastSenderId', 'lastSenderName',
+                         'lastMessageAt', 'lastMessageAtMs', 'unread',
+                         'status', 'subject', 'updatedAt']);
+    }
+
+    // =============================================
+    // SCHOOLS
+    // =============================================
+    match /schools/{schoolCode} {
+      allow read: if true;
+      allow create: if request.auth != null &&
+                    request.resource.data.authUid == request.auth.uid;
+      allow update: if request.auth != null &&
+                    request.auth.uid == resource.data.authUid;
+      allow delete: if false;
+    }
+
+    // =============================================
+    // USERS
+    // =============================================
+    match /users/{userId} {
+      // The anonymous branch is FIRST on purpose: || short-circuits, so a
+      // parent session never reaches sameSchool() and its myData() lookup.
+      // Parents need this to populate the "message a teacher" picker in the
+      // mobile app (ChatService.fetchContacts), which reads name + role.
+      allow read: if request.auth != null &&
+                  (
+                    (isAnonParent() &&
+                     resource.data.role in ['head_teacher', 'class_teacher']) ||
+                    request.auth.uid == userId ||
+                    sameSchool(resource.data.schoolCode)
+                  );
+
+      allow create: if request.auth != null;
+
+      // Owner can update only safe fields
+      allow update: if request.auth != null &&
+                    request.auth.uid == userId &&
+                    request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['mustChangePassword', 'lastPasswordChange', 'updatedAt']);
+
+      // Admin full control within same school
+      allow update: if request.auth != null &&
+                    isAdmin() &&
+                    sameSchool(resource.data.schoolCode);
+
+      // Admin can delete any user — no school restriction
+      allow delete: if request.auth != null &&
+                    isAdmin();
+
+      // Head teacher limited update
+      allow update: if request.auth != null &&
+                    isHeadTeacher() &&
+                    sameSchool(resource.data.schoolCode) &&
+                    request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['assignedClasses', 'assignedSubjects', 'status', 'updatedAt']);
+    }
+
+    // =============================================
+    // STUDENTS
+    // =============================================
+   match /students/{studentId} {
+  // Anonymous (parent app) branch moved first — same reason as /users above.
+  allow read: if request.auth != null &&
+              (
+                request.auth.token.firebase.sign_in_provider == 'anonymous' ||
+                sameSchool(resource.data.schoolCode) ||
+                isAdminOrHead()
+              );
+  allow create: if request.auth != null &&
+                isAdminOrHead() &&
+                sameSchool(request.resource.data.schoolCode);
+  allow update: if request.auth != null &&
+                isAdminOrHead() &&
+                sameSchool(resource.data.schoolCode) &&
+                sameSchool(request.resource.data.schoolCode);
+  allow delete: if request.auth != null &&
+                isAdmin() &&
+                sameSchool(resource.data.schoolCode);
+}
+
+    // =============================================
+    // FEE STRUCTURES
+    // =============================================
+    match /fee_structures/{feeId} {
+      allow read: if request.auth != null &&
+                  sameSchool(resource.data.schoolCode);
+
+      allow create: if request.auth != null &&
+                    isFinance() &&
+                    sameSchool(request.resource.data.schoolCode);
+
+      allow update: if request.auth != null &&
+                    isFinance() &&
+                    sameSchool(resource.data.schoolCode) &&
+                    sameSchool(request.resource.data.schoolCode);
+
+      allow delete: if request.auth != null &&
+                    isFinance() &&
+                    sameSchool(resource.data.schoolCode);
+    }
+
+       // =============================================
+    // FEE ASSIGNMENTS
+    // =============================================
+    match /fee_assignments/{assignmentId} {
+      allow read: if request.auth != null &&
+                  (
+                    isGuardianOfStudent(resource.data.studentId) ||
+                    sameSchool(resource.data.schoolCode)
+                  );
+      allow create, update, delete: if request.auth != null && isFinance() &&
+                                    sameSchool(resource.data.schoolCode || request.resource.data.schoolCode);
+    }
+
+       // =============================================
+    // PAYMENTS
+    // =============================================
+    match /payments/{paymentId} {
+      allow read: if request.auth != null &&
+                  (
+                    isGuardianOfStudent(resource.data.studentId) ||
+                    sameSchool(resource.data.schoolCode)
+                  );
+      // ⚠ A parent recording their own payment is self-reported, not verified.
+      // Rules cannot tell a real bank transfer from a made-up one, so the most
+      // they can do is force it to be labelled: every payment written by the
+      // app must carry source='parent_app' and status='unverified', which is
+      // what lets the bursar's ledger separate it from a payment the bursar
+      // entered. See the PAYMENT INTEGRITY note at the foot of this file.
+      allow create: if isAnonParent()
+                       ? (isGuardianOfStudent(request.resource.data.studentId) &&
+                          request.resource.data.amount is int &&
+                          request.resource.data.amount > 0 &&
+                          request.resource.data.source == 'parent_app' &&
+                          request.resource.data.status == 'unverified')
+                       : (request.auth != null &&
+                          isFinance() &&
+                          sameSchool(request.resource.data.schoolCode));
+      allow update, delete: if request.auth != null && isAdmin() &&
+                            sameSchool(resource.data.schoolCode);
+    }
+
+    // =============================================
+    // SCHOOL CLASSES
+    // =============================================
+      match /school_classes/{classId} {
+      allow read: if request.auth != null && sameSchool(resource.data.schoolCode);
+      allow create: if request.auth != null && isAdminOrHead() && sameSchool(request.resource.data.schoolCode);
+      allow update: if request.auth != null && isAdminOrHead() && sameSchool(resource.data.schoolCode) && sameSchool(request.resource.data.schoolCode);
+      allow delete: if request.auth != null && isAdmin() && sameSchool(resource.data.schoolCode);
+    }
+
+    // =============================================
+    // ATTENDANCE
+    // =============================================
+    match /attendance/{attendanceId} {
+      // The parent app reads its child's class register
+      // (AttendanceService: schoolCode + classId). The anonymous branch is
+      // first so || short-circuits before sameSchool() calls myData(), which
+      // would error on a session that has no users/{uid} document.
+      allow read: if isAnonParent() ||
+                  (request.auth != null &&
+                  (resource == null ||
+                   (sameSchool(resource.data.schoolCode) &&
+                    (resource.data.teacherId == request.auth.uid ||
+                     isMyClass() ||
+                     isAdminOrHead()))));
+
+      allow create: if request.auth != null &&
+                    sameSchool(request.resource.data.schoolCode) &&
+                    (request.resource.data.teacherId == request.auth.uid ||
+                     isAdminOrHead());
+
+      allow update: if request.auth != null &&
+                    sameSchool(resource.data.schoolCode) &&
+                    (resource.data.teacherId == request.auth.uid ||
+                     isMyClass() ||
+                     isAdminOrHead());
+
+      allow delete: if request.auth != null && isAdmin();
+    }
+
+    // =============================================
+    // DISCIPLINE CASES
+    // =============================================
+    match /discipline_cases/{caseId} {
+      // DisciplineService queries schoolCode + studentId. Gating the parent
+      // branch on the studentId keeps it in step with /payments and
+      // /fee_assignments, and the query constrains that field so Firestore can
+      // prove the list is safe.
+      allow read: if isAnonParent()
+                     ? isGuardianOfStudent(resource.data.studentId)
+                     : (request.auth != null &&
+                        sameSchool(resource.data.schoolCode));
+
+      allow create: if request.auth != null &&
+                    sameSchool(request.resource.data.schoolCode) &&
+                    (request.resource.data.reportedByUid == request.auth.uid ||
+                     isAdminOrHead());
+
+      allow update: if request.auth != null &&
+                    isAdminOrHead() &&
+                    sameSchool(resource.data.schoolCode);
+
+      allow delete: if request.auth != null && isAdmin();
+    }
+
+    // =============================================
+    // LESSON PLANS
+    // =============================================
+    match /lesson_plans/{planId} {
+      allow read, update, delete: if request.auth != null &&
+                                  resource.data.teacherId == request.auth.uid;
+
+      allow create: if request.auth != null &&
+                    request.resource.data.teacherId == request.auth.uid;
+
+      allow read: if request.auth != null &&
+                  isAdminOrHead() &&
+                  sameSchool(resource.data.schoolCode);
+    }
+
+    // =============================================
+    // HOMEWORK
+    // =============================================
+    match /homework/{homeworkId} {
+      // Read is one statement rather than several so the anonymous branch can
+      // short-circuit ahead of any myData() lookup. HomeworkService queries
+      // schoolCode + classId for the child's upcoming work.
+      allow read: if isAnonParent() ||
+                  (request.auth != null &&
+                   (resource.data.teacherId == request.auth.uid ||
+                    (isAdminOrHead() && sameSchool(resource.data.schoolCode))));
+
+      allow create: if request.auth != null &&
+                    request.resource.data.teacherId == request.auth.uid &&
+                    sameSchool(request.resource.data.schoolCode);
+
+      allow update: if request.auth != null &&
+                    resource.data.teacherId == request.auth.uid;
+
+      allow delete: if request.auth != null &&
+                    (resource.data.teacherId == request.auth.uid ||
+                     (isAdmin() && sameSchool(resource.data.schoolCode)));
+    }
+
+    // =============================================
+    // CA MARKS
+    // =============================================
+   match /ca_marks/{markDocId} {
+  // Reads must also cover the "document doesn't exist yet" case —
+  // getDoc() on a not-yet-created marks doc has resource == null, and
+  // without this branch resource.data.teacherId throws inside the rule
+  // itself, which the client sees as "Missing or insufficient permissions"
+  // instead of a clean not-found. This mirrors the /attendance rule above.
+  // PerformanceService reads the child's class marks (schoolCode + classId +
+  // term) to build the grades card and class ranking.
+  allow read: if isAnonParent() ||
+              (request.auth != null &&
+              (resource == null ||
+               resource.data.teacherId == request.auth.uid ||
+               (isAdminOrHead() && sameSchool(resource.data.schoolCode))));
+
+  allow update: if request.auth != null &&
+                resource.data.teacherId == request.auth.uid;
+
+  allow create: if request.auth != null &&
+                request.resource.data.teacherId == request.auth.uid &&
+                sameSchool(request.resource.data.schoolCode);
+
+  allow delete: if request.auth != null &&
+                isAdmin() &&
+                sameSchool(resource.data.schoolCode);
+}
+
+
+    // =============================================
+    // ANNOUNCEMENTS
+    // =============================================
+    match /announcements/{announcementId} {
+      // The parent app reads announcements for its child's school
+      // (AnnouncementsService.fetchRecent), so the anonymous branch comes
+      // first to keep sameSchool() out of a parent's evaluation path.
+      allow read: if request.auth != null &&
+                  (
+                    request.auth.token.firebase.sign_in_provider == 'anonymous' ||
+                    sameSchool(resource.data.schoolCode)
+                  );
+
+      allow create: if request.auth != null &&
+                    isAdminOrHead() &&
+                    sameSchool(request.resource.data.schoolCode);
+
+      allow update, delete: if request.auth != null &&
+                            isAdminOrHead() &&
+                            sameSchool(resource.data.schoolCode);
+
+      // A guardian marking an announcement read bumps readCount and nothing
+      // else. Constrained to a +1 so the counter cannot be driven anywhere a
+      // real read would not take it.
+      allow update: if isAnonParent() &&
+                    request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['readCount']) &&
+                    request.resource.data.readCount == resource.data.readCount + 1;
+
+      // One marker per guardian per announcement, keyed by their address so a
+      // second read cannot create a second marker.
+      match /reads/{parentId} {
+        allow read: if isAnonParent() || isStaff();
+        allow create: if isAnonParent() && isParentAddress(parentId);
+        allow update, delete: if false;
+      }
+    }
+
+    // =============================================
+    // NOTIFICATIONS  (in-app bell — staff portals + parent app)
+    // =============================================
+    // One document per recipient per event. `recipientId` is a staff uid, or
+    // `parent:<E.164 phone>` for a guardian. Written by
+    // src/services/notifications.js and read by both the web bell and the
+    // mobile app's notifications screen.
+    match /notifications/{notificationId} {
+      // Staff see only their own inbox. Parents are addressed by phone, and an
+      // anonymous session carries no phone claim, so a parent session can read
+      // any parent-addressed notification — the same trust level the parent app
+      // already has on /students. Tightening this needs Firebase Phone Auth;
+      // see the note at the bottom of this file.
+      allow read: if isAnonParent()
+                     ? isParentAddress(resource.data.recipientId)
+                     : (isSignedIn() && resource.data.recipientId == request.auth.uid);
+
+      // Staff raise notifications for their own school only.
+      allow create: if isStaffOfSchool(request.resource.data.schoolCode) &&
+                    request.resource.data.read == false;
+
+      // A parent replying in chat notifies the staff member. That is the only
+      // thing the mobile app is allowed to write here.
+      allow create: if isAnonParent() &&
+                    request.resource.data.category == 'message' &&
+                    request.resource.data.recipientType == 'staff' &&
+                    request.resource.data.read == false &&
+                    request.resource.data.entityType == 'conversation';
+
+      // The only update a CLIENT makes is marking it read. `pushedAt` and the
+      // TTL field are written by scripts/push-worker.js through the Admin SDK,
+      // which bypasses rules entirely.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['read', 'readAt']) &&
+                    (
+                      isAnonParent()
+                        ? isParentAddress(resource.data.recipientId)
+                        : (isSignedIn() && resource.data.recipientId == request.auth.uid)
+                    );
+
+      // Dismissing removes it from your own inbox.
+      allow delete: if isAnonParent()
+                       ? isParentAddress(resource.data.recipientId)
+                       : (isSignedIn() && resource.data.recipientId == request.auth.uid);
+    }
+
+    // =============================================
+    // PARENT DEVICES  (FCM registration tokens)
+    // =============================================
+    // One document per handset, keyed by the FCM token itself so a device can
+    // only ever touch its own registration. Written by PushService in the
+    // mobile app and read by scripts/push-worker.js through the Admin SDK,
+    // which bypasses these rules — so nothing here needs to grant read access.
+    match /parent_devices/{fcmToken} {
+      allow read: if false;
+
+      allow create, update: if isAnonParent() &&
+                            isParentAddress(request.resource.data.parentId) &&
+                            request.resource.data.token == fcmToken;
+
+      // Logging out removes the registration so a shared phone stops
+      // receiving another family's notifications.
+      allow delete: if isAnonParent();
+    }
+
+    // =============================================
+    // ACTIVITY THREADS  (Classes & Streams discussion — staff only)
+    // =============================================
+    // `scopeId` is a school_classes doc id, or "__school__" for the staffroom
+    // channel. Guardians have no access to any of this.
+    match /activity_threads/{threadId} {
+      allow read: if isStaffOfSchool(resource.data.schoolCode);
+
+      allow create: if isStaffOfSchool(request.resource.data.schoolCode) &&
+                    request.resource.data.authorId == request.auth.uid &&
+                    request.resource.data.replyCount == 0;
+
+      // Any colleague in the school can react, reply (which bumps the
+      // counters) and mark the thread seen…
+      allow update: if isStaffOfSchool(resource.data.schoolCode) &&
+                    touchesOnlyThreadCollabFields();
+
+      // …but only the author or the head teacher can pin, resolve or edit it.
+      allow update: if isStaffOfSchool(resource.data.schoolCode) &&
+                    (resource.data.authorId == request.auth.uid || isHeadTeacher());
+
+      allow delete: if isStaffOfSchool(resource.data.schoolCode) &&
+                    (resource.data.authorId == request.auth.uid || isAdminOrHead());
+
+      match /replies/{replyId} {
+        // Replies carry their own schoolCode so this rule needs no lookup of
+        // the parent thread.
+        allow read: if isStaffOfSchool(resource.data.schoolCode);
+
+        allow create: if isStaffOfSchool(request.resource.data.schoolCode) &&
+                      request.resource.data.authorId == request.auth.uid;
+
+        // Reacting to someone else's reply is allowed; editing it is not.
+        allow update: if isStaffOfSchool(resource.data.schoolCode) &&
+                      (
+                        request.resource.data.diff(resource.data).affectedKeys()
+                          .hasOnly(['reactions']) ||
+                        resource.data.authorId == request.auth.uid
+                      );
+
+        allow delete: if isStaffOfSchool(resource.data.schoolCode) &&
+                      (resource.data.authorId == request.auth.uid || isAdminOrHead());
+      }
+    }
+
+    // =============================================
+    // CONVERSATIONS  (guardian ↔ staff direct messages)
+    // =============================================
+    // Document id is `<schoolCode>__<studentId>__<staffId>`, derived
+    // identically by the web portal and the mobile app so both sides land on
+    // the same thread. `participantIds` is [staffUid, "parent:<phone>"].
+    match /conversations/{conversationId} {
+      // The staff branch tests participantIds, which is exactly what the staff
+      // query filters on, so Firestore can prove the list is safe.
+      //
+      // The parent branch is deliberately unconditional. It used to read
+      // `isParentAddress(resource.data.parentId)`, but the parent app queries
+      // on participantIds — a DIFFERENT field — and a list is authorised from
+      // the query's constraints, not per returned document, so there was
+      // nothing for Firestore to prove and every parent inbox came back
+      // permission-denied. The old predicate was true of every document in
+      // this collection anyway (each one is a parent↔staff thread with a
+      // `parent:` address), so dropping it costs no security: an anonymous
+      // session could already read any of them. The real fix is Phone Auth —
+      // see the note at the bottom of this file.
+      allow read: if isAnonParent() ||
+                     (isSignedIn() && request.auth.uid in resource.data.participantIds);
+
+      // Staff open a thread with one of their school's guardians.
+      allow create: if isStaffOfSchool(request.resource.data.schoolCode) &&
+                    request.auth.uid in request.resource.data.participantIds;
+
+      // A parent opens a thread from the mobile app.
+      allow create: if isAnonParent() &&
+                    isParentAddress(request.resource.data.parentId) &&
+                    request.resource.data.participantIds.hasAll([
+                      request.resource.data.parentId,
+                      request.resource.data.staffId
+                    ]);
+
+      // Sending and reading only move the header fields and the unread counts;
+      // participants, student and school stay frozen.
+      allow update: if isAnonParent()
+                       ? (isParentAddress(resource.data.parentId) &&
+                          touchesOnlyConversationFields())
+                       : (isSignedIn() &&
+                          request.auth.uid in resource.data.participantIds &&
+                          touchesOnlyConversationFields());
+
+      allow delete: if isStaffOfSchool(resource.data.schoolCode) && isAdminOrHead();
+
+      match /messages/{messageId} {
+        // Each message copies participantIds from its conversation, so this
+        // rule authorises without a get() on the parent — which would count
+        // against the rules engine's per-query document-access budget.
+        allow read: if isAnonParent()
+                       ? request.auth != null
+                       : (isSignedIn() && request.auth.uid in resource.data.participantIds);
+
+        allow create: if isSignedIn() &&
+                      !isAnonParent() &&
+                      request.resource.data.senderId == request.auth.uid &&
+                      request.auth.uid in request.resource.data.participantIds;
+
+        allow create: if isAnonParent() &&
+                      request.resource.data.senderType == 'parent' &&
+                      isParentAddress(request.resource.data.senderId) &&
+                      request.resource.data.participantIds
+                        .hasAny([request.resource.data.senderId]);
+
+        // A sent message is a record — nobody edits it.
+        allow update: if false;
+
+        // Only leadership can purge a transcript (deleteConversation()).
+        allow delete: if isStaff() && isAdminOrHead();
+      }
+    }
+
+    // =============================================
+    // AUDIT LOGS
+    // =============================================
+    match /audit_logs/{logId} {
+      allow read: if request.auth != null && isAdminOrHead();
+      allow create: if request.auth != null;
+      allow update, delete: if false;
+    }
+
+    // =============================================
+    // TRANSFER REQUESTS
+    // =============================================
+    match /transfer_requests/{requestId} {
+      allow read: if request.auth != null &&
+                  (sameSchool(resource.data.fromSchoolCode) ||
+                   sameSchool(resource.data.toSchoolCode));
+
+      allow create: if request.auth != null &&
+                    isAdminOrHead() &&
+                    sameSchool(request.resource.data.toSchoolCode) &&
+                    request.resource.data.fromSchoolCode != request.resource.data.toSchoolCode &&
+                    request.resource.data.status == "pending";
+
+      // Approve/reject must happen server-side (Admin SDK bypasses rules) —
+      // never let a client flip status directly, or a losing school could be spoofed.
+      allow update, delete: if false;
+    }
+        // =============================================
+    // TIMETABLE
+    // =============================================
+    match /timetable/{slotId} {
+      allow read: if request.auth != null &&
+                  sameSchool(resource.data.schoolCode);
+
+      allow create: if request.auth != null &&
+                    isAdminOrHead() &&
+                    sameSchool(request.resource.data.schoolCode);
+
+      allow update: if request.auth != null &&
+                    isAdminOrHead() &&
+                    sameSchool(resource.data.schoolCode) &&
+                    sameSchool(request.resource.data.schoolCode);
+
+      allow delete: if request.auth != null &&
+                    isAdminOrHead() &&
+                    sameSchool(resource.data.schoolCode);
+    }
+
+    // =============================================
+    // LESSON SESSIONS (class clock-in / clock-out)
+    // =============================================
+    match /lesson_sessions/{sessionId} {
+      allow read: if request.auth != null &&
+                  sameSchool(resource.data.schoolCode) &&
+                  (resource.data.teacherId == request.auth.uid ||
+                   isMyClass() ||
+                   isAdminOrHead());
+
+      allow create: if request.auth != null &&
+                    sameSchool(request.resource.data.schoolCode) &&
+                    (request.resource.data.teacherId == request.auth.uid ||
+                     isAdminOrHead());
+
+      allow update: if request.auth != null &&
+                    sameSchool(resource.data.schoolCode) &&
+                    (resource.data.teacherId == request.auth.uid ||
+                     isAdminOrHead());
+
+      allow delete: if request.auth != null && isAdmin();
+    }
+
+        // =============================================
+    // SCHOOL GEOFENCES
+    // =============================================
+    match /school_geofences/{schoolCode} {
+      allow read: if request.auth != null && sameSchool(schoolCode);
+
+      allow create, update: if request.auth != null &&
+                            isAdminOrHead() &&
+                            sameSchool(schoolCode);
+
+      allow delete: if request.auth != null &&
+                    isAdmin() &&
+                    sameSchool(schoolCode);
+    }
+    // =============================================
+    // SCHOOL SETTINGS (school type, promotion threshold)
+    // =============================================
+    match /school_settings/{schoolCode} {
+      allow read: if request.auth != null && sameSchool(schoolCode);
+      allow create, update: if request.auth != null && isAdminOrHead() && sameSchool(schoolCode);
+      allow delete: if request.auth != null && isAdmin() && sameSchool(schoolCode);
+    }
+    // =============================================
+    // DEFAULT DENY — must be last
+    // =============================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KNOWN GAP — anonymous parent sessions
+//
+// The parent app authenticates anonymously and keeps the guardian's phone
+// number in local storage, so the token carries no claim tying the session to a
+// family. That means any anonymous session can, in principle, read any
+// parent-addressed notification or conversation — the same exposure /students
+// already has today. Rules cannot close this on their own.
+//
+// The fix is to move parents onto Firebase Phone Auth (or mint a custom token
+// with a `phone` claim from the existing password check). Once the phone is in
+// the token, the parent branches above become exact:
+//
+//   function myParentAddress() {
+//     return 'parent:' + request.auth.token.phone_number;
+//   }
+//   // notifications:  resource.data.recipientId == myParentAddress()
+//   // conversations:  myParentAddress() in resource.data.participantIds
+//   // messages:       myParentAddress() in resource.data.participantIds
+//
+// Nothing else in these rules has to change when that lands, and all three
+// predicates stay provable, because each one constrains the same field the
+// corresponding client query already filters on.
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// A RULE OF THUMB FOR THIS FILE
+//
+// Firestore authorises a `list` from the QUERY's constraints alone — it does
+// not check each returned document. So any rule of the form
+// `resource.data.X == …` requires every client query against that collection
+// to filter on X, or the read is refused outright even when every document in
+// it would have passed. A `get` on a single document is evaluated against the
+// real document and has no such requirement, which is why a broken list and a
+// working detail fetch can coexist and look baffling.
+//
+// When adding a rule here, check the matching query in src/services/*.js and
+// acalink/lib/services/*.dart, and make the two agree on the field.
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// PAYMENT INTEGRITY
+//
+// /payments accepts writes from the parent app (fees_service.submitPayment),
+// and an anonymous session cannot be tied to a family, so nothing here stops
+// someone recording a payment that never happened. The balance shown to the
+// parent drops immediately, and the row lands in the bursar's ledger.
+//
+// The rule forces source='parent_app' and status='unverified' on those writes
+// so the two kinds are always distinguishable in the data. What it CANNOT do
+// is make the bursar's UI act on that distinction — Payments.jsx currently
+// renders every row the same way. Until that is addressed, treat any row with
+// status='unverified' as a claim, not a receipt.
+//
+// The durable fixes, in increasing order of effort:
+//   1. Hide the Pay button in the app and keep parents read-only on fees.
+//   2. Show unverified rows separately in the bursar module, with a
+//      "confirm received" action that flips status to 'verified'.
+//   3. Take payment through a gateway and write the record server-side from
+//      its webhook, where the amount cannot be client-supplied.
+// ─────────────────────────────────────────────────────────────────────────────

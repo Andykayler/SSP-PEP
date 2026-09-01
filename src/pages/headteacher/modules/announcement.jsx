@@ -10,6 +10,7 @@ import {
   CheckCircle, X, ChevronDown, Send, Users, BookOpen,
   DollarSign, Calendar, AlertTriangle, Plus, Radio, Clock, Archive, Search,
 } from "lucide-react";
+import { notifyAnnouncement } from "../../../services/notificationHooks";
 import "./staff-management.css";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -313,6 +314,15 @@ export default function AnnouncementsModule({ schoolCode, userId, userName }) {
         type: form.type, audience: form.audience, priority: form.priority,
         readCount: 0, createdAt: serverTimestamp(),
       });
+      // Fans the notice out to guardians' phones and the staffroom bells.
+      await notifyAnnouncement({
+        schoolCode,
+        title: form.title.trim(),
+        message: form.message.trim(),
+        audience: form.audience,
+        priority: form.priority,
+        actor: { id: userId || "", name: userName || "Head Teacher", role: "head_teacher" },
+      });
       setShowCompose(false);
       showToast("Announcement sent successfully.");
       await loadAnnouncements();
@@ -371,7 +381,7 @@ export default function AnnouncementsModule({ schoolCode, userId, userName }) {
         </div>
         <div className="flex gap-2">
           <button onClick={loadAnnouncements} disabled={loading} className="icon-btn" title="Refresh">
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            <RefreshCw size={16} className={loading ? "spin" : ""} />
           </button>
           <button onClick={() => setShowCompose(true)} className="btn btn--warning">
             <Plus size={14} /> New Announcement

@@ -4,6 +4,7 @@ import {
   collection, query, where, getDocs, addDoc, deleteDoc,
   doc, getDoc, serverTimestamp,
 } from "firebase/firestore";
+import { notifyDisciplineLogged } from "../../../services/notificationHooks";
 import {
   AlertTriangle, Plus, Trash2, Eye, RefreshCw,
   AlertCircle, Loader2, ChevronDown, X, Search, ShieldAlert,
@@ -88,7 +89,7 @@ function Spinner({ size = 15 }) {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function DisciplineModule({ userId, schoolCode }) {
+export default function DisciplineModule({ userId, schoolCode, userName, userRole }) {
   const [classes,        setClasses]        = useState([]);
   const [students,       setStudents]       = useState([]);
   const [records,        setRecords]        = useState([]);
@@ -132,6 +133,12 @@ export default function DisciplineModule({ userId, schoolCode }) {
 
         if (assignedNames.length === 0) {
           setClasses([]);
+          // Clear any stale class selection left over from a previous
+          // account/session so the fetches below don't fire against a
+          // classId that doesn't belong to this teacher — that would
+          // surface as a raw "Missing or insufficient permissions" error
+          // instead of the "No classes assigned yet" message.
+          setFilterClassId("");
           setClassesReady(true);
           setStudentsReady(true);
           setRecordsReady(true);
@@ -187,7 +194,9 @@ export default function DisciplineModule({ userId, schoolCode }) {
       setStudents(list);
     } catch (err) {
       console.error("fetchStudents error:", err);
-      setError(`Could not load students: ${err.message}`);
+      setError(err.code === "permission-denied"
+        ? "You don't have access to this class yet. Ask your head teacher to assign it to you from Staff Management."
+        : `Could not load students: ${err.message}`);
     } finally {
       setStudentsReady(true);
     }
@@ -215,7 +224,9 @@ export default function DisciplineModule({ userId, schoolCode }) {
       setRecords(list);
     } catch (err) {
       console.error("fetchRecords error:", err);
-      setError(`Could not load discipline records: ${err.message}`);
+      setError(err.code === "permission-denied"
+        ? "You don't have access to this class yet. Ask your head teacher to assign it to you from Staff Management."
+        : `Could not load discipline records: ${err.message}`);
     } finally {
       setRecordsReady(true);
     }
@@ -267,6 +278,14 @@ export default function DisciplineModule({ userId, schoolCode }) {
         date:         new Date().toISOString().split("T")[0],
         status:       "Pending Review",
         createdAt:    serverTimestamp(),
+      });
+      await notifyDisciplineLogged({
+        schoolCode,
+        student,
+        offense: newRecord.offense.trim(),
+        severity: newRecord.severity,
+        action: newRecord.action.trim(),
+        actor: { id: userId, name: userName || "Class Teacher", role: userRole || "class_teacher" },
       });
       setNewRecord({ studentId: "", studentName: "", offense: "", severity: "Medium", action: "" });
       setShowForm(false);

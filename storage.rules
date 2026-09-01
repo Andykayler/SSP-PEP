@@ -1,0 +1,61 @@
+rules_version = '2';
+
+// Cloud Storage rules for ACALink / SSP-PEP.
+// Deploy alongside firestore.rules — attachments on class discussions live
+// here, and the Firestore documents only hold a descriptor pointing at them.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Staff sign in with email/password; the parent app is anonymous and has
+    // no business in this bucket.
+    function isStaff() {
+      return request.auth != null &&
+             request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    // The school on the caller's staff profile, read across from Firestore.
+    function staffSchool() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.schoolCode;
+    }
+
+    // Mirrors MAX_ATTACHMENT_BYTES in src/services/activity.js. The client
+    // checks this too, for a decent error message; this is the one that counts.
+    function withinSizeLimit() {
+      return request.resource.size < 10 * 1024 * 1024;
+    }
+
+    // ── Class discussion attachments ────────────────────────────────────────
+    // Path: activity/{schoolCode}/{timestamp}-{index}-{filename}
+    // The schoolCode segment is what scopes access, so a teacher at one school
+    // can never reach another school's files.
+    match /activity/{schoolCode}/{fileName} {
+      allow read: if isStaff() && staffSchool() == schoolCode;
+
+      // `write` covers create, overwrite and delete in Storage rules.
+      allow write: if isStaff() &&
+                   staffSchool() == schoolCode &&
+                   (request.resource == null || withinSizeLimit());
+    }
+
+    // ── Default deny ────────────────────────────────────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NOTE ON DOWNLOAD URLS
+//
+// getDownloadURL() hands back a URL carrying a long-lived access token, and
+// that URL works for anyone who has it, regardless of the read rule above.
+// That is how Firebase Storage is designed, and it is why <img src> on an
+// attachment thumbnail renders without a signed-in session.
+//
+// In practice the URL only ever reaches staff who could already read the file,
+// because it is stored inside an activity_threads document that Firestore
+// rules already gate. But treat these URLs as bearer tokens: anything genuinely
+// confidential should not be attached to a class discussion. Revoking one means
+// deleting the object (which the delete path above already does when a post is
+// removed) or rotating its token from the Firebase console.
+// ─────────────────────────────────────────────────────────────────────────────

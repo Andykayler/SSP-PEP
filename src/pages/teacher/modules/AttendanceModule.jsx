@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { db } from "../../../firebase";
 import {
   collection, query, where, getDocs, doc, getDoc,
   setDoc, serverTimestamp,
 } from "firebase/firestore";
+import { notifyAttendanceSaved } from "../../../services/notificationHooks";
 import {
   CheckCircle, XCircle, Clock, Save, Users, Search,
   RefreshCw, AlertCircle, Loader2, ChevronDown, Download,
@@ -126,7 +127,11 @@ function Spinner({ size = 16 }) {
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
-export default function AttendanceModule({ userId, schoolCode }) {
+export default function AttendanceModule({ userId, schoolCode, userName, userRole }) {
+  // What the register looked like the last time it was persisted. Saving
+  // compares against this so correcting one pupil does not re-send "marked
+  // absent" to every other absent child's guardian.
+  const savedRecordsRef = useRef({});
   const [classes,       setClasses]       = useState([]);
   const [filterClassId, setFilterClassId] = useState("");
   const [students,      setStudents]      = useState([]);
@@ -167,6 +172,12 @@ export default function AttendanceModule({ userId, schoolCode }) {
 
         if (assignedNames.length === 0) {
           setClasses([]);
+          // Clear any stale class selection left over from a previous
+          // account/session — otherwise fetchStudents below can still fire
+          // against a classId that doesn't belong to this teacher, and the
+          // Firestore rejection would surface as a raw "Missing or
+          // insufficient permissions" error instead of "No classes assigned".
+          setFilterClassId("");
           setClassesReady(true);
           setStudentsReady(true);
           setAttendanceReady(true);
@@ -225,7 +236,9 @@ export default function AttendanceModule({ userId, schoolCode }) {
       setStudents(list);
     } catch (err) {
       console.error("fetchStudents error:", err);
-      setError(`Could not load students: ${err.message}`);
+      setError(err.code === "permission-denied"
+        ? "You don't have access to this class yet. Ask your head teacher to assign it to you from Staff Management."
+        : `Could not load students: ${err.message}`);
     } finally {
       setStudentsReady(true);
     }
@@ -245,8 +258,11 @@ export default function AttendanceModule({ userId, schoolCode }) {
       const docSnap = await getDoc(doc(db, "attendance", docId));
 
       if (docSnap.exists()) {
-        setAttendance(docSnap.data().records ?? {});
+        const saved = docSnap.data().records ?? {};
+        savedRecordsRef.current = saved;
+        setAttendance(saved);
       } else {
+        savedRecordsRef.current = {};
         setAttendance({});
       }
     } catch (err) {
@@ -310,6 +326,18 @@ export default function AttendanceModule({ userId, schoolCode }) {
         records:   attendance,
         savedAt:   serverTimestamp(),
       });
+      // Only absences and late arrivals reach guardians, and only ones that
+      // changed since the last save — see the hook.
+      await notifyAttendanceSaved({
+        schoolCode,
+        className: selectedClass?.name || "",
+        date: selectedDate,
+        records: attendance,
+        previousRecords: savedRecordsRef.current,
+        students,
+        actor: { id: userId, name: userName || "Class Teacher", role: userRole || "class_teacher" },
+      });
+      savedRecordsRef.current = attendance;
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus(""), 3500);
     } catch (err) {

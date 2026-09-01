@@ -3,6 +3,7 @@ import { db } from "../../../firebase";
 import {
   collection, getDocs, deleteDoc, doc, query, where, orderBy, serverTimestamp, addDoc,
 } from "firebase/firestore";
+import { notifyAnnouncement } from "../../../services/notificationHooks";
 
 import { IC } from "./icons";
 import { fmtDate } from "./helpers";
@@ -35,6 +36,14 @@ export default function Announcements({ schoolCode, userName }) {
     setActionLoading(true); setError("");
     try {
       await addDoc(collection(db, "announcements"), { ...form, schoolCode, postedBy: userName, createdAt: serverTimestamp() });
+      await notifyAnnouncement({
+        schoolCode,
+        title: form.title,
+        message: form.message,
+        audience: form.audience,
+        priority: form.priority,
+        actor: { name: userName || "Administrator", role: "admin" },
+      });
       setShowAdd(false); setForm({ title: "", body: "", audience: "all", priority: "normal" }); fetchAnnouncements();
     } catch (err) { setError("Failed to post: " + err.message); }
     setActionLoading(false);

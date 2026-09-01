@@ -9,7 +9,7 @@ import {
   Plus, Edit2, Trash2, X, AlertTriangle, Check,
   Receipt, Loader2,
 } from "lucide-react";
-import "./staff-management.css"; 
+import "./staff-management.css";
 
 // ─── Shared UI Components ───────────────────────────────────────────────────
 const Modal = ({ title, onClose, children, wide }) => (
@@ -25,38 +25,34 @@ const Modal = ({ title, onClose, children, wide }) => (
 );
 
 const Input = ({ label, required, error, prefix, ...props }) => (
-  <div className="flex flex-col gap-1.5">
+  <div className="flex flex-col gap-2">
     {label && (
       <label className="text-xs font-semibold text-muted uppercase tracking-wider">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+        {label}{required && <span className="text-danger">*</span>}
       </label>
     )}
-    <div className="relative">
-      {prefix && (
-        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted">
-          {prefix}
-        </span>
-      )}
+    <div className={prefix ? "input-prefix" : ""}>
+      {prefix && <span className="input-prefix__label">{prefix}</span>}
       <input
         {...props}
-        className={`form-input ${prefix ? "pl-10" : ""} ${error ? "form-input--error" : ""}`}
+        className={`form-input ${error ? "form-input--error" : ""}`}
       />
     </div>
-    {error && <p className="text-xs text-red-600">{error}</p>}
+    {error && <p className="text-xs text-danger">{error}</p>}
   </div>
 );
 
 const Select = ({ label, required, error, children, ...props }) => (
-  <div className="flex flex-col gap-1.5">
+  <div className="flex flex-col gap-2">
     {label && (
       <label className="text-xs font-semibold text-muted uppercase tracking-wider">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+        {label}{required && <span className="text-danger">*</span>}
       </label>
     )}
     <select {...props} className={`form-input ${error ? "form-input--error" : ""}`}>
       {children}
     </select>
-    {error && <p className="text-xs text-red-600">{error}</p>}
+    {error && <p className="text-xs text-danger">{error}</p>}
   </div>
 );
 
@@ -66,7 +62,7 @@ const Btn = ({ children, variant = "accent", size = "md", loading, className = "
     disabled={loading || props.disabled}
     className={`btn btn--${variant} btn--${size} ${className}`}
   >
-    {loading ? <Loader2 size={14} className="animate-spin" /> : children}
+    {loading ? <Loader2 size={14} className="spin" /> : children}
   </button>
 );
 
@@ -83,7 +79,7 @@ function SkeletonBlock({ w = "100%", h = 14, radius = 8, style = {} }) {
 
 function SkeletonStatCards({ count = 4 }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+    <div className="stats-grid">
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="card p-4">
           <SkeletonBlock w="60%" h={10} style={{ marginBottom: 10 }} />
@@ -97,8 +93,8 @@ function SkeletonStatCards({ count = 4 }) {
 
 function SkeletonGroupTable({ rows = 3 }) {
   return (
-    <div className="card overflow-hidden">
-      <div className="px-5 py-4 bg-app-bg border-b border-app-border flex items-center justify-between">
+    <div className="card">
+      <div className="assignment-card__header">
         <SkeletonBlock w={120} h={14} />
         <SkeletonBlock w={160} h={12} />
       </div>
@@ -116,14 +112,14 @@ function SkeletonGroupTable({ rows = 3 }) {
           <tbody>
             {Array.from({ length: rows }).map((_, i) => (
               <tr key={i}>
-                <td className="px-5 py-4">
+                <td>
                   <SkeletonBlock w="70%" h={13} style={{ marginBottom: 6 }} />
                   <SkeletonBlock w="40%" h={10} />
                 </td>
-                <td className="px-5 py-4 hidden sm:table-cell"><SkeletonBlock w={70} h={20} radius={8} /></td>
-                <td className="px-5 py-4 hidden md:table-cell"><SkeletonBlock w={60} h={12} /></td>
-                <td className="px-5 py-4"><SkeletonBlock w={80} h={14} style={{ marginLeft: "auto" }} /></td>
-                <td className="px-5 py-4"><SkeletonBlock w={56} h={28} radius={8} style={{ marginLeft: "auto" }} /></td>
+                <td><SkeletonBlock w={70} h={20} radius={8} /></td>
+                <td><SkeletonBlock w={60} h={12} /></td>
+                <td><SkeletonBlock w={80} h={14} style={{ marginLeft: "auto" }} /></td>
+                <td><SkeletonBlock w={56} h={28} radius={8} style={{ marginLeft: "auto" }} /></td>
               </tr>
             ))}
           </tbody>
@@ -309,7 +305,7 @@ export default function FeeStructure({ schoolCode, schoolName }) {
     <form onSubmit={onSubmit} className="space-y-4">
       {error && <div className="alert alert--error">{error}</div>}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2">
         <div className="col-span-2">
           <Input label="Fee Name" required value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. Term 1 Tuition Fee" error={formErrors.name} />
         </div>
@@ -334,8 +330,8 @@ export default function FeeStructure({ schoolCode, schoolName }) {
           {ACADEMIC_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
         </Select>
 
-        <div className="col-span-2 flex items-center gap-3 px-3.5 py-2.5 bg-app-bg border border-app-border rounded-xl">
-          <input type="checkbox" id="mandatory" checked={form.mandatory} onChange={(e) => setForm((p) => ({ ...p, mandatory: e.target.checked }))} className="w-4 h-4" />
+        <div className="col-span-2 filter-bar">
+          <input type="checkbox" id="mandatory" checked={form.mandatory} onChange={(e) => setForm((p) => ({ ...p, mandatory: e.target.checked }))} />
           <label htmlFor="mandatory" className="text-sm text-muted cursor-pointer">Mandatory fee (required for all students in this class)</label>
         </div>
 
@@ -344,7 +340,7 @@ export default function FeeStructure({ schoolCode, schoolName }) {
         </div>
       </div>
 
-      <div className="flex justify-end gap-3 pt-4">
+      <div className="flex justify-end gap-4 mt-4">
         <Btn type="button" variant="secondary" onClick={() => { setShowAdd(false); setShowEdit(null); }}>Cancel</Btn>
         <Btn type="submit" variant="accent" loading={actionLoading}>
           <Check size={14} /> {isEdit ? "Update Fee" : "Create Fee"}
@@ -355,13 +351,13 @@ export default function FeeStructure({ schoolCode, schoolName }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex-between flex-wrap">
         <div>
-          <h2 style={{ fontFamily: "'Playfair Display', serif" }}>Fee Structures</h2>
+          <h2>Fee Structures</h2>
           <p className="text-muted">Define fee templates based on classes created in School Settings</p>
         </div>
 
-        <div className="flex gap-3 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
           <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="form-input form-input--compact">
             {ACADEMIC_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
@@ -392,7 +388,7 @@ export default function FeeStructure({ schoolCode, schoolName }) {
         <>
           {/* Summary Cards */}
           {totalByClass.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="stats-grid">
               {totalByClass.map(({ cls, total, count }) => (
                 <div key={cls} className="card p-4">
                   <p className="stat-card__label">{cls}</p>
@@ -405,7 +401,7 @@ export default function FeeStructure({ schoolCode, schoolName }) {
 
           {Object.keys(grouped).length === 0 ? (
             <div className="empty-state">
-              <Receipt size={32} className="text-muted" />
+              <div className="empty-state__icon"><Receipt size={28} /></div>
               <p className="empty-state__title">No fee structures found</p>
               <p className="empty-state__sub">Create fee templates for your classes</p>
               <button className="btn btn--accent btn--md" onClick={() => setShowAdd(true)}>
@@ -415,11 +411,11 @@ export default function FeeStructure({ schoolCode, schoolName }) {
           ) : (
             <div className="space-y-6">
               {Object.entries(grouped).map(([className, fees]) => (
-                <div key={className} className="card overflow-hidden">
-                  <div className="px-5 py-4 bg-app-bg border-b border-app-border flex items-center justify-between">
-                    <div className="font-semibold text-app-text">{className}</div>
+                <div key={className} className="card">
+                  <div className="assignment-card__header">
+                    <div className="font-semibold">{className}</div>
                     <div className="text-sm text-muted">
-                      {fees.length} fees • Total: <span className="font-semibold text-app-text">{fmt(fees.reduce((sum, f) => sum + (f.amount || 0), 0))}</span>
+                      {fees.length} fees • Total: <span className="font-semibold">{fmt(fees.reduce((sum, f) => sum + (f.amount || 0), 0))}</span>
                     </div>
                   </div>
 
@@ -437,17 +433,17 @@ export default function FeeStructure({ schoolCode, schoolName }) {
                       <tbody>
                         {fees.map((fee) => (
                           <tr key={fee.id}>
-                            <td className="px-5 py-4" data-label="Fee Name">
-                              <div className="font-medium text-app-text">{fee.name}</div>
-                              {fee.description && <div className="text-xs text-muted mt-0.5">{fee.description}</div>}
-                              {fee.mandatory && <span className="tag tag--success mt-1">Mandatory</span>}
+                            <td data-label="Fee Name">
+                              <div className="font-medium">{fee.name}</div>
+                              {fee.description && <div className="text-xs text-muted mt-1">{fee.description}</div>}
+                              {fee.mandatory && <span className="tag tag--green mt-1">Mandatory</span>}
                             </td>
-                            <td className="px-5 py-4 hidden sm:table-cell" data-label="Category">
+                            <td data-label="Category">
                               <span className="tag">{fee.category}</span>
                             </td>
-                            <td className="px-5 py-4 text-xs text-muted hidden md:table-cell" data-label="Term">{fee.term}</td>
-                            <td className="px-5 py-4 text-right font-semibold text-app-text" data-label="Amount">{fmt(fee.amount)}</td>
-                            <td className="px-5 py-4 text-right" data-label="Actions">
+                            <td className="text-xs text-muted" data-label="Term">{fee.term}</td>
+                            <td className="text-right font-semibold" data-label="Amount">{fmt(fee.amount)}</td>
+                            <td className="text-right" data-label="Actions">
                               <div className="flex gap-1 justify-end">
                                 <button onClick={() => openEdit(fee)} className="icon-btn" title="Edit"><Edit2 size={14} /></button>
                                 <button onClick={() => setShowDelete(fee)} className="icon-btn icon-btn--danger" title="Delete"><Trash2 size={14} /></button>
@@ -483,17 +479,17 @@ export default function FeeStructure({ schoolCode, schoolName }) {
       {showDelete && (
         <Modal title="Delete Fee Structure" onClose={() => setShowDelete(null)}>
           <div className="space-y-4">
-            <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-100 rounded-xl">
-              <AlertTriangle size={18} className="text-red-600 shrink-0" />
+            <div className="alert alert--error">
+              <AlertTriangle size={18} className="flex-shrink-0" />
               <div>
-                <p className="text-sm font-semibold text-red-800">Delete this fee structure?</p>
-                <p className="text-xs text-red-600 mt-1">
+                <p className="font-semibold">Delete this fee structure?</p>
+                <p className="text-xs mt-1">
                   <strong>{showDelete.name}</strong> will be permanently removed.<br />
                   Existing student assignments will not be affected.
                 </p>
               </div>
             </div>
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-4">
               <Btn variant="secondary" onClick={() => setShowDelete(null)}>Cancel</Btn>
               <Btn variant="danger" loading={actionLoading} onClick={handleDelete}>Delete Fee</Btn>
             </div>
@@ -501,7 +497,7 @@ export default function FeeStructure({ schoolCode, schoolName }) {
         </Modal>
       )}
 
-      <p className="text-center text-xs text-muted pt-1">
+      <p className="text-center text-xs text-muted mt-1">
         Class structure is managed in School Settings. Fees created here apply to all students in the selected class.
       </p>
     </div>

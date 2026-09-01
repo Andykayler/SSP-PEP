@@ -2,23 +2,14 @@
 import { useState, useEffect, useMemo } from "react";
 import { db } from "../../../firebase";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
-import { Download, TrendingUp, Users, AlertTriangle, Receipt, BarChart3 } from "lucide-react";
-import "./staff-management.css"; 
+import { Download, TrendingUp, Users, AlertTriangle, Receipt, BarChart3, Check } from "lucide-react";
+import "./staff-management.css";
 
 const fmt = (n) => `MWK ${Number(n || 0).toLocaleString()}`;
 const ACADEMIC_YEARS = ["2024/2025", "2025/2026", "2026/2027"];
 
 function initials(name = "") {
   return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
-}
-
-const AVATAR_TONES = [
-  "bg-blue-500/20 text-blue-300", "bg-violet-500/20 text-violet-300",
-  "bg-emerald-500/20 text-emerald-300", "bg-orange-500/20 text-orange-300",
-];
-
-function avatarColor(name = "") {
-  return AVATAR_TONES[name.charCodeAt(0) % AVATAR_TONES.length] || AVATAR_TONES[0];
 }
 
 export default function Reports({ schoolCode, schoolName }) {
@@ -116,6 +107,11 @@ export default function Reports({ schoolCode, schoolName }) {
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
   }, [payments]);
 
+  const maxMonthlyAmount = useMemo(
+    () => Math.max(1, ...monthlyCollections.map(([, amount]) => amount)),
+    [monthlyCollections]
+  );
+
   const exportCSV = () => {
     const headers = ["Student Name", "Code", "Class", "Charged", "Paid", "Balance", "Status"];
     const rows = enriched.map(s => [
@@ -143,9 +139,9 @@ export default function Reports({ schoolCode, schoolName }) {
 
   if (loading) {
     return (
-      <div className="card p-20 flex flex-col items-center justify-center">
+      <div className="card flex flex-col items-center justify-center" style={{ padding: "80px 0" }}>
         <div className="spinner" style={{ width: "48px", height: "48px" }} />
-        <p className="mt-6 text-muted">Preparing financial intelligence...</p>
+        <p className="mt-4 text-muted">Preparing financial intelligence...</p>
       </div>
     );
   }
@@ -153,13 +149,13 @@ export default function Reports({ schoolCode, schoolName }) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex-between flex-wrap">
         <div>
-          <h2 style={{ fontFamily: "'Playfair Display', serif" }}>Financial Reports</h2>
+          <h2>Financial Reports</h2>
           <p className="text-muted">Real-time insights into fee collection performance</p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           <select value={academicYear} onChange={e => setAcademicYear(e.target.value)} className="form-input form-input--compact">
             {ACADEMIC_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
@@ -208,21 +204,21 @@ export default function Reports({ schoolCode, schoolName }) {
             <div className="stat-card">
               <div className="stat-card__label">Collection Rate</div>
               <div className="stat-card__value">{collectionRate}%</div>
-              <div className="h-2 bg-primary-dim rounded mt-3 overflow-hidden">
-                <div className="h-full bg-success transition-all" style={{ width: `${collectionRate}%` }} />
+              <div className="progress-bar mt-2">
+                <div className="progress-bar__fill progress-bar__fill--success" style={{ width: `${collectionRate}%` }} />
               </div>
             </div>
           </div>
 
           {/* Status Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="stats-grid">
             {[
-              { label: "Fully Paid", count: summary.fullyPaid, color: "success" },
-              { label: "Partial", count: summary.partial, color: "warning" },
-              { label: "Unpaid", count: summary.unpaid, color: "danger" },
-              { label: "No Fees", count: summary.noFees, color: "muted" },
-            ].map(({ label, count, color }) => (
-              <div key={label} className={`card p-5 border-l-4 ${color === "success" ? "border-success" : color === "warning" ? "border-warning" : color === "danger" ? "border-danger" : "border-border"}`}>
+              { label: "Fully Paid", count: summary.fullyPaid, tile: "stat-tile--success" },
+              { label: "Partial", count: summary.partial, tile: "stat-tile--warning" },
+              { label: "Unpaid", count: summary.unpaid, tile: "stat-tile--danger" },
+              { label: "No Fees", count: summary.noFees, tile: "stat-tile--neutral" },
+            ].map(({ label, count, tile }) => (
+              <div key={label} className={`card p-5 ${tile}`}>
                 <div className="text-sm text-muted">{label}</div>
                 <div className="text-4xl font-bold mt-1">{count}</div>
                 <div className="text-xs text-muted mt-1">students</div>
@@ -234,7 +230,7 @@ export default function Reports({ schoolCode, schoolName }) {
 
       {/* BY CLASS */}
       {activeTab === "classes" && (
-        <div className="card overflow-hidden">
+        <div className="card">
           <div className="data-table-wrap">
             <table className="data-table">
               <thead>
@@ -256,11 +252,11 @@ export default function Reports({ schoolCode, schoolName }) {
                     <td className="text-right text-success">{fmt(cls.paid)}</td>
                     <td className="text-right text-danger">{fmt(cls.balance)}</td>
                     <td>
-                      <div className="flex items-center gap-3">
-                        <div className="h-2 flex-1 bg-primary-dim rounded-full overflow-hidden">
-                          <div className="h-full bg-success" style={{ width: `${cls.rate}%` }} />
+                      <div className="flex items-center gap-2">
+                        <div className="progress-bar flex-1">
+                          <div className="progress-bar__fill progress-bar__fill--success" style={{ width: `${cls.rate}%` }} />
                         </div>
-                        <span className="text-sm font-medium w-12">{cls.rate}%</span>
+                        <span className="text-sm font-medium">{cls.rate}%</span>
                       </div>
                     </td>
                   </tr>
@@ -284,10 +280,10 @@ export default function Reports({ schoolCode, schoolName }) {
             </div>
           </div>
 
-          <div className="card overflow-hidden">
+          <div className="card">
             {outstanding.length === 0 ? (
-              <div className="empty-state py-20">
-                <div className="empty-state__icon"><Check size={48} className="text-success" /></div>
+              <div className="empty-state">
+                <div className="empty-state__icon"><Check size={28} /></div>
                 <div className="empty-state__title">All Clear!</div>
                 <p className="empty-state__sub">No outstanding balances this term</p>
               </div>
@@ -307,11 +303,11 @@ export default function Reports({ schoolCode, schoolName }) {
                     {outstanding.map(s => (
                       <tr key={s.id}>
                         <td>
-                          <div className="flex items-center gap-3">
-                            <div className={`assignment-avatar ${avatarColor(s.fullName)}`}>{initials(s.fullName)}</div>
+                          <div className="flex items-center gap-2">
+                            <div className="assignment-avatar">{initials(s.fullName)}</div>
                             <div>
-                              <div className="font-medium">{s.fullName}</div>
-                              <div className="text-xs text-muted">{s.studentCode}</div>
+                              <div className="data-table__primary">{s.fullName}</div>
+                              <div className="data-table__meta">{s.studentCode}</div>
                             </div>
                           </div>
                         </td>
@@ -343,17 +339,17 @@ export default function Reports({ schoolCode, schoolName }) {
                   const label = new Date(y, m - 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
                   return (
                     <div key={month} className="flex items-center gap-4">
-                      <div className="w-28 text-sm font-medium text-muted">{label}</div>
-                      <div className="flex-1 h-3 bg-primary-dim rounded-full overflow-hidden">
-                        <div className="h-full bg-primary" style={{ width: "100%" }} />
+                      <div className="text-sm font-medium text-muted" style={{ width: 112, flexShrink: 0 }}>{label}</div>
+                      <div className="progress-bar flex-1" style={{ height: 12 }}>
+                        <div className="progress-bar__fill progress-bar__fill--success" style={{ width: `${(amount / maxMonthlyAmount) * 100}%` }} />
                       </div>
-                      <div className="font-semibold text-right w-24">{fmt(amount)}</div>
+                      <div className="font-semibold text-right" style={{ width: 96, flexShrink: 0 }}>{fmt(amount)}</div>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <p className="text-muted py-12 text-center">No payments recorded yet.</p>
+              <p className="text-muted text-center" style={{ padding: "48px 0" }}>No payments recorded yet.</p>
             )}
           </div>
         </div>

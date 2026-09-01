@@ -6,10 +6,12 @@ import {
 import { onAuthStateChanged } from "firebase/auth";
 import {
   Users, BookOpen, Calendar, Award, TrendingUp, AlertTriangle,
-  Home, FileText, CheckCircle, Clock,
+  Home, FileText, CheckCircle, Clock, MessageSquare, MessagesSquare,
 } from "lucide-react";
 
 import DashboardShell from "../../components/DashboardShell";
+import MessagesModule from "../../components/messaging/MessagesModule";
+import { ClassActivityPage } from "../../components/activity/ClassActivityBoard";
 import Studentmodule from "./modules/student";
 import ClassModule from "./modules/ClassModule";
 import TimetableModule from "./modules/TimetableModule";
@@ -85,7 +87,10 @@ export default function TeacherDashboard() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
-        setAuthLoading(false);
+        // Mirrors the head teacher dashboard's sign-out handling: force a
+        // hard redirect so no stale userId/schoolCode/profile state lingers
+        // in this component after auth.signOut() resolves.
+        window.location.href = "/";
         return;
       }
       try {
@@ -306,9 +311,21 @@ export default function TeacherDashboard() {
     return () => { cancelled = true; };
   }, [classesReady, classes, userId, schoolCode]);
 
-  const moduleProps = { userId, schoolCode };
   const displayName = profile?.name || profile?.displayName || "Teacher";
   const displayRole = profile?.role === "head_teacher" ? "Head Teacher" : "Class Teacher";
+
+  // Identity handed to the collaborative modules so posts are attributed and
+  // @mentions resolve to a real uid.
+  const currentUser = { id: userId, name: displayName, role: profile?.role || "class_teacher" };
+
+  // Modules that raise notifications need the actor's name and role, not just
+  // the uid, so the guardian sees who marked the register or logged the case.
+  const moduleProps = {
+    userId,
+    schoolCode,
+    userName: displayName,
+    userRole: profile?.role || "class_teacher",
+  };
 
   const navItems = [
     { id: "overview", label: "Overview", icon: <Home className="w-5 h-5" /> },
@@ -319,6 +336,8 @@ export default function TeacherDashboard() {
     { id: "discipline", label: "Discipline Cases", icon: <AlertTriangle className="w-5 h-5" />, component: <DisciplineModule {...moduleProps} /> },
     { id: "students", label: "My Students", icon: <Users className="w-5 h-5" />, component: <Studentmodule {...moduleProps} /> },
     { id: "Homework", label: "Homework", icon: <FileText className="w-5 h-5" />, component: <HomeworkModule {...moduleProps} /> },
+    { id: "classes", label: "Class Activity", icon: <MessagesSquare className="w-5 h-5" />, component: <ClassActivityPage schoolCode={schoolCode} currentUser={currentUser} restrictToAssigned /> },
+    { id: "messages", label: "Parent Messages", icon: <MessageSquare className="w-5 h-5" />, component: <MessagesModule schoolCode={schoolCode} currentUser={currentUser} /> },
   ];
 
   const currentNavItem = navItems.find((item) => item.id === currentTab);
@@ -429,7 +448,8 @@ export default function TeacherDashboard() {
       portalLabel="Teacher Portal"
       navSectionLabel="Teacher Workspace"
       footerVersion="Teacher Portal v1.2.4"
-      onSignOut={() => auth.signOut()}
+      notificationRecipientId={userId || ""}
+      onSignOut={async () => { await auth.signOut(); window.location.href = "/"; }}
     >
       {currentTab === "overview" ? (
         <div className="space-y-8">

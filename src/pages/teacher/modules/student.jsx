@@ -93,6 +93,13 @@ export default function StudentModule({ userId, schoolCode }) {
 
         if (assignedNames.length === 0) {
           setClasses([]);
+          // Clear any stale class selection left over from a previous
+          // account/session — otherwise fetchStudents below can still fire
+          // against a classId that doesn't belong to this teacher, and the
+          // resulting Firestore rejection would surface as a raw
+          // "Missing or insufficient permissions" error instead of the
+          // "No classes assigned yet" message this teacher should see.
+          setFilterClassId("");
           setClassesReady(true);
           setStudentsReady(true);
           return;
@@ -148,7 +155,9 @@ export default function StudentModule({ userId, schoolCode }) {
       setStudents(list);
     } catch (err) {
       console.error("fetchStudents error:", err);
-      setError(`Could not load students: ${err.message}`);
+      setError(err.code === "permission-denied"
+        ? "You don't have access to this class yet. Ask your head teacher to assign it to you from Staff Management."
+        : `Could not load students: ${err.message}`);
     } finally {
       setStudentsReady(true);
     }

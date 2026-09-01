@@ -50,6 +50,20 @@ export default function AdminDashboard() {
     return () => unsub();
   }, []);
 
+  // Pressing Back after Sign Out can restore this dashboard straight from
+  // the browser's back-forward cache (bfcache) — a frozen DOM snapshot from
+  // before sign-out, painted instantly without re-running the auth check
+  // above. `pageshow` with `event.persisted === true` detects a bfcache
+  // restore; reloading re-runs onAuthStateChanged, which redirects a
+  // signed-out user to "/" instead of leaving the stale page on screen.
+  useEffect(() => {
+    const handlePageShow = (event) => {
+      if (event.persisted) window.location.reload();
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
+
   const handleSignOut = async () => { await signOut(auth); window.location.href = "/"; };
 
   const displayName    = userData?.name || authUser?.email || "Admin";
@@ -88,6 +102,7 @@ export default function AdminDashboard() {
         navItems={NAV_ITEMS}
         schoolDistrict={schoolDistrict}
         schoolCode={schoolCode}
+        notificationRecipientId={authUser?.uid || ""}
         onSignOut={handleSignOut}
       />
 
@@ -129,7 +144,7 @@ export default function AdminDashboard() {
         </main>
 
         <footer className="dashboard-footer">
-          <span>© 2026 SSP-PEP · Ministry of Education, Malawi</span>
+          <span>© 2026 Acalink</span>
           <span>v1.4.1</span>
         </footer>
       </div>

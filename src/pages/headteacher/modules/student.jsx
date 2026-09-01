@@ -287,7 +287,7 @@ export default function StudentManagement({ schoolCode, senderName }) {
         </div>
         <div className="flex gap-2">
           <button onClick={fetchStudents} disabled={loading} className="icon-btn" title="Refresh">
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            <RefreshCw size={16} className={loading ? "spin" : ""} />
           </button>
           <button onClick={() => setNotifyTargets("all")} disabled={students.length === 0 || loading} className="btn btn--accent">
             <BellRing size={14} /> Notify all parents

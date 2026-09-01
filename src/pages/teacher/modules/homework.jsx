@@ -4,6 +4,7 @@ import {
   collection, query, where, getDocs, addDoc, updateDoc, deleteDoc,
   doc, getDoc, serverTimestamp,
 } from "firebase/firestore";
+import { notifyHomeworkPosted } from "../../../services/notificationHooks";
 import {
   Plus, Clock, Calendar, Eye, Edit2, Trash2,
   CheckCircle, AlertCircle,
@@ -461,7 +462,7 @@ function ViewModal({ hw, onClose }) {
 
 // ─── Main Module ──────────────────────────────────────────────────────────────
 
-export default function HomeworkModule({ userId, schoolCode }) {
+export default function HomeworkModule({ userId, schoolCode, userName, userRole }) {
   const [homework,      setHomework]      = useState([]);
   const [myClasses,     setMyClasses]     = useState([]);
   const [mySubjects,    setMySubjects]    = useState([]);
@@ -578,6 +579,15 @@ export default function HomeworkModule({ userId, schoolCode }) {
       payload.submitted    = 0;
       const ref = await addDoc(collection(db, "homework"), payload);
       setHomework((prev) => [{ id: ref.id, ...payload }, ...prev]);
+      await notifyHomeworkPosted({
+        schoolCode,
+        className: payload.className,
+        subject: payload.subject,
+        title: payload.title,
+        dueDate: payload.dueDate,
+        homeworkId: ref.id,
+        actor: { id: userId, name: userName || "Class Teacher", role: userRole || "class_teacher" },
+      });
       showToast("Homework assigned.");
     }
   };
