@@ -663,7 +663,13 @@ service cloud.firestore {
     // SCHOOL SETTINGS (school type, promotion threshold)
     // =============================================
     match /school_settings/{schoolCode} {
-      allow read: if request.auth != null && sameSchool(schoolCode);
+      // The parent app reads `currentTerm` from here so its grades card
+      // queries the same term the teachers are recording against
+      // (AcademicTermService). Anonymous branch first, as everywhere else, so
+      // || short-circuits before sameSchool() reaches for a users document a
+      // guardian session does not have.
+      allow read: if isAnonParent() ||
+                  (request.auth != null && sameSchool(schoolCode));
       allow create, update: if request.auth != null && isAdminOrHead() && sameSchool(schoolCode);
       allow delete: if request.auth != null && isAdmin() && sameSchool(schoolCode);
     }

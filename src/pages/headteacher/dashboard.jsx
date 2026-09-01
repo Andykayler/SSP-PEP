@@ -5,6 +5,7 @@ import { signOut, onAuthStateChanged } from "firebase/auth";
 import { Users, Calendar, Award, AlertTriangle, Bell, Home, FileText, UserCheck, ClipboardCheck, MessageSquare } from "lucide-react";
 
 import DashboardShell from "../../components/DashboardShell";
+import TermCard from "../../components/TermCard";
 import MessagesModule from "../../components/messaging/MessagesModule";
 import StudentManagement from "./modules/student";
 import ClassAndStreamModule from "./modules/ClassModule";
@@ -185,6 +186,8 @@ export default function HeadTeacherDashboard() {
               {schoolCode && <div className="overview-hero__code">{schoolCode}</div>}
             </div>
           </div>
+
+          <TermCard schoolCode={schoolCode} actorId={uid} />
 
           <div>
             <div className="sec-eyebrow">Quick actions</div>

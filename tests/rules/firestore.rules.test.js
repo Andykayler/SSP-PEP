@@ -28,6 +28,7 @@ import {
   collection, doc, getDoc, getDocs, query, where, setDoc, addDoc, updateDoc, deleteDoc, limit,
 } from "firebase/firestore";
 
+
 const SCHOOL = "TEST-SCHOOL-1";
 const OTHER_SCHOOL = "TEST-SCHOOL-2";
 const TEACHER = "teacher_uid_1";
@@ -119,6 +120,10 @@ before(async () => {
     await setDoc(doc(db, "announcements", "a1"), {
       schoolCode: SCHOOL, title: "Sports day", message: "m", readCount: 0,
     });
+    await setDoc(doc(db, "school_settings", SCHOOL), {
+      schoolCode: SCHOOL, schoolType: "Secondary",
+      currentTerm: "Term 2 2026", promotionThreshold: 40,
+    });
   });
 });
 
@@ -185,6 +190,17 @@ describe("parent app reads", () => {
     ["own notifications", (db) => query(collection(db, "notifications"), where("recipientId", "==", PARENT), limit(60))],
     ["teaching staff for the contact picker", (db) => query(collection(db, "users"), where("schoolCode", "==", SCHOOL), where("role", "in", ["head_teacher", "class_teacher"]))],
   ];
+
+  it("allows reading the school's current term", async () => {
+    // Without this the grades card cannot know which term to query, which is
+    // exactly the mismatch that hid saved marks from families.
+    await assertSucceeds(getDoc(doc(asParent(), "school_settings", SCHOOL)));
+  });
+
+  it("denies writing the school's current term", async () => {
+    await assertFails(setDoc(doc(asParent(), "school_settings", SCHOOL),
+      { currentTerm: "Term 1 2020" }, { merge: true }));
+  });
 
   for (const [label, build] of cases) {
     it(`allows ${label}`, async () => {
@@ -254,6 +270,18 @@ describe("parent app writes", () => {
     await assertFails(addDoc(collection(asParent(), "activity_threads"), {
       schoolCode: SCHOOL, scopeId: CLASS, authorId: "anon_uid_1", replyCount: 0,
     }));
+  });
+});
+
+describe("academic term", () => {
+  it("a head teacher can set the current term", async () => {
+    await assertSucceeds(setDoc(doc(asHead(), "school_settings", SCHOOL),
+      { currentTerm: "Term 3 2026" }, { merge: true }));
+  });
+
+  it("a head teacher from another school cannot", async () => {
+    await assertFails(setDoc(doc(asOutsider(), "school_settings", SCHOOL),
+      { currentTerm: "Term 1 2020" }, { merge: true }));
   });
 });
 

@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'academic_term_service.dart';
 import '../models/student.dart';
 
 class SubjectGrade {
@@ -58,33 +60,72 @@ class PerformanceService {
   PerformanceService({FirebaseFirestore? firestore})
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
-  // TODO: no shared "current term" source exists yet across the web app
-  // (each module hardcodes its own) — mirrors the term shown in this app's
-  // own dashboard hero. Update both together until a real source exists.
-  static const currentTerm = 'Term 2 2026';
+  /// Weights of the four assessment components, matching ASSESSMENT_TYPES in
+  /// the web portal's PerformanceModule. A term grade is the weighted mean of
+  /// whichever components have been entered so far, so a class with only CA 1
+  /// recorded still shows a sensible figure.
+  static const _componentWeights = <String, double>{
+    'CA1': 0.10,
+    'CA2': 0.10,
+    'MidTerm': 0.20,
+    'EndTerm': 0.60,
+  };
+
+  final _terms = AcademicTermService();
 
   Future<PerformanceSummary> fetchPerformance(Student student) async {
     if (student.classId.isEmpty) return PerformanceSummary.empty;
+
+    // The term the school is actually recording against. Empty means nobody
+    // has set one yet — showing nothing is honest, guessing would resurrect
+    // exactly the mismatch this replaced.
+    final term = await _terms.currentTerm(student.schoolCode);
+    if (term.isEmpty) return PerformanceSummary.empty;
 
     final marksSnap = await _firestore
         .collection('ca_marks')
         .where('schoolCode', isEqualTo: student.schoolCode)
         .where('classId', isEqualTo: student.classId)
-        .where('term', isEqualTo: currentTerm)
+        .where('term', isEqualTo: term)
         .get();
 
-    // studentId -> subject -> score
-    final Map<String, Map<String, num>> byStudent = {};
+    // studentId -> subject -> component -> score. Each teacher writes one
+    // document per component, so a subject's four scores arrive across four
+    // documents and have to be gathered before they can be weighted.
+    final Map<String, Map<String, Map<String, num>>> raw = {};
     for (final doc in marksSnap.docs) {
-      final marks = doc.data()['marks'] as Map<String, dynamic>? ?? {};
+      final data = doc.data();
+      final component = (data['assessmentType'] as String?) ?? 'EndTerm';
+      final marks = data['marks'] as Map<String, dynamic>? ?? {};
       marks.forEach((studentId, subjectMarks) {
         if (subjectMarks is! Map) return;
-        final bucket = byStudent.putIfAbsent(studentId, () => {});
+        final perSubject = raw.putIfAbsent(studentId, () => {});
         subjectMarks.forEach((subject, score) {
-          if (score is num) bucket[subject as String] = score;
+          if (score is num) {
+            perSubject.putIfAbsent(subject as String, () => {})[component] = score;
+          }
         });
       });
     }
+
+    // studentId -> subject -> weighted term score
+    final Map<String, Map<String, num>> byStudent = {};
+    raw.forEach((studentId, perSubject) {
+      final bucket = byStudent.putIfAbsent(studentId, () => {});
+      perSubject.forEach((subject, perComponent) {
+        double weightedSum = 0;
+        double weightUsed = 0;
+        perComponent.forEach((component, score) {
+          final w = _componentWeights[component];
+          if (w == null) return;
+          weightedSum += score * w;
+          weightUsed += w;
+        });
+        if (weightUsed > 0) {
+          bucket[subject] = (weightedSum / weightUsed * 10).round() / 10;
+        }
+      });
+    });
 
     double? avgOf(Map<String, num> subjectMap) {
       if (subjectMap.isEmpty) return null;
