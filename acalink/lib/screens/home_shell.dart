@@ -11,6 +11,7 @@ import '../services/attendance_service.dart';
 import '../services/performance_service.dart';
 import '../services/discipline_service.dart';
 import '../services/homework_service.dart';
+import '../services/academic_term_service.dart';
 import '../services/announcements_service.dart';
 import '../services/notifications_service.dart';
 import '../services/chat_service.dart';
@@ -18,6 +19,9 @@ import '../services/push_service.dart';
 import 'student_select_screen.dart';
 import 'fees_screen.dart';
 import 'notifications_screen.dart';
+import 'results_screen.dart';
+import 'attendance_screen.dart';
+import 'homework_screen.dart';
 import 'messages_screen.dart';
 
 /// ─── Design tokens — mirrors StudentSelectScreen's _T. TODO: extract to a
@@ -94,6 +98,7 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
   DisciplineSummary _discipline = DisciplineSummary.empty;
   List<HomeworkTask> _homework = const [];
   List<AnnouncementItem> _announcements = const [];
+  String _term = '';
 
   // The badge streams are built once per phone number rather than per build:
   // calling watch* inside build() would tear down and re-open a Firestore
@@ -161,7 +166,16 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
     super.dispose();
   }
 
+  // build() schedules a load whenever _loadedForStudentId does not match, but
+  // the very first thing a load does is setState — which rebuilds, which
+  // schedules another load before the first has finished. Without this guard
+  // a single dashboard open fired the whole fetch a dozen times over.
+  String? _loadInFlightFor;
+
   Future<void> _loadDashboard(Student student) async {
+    if (_loadInFlightFor == student.id) return;
+    _loadInFlightFor = student.id;
+
     setState(() {
       _loading = true;
       _error = null;
@@ -175,6 +189,7 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
         _disciplineService.fetchSummary(student),
         _homeworkService.fetchUpcoming(student),
         _announcementsService.fetchRecent(student.schoolCode),
+        AcademicTermService().currentTerm(student.schoolCode),
       ]);
 
       if (!mounted) return;
@@ -185,6 +200,7 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
         _discipline = results[3] as DisciplineSummary;
         _homework = results[4] as List<HomeworkTask>;
         _announcements = results[5] as List<AnnouncementItem>;
+        _term = results[6] as String;
         _loadedForStudentId = student.id;
         _loading = false;
       });
@@ -204,6 +220,10 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
         _loading = false;
         _error = 'Could not load your dashboard: $e';
       });
+    } finally {
+      // Cleared even on the !mounted early return, so a student switch that
+      // races a teardown does not leave the guard stuck.
+      _loadInFlightFor = null;
     }
   }
 
@@ -228,13 +248,19 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
         _openFees(context, student);
         break;
       case 'Grades':
-        _scrollTo(_gradesKey);
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const ResultsScreen()),
+        );
         break;
       case 'Attendance':
-        _scrollTo(_statsKey);
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const AttendanceScreen()),
+        );
         break;
       case 'Homework':
-        _scrollTo(_homeworkKey);
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const HomeworkScreen()),
+        );
         break;
       case 'Announcements':
         _scrollTo(_announcementsKey);
@@ -266,6 +292,7 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
             SliverToBoxAdapter(
               child: _DashboardHero(
                 student: student,
+                term: _term,
                 unreadStream: _unreadNotifications,
                 onOpenNotifications: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const NotificationsScreen()),
@@ -394,12 +421,14 @@ class _ErrorBanner extends StatelessWidget {
 /// ─── Hero ──────────────────────────────────────────────────────────────
 class _DashboardHero extends StatelessWidget {
   final Student? student;
+  final String term;
   final VoidCallback onSwitchChild;
   final VoidCallback onOpenNotifications;
   final Stream<int> unreadStream;
 
   const _DashboardHero({
     required this.student,
+    required this.term,
     required this.onSwitchChild,
     required this.onOpenNotifications,
     required this.unreadStream,
@@ -448,9 +477,9 @@ class _DashboardHero extends StatelessWidget {
                   children: [
                     Container(width: 14, height: 1, color: _T.warning),
                     const SizedBox(width: 7),
-                    const Text(
-                      'TERM 2 · 2026',
-                      style: TextStyle(
+                    Text(
+                      term.isEmpty ? 'TERM NOT SET' : AcademicTermService.display(term),
+                      style: const TextStyle(
                         fontFamily: _T.fontMono,
                         fontSize: 9,
                         letterSpacing: 2.4,

@@ -438,6 +438,79 @@ service cloud.firestore {
     }
 
     // =============================================
+    // HOMEWORK SUBMISSIONS  (per-student, with the late-approval flow)
+    // =============================================
+    // Id is `{homeworkId}__{studentId}`, so a family can only ever touch their
+    // own child's record for a given assignment.
+    //
+    // status moves: (nothing) -> submitted
+    //               (nothing) -> late_requested -> late_approved -> submitted
+    //                                           -> late_declined
+    //
+    // The property that matters here is that a guardian cannot approve their
+    // own late request: only staff write late_approved / late_declined, and
+    // only staff touch the decision fields. What rules CANNOT check is the due
+    // date itself, which lives on the homework document as a 'yyyy-MM-dd'
+    // string with no way to compare it against request.time here. The deadline
+    // is enforced in HomeworkSubmissionService, and the server-set
+    // `submittedAt` gives the teacher the truth about when work actually
+    // arrived, so a late submission cannot be passed off as punctual.
+    match /homework_submissions/{submissionId} {
+      allow read: if isAnonParent()
+                     ? isGuardianOfStudent(resource.data.studentId)
+                     : isStaffOfSchool(resource.data.schoolCode);
+
+      // A guardian may only ever put the record into these two states.
+      allow create: if isAnonParent() &&
+                    isGuardianOfStudent(request.resource.data.studentId) &&
+                    request.resource.data.status in ['submitted', 'late_requested'] &&
+                    submissionId == request.resource.data.homeworkId + '__' +
+                                    request.resource.data.studentId;
+
+      allow update: if isAnonParent() &&
+                    isGuardianOfStudent(resource.data.studentId) &&
+                    request.resource.data.status in ['submitted', 'late_requested'] &&
+                    // Submitting while a request is still pending is not on;
+                    // an approval has to land first.
+                    !(request.resource.data.status == 'submitted' &&
+                      resource.data.status == 'late_requested') &&
+                    // The teacher's decision is not the guardian's to rewrite.
+                    request.resource.data.get('decisionNote', '') ==
+                      resource.data.get('decisionNote', '') &&
+                    request.resource.data.get('decidedBy', '') ==
+                      resource.data.get('decidedBy', '');
+
+      // Staff answer the request, and can correct a record afterwards.
+      allow create, update: if isStaffOfSchool(request.resource.data.schoolCode);
+
+      allow delete: if isStaffOfSchool(resource.data.schoolCode) && isAdminOrHead();
+    }
+
+    // =============================================
+    // REPORT CARDS  (the issued term result)
+    // =============================================
+    // One snapshot per student per term, id `{schoolCode}__{studentId}__{term}`.
+    // Its EXISTENCE is the release: individual assessment components become
+    // visible in the parent app as each teacher publishes them, but the
+    // combined weighted result only appears once the head teacher issues the
+    // card from Reports → Report Cards.
+    //
+    // The parent app fetches it by id (a `get`, not a list), so gating on the
+    // document's own studentId is provable here in a way a list would not be.
+    match /report_cards/{cardId} {
+      allow read: if isAnonParent()
+                     ? isGuardianOfStudent(resource.data.studentId)
+                     : isStaffOfSchool(resource.data.schoolCode);
+
+      // Issuing and re-issuing is a leadership act; a class teacher publishing
+      // their own component does not release the combined result.
+      allow create, update: if isStaffOfSchool(request.resource.data.schoolCode) &&
+                            isAdminOrHead();
+
+      allow delete: if isStaffOfSchool(resource.data.schoolCode) && isAdmin();
+    }
+
+    // =============================================
     // PARENT DEVICES  (FCM registration tokens)
     // =============================================
     // One document per handset, keyed by the FCM token itself so a device can
@@ -663,7 +736,13 @@ service cloud.firestore {
     // SCHOOL SETTINGS (school type, promotion threshold)
     // =============================================
     match /school_settings/{schoolCode} {
-      allow read: if request.auth != null && sameSchool(schoolCode);
+      // The parent app reads `currentTerm` from here so its grades card
+      // queries the same term the teachers are recording against
+      // (AcademicTermService). Anonymous branch first, as everywhere else, so
+      // || short-circuits before sameSchool() reaches for a users document a
+      // guardian session does not have.
+      allow read: if isAnonParent() ||
+                  (request.auth != null && sameSchool(schoolCode));
       allow create, update: if request.auth != null && isAdminOrHead() && sameSchool(schoolCode);
       allow delete: if request.auth != null && isAdmin() && sameSchool(schoolCode);
     }

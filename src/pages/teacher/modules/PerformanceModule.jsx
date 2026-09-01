@@ -5,6 +5,7 @@ import {
   setDoc, serverTimestamp,
 } from "firebase/firestore";
 import { notifyMarksPublished } from "../../../services/notificationHooks";
+import { subscribeSchoolSettings, termOptions } from "../../../services/academicTerm";
 import {
   Award, AlertTriangle, RefreshCw, Loader2, CheckCircle,
   AlertCircle, Search, ChevronDown, Users,
@@ -203,7 +204,10 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
   const isLoading = !classesReady || !studentsReady;
   const noAssignment = classesReady && studentsReady && classes.length === 0;
 
-  const [selectedTerm, setSelectedTerm] = useState("Term 1 2026");
+  // Empty until the school's current term arrives — picking a literal default
+  // is what let marks be filed under a term the parent app never queries.
+  const [selectedTerm, setSelectedTerm] = useState("");
+  const [schoolTerm, setSchoolTerm] = useState("");
   const [selectedAssessment, setSelectedAssessment] = useState(ASSESSMENT_TYPES[0].id);
   const [viewMode,     setViewMode]     = useState("marks");
   const [search,       setSearch]       = useState("");
@@ -221,6 +225,18 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
 
   const [overallData,  setOverallData]  = useState({});
   const [overallReady, setOverallReady] = useState(false);
+
+  // The school's term is the default for new entry, but a teacher can still
+  // look back at an earlier one from the dropdown.
+  useEffect(() => {
+    if (!schoolCode) return undefined;
+    const unsub = subscribeSchoolSettings(schoolCode, (settings) => {
+      const term = settings?.currentTerm || "";
+      setSchoolTerm(term);
+      setSelectedTerm((chosen) => chosen || term);
+    });
+    return () => unsub();
+  }, [schoolCode]);
 
   const showToast = (msg, type = "success") => setToast({ message: msg, type });
 
@@ -510,7 +526,7 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
   );
 
   const noStudents = classesReady && studentsReady && students.length === 0 && selectedClassId;
-  const TERMS = ["Term 1 2026", "Term 2 2026", "Term 3 2025", "Term 1 2025", "Term 2 2025"];
+  const TERMS = termOptions(schoolTerm || selectedTerm);
 
   const VIEW_TABS = [
     { id: "marks",     icon: Edit3,     label: "Marks" },

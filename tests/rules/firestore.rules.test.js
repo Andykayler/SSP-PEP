@@ -28,6 +28,7 @@ import {
   collection, doc, getDoc, getDocs, query, where, setDoc, addDoc, updateDoc, deleteDoc, limit,
 } from "firebase/firestore";
 
+
 const SCHOOL = "TEST-SCHOOL-1";
 const OTHER_SCHOOL = "TEST-SCHOOL-2";
 const TEACHER = "teacher_uid_1";
@@ -119,6 +120,25 @@ before(async () => {
     await setDoc(doc(db, "announcements", "a1"), {
       schoolCode: SCHOOL, title: "Sports day", message: "m", readCount: 0,
     });
+    await setDoc(doc(db, "homework_submissions", `hw_1__${STUDENT}`), {
+      schoolCode: SCHOOL, homeworkId: "hw_1", homeworkTitle: "Essay",
+      studentId: STUDENT, studentName: "Test Child", classId: CLASS,
+      teacherId: TEACHER, status: "late_requested", requestReason: "was ill",
+    });
+    await setDoc(doc(db, "report_cards", `${SCHOOL}__${STUDENT}__Term_2_2026`), {
+      schoolCode: SCHOOL, studentId: STUDENT, studentName: "Test Child",
+      classId: CLASS, term: "Term 2 2026", subjects: [], overallAverage: 62,
+    });
+    // A published component and a draft one, to prove the app only ever sees
+    // the published half.
+    await setDoc(doc(db, "ca_marks", "cm_published"), {
+      schoolCode: SCHOOL, classId: CLASS, term: "Term 2 2026",
+      assessmentType: "CA1", teacherId: TEACHER, marks: {}, publishedAt: new Date(),
+    });
+    await setDoc(doc(db, "school_settings", SCHOOL), {
+      schoolCode: SCHOOL, schoolType: "Secondary",
+      currentTerm: "Term 2 2026", promotionThreshold: 40,
+    });
   });
 });
 
@@ -185,6 +205,17 @@ describe("parent app reads", () => {
     ["own notifications", (db) => query(collection(db, "notifications"), where("recipientId", "==", PARENT), limit(60))],
     ["teaching staff for the contact picker", (db) => query(collection(db, "users"), where("schoolCode", "==", SCHOOL), where("role", "in", ["head_teacher", "class_teacher"]))],
   ];
+
+  it("allows reading the school's current term", async () => {
+    // Without this the grades card cannot know which term to query, which is
+    // exactly the mismatch that hid saved marks from families.
+    await assertSucceeds(getDoc(doc(asParent(), "school_settings", SCHOOL)));
+  });
+
+  it("denies writing the school's current term", async () => {
+    await assertFails(setDoc(doc(asParent(), "school_settings", SCHOOL),
+      { currentTerm: "Term 1 2020" }, { merge: true }));
+  });
 
   for (const [label, build] of cases) {
     it(`allows ${label}`, async () => {
@@ -254,6 +285,98 @@ describe("parent app writes", () => {
     await assertFails(addDoc(collection(asParent(), "activity_threads"), {
       schoolCode: SCHOOL, scopeId: CLASS, authorId: "anon_uid_1", replyCount: 0,
     }));
+  });
+});
+
+describe("homework submissions — the late-approval flow", () => {
+  const SUB = `hw_1__${STUDENT}`;
+
+  it("a parent can list their own child's submissions", async () => {
+    await assertSucceeds(getDocs(query(
+      collection(asParent(), "homework_submissions"),
+      where("studentId", "==", STUDENT),
+    )));
+  });
+
+  it("a parent can ask to submit late", async () => {
+    await assertSucceeds(setDoc(doc(asParent(), "homework_submissions", `hw_2__${STUDENT}`), {
+      schoolCode: SCHOOL, homeworkId: "hw_2", studentId: STUDENT,
+      classId: CLASS, teacherId: TEACHER, status: "late_requested",
+      requestReason: "internet was down",
+    }));
+  });
+
+  it("a parent CANNOT approve their own late request", async () => {
+    // The whole point of the flow: self-approval would make the deadline
+    // meaningless.
+    await assertFails(updateDoc(doc(asParent(), "homework_submissions", SUB), {
+      status: "late_approved",
+    }));
+  });
+
+  it("a parent cannot submit while their request is still pending", async () => {
+    await assertFails(updateDoc(doc(asParent(), "homework_submissions", SUB), {
+      status: "submitted",
+    }));
+  });
+
+  it("a parent cannot rewrite the teacher's decision note", async () => {
+    await assertFails(updateDoc(doc(asParent(), "homework_submissions", SUB), {
+      status: "late_requested", decisionNote: "teacher said fine",
+    }));
+  });
+
+  it("the teacher can approve it", async () => {
+    await assertSucceeds(updateDoc(doc(asTeacher(), "homework_submissions", SUB), {
+      status: "late_approved", decisionNote: "ok this once", decidedBy: TEACHER,
+    }));
+  });
+
+  it("a teacher from another school cannot", async () => {
+    await assertFails(updateDoc(doc(asOutsider(), "homework_submissions", SUB), {
+      status: "late_approved",
+    }));
+  });
+});
+
+describe("report cards", () => {
+  const CARD = `${SCHOOL}__${STUDENT}__Term_2_2026`;
+
+  it("a parent can read their child's issued report card", async () => {
+    await assertSucceeds(getDoc(doc(asParent(), "report_cards", CARD)));
+  });
+
+  it("a head teacher can issue one", async () => {
+    await assertSucceeds(setDoc(doc(asHead(), "report_cards", CARD), {
+      schoolCode: SCHOOL, studentId: STUDENT, classId: CLASS,
+      term: "Term 2 2026", subjects: [], overallAverage: 71,
+    }));
+  });
+
+  it("a class teacher cannot issue one — releasing is a leadership act", async () => {
+    await assertFails(setDoc(doc(asTeacher(), "report_cards", CARD), {
+      schoolCode: SCHOOL, studentId: STUDENT, classId: CLASS,
+      term: "Term 2 2026", subjects: [], overallAverage: 99,
+    }));
+  });
+
+  it("a parent cannot write one", async () => {
+    await assertFails(setDoc(doc(asParent(), "report_cards", CARD), {
+      schoolCode: SCHOOL, studentId: STUDENT, classId: CLASS,
+      term: "Term 2 2026", subjects: [], overallAverage: 100,
+    }));
+  });
+});
+
+describe("academic term", () => {
+  it("a head teacher can set the current term", async () => {
+    await assertSucceeds(setDoc(doc(asHead(), "school_settings", SCHOOL),
+      { currentTerm: "Term 3 2026" }, { merge: true }));
+  });
+
+  it("a head teacher from another school cannot", async () => {
+    await assertFails(setDoc(doc(asOutsider(), "school_settings", SCHOOL),
+      { currentTerm: "Term 1 2020" }, { merge: true }));
   });
 });
 

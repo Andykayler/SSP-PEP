@@ -91,6 +91,25 @@
   --input-border:   rgba(79, 110, 247, 0.22);
 
   --warning-dark:   #fff8e7;
+
+  /* ── Completing the light palette ─────────────────────────────────────────
+     These nine were declared in the `:root, [data-theme="dark"]` block above
+     but had no light counterpart, so in light mode they kept their dark
+     values — this stylesheet loads after design-system.css and has the same
+     specificity, so its :root block wins over design-system's light block.
+     That is what painted the head teacher's overview hero navy on an
+     otherwise light page. Values copied from design-system.css's own
+     [data-theme="light"] block; keep the two in step. ────────────────────── */
+  --hero-bg:        linear-gradient(135deg, #e8eaf4 0%, #dde1ef 50%, #e8eaf4 100%);
+  --topbar-bg:      #ffffff;
+  --footer-bg:      #e4e7ef;
+
+  --shadow-xs:      0 1px 3px rgba(15, 23, 41, 0.08);
+  --shadow-sm:      0 2px 8px rgba(15, 23, 41, 0.10);
+  --shadow-md:      0 6px 20px rgba(15, 23, 41, 0.12);
+  --shadow-lg:      0 12px 40px rgba(15, 23, 41, 0.15);
+  --shadow-accent:  0 4px 16px rgba(79, 110, 247, 0.22);
+  --shadow-gold:    0 4px 14px rgba(180, 83, 9, 0.18);
 }
 
 /* ────────────────────────────────────────────────────────── */

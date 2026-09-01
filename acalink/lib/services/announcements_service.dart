@@ -67,8 +67,16 @@ class AnnouncementsService {
     for (final doc in snap.docs) {
       if (items.length >= limit) break;
       final data = doc.data();
+      // "All Staff" contains "all", so a plain contains('all') test used to
+      // leak staffroom notices to families. Anything addressed to staff is
+      // excluded first, and only then is the inclusive side considered.
       final audience = (data['audience'] as String? ?? '').toLowerCase();
-      final relevant = audience.isEmpty || audience.contains('all') || audience.contains('parent');
+      final forStaff = audience.contains('staff');
+      final relevant = !forStaff &&
+          (audience.isEmpty ||
+              audience.contains('parent') ||
+              audience.contains('student') ||
+              audience.contains('all'));
       if (!relevant) continue;
 
       final ts = data['createdAt'];
