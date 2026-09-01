@@ -4,10 +4,11 @@ import {
   collection, query, where, getDocs, doc, getDoc,
   setDoc, serverTimestamp,
 } from "firebase/firestore";
+import { notifyMarksPublished } from "../../../services/notificationHooks";
 import {
   Award, AlertTriangle, RefreshCw, Loader2, CheckCircle,
   AlertCircle, Search, ChevronDown, Users,
-  BarChart2, Edit3, Save, PieChart, Info,
+  BarChart2, Edit3, Save, PieChart, Info, Send,
 } from "lucide-react";
 
 function fullName(s) {
@@ -193,7 +194,7 @@ function ScoreCell({ value, onCommit, disabled }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function PerformanceModule({ userId, schoolCode }) {
+export default function PerformanceModule({ userId, schoolCode, userName, userRole }) {
   const [classes,       setClasses]       = useState([]);
   const [mySubjects,    setMySubjects]    = useState([]);
   const [selectedClassId,   setSelectedClassId]   = useState("");
@@ -212,6 +213,10 @@ export default function PerformanceModule({ userId, schoolCode }) {
   const [saving,   setSaving]   = useState(false);
   const [toast,    setToast]    = useState(null);
   const [dirty,    setDirty]    = useState(false);
+  // When this component's results were last announced to guardians. Saving is
+  // silent; publishing is the deliberate act that notifies.
+  const [publishedAt, setPublishedAt] = useState(null);
+  const [publishing,  setPublishing]  = useState(false);
   const [error,    setError]    = useState("");
 
   const [overallData,  setOverallData]  = useState({});
@@ -245,6 +250,12 @@ export default function PerformanceModule({ userId, schoolCode }) {
 
         if (assignedNames.length === 0) {
           setClasses([]);
+          // Clear any stale class selection left over from a previous
+          // account/session — otherwise fetchStudents below can still fire
+          // against a classId that doesn't belong to this teacher, and the
+          // Firestore rejection would surface as a raw "Missing or
+          // insufficient permissions" error instead of "No classes assigned".
+          setSelectedClassId("");
           setClassesReady(true);
           setStudentsReady(true);
           return;
@@ -297,7 +308,9 @@ export default function PerformanceModule({ userId, schoolCode }) {
       setStudents(list);
     } catch (err) {
       console.error("fetchStudents:", err);
-      setError("Could not load students: " + err.message);
+      setError(err.code === "permission-denied"
+        ? "You don't have access to this class yet. Ask your head teacher to assign it to you from Staff Management."
+        : "Could not load students: " + err.message);
     } finally {
       setStudentsReady(true);
     }
@@ -313,6 +326,7 @@ export default function PerformanceModule({ userId, schoolCode }) {
     try {
       const snap = await getDoc(doc(db, "ca_marks", marksDocId(selectedAssessment)));
       setMarks(snap.exists() ? (snap.data().marks || {}) : {});
+      setPublishedAt(snap.exists() ? (snap.data().publishedAt?.toDate?.() || null) : null);
       setDirty(false);
     } catch (err) {
       console.error("loadMarks:", err);
@@ -343,14 +357,56 @@ export default function PerformanceModule({ userId, schoolCode }) {
         subjects:       mySubjects,
         marks,
         updatedAt:      serverTimestamp(),
-      });
+      }, { merge: true });
       setDirty(false);
-      showToast(`${selectedAssessmentLabel} marks saved successfully.`);
+      showToast(`${selectedAssessmentLabel} marks saved. Use Publish to notify guardians.`);
     } catch (err) {
       console.error(err);
       showToast("Failed to save marks: " + err.message, "error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Students with at least one score recorded — the only ones worth announcing.
+  const scoredStudentIds = Object.keys(marks).filter((id) =>
+    Object.values(marks[id] || {}).some((v) => v !== "" && v !== null && v !== undefined));
+
+  /**
+   * Announces this component's results to guardians, once. Kept separate from
+   * saving because a teacher correcting a single mark would otherwise re-send
+   * "new results available" to the whole class every time they hit Save.
+   */
+  const publishResults = async () => {
+    if (scoredStudentIds.length === 0) return;
+    if (publishedAt && !window.confirm(
+      `These ${selectedAssessmentLabel} marks were already published on `
+      + `${publishedAt.toLocaleDateString("en-GB")}. Notify all guardians again?`
+    )) return;
+
+    setPublishing(true);
+    try {
+      if (dirty) await saveAllMarks();
+      await notifyMarksPublished({
+        schoolCode,
+        className: selectedClass?.name || "",
+        subject: mySubjects.join(", "),
+        assessment: selectedAssessmentLabel,
+        term: selectedTerm,
+        studentIds: scoredStudentIds,
+        actor: { id: userId, name: userName || "Class Teacher", role: userRole || "class_teacher" },
+      });
+      await setDoc(doc(db, "ca_marks", marksDocId(selectedAssessment)), {
+        publishedAt: serverTimestamp(),
+        publishedBy: userId,
+      }, { merge: true });
+      setPublishedAt(new Date());
+      showToast(`Guardians of ${scoredStudentIds.length} student${scoredStudentIds.length !== 1 ? "s" : ""} notified.`);
+    } catch (err) {
+      console.error(err);
+      showToast("Could not publish results: " + err.message, "error");
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -492,6 +548,19 @@ export default function PerformanceModule({ userId, schoolCode }) {
             <button onClick={saveAllMarks} disabled={saving} style={saveBtnStyle(saving)}>
               {saving ? <Spinner size={15} /> : <Save size={15} />}
               Save {selectedAssessmentLabel} marks
+            </button>
+          )}
+          {viewMode !== "overall" && scoredStudentIds.length > 0 && (
+            <button
+              onClick={publishResults}
+              disabled={publishing}
+              style={saveBtnStyle(publishing)}
+              title={publishedAt
+                ? `Already published ${publishedAt.toLocaleDateString("en-GB")}`
+                : "Notify guardians that these results are available"}
+            >
+              {publishing ? <Spinner size={15} /> : <Send size={15} />}
+              {publishedAt ? "Re-publish" : "Publish results"}
             </button>
           )}
         </div>
@@ -721,7 +790,10 @@ export default function PerformanceModule({ userId, schoolCode }) {
 
               <div style={{ padding: "14px 20px", borderTop: "1px solid var(--border-color)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
                 <p className="module-sub" style={{ margin: 0 }}>
-                  {students.length} student{students.length !== 1 ? "s" : ""} · {mySubjects.length} subject{mySubjects.length !== 1 ? "s" : ""} · one of four components combined on the Overall tab
+                  {students.length} student{students.length !== 1 ? "s" : ""} · {mySubjects.length} subject{mySubjects.length !== 1 ? "s" : ""} ·{" "}
+                  {publishedAt
+                    ? `published to guardians ${publishedAt.toLocaleDateString("en-GB")}`
+                    : "not yet published to guardians"}
                 </p>
                 <button onClick={saveAllMarks} disabled={!dirty || saving} style={saveBtnStyle(!dirty || saving)}>
                   {saving ? <Spinner size={13} /> : <Save size={13} />}

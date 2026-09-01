@@ -158,6 +158,8 @@ body {
 .flex { display: flex; }
 .items-center { align-items: center; }
 .justify-between { justify-content: space-between; }
+.justify-center { justify-content: center; }
+.cursor-pointer { cursor: pointer; }
 .gap-2 { gap: 8px; }
 .gap-4 { gap: 16px; }
 
@@ -165,8 +167,9 @@ body {
   display: grid;
   gap: 16px;
 }
-.grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
-.grid-cols-4 { grid-template-columns: repeat(4, 1fr); }
+.grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.col-span-2 { grid-column: span 2 / span 2; }
 
 @media (max-width: 768px) {
   .grid-cols-2, .grid-cols-4 { grid-template-columns: 1fr; }
@@ -226,6 +229,14 @@ body {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 20px;
 }
+/* Grid items default to min-width:auto, which floors their shrinkability at
+   their content's intrinsic size — for a text <input> that's the browser's
+   default ~170-200px form-control width, which `width:100%` doesn't override.
+   .stats-grid is reused as a generic filter-bar container in several pages
+   with a search box among the items; without this, that box (and anything
+   after it) gets pushed past the container's right edge instead of
+   shrinking to fit. */
+.stats-grid > * { min-width: 0; }
 .stat-card {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
@@ -576,9 +587,22 @@ body {
   background: var(--surface);
   color: var(--text-primary);
 }
+.icon-btn--assign {
+  /* Base (non-hover) tint was missing — this and .icon-btn--danger below
+     always fell back to plain gray until hovered, so action icons that
+     should stand apart (assign vs. delete) looked identical at rest. */
+  color: var(--primary-light);
+}
 .icon-btn--assign:hover {
   background: var(--primary-pale);
   color: var(--primary-light);
+}
+.icon-btn--danger {
+  color: var(--danger);
+}
+.icon-btn--danger:hover {
+  background: var(--danger-pale);
+  color: var(--danger);
 }
 
 /* Assignment Cards */
@@ -726,6 +750,7 @@ body {
   overflow: hidden;
   animation: slideUp 0.25s cubic-bezier(0.34, 1.2, 0.64, 1);
 }
+.modal-container--wide { max-width: 760px; }
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(20px) scale(0.96); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
@@ -911,6 +936,93 @@ body {
 .field__textarea {
   resize: vertical;
   min-height: 80px;
+}
+
+/* ── Printable receipt preview (deliberately paper-styled, ignores app theme) ── */
+.receipt-preview {
+  padding: 32px;
+  background: #ffffff;
+  color: #171717;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.receipt-preview__header {
+  text-align: center;
+  margin-bottom: 24px;
+  border-bottom: 2px dashed #ccc;
+  padding-bottom: 24px;
+}
+.receipt-preview__school {
+  font-weight: 700;
+  font-size: 1.125rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.receipt-preview__title { font-weight: 600; margin-top: 4px; }
+.receipt-preview__no { font-size: 0.75rem; color: #666; margin-top: 4px; }
+.receipt-preview__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 0;
+  border-top: 1px dashed #ccc;
+}
+.receipt-preview__section:first-of-type { border-top: none; padding-top: 0; }
+.receipt-preview__row { display: flex; justify-content: space-between; }
+.receipt-preview__row span:first-child { color: #666; }
+.receipt-preview__amount {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 2px solid #111;
+  font-weight: 700;
+  font-size: 1.125rem;
+}
+.receipt-preview__stamp-wrap { display: flex; justify-content: center; margin: 24px 0; }
+.receipt-preview__stamp {
+  border: 3px solid var(--success);
+  color: var(--success);
+  font-weight: 900;
+  font-size: 1.1rem;
+  letter-spacing: 3px;
+  padding: 4px 28px;
+  transform: rotate(-6deg);
+}
+.receipt-preview__footer {
+  text-align: center;
+  font-size: 0.6875rem;
+  color: #666;
+  border-top: 1px dashed #ccc;
+  padding-top: 20px;
+  margin-top: 4px;
+}
+.receipt-preview__actions {
+  padding: 20px 24px;
+  display: flex;
+  gap: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Choice buttons — segmented toggle / term picker */
+.choice-btn {
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  text-align: center;
+}
+.choice-btn:hover { border-color: var(--border-strong); background: var(--surface); }
+.choice-btn--active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
 }
 
 /* ────────────────────────────────────────────────────────── */

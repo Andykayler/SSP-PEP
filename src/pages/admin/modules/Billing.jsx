@@ -37,14 +37,14 @@ export default function Billing({ schoolData }) {
             </ul>
             {plan.current
               ? <div style={{ textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--teal-lt)", letterSpacing: 1 }}>CURRENT PLAN</div>
-              : <Btn variant={plan.id === "premium" ? "gold" : "ghost"} size="sm" onClick={() => alert("Contact billing@ssp-pep.mw to upgrade")}>Upgrade</Btn>
+              : <Btn variant={plan.id === "premium" ? "gold" : "ghost"} size="sm" onClick={() => alert("Contact billing@acalink.mw to upgrade")}>Upgrade</Btn>
             }
           </div>
         ))}
       </div>
       <div style={{ background: "var(--accent-pale)", border: "1px solid var(--border2)", borderRadius: 16, padding: 20 }}>
         <p style={{ fontWeight: 600, color: "var(--text)", marginBottom: 4 }}>Need to change your plan?</p>
-        <p style={{ fontSize: 12.5, color: "var(--text2)" }}>Contact SSP-PEP billing: <span style={{ fontFamily: "var(--font-mono)", color: "var(--accent-lt)" }}>billing@ssp-pep.mw</span> or call <span style={{ fontFamily: "var(--font-mono)" }}>+265 1 XXX XXX</span>.</p>
+        <p style={{ fontSize: 12.5, color: "var(--text2)" }}>Contact Acalink billing: <span style={{ fontFamily: "var(--font-mono)", color: "var(--accent-lt)" }}>billing@acalink.mw</span> or call <span style={{ fontFamily: "var(--font-mono)" }}>+265 1 XXX XXX</span>.</p>
       </div>
     </div>
   );

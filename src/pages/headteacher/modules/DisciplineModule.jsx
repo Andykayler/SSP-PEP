@@ -310,7 +310,7 @@ export default function DisciplineModule({ schoolCode }) {
           className="icon-btn"
           title="Refresh"
         >
-          <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
+          <RefreshCw size={16} className={isLoading ? "spin" : ""} />
         </button>
       </div>
 

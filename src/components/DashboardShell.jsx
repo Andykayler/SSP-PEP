@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import Sidebar from "../pages/admin/side_bar";
 import { getInitialTheme, toggleTheme as flipTheme } from "../utils/theme";
+import NotificationProvider from "./notifications/NotificationProvider";
+import { NotificationBell, NotificationToasts } from "./notifications/NotificationBell";
 
 const THEME_ICONS = {
   sun: (
@@ -44,6 +46,14 @@ export default function DashboardShell({
   navSectionLabel = "Navigation",
   footerVersion = "v1.4.0",
   onSignOut,
+  // Notification wiring: `notificationRecipientId` is the signed-in user's uid
+  // (or `parent:<phone>` for a guardian). Omitting it renders the shell with
+  // no bell, which keeps the component usable outside an auth context.
+  notificationRecipientId = "",
+  // Optional override for what a notification click does. The default just
+  // switches tabs; a portal that can deep-link into a record (opening one
+  // conversation, say) supplies its own.
+  onNotificationNavigate,
   children,
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -52,6 +62,21 @@ export default function DashboardShell({
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
+
+  // Pressing Back after Sign Out can restore this dashboard straight from
+  // the browser's back-forward cache (bfcache) — a frozen snapshot of the
+  // DOM from before sign-out, painted instantly without re-running any
+  // auth check. `pageshow` with `event.persisted === true` is how a bfcache
+  // restore is detected; forcing a reload re-runs the parent dashboard's
+  // onAuthStateChanged listener, which redirects to "/" for a signed-out
+  // user instead of leaving the stale authenticated page on screen.
+  useEffect(() => {
+    const handlePageShow = (event) => {
+      if (event.persisted) window.location.reload();
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
 
   // Close sidebar on Escape
   useEffect(() => {
@@ -83,7 +108,23 @@ export default function DashboardShell({
   const currentNavItem = navItems.find((item) => item.id === currentTab);
   const displayTitle = title ?? (currentTab === "overview" ? "Dashboard" : currentNavItem?.label);
 
+  // Clicking a notification jumps to the tab it points at. `navItems` is the
+  // authority on which tabs this portal actually has, so a notification aimed
+  // at a module this role cannot see is ignored rather than blanking the page.
+  const handleNotificationNavigate = useCallback((tab, notification) => {
+    if (onNotificationNavigate) {
+      onNotificationNavigate(tab, notification);
+      return;
+    }
+    if (tab && navItems.some((item) => item.id === tab)) onTabChange(tab);
+  }, [navItems, onTabChange, onNotificationNavigate]);
+
   return (
+    <NotificationProvider
+      recipientId={notificationRecipientId}
+      schoolCode={schoolCode}
+      onNavigate={handleNotificationNavigate}
+    >
     <div className="dashboard-shell">
       {/*
         Sidebar handles its OWN overlay (.sidebar-overlay) internally.
@@ -129,6 +170,8 @@ export default function DashboardShell({
               <span className="topbar__status-text">Online</span>
             </div>
 
+            {notificationRecipientId && <NotificationBell />}
+
             <button
               type="button"
               onClick={handleToggleTheme}
@@ -152,10 +195,13 @@ export default function DashboardShell({
         <main className="page-content">{children}</main>
 
         <footer className="dashboard-footer">
-          <span>© 2026 SSP-PEP · Ministry of Education, Malawi</span>
+          <span>© 2026 Acalink</span>
           <span>{footerVersion}</span>
         </footer>
       </div>
+
+      <NotificationToasts />
     </div>
+    </NotificationProvider>
   );
 }

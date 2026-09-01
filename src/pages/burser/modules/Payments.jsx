@@ -5,16 +5,17 @@ import {
   collection, query, where, getDocs, addDoc,
   serverTimestamp, orderBy,
 } from "firebase/firestore";
+import { notifyPaymentRecorded } from "../../../services/notificationHooks";
 import {
   Search, X, Plus, Check, Receipt, User, RefreshCw,
   AlertTriangle,
 } from "lucide-react";
-import "./staff-management.css"; 
+import "./staff-management.css";
 
 // ─── Shared Modal ───────────────────────────────────────────────────────────
 const Modal = ({ title, subtitle, onClose, children, wide = false }) => (
   <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-    <div className={`modal-container ${wide ? "max-w-2xl" : ""}`}>
+    <div className={`modal-container ${wide ? "modal-container--wide" : ""}`}>
       <div className="modal-header">
         <div>
           <h3>{title}</h3>
@@ -34,7 +35,7 @@ const Btn = ({ children, variant = "accent", size = "md", loading, className = "
     disabled={loading || props.disabled}
     className={`btn btn--${variant} ${size === "sm" ? "btn--sm" : ""} ${className}`}
   >
-    {loading ? <RefreshCw size={14} className="animate-spin" /> : children}
+    {loading ? <RefreshCw size={14} className="spin" /> : children}
   </button>
 );
 
@@ -44,18 +45,6 @@ const today = () => new Date().toISOString().split("T")[0];
 
 function initials(name = "") {
   return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
-}
-
-const AVATAR_TONES = [
-  "bg-blue-500/20 text-blue-300",
-  "bg-violet-500/20 text-violet-300",
-  "bg-emerald-500/20 text-emerald-300",
-  "bg-orange-500/20 text-orange-300",
-  "bg-rose-500/20 text-rose-300",
-  "bg-cyan-500/20 text-cyan-300",
-];
-function avatarColor(name = "") {
-  return AVATAR_TONES[name.charCodeAt(0) % AVATAR_TONES.length] || AVATAR_TONES[0];
 }
 
 function genReceiptNo() {
@@ -122,7 +111,7 @@ function StudentSearch({ students, studentFinancials, onSelect }) {
       </div>
 
       {open && results.length > 0 && (
-        <ul className="absolute z-50 left-0 right-0 mt-2 bg-card border border-border rounded-2xl shadow-xl overflow-hidden py-1 max-h-80 overflow-y-auto">
+        <ul className="search-results">
           {results.map((s, i) => {
             const fin = studentFinancials(s.id);
             return (
@@ -130,17 +119,17 @@ function StudentSearch({ students, studentFinancials, onSelect }) {
                 key={s.id}
                 onMouseDown={() => pick(s)}
                 onMouseEnter={() => setActive(i)}
-                className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-surface transition-colors ${i === active ? "bg-primary-pale" : ""}`}
+                className={`search-results__item ${i === active ? "search-results__item--active" : ""}`}
               >
-                <div className={`assignment-avatar ${avatarColor(s.fullName)}`}>
+                <div className="assignment-avatar">
                   {initials(s.fullName)}
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="flex-1" style={{ minWidth: 0 }}>
                   <div className="font-medium truncate">{s.fullName}</div>
-                  <div className="text-xs text-muted font-mono">{s.studentCode} • {s.className}</div>
+                  <div className="text-mono text-muted">{s.studentCode} • {s.className}</div>
                 </div>
                 <div className="text-right">
-                  <div className={`text-xs font-semibold ${fin.balance > 0 ? "text-danger" : "text-success"}`}>
+                  <div className={`font-semibold ${fin.balance > 0 ? "text-danger" : "text-success"}`}>
                     {fin.balance > 0 ? `Owes ${fmt(fin.balance)}` : "Settled"}
                   </div>
                 </div>
@@ -151,7 +140,7 @@ function StudentSearch({ students, studentFinancials, onSelect }) {
       )}
 
       {open && query.length >= 2 && results.length === 0 && (
-        <div className="absolute z-50 left-0 right-0 mt-2 bg-card border border-border rounded-2xl shadow-xl p-6 text-center text-muted">
+        <div className="search-results search-results__empty">
           No students found for "{query}"
         </div>
       )}
@@ -279,6 +268,11 @@ export default function Payments({ schoolCode, bursarName }) {
         recordedBy: bursarName || "Bursar",
         academicYear,
         schoolCode,
+        // Counterpart to the parent app's 'parent_app'/'unverified' marker —
+        // a payment entered here has been seen by the bursar, so the two kinds
+        // are always distinguishable in the ledger.
+        source: "bursar",
+        status: "verified",
         createdAt: serverTimestamp(),
       });
 
@@ -297,6 +291,21 @@ export default function Payments({ schoolCode, bursarName }) {
         prevBalance: s.balance,
         newBalance: Math.max(0, s.balance - Number(form.amount)),
       };
+
+      // The fee rows carry a computed balance; the guardian phone lives on the
+      // raw student doc, so the notification is built from that one.
+      const studentDoc = students.find((row) => row.id === s.id);
+      if (studentDoc) {
+        await notifyPaymentRecorded({
+          schoolCode,
+          student: studentDoc,
+          amount: Number(form.amount),
+          method: form.method,
+          receiptNumber: receiptNo,
+          balance: receipt.newBalance,
+          actor: { name: bursarName || "Bursar", role: "bursar" },
+        });
+      }
 
       setLastReceipt(receipt);
       setShowModal(false);
@@ -322,9 +331,9 @@ export default function Payments({ schoolCode, bursarName }) {
   const filtered = useMemo(() => {
     return payments.filter((p) => {
       const q = search.trim().toLowerCase();
-      const matchSearch = !q || 
-        p.studentName?.toLowerCase().includes(q) || 
-        p.studentCode?.toLowerCase().includes(q) || 
+      const matchSearch = !q ||
+        p.studentName?.toLowerCase().includes(q) ||
+        p.studentCode?.toLowerCase().includes(q) ||
         p.receiptNo?.toLowerCase().includes(q);
       const matchMethod = methodFilter === "all" || p.method === methodFilter;
       const matchClass = classFilter === "all" || p.classId === classFilter;
@@ -336,12 +345,12 @@ export default function Payments({ schoolCode, bursarName }) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex-between flex-wrap">
         <div>
-          <h2 style={{ fontFamily: "'Playfair Display', serif" }}>Payments</h2>
+          <h2>Payments</h2>
           <p className="text-muted">Record and track all fee payments</p>
         </div>
-        <div className="flex gap-3 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
           <select value={academicYear} onChange={(e) => setAcademicYear(e.target.value)} className="form-input form-input--compact">
             {ACADEMIC_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
@@ -364,19 +373,19 @@ export default function Payments({ schoolCode, bursarName }) {
 
       {/* Last Receipt Banner */}
       {lastReceipt && (
-        <div className="card flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-success/5 border-success/30">
+        <div className="card flex flex-col sm:flex-row justify-between gap-4 p-5 border-success/30">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-2xl bg-success/10 flex items-center justify-center text-success">
+            <div className="icon-circle icon-circle--success">
               <Check size={22} />
             </div>
             <div>
               <div className="font-semibold">Payment Recorded Successfully</div>
-              <div className="text-sm text-muted">
+              <div className="text-muted">
                 {lastReceipt.receiptNo} • {lastReceipt.studentName} • {fmt(lastReceipt.amount)}
               </div>
             </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-2">
             <Btn variant="success" size="sm" onClick={() => window.dispatchEvent(new CustomEvent("printReceipt", { detail: lastReceipt }))}>
               <Receipt size={16} /> Print Receipt
             </Btn>
@@ -395,7 +404,15 @@ export default function Payments({ schoolCode, bursarName }) {
             placeholder="Search name, code, receipt..."
             className="search-input"
           />
-          {search && <button onClick={() => setSearch("")} className="absolute right-4 top-1/2 -translate-y-1/2"><X size={16} /></button>}
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="icon-btn"
+              style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
 
         <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className="form-input form-input--compact">
@@ -415,15 +432,15 @@ export default function Payments({ schoolCode, bursarName }) {
       </div>
 
       {/* Table */}
-      <div className="card overflow-hidden">
+      <div className="card">
         {loading ? (
-          <div className="p-20 flex flex-col items-center justify-center text-muted">
+          <div className="flex flex-col items-center justify-center text-muted" style={{ padding: "80px 0" }}>
             <div className="spinner" style={{ width: "42px", height: "42px" }} />
-            <p className="mt-6">Loading payments...</p>
+            <p className="mt-4">Loading payments...</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="empty-state py-20">
-            <Receipt size={48} className="text-muted mb-4" />
+          <div className="empty-state">
+            <div className="empty-state__icon"><Receipt size={28} /></div>
             <div className="empty-state__title">No payments found</div>
             <p className="empty-state__sub">Record your first payment to begin tracking</p>
             <Btn variant="accent" onClick={() => openModal()}>Record First Payment</Btn>
@@ -439,31 +456,31 @@ export default function Payments({ schoolCode, bursarName }) {
                   <th>Term</th>
                   <th>Date</th>
                   <th className="text-right">Amount</th>
-                  <th className="w-12"></th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((p) => {
                   const student = students.find((s) => s.id === p.studentId);
                   return (
-                    <tr key={p.id} className="hover:bg-primary-dim transition-colors">
+                    <tr key={p.id}>
                       <td data-label="Student">
-                        <div className="flex items-center gap-3">
-                          <div className={`assignment-avatar ${avatarColor(p.studentName)}`}>
+                        <div className="flex items-center gap-2">
+                          <div className="assignment-avatar">
                             {initials(p.studentName)}
                           </div>
                           <div>
-                            <div className="font-medium">{p.studentName}</div>
-                            <div className="text-xs text-muted font-mono">{p.studentCode}</div>
+                            <div className="data-table__primary">{p.studentName}</div>
+                            <div className="data-table__meta">{p.studentCode}</div>
                           </div>
                         </div>
                       </td>
-                      <td data-label="Receipt" className="font-mono text-xs">{p.receiptNo}</td>
+                      <td data-label="Receipt" className="text-mono">{p.receiptNo}</td>
                       <td data-label="Method">
                         <span className={METHOD_BADGE[p.method] || "tag"}>{p.method}</span>
                       </td>
-                      <td data-label="Term" className="text-sm text-muted">{p.term}</td>
-                      <td data-label="Date" className="text-sm text-muted">{p.paymentDate}</td>
+                      <td data-label="Term" className="text-muted">{p.term}</td>
+                      <td data-label="Date" className="text-muted">{p.paymentDate}</td>
                       <td data-label="Amount" className="text-right font-semibold text-success">{fmt(p.amount)}</td>
                       <td className="text-center">
                         {student && (
@@ -485,9 +502,9 @@ export default function Payments({ schoolCode, bursarName }) {
         )}
 
         {filtered.length > 0 && (
-          <div className="px-6 py-4 border-t border-border text-xs text-muted flex justify-between">
-            <span>{filtered.length} transaction{filtered.length !== 1 ? "s" : ""}</span>
-            <span className="font-semibold text-text-primary">Total: {fmt(filtered.reduce((s, p) => s + p.amount, 0))}</span>
+          <div className="flex-between" style={{ padding: "14px 20px", borderTop: "1px solid var(--border-color)" }}>
+            <span className="text-muted">{filtered.length} transaction{filtered.length !== 1 ? "s" : ""}</span>
+            <span className="font-semibold">Total: {fmt(filtered.reduce((s, p) => s + p.amount, 0))}</span>
           </div>
         )}
       </div>
@@ -511,23 +528,23 @@ export default function Payments({ schoolCode, bursarName }) {
             <div className="field">
               <label className="field__label">Student</label>
               {selectedStudent ? (
-                <div className="flex items-center justify-between bg-surface p-4 rounded-2xl border border-border">
+                <div className="flex-between filter-bar">
                   <div className="flex items-center gap-4">
-                    <div className={`assignment-avatar ${avatarColor(selectedStudent.fullName)}`}>
+                    <div className="assignment-avatar">
                       {initials(selectedStudent.fullName)}
                     </div>
                     <div>
                       <div className="font-semibold">{selectedStudent.fullName}</div>
-                      <div className="text-sm text-muted">{selectedStudent.studentCode} • {selectedStudent.className}</div>
+                      <div className="text-muted">{selectedStudent.studentCode} • {selectedStudent.className}</div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs text-muted">Current Balance</div>
+                    <div className="text-muted">Current Balance</div>
                     <div className={`font-bold ${selectedStudent.balance > 0 ? "text-danger" : "text-success"}`}>
                       {fmt(selectedStudent.balance)}
                     </div>
                   </div>
-                  <button type="button" onClick={() => setSelectedStudent(null)} className="icon-btn ml-4">
+                  <button type="button" onClick={() => setSelectedStudent(null)} className="icon-btn">
                     <X size={18} />
                   </button>
                 </div>
@@ -542,21 +559,21 @@ export default function Payments({ schoolCode, bursarName }) {
 
             {selectedStudent && (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="field col-span-2 md:col-span-1">
+                <div className="grid grid-cols-2">
+                  <div className="field col-span-2">
                     <label className="field__label">Amount (MWK) <span className="text-danger">*</span></label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted font-medium">MWK</span>
+                    <div className="input-prefix">
+                      <span className="input-prefix__label">MWK</span>
                       <input
                         type="number"
                         min="1"
                         value={form.amount}
                         onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))}
-                        className="field__input pl-16"
+                        className="field__input"
                         placeholder="0"
                       />
                     </div>
-                    {formErrors.amount && <p className="text-danger text-xs mt-1">{formErrors.amount}</p>}
+                    {formErrors.amount && <p className="text-danger mt-1">{formErrors.amount}</p>}
                   </div>
 
                   <div className="field">
@@ -590,15 +607,15 @@ export default function Payments({ schoolCode, bursarName }) {
                 </div>
 
                 {form.amount && Number(form.amount) > 0 && (
-                  <div className="p-4 rounded-2xl bg-primary-pale border border-primary/20 flex justify-between items-center text-sm">
+                  <div className="flex-between filter-bar">
                     <span>Balance after this payment</span>
-                    <span className="font-bold text-lg">
+                    <span className="font-bold">
                       {fmt(Math.max(0, selectedStudent.balance - Number(form.amount)))}
                     </span>
                   </div>
                 )}
 
-                <div className="flex gap-3 pt-4">
+                <div className="flex gap-4 mt-4">
                   <Btn type="button" variant="secondary" onClick={() => setShowModal(false)} className="flex-1">Cancel</Btn>
                   <Btn type="submit" variant="accent" loading={actionLoading} className="flex-1">
                     <Receipt size={16} /> Record Payment
@@ -612,10 +629,10 @@ export default function Payments({ schoolCode, bursarName }) {
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-[100] flex gap-3 rounded-2xl px-5 py-4 shadow-xl max-w-sm text-sm ${toast.type === "success" ? "bg-success text-white" : "bg-danger text-white"}`}>
+        <div className={`toast ${toast.type === "success" ? "toast--success" : "toast--error"}`}>
           {toast.type === "success" ? <Check size={18} /> : <AlertTriangle size={18} />}
           <span>{toast.message}</span>
-          <button onClick={() => setToast(null)} className="ml-auto"><X size={16} /></button>
+          <button onClick={() => setToast(null)} className="toast__close"><X size={16} /></button>
         </div>
       )}
     </div>

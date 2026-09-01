@@ -237,7 +237,7 @@ const ForceChangePassword = ({ firebaseUser, redirectTo, userDisplayName }) => {
       <div className="change-pw-wrap">
         <div className="form-badge">
           <div className="badge-line" />
-          <span className="badge-label">SSP-PEP · Ministry of Education, Malawi</span>
+          <span className="badge-label">Acalink</span>
         </div>
 
         <div className="change-pw-card">
@@ -475,7 +475,7 @@ export default function SignIn() {
           <div className="form-wrap">
             <div className="form-badge">
               <div className="badge-line" />
-              <span className="badge-label">Acalink · Ministry of Education, Malawi</span>
+              <span className="badge-label">Acalink</span>
             </div>
 
             <h1 className="form-heading">Staff<br /><em>Portal</em></h1>
@@ -542,7 +542,7 @@ export default function SignIn() {
         </main>
 
         <footer className="signin-footer">
-          <p className="footer-copy">© {new Date().getFullYear()} Acalink · Ministry of Education, Malawi</p>
+          <p className="footer-copy">© {new Date().getFullYear()} Acalink</p>
           <div className="footer-links">
             {["Contact", "Privacy Policy", "Help"].map(link => (
               <a key={link} href="#" className="footer-link">{link}</a>

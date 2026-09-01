@@ -155,6 +155,11 @@
   gap: 4px;
 }
 
+.dt-pagination__size {
+  display: flex;
+  align-items: center;
+}
+
 .dt-pagination__select {
   padding: 6px 10px;
   font-size: 12px;
@@ -303,6 +308,11 @@
   max-width: 320px;
   line-height: 1.55;
   margin-bottom: 16px;
+}
+
+.dt-empty__action {
+  display: flex;
+  justify-content: center;
 }
 
 /* ── Action buttons ───────────────────────────────────────────────────────── */

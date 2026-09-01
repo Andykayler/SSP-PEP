@@ -1,15 +1,46 @@
 // modules/ReportsModule.jsx
-import { useState, useEffect, useCallback, useRef } from "react";
-import { db } from "../../../firebase";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { auth, db } from "../../../firebase";
 import "./staff-management.css";
 import {
-  collection, query, where, getDocs, doc, getDoc,
+  collection, query, where, getDocs, doc, getDoc, setDoc, writeBatch, serverTimestamp,
 } from "firebase/firestore";
 import {
   FileText, Download, Printer, TrendingUp, Award, Users,
   RefreshCw, Loader2, AlertCircle, ChevronDown, Search,
   BarChart2, X, CheckCircle, AlertTriangle, ArrowUp, ArrowDown, Minus,
+  GraduationCap, ArrowRight, Save,
 } from "lucide-react";
+
+// School type → highest form/standard that type goes up to — mirrors the
+// options offered in ClassModule.jsx's "Set up classes" flow. A student in
+// the top level has nothing to promote into, so they graduate instead.
+const SCHOOL_TYPE_MAX_LEVEL = { Secondary: 6, Primary: 8 };
+
+// Assessment components & weights — mirrors PerformanceModule.jsx (both
+// teacher and headteacher copies) exactly, since promotion eligibility has
+// to be based on the same weighted overall grade shown there, not the
+// simpler last-write-wins merge this file's own `loadTermMarks` uses for
+// its other tabs.
+const ASSESSMENT_TYPES = [
+  { id: "CA1",     weight: 0.10 },
+  { id: "CA2",     weight: 0.10 },
+  { id: "MidTerm", weight: 0.20 },
+  { id: "EndTerm", weight: 0.60 },
+];
+
+function computeWeightedAverage(perComponentScores) {
+  let weightedSum = 0, weightUsed = 0;
+  ASSESSMENT_TYPES.forEach(({ id, weight }) => {
+    const v = perComponentScores[id];
+    if (v !== null && v !== undefined && v !== "") {
+      weightedSum += Number(v) * weight;
+      weightUsed += weight;
+    }
+  });
+  if (weightUsed === 0) return null;
+  return Math.round((weightedSum / weightUsed) * 10) / 10;
+}
 
 // ─── MANEB Grade Scale ────────────────────────────────────────────────────────
 const MANEB_GRADES = [
@@ -100,7 +131,7 @@ function ReportCardModal({ student, schoolCode, term, onClose }) {
           {/* School header */}
           <div className="text-center border-b-2 border-[#0F2044] pb-5">
             <p className="text-[10px] font-bold tracking-[0.25em] text-app-text/50 uppercase mb-1">
-              Republic of Malawi · Ministry of Education
+              Acalink
             </p>
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.75rem", fontWeight: "bold" }}>
               {schoolCode}
@@ -216,7 +247,9 @@ export default function ReportsModule({ schoolCode }) {
   const [allStudents, setAllStudents] = useState([]);
   const [allMarksMap, setAllMarksMap] = useState({});
   const [compareMarksMap, setCompareMarksMap] = useState({});
+  const [byAssessmentMap, setByAssessmentMap] = useState({}); // classId -> assessmentType -> { marks }
   const [teacherNames, setTeacherNames] = useState({});
+  const [schoolSettings, setSchoolSettings] = useState(null);
 
   const [classesReady, setClassesReady] = useState(false);
   const [dataReady, setDataReady] = useState(false);
@@ -238,13 +271,15 @@ export default function ReportsModule({ schoolCode }) {
       setClassesReady(false);
       setError("");
       try {
-        const snap = await getDocs(
-          query(collection(db, "school_classes"), where("schoolCode", "==", schoolCode))
-        );
+        const [snap, settingsSnap] = await Promise.all([
+          getDocs(query(collection(db, "school_classes"), where("schoolCode", "==", schoolCode))),
+          getDoc(doc(db, "school_settings", schoolCode)),
+        ]);
         if (cancelled) return;
         setClasses(
-          snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.name || "").localeCompare(b.name || ""))
+          snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.formLevel ?? 999) - (b.formLevel ?? 999) || (a.name || "").localeCompare(b.name || ""))
         );
+        setSchoolSettings(settingsSnap.exists() ? settingsSnap.data() : null);
       } catch {
         if (!cancelled) setError("Could not load classes.");
       } finally {
@@ -263,7 +298,13 @@ export default function ReportsModule({ schoolCode }) {
       const studentSnap = await getDocs(
         query(collection(db, "students"), where("schoolCode", "==", schoolCode))
       );
-      setAllStudents(studentSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      // Only currently-enrolled students — a missing status defaults to "active"
+      // (same convention used in modules/student.jsx), everything else (transferred,
+      // graduated, suspended, etc.) is excluded from reports.
+      const currentStudents = studentSnap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(s => (s.status || "active") === "active");
+      setAllStudents(currentStudents);
 
       const loadTermMarks = async (term) => {
         const snap = await getDocs(
@@ -274,10 +315,17 @@ export default function ReportsModule({ schoolCode }) {
           )
         );
         const map = {};
+        // Same rows, bucketed by assessmentType too — `map` above merges every
+        // component together last-write-wins (fine for a quick single-figure
+        // average elsewhere in this file), but promotion eligibility needs the
+        // properly *weighted* CA1/CA2/Mid-Term/End-of-Term combination, which
+        // requires keeping each component's marks separate.
+        const byAssessment = {};
         const teacherUids = new Set();
         snap.docs.forEach(d => {
           const data = d.data();
           const cid = data.classId;
+          const atype = data.assessmentType;
           if (!map[cid]) map[cid] = { subjects: [], marks: {}, teacherIds: [] };
           (data.subjects || []).forEach(subj => {
             if (!map[cid].subjects.includes(subj)) map[cid].subjects.push(subj);
@@ -290,8 +338,20 @@ export default function ReportsModule({ schoolCode }) {
             map[cid].teacherIds.push(data.teacherId);
             teacherUids.add(data.teacherId);
           }
+          if (cid && atype) {
+            if (!byAssessment[cid]) byAssessment[cid] = {};
+            if (!byAssessment[cid][atype]) byAssessment[cid][atype] = { subjects: [], marks: {} };
+            const bucket = byAssessment[cid][atype];
+            (data.subjects || []).forEach(subj => {
+              if (!bucket.subjects.includes(subj)) bucket.subjects.push(subj);
+            });
+            Object.entries(data.marks || {}).forEach(([sid, sm]) => {
+              if (!bucket.marks[sid]) bucket.marks[sid] = {};
+              Object.assign(bucket.marks[sid], sm);
+            });
+          }
         });
-        return { map, teacherUids };
+        return { map, byAssessment, teacherUids };
       };
 
       const [primary, compare] = await Promise.all([
@@ -301,6 +361,7 @@ export default function ReportsModule({ schoolCode }) {
 
       setAllMarksMap(primary.map);
       setCompareMarksMap(compare.map);
+      setByAssessmentMap(primary.byAssessment);
 
       const allUids = new Set([...primary.teacherUids, ...compare.teacherUids]);
       const names = {};
@@ -309,7 +370,7 @@ export default function ReportsModule({ schoolCode }) {
           const snap = await getDoc(doc(db, "users", uid));
           if (snap.exists()) {
             const d = snap.data();
-            names[uid] = d.displayName || d.fullName || `${d.firstName ?? ""} ${d.lastName ?? ""}`.trim() || uid;
+            names[uid] = d.displayName || d.fullName || `${d.firstName ?? ""} ${d.lastName ?? ""}`.trim() || "Unknown Teacher";
           }
         } catch {}
       }));
@@ -413,6 +474,172 @@ export default function ReportsModule({ schoolCode }) {
     return sortDir === "asc" ? <ArrowUp size={10} /> : <ArrowDown size={10} />;
   };
 
+  // ── Promotion ───────────────────────────────────────────────────────────
+  // Uses whatever `selectedTerm` is currently chosen above as the "final"
+  // assessment the promotion decision is based on — the head teacher picks
+  // the term (usually the last one of the year) the same way they already
+  // do for every other tab in this module.
+  const promotionThreshold = schoolSettings?.promotionThreshold ?? 40;
+  const maxLevel = SCHOOL_TYPE_MAX_LEVEL[schoolSettings?.schoolType] || 6;
+  const [thresholdDraft, setThresholdDraft] = useState(null);
+  const [savingThreshold, setSavingThreshold] = useState(false);
+  const [promotingLevel, setPromotingLevel] = useState(null);
+  const [promoteMsg, setPromoteMsg] = useState(null);
+
+  const promotionGroups = useMemo(() => {
+    const configured = classes.filter((c) => c.formLevel);
+    if (configured.length === 0) return [];
+
+    const byLevel = {};
+    configured.forEach((c) => {
+      if (!byLevel[c.formLevel]) byLevel[c.formLevel] = [];
+      byLevel[c.formLevel].push(c);
+    });
+
+    return Object.keys(byLevel).map(Number).sort((a, b) => a - b).map((level) => {
+      const levelClasses = byLevel[level];
+      const levelClassIds = new Set(levelClasses.map((c) => c.id));
+      const first = levelClasses[0];
+      const levelLabel = first.stream ? first.name.slice(0, first.name.length - first.stream.length) : first.name;
+
+      const withAverage = allStudents.filter((s) => levelClassIds.has(s.classId)).map((s) => {
+        const cid = s.classId;
+        const subjectsSet = new Set();
+        ASSESSMENT_TYPES.forEach(({ id }) => (byAssessmentMap[cid]?.[id]?.subjects || []).forEach((sub) => subjectsSet.add(sub)));
+        const perSubjectAverages = [...subjectsSet].map((subj) => {
+          const perComponent = {};
+          ASSESSMENT_TYPES.forEach(({ id }) => {
+            const v = byAssessmentMap[cid]?.[id]?.marks?.[s.id]?.[subj];
+            if (v !== null && v !== undefined && v !== "") perComponent[id] = v;
+          });
+          return computeWeightedAverage(perComponent);
+        }).filter((v) => v !== null);
+        const average = perSubjectAverages.length
+          ? Math.round((perSubjectAverages.reduce((a, b) => a + b, 0) / perSubjectAverages.length) * 10) / 10
+          : null;
+        return { ...s, average };
+      });
+
+      const withMarks = withAverage.filter((s) => s.average !== null);
+      const passing = withMarks.filter((s) => s.average >= promotionThreshold).sort((a, b) => b.average - a.average);
+      const repeating = withMarks.filter((s) => s.average < promotionThreshold);
+      const noMarks = withAverage.filter((s) => s.average === null);
+
+      const isFinalLevel = level >= maxLevel;
+      const targetClasses = isFinalLevel
+        ? []
+        : classes.filter((c) => c.formLevel === level + 1).sort((a, b) => (a.stream || "").localeCompare(b.stream || ""));
+      const targetConfigured = isFinalLevel || targetClasses.length > 0;
+
+      // Rank-based tiering: split passing students (already sorted by average
+      // descending) into as-equal-as-possible chunks, one per target class —
+      // highest scorers into the alphabetically-first stream ("A").
+      const assignments = [];
+      if (!isFinalLevel && targetClasses.length > 0 && passing.length > 0) {
+        const n = targetClasses.length;
+        const base = Math.floor(passing.length / n);
+        const extra = passing.length % n;
+        let idx = 0;
+        targetClasses.forEach((cls, i) => {
+          const count = base + (i < extra ? 1 : 0);
+          assignments.push({ targetClass: cls, students: passing.slice(idx, idx + count) });
+          idx += count;
+        });
+      }
+
+      return { level, levelLabel, levelClasses, passing, repeating, noMarks, isFinalLevel, targetClasses, targetConfigured, assignments };
+    });
+  }, [classes, allStudents, byAssessmentMap, promotionThreshold, maxLevel]);
+
+  const saveThreshold = async () => {
+    const n = Number(thresholdDraft);
+    if (!Number.isFinite(n) || n < 0 || n > 100) {
+      setPromoteMsg({ type: "error", text: "Threshold must be a number between 0 and 100." });
+      return;
+    }
+    setSavingThreshold(true);
+    setPromoteMsg(null);
+    try {
+      await setDoc(doc(db, "school_settings", schoolCode), {
+        schoolCode, promotionThreshold: n,
+        updatedAt: serverTimestamp(), updatedBy: auth.currentUser?.uid || null,
+      }, { merge: true });
+      setSchoolSettings((prev) => ({ ...(prev || {}), schoolCode, promotionThreshold: n }));
+      setThresholdDraft(null);
+      setPromoteMsg({ type: "success", text: "Pass threshold updated." });
+    } catch (err) {
+      console.error("Save threshold error:", err);
+      setPromoteMsg({ type: "error", text: "Could not save the threshold. Please try again." });
+    } finally {
+      setSavingThreshold(false);
+    }
+  };
+
+  const promoteGroup = async (group) => {
+    const totalPromoting = group.isFinalLevel
+      ? group.passing.length
+      : group.assignments.reduce((n, a) => n + a.students.length, 0);
+    if (totalPromoting === 0) {
+      setPromoteMsg({ type: "error", text: "No passing students to promote in this group." });
+      return;
+    }
+    const confirmText = group.isFinalLevel
+      ? `Mark ${totalPromoting} student(s) from ${group.levelLabel} as graduated? Their class assignment is left as-is; only their status changes.`
+      : `Promote ${totalPromoting} student(s) from ${group.levelLabel} to the next level? Their class updates immediately — students below the ${promotionThreshold}% threshold stay in ${group.levelLabel}.`;
+    if (!window.confirm(confirmText)) return;
+
+    setPromotingLevel(group.level);
+    setPromoteMsg(null);
+    try {
+      const allOps = [];
+      if (group.isFinalLevel) {
+        group.passing.forEach((s) => allOps.push({
+          id: s.id,
+          data: {
+            status: "graduated",
+            graduatedAt: serverTimestamp(),
+            graduatedFromClassId: s.classId,
+            graduatedTerm: selectedTerm,
+            graduatedAverage: s.average,
+          },
+        }));
+      } else {
+        group.assignments.forEach(({ targetClass, students }) => {
+          students.forEach((s) => allOps.push({
+            id: s.id,
+            data: {
+              classId: targetClass.id,
+              lastPromotedAt: serverTimestamp(),
+              lastPromotedFromClassId: s.classId,
+              lastPromotedTerm: selectedTerm,
+              lastPromotedAverage: s.average,
+            },
+          }));
+        });
+      }
+
+      for (let i = 0; i < allOps.length; i += 400) {
+        const batch = writeBatch(db);
+        allOps.slice(i, i + 400).forEach(({ id, data }) => batch.update(doc(db, "students", id), data));
+        await batch.commit();
+      }
+
+      setPromoteMsg({
+        type: "success",
+        text: `${totalPromoting} student(s) ${group.isFinalLevel ? "marked as graduated" : "promoted"} from ${group.levelLabel}.`,
+      });
+      fetchData();
+    } catch (err) {
+      console.error("Promotion error:", err);
+      setPromoteMsg({
+        type: "error",
+        text: err.code === "permission-denied" ? "Permission denied. Check your Firestore rules." : "Failed to promote students. Please try again.",
+      });
+    } finally {
+      setPromotingLevel(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -423,7 +650,7 @@ export default function ReportsModule({ schoolCode }) {
         </div>
         <div className="flex gap-2">
           <button onClick={fetchData} disabled={isLoading} className="icon-btn" title="Refresh">
-            <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
+            <RefreshCw size={16} className={isLoading ? "spin" : ""} />
           </button>
           <button onClick={() => window.print()} className="btn-refresh">
             <Printer size={14} /> Print Report
@@ -468,6 +695,7 @@ export default function ReportsModule({ schoolCode }) {
           { id: "performance", icon: TrendingUp,  label: "Performance Trends" },
           { id: "analytics",   icon: BarChart2,   label: "Analytics" },
           { id: "atRisk",      icon: AlertTriangle, label: "At-Risk Students" },
+          { id: "promotion",   icon: GraduationCap, label: "Promotion" },
         ].map(({ id, icon: Icon, label }) => (
           <button
             key={id}
@@ -977,6 +1205,121 @@ export default function ReportsModule({ schoolCode }) {
             </div>
           )}
         </>
+      )}
+
+      {/* PROMOTION TAB — independent of the noData gate above, since it looks
+          at every configured form/standard, not just the class currently
+          selected in the filter row. */}
+      {!isLoading && reportType === "promotion" && (
+        <div className="space-y-5">
+          <div className="card p-5">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h3 className="font-semibold text-app-text text-sm">Pass threshold</h3>
+                <p className="text-xs text-muted mt-0.5">
+                  Students with an overall average for {selectedTerm} at or above this mark are eligible to promote.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number" min={0} max={100}
+                  value={thresholdDraft ?? promotionThreshold}
+                  onChange={(e) => setThresholdDraft(e.target.value)}
+                  className="field__select"
+                  style={{ width: 90, textAlign: "center" }}
+                />
+                <span className="text-sm text-muted">%</span>
+                <button onClick={saveThreshold} disabled={savingThreshold || thresholdDraft === null} className="btn-refresh">
+                  {savingThreshold ? <Loader2 size={13} className="spin" /> : <Save size={13} />} Save
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {promoteMsg && (
+            <div className={`alert ${promoteMsg.type === "error" ? "alert--error" : "alert--success"}`}>
+              {promoteMsg.type === "error" ? <AlertCircle size={16} /> : <CheckCircle size={16} />} {promoteMsg.text}
+            </div>
+          )}
+
+          {promotionGroups.length === 0 ? (
+            <div className="empty-state">
+              <GraduationCap size={32} className="text-muted" />
+              <p className="empty-state__title">No forms/standards configured for promotion yet</p>
+              <p className="empty-state__sub">
+                Use "Set up classes" on Classes &amp; Streams so this school's forms have a level assigned, then come back here.
+              </p>
+            </div>
+          ) : (
+            promotionGroups.map((group) => (
+              <div key={group.level} className="card p-5">
+                <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-primary-pale flex items-center justify-center flex-shrink-0">
+                      <GraduationCap size={18} className="text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-app-text text-sm">
+                        {group.levelLabel} {group.isFinalLevel ? "— Final year" : `→ next level`}
+                      </p>
+                      <p className="text-xs text-muted">
+                        {group.passing.length} passing · {group.repeating.length} repeating
+                        {group.noMarks.length > 0 && ` · ${group.noMarks.length} no marks yet`}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => promoteGroup(group)}
+                    disabled={promotingLevel === group.level || group.passing.length === 0 || !group.targetConfigured}
+                    className="btn btn--accent btn--md"
+                  >
+                    {promotingLevel === group.level ? <Loader2 size={14} className="spin" /> : <ArrowRight size={14} />}
+                    {group.isFinalLevel ? "Mark as graduated" : "Promote passing students"}
+                  </button>
+                </div>
+
+                {!group.targetConfigured && (
+                  <div className="alert alert--warning mb-3">
+                    <AlertTriangle size={15} />
+                    The next level isn't set up yet — add it from "Set up classes" on Classes &amp; Streams before promoting {group.levelLabel}.
+                  </div>
+                )}
+
+                {!group.isFinalLevel && group.targetClasses.length > 0 && group.passing.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {group.assignments.map(({ targetClass, students }) => (
+                      <div key={targetClass.id} className="border border-app-border rounded-xl p-3">
+                        <p className="text-xs font-semibold text-app-text">{targetClass.name}</p>
+                        <p className="text-[11px] text-muted mt-0.5">{students.length} student{students.length !== 1 ? "s" : ""}</p>
+                        {students.length > 0 && (
+                          <p className="text-[10px] text-muted mt-1">
+                            Range: {students[students.length - 1].average}%–{students[0].average}%
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {group.repeating.length > 0 && (
+                  <details className="mt-3">
+                    <summary className="text-[11px] text-muted cursor-pointer select-none">
+                      {group.repeating.length} student{group.repeating.length !== 1 ? "s" : ""} repeating {group.levelLabel} (below {promotionThreshold}%)
+                    </summary>
+                    <div className="mt-2 space-y-1">
+                      {group.repeating.sort((a, b) => a.average - b.average).map((s) => (
+                        <div key={s.id} className="flex items-center justify-between text-xs py-1 border-b border-app-border last:border-0">
+                          <span>{fullName(s)}</span>
+                          <span className="text-danger font-semibold">{s.average}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </div>
+            ))
+          )}
+        </div>
       )}
 
       <p className="text-center text-xs text-muted pt-1">

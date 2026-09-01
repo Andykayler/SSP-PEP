@@ -1,7 +1,37 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { getInitialTheme, applyTheme, toggleTheme as toggleThemeUtil } from "../utils/theme";
+import {
+  Sun, Moon, X, Menu, Smartphone, Apple, Monitor, LogIn, School,
+  BarChart3, MessageCircle, Star, Check, Minus, ArrowRight, ChevronUp, ChevronDown,
+} from "lucide-react";
 import "./landing.css";
+
+/* ─── Minimal brand marks (lucide-react intentionally excludes trademarked
+   logos, so these small monochrome outlines cover just the 4 footer social
+   links — everything else on this page uses lucide-react). ───────────── */
+const TwitterIcon = (props) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" width={16} height={16} {...props}>
+    <path d="M18.9 2H22l-7.6 8.7L23.3 22h-7.1l-5.6-7.3L4.2 22H1l8.1-9.3L.9 2H8.2l5 6.7L18.9 2Zm-1.2 18h1.9L6.4 4H4.4l13.3 16Z" />
+  </svg>
+);
+const LinkedinIcon = (props) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" width={16} height={16} {...props}>
+    <path d="M4.98 3.5a2.5 2.5 0 11-.02 5.001A2.5 2.5 0 014.98 3.5ZM3 9h4v12H3V9Zm7 0h3.8v1.64h.05c.53-1 1.83-2.05 3.77-2.05C21.6 8.59 23 10.9 23 14.35V21h-4v-5.9c0-1.4-.03-3.2-1.95-3.2-1.96 0-2.26 1.53-2.26 3.1V21h-4V9Z" />
+  </svg>
+);
+const FacebookIcon = (props) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" width={16} height={16} {...props}>
+    <path d="M13.5 21v-8h2.7l.4-3.1h-3.1V8c0-.9.25-1.5 1.55-1.5H16.7V3.7C16.4 3.66 15.4 3.58 14.2 3.58c-2.4 0-4.05 1.47-4.05 4.16V9.9H7.4V13h2.75v8h3.35Z" />
+  </svg>
+);
+const InstagramIcon = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} width={16} height={16} {...props}>
+    <rect x="3" y="3" width="18" height="18" rx="5" />
+    <circle cx="12" cy="12" r="4" />
+    <circle cx="17.2" cy="6.8" r="1" fill="currentColor" stroke="none" />
+  </svg>
+);
 
 /* ─── helpers ───────────────────────────────────────── */
 const useInView = (threshold = 0.12) => {
@@ -71,7 +101,7 @@ const TopNav = ({ goTo, menuOpen, setMenuOpen, theme, onToggleTheme }) => (
           aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
           title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
         >
-          <i className={`ti ${theme === "dark" ? "ti-sun" : "ti-moon"}`} aria-hidden="true" />
+          {theme === "dark" ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
         </button>
 
         <Link to="/signin">
@@ -82,7 +112,7 @@ const TopNav = ({ goTo, menuOpen, setMenuOpen, theme, onToggleTheme }) => (
         </Link>
       </div>
       <button className="nav-toggle" onClick={() => setMenuOpen(o => !o)} aria-label="Toggle menu">
-        <i className={`ti ${menuOpen ? "ti-x" : "ti-menu-2"}`} style={{ fontSize: 22 }} aria-hidden="true" />
+        {menuOpen ? <X size={22} aria-hidden="true" /> : <Menu size={22} aria-hidden="true" />}
       </button>
     </header>
 
@@ -100,7 +130,7 @@ const TopNav = ({ goTo, menuOpen, setMenuOpen, theme, onToggleTheme }) => (
         onClick={() => { onToggleTheme(); }}
         aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
       >
-        <i className={`ti ${theme === "dark" ? "ti-sun" : "ti-moon"}`} aria-hidden="true" />
+        {theme === "dark" ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
         {theme === "dark" ? "Light Mode" : "Dark Mode"}
       </button>
 
@@ -134,24 +164,24 @@ const SlideHero = ({ goTo }) => (
         </p>
         <div className="hero-ctas">
           <button className="btn-primary">
-            <i className="ti ti-brand-google-play" aria-hidden="true" /> Google Play
+            <Smartphone size={16} aria-hidden="true" /> Google Play
           </button>
           <button className="btn-outline">
-            <i className="ti ti-brand-apple" aria-hidden="true" /> App Store
+            <Apple size={16} aria-hidden="true" /> App Store
           </button>
           <button className="btn-outline">
-            <i className="ti ti-device-desktop" aria-hidden="true" /> Web Access
+            <Monitor size={16} aria-hidden="true" /> Web Access
           </button>
         </div>
         <div className="hero-ctas" style={{ marginBottom: 0 }}>
           <Link to="/signin">
             <button className="btn-primary" style={{ background: "transparent", border: "1px solid rgba(79,110,247,0.4)", color: "var(--accent-lt)" }}>
-              <i className="ti ti-login" aria-hidden="true" /> Sign In
+              <LogIn size={16} aria-hidden="true" /> Sign In
             </button>
           </Link>
           <Link to="/register">
             <button className="btn-primary">
-              <i className="ti ti-school" aria-hidden="true" /> Register Your School
+              <School size={16} aria-hidden="true" /> Register Your School
             </button>
           </Link>
         </div>
@@ -224,7 +254,7 @@ const SlideFeatures = () => (
         <div className="bento-cell span-7">
           <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
             <div style={{ flex: 1 }}>
-              <div className="bento-icon bi-teal"><i className="ti ti-chart-bar" aria-hidden="true" /></div>
+              <div className="bento-icon bi-teal"><BarChart3 size={20} aria-hidden="true" /></div>
               <h3>Analytics & Reports</h3>
               <p>Visual charts help administrators identify performance trends and make data-driven decisions. Export PDF reports in one click.</p>
             </div>
@@ -242,7 +272,7 @@ const SlideFeatures = () => (
         </div>
 
         <div className="bento-cell span-5 teal-cell">
-          <div className="bento-icon bi-accent"><i className="ti ti-school" aria-hidden="true" /></div>
+          <div className="bento-icon bi-accent"><School size={20} aria-hidden="true" /></div>
           <h3>Academic Tracking</h3>
           <p>Monitor grades and attendance in real-time with intuitive dashboards for every teacher.</p>
         </div>
@@ -260,7 +290,7 @@ const SlideFeatures = () => (
         </div>
 
         <div className="bento-cell span-4">
-          <div className="bento-icon bi-dark"><i className="ti ti-message-circle" aria-hidden="true" /></div>
+          <div className="bento-icon bi-dark"><MessageCircle size={20} aria-hidden="true" /></div>
           <h3>Parent–Teacher Chat</h3>
           <p>Secure, threaded messaging bridges the gap between school and home instantly.</p>
         </div>
@@ -404,7 +434,7 @@ const SlidePricing = ({ active }) => (
           >
             {plan.accent && (
               <div className="pricing-popular-badge">
-                <i className="ti ti-star-filled" style={{ fontSize: 10 }} aria-hidden="true" /> {plan.tag}
+                <Star size={10} fill="currentColor" aria-hidden="true" /> {plan.tag}
               </div>
             )}
             {!plan.accent && (
@@ -423,8 +453,8 @@ const SlidePricing = ({ active }) => (
                 <li key={f.label} className={`pricing-feature${f.yes ? "" : " pricing-feature--no"}`}>
                   <span className="pricing-feature-icon">
                     {f.yes
-                      ? <i className="ti ti-check" aria-hidden="true" />
-                      : <i className="ti ti-minus" aria-hidden="true" />}
+                      ? <Check size={14} aria-hidden="true" />
+                      : <Minus size={14} aria-hidden="true" />}
                   </span>
                   {f.label}
                 </li>
@@ -433,7 +463,7 @@ const SlidePricing = ({ active }) => (
 
             <Link to={plan.ctaLink} style={{ display: "block", marginTop: "auto", paddingTop: 16 }}>
               <button className={`pricing-cta${plan.accent ? " pricing-cta--accent" : ""}`}>
-                {plan.cta} <i className="ti ti-arrow-right" aria-hidden="true" />
+                {plan.cta} <ArrowRight size={16} aria-hidden="true" />
               </button>
             </Link>
           </div>
@@ -455,18 +485,18 @@ const SlideCTA = () => (
           Join over 1,200 schools already using Academix. Free forever for small schools — no credit card required, up and running in minutes.
         </p>
         <div className="cta-buttons">
-          <button className="btn-primary"><i className="ti ti-brand-google-play" aria-hidden="true" /> Google Play</button>
-          <button className="btn-outline"><i className="ti ti-brand-apple" aria-hidden="true" /> App Store</button>
+          <button className="btn-primary"><Smartphone size={16} aria-hidden="true" /> Google Play</button>
+          <button className="btn-outline"><Apple size={16} aria-hidden="true" /> App Store</button>
         </div>
         <div className="cta-buttons" style={{ marginBottom: 14 }}>
           <Link to="/signin">
             <button className="btn-outline" style={{ borderColor: "rgba(34,211,222,0.3)", color: "var(--teal-lt)" }}>
-              <i className="ti ti-login" aria-hidden="true" /> Staff Sign In
+              <LogIn size={16} aria-hidden="true" /> Staff Sign In
             </button>
           </Link>
           <Link to="/register">
             <button className="btn-primary" style={{ background: "var(--teal)", boxShadow: "0 2px 16px rgba(14,165,176,0.25)" }}>
-              <i className="ti ti-school" aria-hidden="true" /> Register School
+              <School size={16} aria-hidden="true" /> Register School
             </button>
           </Link>
         </div>
@@ -475,30 +505,30 @@ const SlideCTA = () => (
 
       <div className="cta-cards">
         {[
-          { icon: "ti-brand-google-play", cls: "cta-card-icon",      title: "Android App",     sub: "Available on Google Play — free download",          to: null       },
-          { icon: "ti-brand-apple",       cls: "cta-card-icon teal", title: "iOS App",          sub: "Available on the App Store for iPhone & iPad",      to: null       },
-          { icon: "ti-login",             cls: "cta-card-icon dark", title: "Staff Portal",     sub: "Sign in to your school dashboard",                  to: "/signin"  },
-          { icon: "ti-school",            cls: "cta-card-icon",      title: "Register School",  sub: "Create your institution account now",               to: "/register"},
+          { icon: Smartphone, cls: "cta-card-icon",      title: "Android App",     sub: "Available on Google Play — free download",          to: null       },
+          { icon: Apple,      cls: "cta-card-icon teal", title: "iOS App",          sub: "Available on the App Store for iPhone & iPad",      to: null       },
+          { icon: LogIn,      cls: "cta-card-icon dark", title: "Staff Portal",     sub: "Sign in to your school dashboard",                  to: "/signin"  },
+          { icon: School,     cls: "cta-card-icon",      title: "Register School",  sub: "Create your institution account now",               to: "/register"},
         ].map(c => (
           c.to ? (
             <Link key={c.title} to={c.to} style={{ textDecoration: "none" }}>
               <div className="cta-card">
-                <div className={c.cls}><i className={`ti ${c.icon}`} aria-hidden="true" /></div>
+                <div className={c.cls}><c.icon size={20} aria-hidden="true" /></div>
                 <div className="cta-card-text">
                   <div className="cta-card-title">{c.title}</div>
                   <div className="cta-card-sub">{c.sub}</div>
                 </div>
-                <i className="ti ti-arrow-right cta-card-arrow" aria-hidden="true" />
+                <ArrowRight className="cta-card-arrow" size={18} aria-hidden="true" />
               </div>
             </Link>
           ) : (
             <div key={c.title} className="cta-card">
-              <div className={c.cls}><i className={`ti ${c.icon}`} aria-hidden="true" /></div>
+              <div className={c.cls}><c.icon size={20} aria-hidden="true" /></div>
               <div className="cta-card-text">
                 <div className="cta-card-title">{c.title}</div>
                 <div className="cta-card-sub">{c.sub}</div>
               </div>
-              <i className="ti ti-arrow-right cta-card-arrow" aria-hidden="true" />
+              <ArrowRight className="cta-card-arrow" size={18} aria-hidden="true" />
             </div>
           )
         ))}
@@ -524,21 +554,21 @@ const SlideFooter = () => (
           </div>
           <p className="footer-tagline">The all-in-one school management platform built for modern secondary education.</p>
           <div className="footer-socials">
-            {["ti-brand-twitter", "ti-brand-linkedin", "ti-brand-facebook", "ti-brand-instagram"].map(icon => (
-              <div key={icon} className="footer-social-btn">
-                <i className={`ti ${icon}`} aria-hidden="true" />
+            {[TwitterIcon, LinkedinIcon, FacebookIcon, InstagramIcon].map((Icon, i) => (
+              <div key={i} className="footer-social-btn">
+                <Icon aria-hidden="true" />
               </div>
             ))}
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
             <Link to="/signin">
               <button className="btn-nav-in" style={{ fontSize: 12, padding: "7px 14px" }}>
-                <i className="ti ti-login" style={{ marginRight: 5, fontSize: 13 }} aria-hidden="true" />Sign In
+                <LogIn size={13} style={{ marginRight: 5 }} aria-hidden="true" />Sign In
               </button>
             </Link>
             <Link to="/register">
               <button className="btn-nav-cta" style={{ fontSize: 12, padding: "7px 14px" }}>
-                <i className="ti ti-school" style={{ marginRight: 5, fontSize: 13 }} aria-hidden="true" />Register
+                <School size={13} style={{ marginRight: 5 }} aria-hidden="true" />Register
               </button>
             </Link>
           </div>
@@ -694,7 +724,7 @@ export default function AcademixLanding() {
           disabled={current === 0}
           aria-label="Previous slide"
         >
-          <i className="ti ti-chevron-up" aria-hidden="true" />
+          <ChevronUp size={18} aria-hidden="true" />
         </button>
         <span className="slide-counter">{current + 1} / {TOTAL}</span>
         <button
@@ -703,7 +733,7 @@ export default function AcademixLanding() {
           disabled={current === TOTAL - 1}
           aria-label="Next slide"
         >
-          <i className="ti ti-chevron-down" aria-hidden="true" />
+          <ChevronDown size={18} aria-hidden="true" />
         </button>
       </div>
     </>

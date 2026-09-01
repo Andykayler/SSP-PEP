@@ -1,10 +1,24 @@
+import 'dart:async';
+
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/student.dart';
 import '../state/session_provider.dart';
+import '../services/fees_service.dart';
+import '../services/attendance_service.dart';
+import '../services/performance_service.dart';
+import '../services/discipline_service.dart';
+import '../services/homework_service.dart';
+import '../services/announcements_service.dart';
+import '../services/notifications_service.dart';
+import '../services/chat_service.dart';
+import '../services/push_service.dart';
 import 'student_select_screen.dart';
 import 'fees_screen.dart';
+import 'notifications_screen.dart';
+import 'messages_screen.dart';
 
 /// ─── Design tokens — mirrors StudentSelectScreen's _T. TODO: extract to a
 /// shared lib/theme/app_theme.dart once a third screen needs these. ───────
@@ -40,22 +54,59 @@ class _T {
   static const fontDisplay = null;
 }
 
+String _relativeTime(DateTime? dt) {
+  if (dt == null) return '';
+  final diff = DateTime.now().difference(dt);
+  if (diff.inMinutes < 1) return 'Just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+  if (diff.inHours < 24) return '${diff.inHours}h ago';
+  if (diff.inDays < 7) return '${diff.inDays}d ago';
+  return '${dt.day}/${dt.month}/${dt.year}';
+}
+
 /// ─── Screen ────────────────────────────────────────────────────────────
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
   @override
-  State<HomeShell> createState() =>
-      _HomeShellState();
+  State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell>
-    with SingleTickerProviderStateMixin {
+class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMixin {
   late final AnimationController _shimmer;
 
-  // TEMP — design-review toggle only. Remove once real data replaces the
-  // mock lists below and loading state comes from a provider instead.
-  bool _loading = false;
+  final _feesService = FeesService();
+  final _attendanceService = AttendanceService();
+  final _performanceService = PerformanceService();
+  final _disciplineService = DisciplineService();
+  final _homeworkService = HomeworkService();
+  final _announcementsService = AnnouncementsService();
+  final _notificationsService = NotificationsService();
+  final _chatService = ChatService();
+
+  bool _loading = true;
+  String? _error;
+  String? _loadedForStudentId;
+
+  FeesData? _fees;
+  AttendanceSummary _attendance = AttendanceSummary.empty;
+  PerformanceSummary _performance = PerformanceSummary.empty;
+  DisciplineSummary _discipline = DisciplineSummary.empty;
+  List<HomeworkTask> _homework = const [];
+  List<AnnouncementItem> _announcements = const [];
+
+  // The badge streams are built once per phone number rather than per build:
+  // calling watch* inside build() would tear down and re-open a Firestore
+  // listener on every rebuild.
+  String? _streamsForPhone;
+  Stream<int> _unreadNotifications = const Stream<int>.empty();
+  Stream<int> _unreadMessages = const Stream<int>.empty();
+
+  final _gradesKey = GlobalKey();
+  final _statsKey = GlobalKey();
+  final _homeworkKey = GlobalKey();
+  final _announcementsKey = GlobalKey();
+  final _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -64,91 +115,231 @@ class _HomeShellState extends State<HomeShell>
       vsync: this,
       duration: const Duration(milliseconds: 1400),
     )..repeat(reverse: true);
+
+    // Android raises no system notification while the app is in front, so a
+    // push that lands here is shown as an in-app banner instead.
+    PushService.instance.onForegroundMessage = (message) {
+      if (!mounted) return;
+      final title = message.notification?.title ?? 'New notification';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+          content: Text(title, style: const TextStyle(fontSize: 13)),
+          action: SnackBarAction(
+            label: 'View',
+            onPressed: () => _openFromPush(message),
+          ),
+        ),
+      );
+    };
+    PushService.instance.onNotificationTap = _openFromPush;
+
+    // A tap from a terminated app is delivered once, on request.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final initial = await PushService.instance.initialMessage();
+      if (initial != null && mounted) _openFromPush(initial);
+    });
+  }
+
+  /// Sends the parent to the screen a push refers to. `entityType` mirrors the
+  /// field the web portal writes on the notification document.
+  void _openFromPush(RemoteMessage message) {
+    if (!mounted) return;
+    final entityType = message.data['entityType'] ?? '';
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => entityType == 'conversation'
+          ? const MessagesScreen()
+          : const NotificationsScreen(),
+    ));
   }
 
   @override
   void dispose() {
     _shimmer.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadDashboard(Student student) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final results = await Future.wait([
+        _feesService.fetchStudentFees(student),
+        _attendanceService.fetchRecentAttendance(student),
+        _performanceService.fetchPerformance(student),
+        _disciplineService.fetchSummary(student),
+        _homeworkService.fetchUpcoming(student),
+        _announcementsService.fetchRecent(student.schoolCode),
+      ]);
+
+      if (!mounted) return;
+      setState(() {
+        _fees = results[0] as FeesData;
+        _attendance = results[1] as AttendanceSummary;
+        _performance = results[2] as PerformanceSummary;
+        _discipline = results[3] as DisciplineSummary;
+        _homework = results[4] as List<HomeworkTask>;
+        _announcements = results[5] as List<AnnouncementItem>;
+        _loadedForStudentId = student.id;
+        _loading = false;
+      });
+
+      // Announcements shown on the dashboard count as read. markRead is
+      // idempotent, so re-rendering does not inflate the count.
+      final phone = context.mounted ? _streamsForPhone ?? '' : '';
+      if (phone.isNotEmpty) {
+        final parentId = parentRecipientId(phone);
+        for (final a in _announcements) {
+          unawaited(_announcementsService.markRead(a.id, parentId));
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load your dashboard: $e';
+      });
+    }
+  }
+
+  void _ensureBadgeStreams(String phone) {
+    if (_streamsForPhone == phone) return;
+    _streamsForPhone = phone;
+    _unreadNotifications =
+        _notificationsService.watchUnreadCount(phone).asBroadcastStream();
+    _unreadMessages = _chatService.watchUnreadTotal(phone).asBroadcastStream();
+  }
+
+  void _scrollTo(GlobalKey key) {
+    final ctx = key.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 350), curve: Curves.easeOut);
+    }
+  }
+
+  void _handleQuickAction(BuildContext context, String label, Student? student) {
+    switch (label) {
+      case 'Fees':
+        _openFees(context, student);
+        break;
+      case 'Grades':
+        _scrollTo(_gradesKey);
+        break;
+      case 'Attendance':
+        _scrollTo(_statsKey);
+        break;
+      case 'Homework':
+        _scrollTo(_homeworkKey);
+        break;
+      case 'Announcements':
+        _scrollTo(_announcementsKey);
+        break;
+      case 'Messages':
+        _openMessages(context);
+        break;
+      default:
+        break;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final session = context.watch<SessionProvider>();
     final student = session.selectedStudent;
+    _ensureBadgeStreams(session.parentPhone ?? '');
+
+    if (student != null && _loadedForStudentId != student.id) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadDashboard(student));
+    }
 
     return Scaffold(
       backgroundColor: _T.bg,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => setState(() => _loading = !_loading),
-        backgroundColor: _T.navyStart,
-        icon: Icon(_loading ? Icons.visibility_rounded : Icons.blur_on_rounded,
-            size: 18),
-        label: Text(
-          _loading ? 'Show data' : 'Preview loading',
-          style: const TextStyle(fontSize: 12),
-        ),
-      ),
       body: SafeArea(
         child: CustomScrollView(
+          controller: _scrollController,
           slivers: [
             SliverToBoxAdapter(
               child: _DashboardHero(
                 student: student,
+                unreadStream: _unreadNotifications,
+                onOpenNotifications: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                ),
                 onSwitchChild: () {
                   session.openStudentSwitcher();
                   Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(
-                        builder: (_) => const StudentSelectScreen()),
+                    MaterialPageRoute(builder: (_) => const StudentSelectScreen()),
                   );
                 },
               ),
             ),
+            if (_error != null)
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                sliver: SliverToBoxAdapter(child: _ErrorBanner(message: _error!)),
+              ),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
               sliver: SliverToBoxAdapter(
-                child: _loading
-                    ? _StatsRowSkeleton(shimmer: _shimmer)
-                    : _StatsRow(
-                        onTapFees: () => _openFees(context, student),
-                      ),
-              ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-              sliver: SliverToBoxAdapter(
-                child: _QuickActionsGrid(
-                  onAction: (label) {
-                    if (label == 'Fees') _openFees(context, student);
-                  },
+                child: KeyedSubtree(
+                  key: _statsKey,
+                  child: _loading
+                      ? _StatsRowSkeleton(shimmer: _shimmer)
+                      : _StatsRow(
+                          attendance: _attendance,
+                          performance: _performance,
+                          fees: _fees,
+                          discipline: _discipline,
+                          onTapFees: () => _openFees(context, student),
+                        ),
                 ),
               ),
             ),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
               sliver: SliverToBoxAdapter(
-                child: _loading
-                    ? _SkeletonCard(
-                        shimmer: _shimmer, rows: 5, title: 'Recent Grades')
-                    : const _RecentGradesCard(),
+                child: _QuickActionsGrid(
+                  messagesBadgeStream: _unreadMessages,
+                  onAction: (label) => _handleQuickAction(context, label, student),
+                ),
               ),
             ),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
               sliver: SliverToBoxAdapter(
-                child: _loading
-                    ? _SkeletonCard(
-                        shimmer: _shimmer, rows: 3, title: 'Upcoming')
-                    : const _UpcomingList(),
+                child: KeyedSubtree(
+                  key: _gradesKey,
+                  child: _loading
+                      ? _SkeletonCard(shimmer: _shimmer, rows: 4, title: 'Recent Grades')
+                      : _RecentGradesCard(performance: _performance),
+                ),
               ),
             ),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
               sliver: SliverToBoxAdapter(
-                child: _loading
-                    ? _SkeletonCard(
-                        shimmer: _shimmer, rows: 3, title: 'Announcements')
-                    : const _AnnouncementsCard(),
+                child: KeyedSubtree(
+                  key: _homeworkKey,
+                  child: _loading
+                      ? _SkeletonCard(shimmer: _shimmer, rows: 3, title: 'Upcoming')
+                      : _UpcomingList(tasks: _homework),
+                ),
+              ),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+              sliver: SliverToBoxAdapter(
+                child: KeyedSubtree(
+                  key: _announcementsKey,
+                  child: _loading
+                      ? _SkeletonCard(shimmer: _shimmer, rows: 3, title: 'Announcements')
+                      : _AnnouncementsCard(items: _announcements),
+                ),
               ),
             ),
             const SliverToBoxAdapter(child: _Footer()),
@@ -158,9 +349,44 @@ class _HomeShellState extends State<HomeShell>
     );
   }
 
+  void _openMessages(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const MessagesScreen()),
+    );
+  }
+
   void _openFees(BuildContext context, Student? student) {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => FeesScreen(student: student, guardianName: '',)),
+      MaterialPageRoute(
+        builder: (_) => FeesScreen(student: student, guardianName: ''),
+      ),
+    );
+  }
+}
+
+/// ─── Error banner ──────────────────────────────────────────────────────
+class _ErrorBanner extends StatelessWidget {
+  final String message;
+  const _ErrorBanner({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _T.dangerPale,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _T.danger.withOpacity(0.25)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded, size: 16, color: _T.danger),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(message, style: const TextStyle(fontSize: 12, color: _T.danger)),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -169,15 +395,21 @@ class _HomeShellState extends State<HomeShell>
 class _DashboardHero extends StatelessWidget {
   final Student? student;
   final VoidCallback onSwitchChild;
+  final VoidCallback onOpenNotifications;
+  final Stream<int> unreadStream;
 
-  const _DashboardHero({required this.student, required this.onSwitchChild});
+  const _DashboardHero({
+    required this.student,
+    required this.onSwitchChild,
+    required this.onOpenNotifications,
+    required this.unreadStream,
+  });
 
   @override
   Widget build(BuildContext context) {
     final name = student?.fullName ?? 'Student';
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
-    final subtitle =
-        student == null ? '' : '${student!.className} · ${student!.schoolName}';
+    final subtitle = student == null ? '' : '${student!.className} · ${student!.schoolName}';
 
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 16, 20, 12),
@@ -204,11 +436,7 @@ class _DashboardHero extends StatelessWidget {
             alignment: Alignment.center,
             child: Text(
               initial,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
             ),
           ),
           const SizedBox(width: 14),
@@ -258,11 +486,17 @@ class _DashboardHero extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          _IconPillButton(
-              icon: Icons.notifications_none_rounded, badge: true, onTap: () {}),
+          StreamBuilder<int>(
+            stream: unreadStream,
+            initialData: 0,
+            builder: (context, snap) => _IconPillButton(
+              icon: Icons.notifications_none_rounded,
+              count: snap.data ?? 0,
+              onTap: onOpenNotifications,
+            ),
+          ),
           const SizedBox(width: 8),
-          _IconPillButton(
-              icon: Icons.swap_horiz_rounded, badge: false, onTap: onSwitchChild),
+          _IconPillButton(icon: Icons.swap_horiz_rounded, count: 0, onTap: onSwitchChild),
         ],
       ),
     );
@@ -271,11 +505,10 @@ class _DashboardHero extends StatelessWidget {
 
 class _IconPillButton extends StatelessWidget {
   final IconData icon;
-  final bool badge;
+  final int count;
   final VoidCallback onTap;
 
-  const _IconPillButton(
-      {required this.icon, required this.badge, required this.onTap});
+  const _IconPillButton({required this.icon, required this.count, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -294,17 +527,31 @@ class _IconPillButton extends StatelessWidget {
           ),
           child: Stack(
             alignment: Alignment.center,
+            clipBehavior: Clip.none,
             children: [
               Icon(icon, size: 18, color: _T.textSecondary),
-              if (badge)
+              if (count > 0)
                 Positioned(
-                  top: 8,
-                  right: 9,
+                  top: 3,
+                  right: 1,
                   child: Container(
-                    width: 7,
-                    height: 7,
-                    decoration:
-                        const BoxDecoration(color: _T.danger, shape: BoxShape.circle),
+                    constraints: const BoxConstraints(minWidth: 17),
+                    height: 17,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: _T.danger,
+                      borderRadius: BorderRadius.circular(9),
+                      border: Border.all(color: _T.heroBg, width: 1.5),
+                    ),
+                    child: Text(
+                      count > 99 ? '99+' : '$count',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
             ],
@@ -315,36 +562,65 @@ class _IconPillButton extends StatelessWidget {
   }
 }
 
-/// ─── Stats row (attendance / rank / fees / discipline) ───────────────────
+/// ─── Stats row (attendance / rank / fees / discipline) — all real data ───
 class _StatsRow extends StatelessWidget {
+  final AttendanceSummary attendance;
+  final PerformanceSummary performance;
+  final FeesData? fees;
+  final DisciplineSummary discipline;
   final VoidCallback onTapFees;
-  const _StatsRow({required this.onTapFees});
+
+  const _StatsRow({
+    required this.attendance,
+    required this.performance,
+    required this.fees,
+    required this.discipline,
+    required this.onTapFees,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final attendanceValue = attendance.hasData ? '${attendance.percent.round()}%' : '—';
+    final attendanceSub = attendance.hasData
+        ? '${attendance.presentCount}/${attendance.markedDays} recent days'
+        : 'No attendance recorded yet';
+
+    final rankValue = performance.rank != null ? '${_ordinal(performance.rank!)}' : '—';
+    final rankSub = performance.rank != null
+        ? 'of ${performance.classSize} · Avg ${performance.overallAverage!.round()}%'
+        : 'No marks entered yet';
+
+    final feeBalance = fees?.balance ?? 0;
+    final feeValue = fees == null ? '—' : formatCurrency(feeBalance);
+    final feeSub = fees == null
+        ? 'No fee records yet'
+        : feeBalance <= 0
+            ? 'Fully paid'
+            : 'Outstanding balance';
+
     return Column(
       children: [
         Row(
-          children: const [
+          children: [
             Expanded(
               child: _StatCard(
                 icon: Icons.event_available_rounded,
                 iconColor: _T.success,
                 iconBg: _T.successPale,
                 label: 'ATTENDANCE',
-                value: '94%',
-                subtitle: 'Present this term',
+                value: attendanceValue,
+                subtitle: attendanceSub,
               ),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(
               child: _StatCard(
                 icon: Icons.leaderboard_rounded,
                 iconColor: _T.primaryLight,
                 iconBg: _T.primaryPale,
                 label: 'CLASS RANK',
-                value: '4th',
-                subtitle: 'of 38 · Avg B+',
+                value: rankValue,
+                subtitle: rankSub,
               ),
             ),
           ],
@@ -358,26 +634,40 @@ class _StatsRow extends StatelessWidget {
                 iconColor: _T.warning,
                 iconBg: _T.warningPale,
                 label: 'FEE BALANCE',
-                value: 'MK 45,000',
-                subtitle: 'Due 5 Aug 2026',
+                value: feeValue,
+                subtitle: feeSub,
                 onTap: onTapFees,
               ),
             ),
             const SizedBox(width: 12),
-            const Expanded(
+            Expanded(
               child: _StatCard(
                 icon: Icons.shield_moon_rounded,
-                iconColor: _T.success,
-                iconBg: _T.successPale,
+                iconColor: discipline.openCases > 0 ? _T.warning : _T.success,
+                iconBg: discipline.openCases > 0 ? _T.warningPale : _T.successPale,
                 label: 'DISCIPLINE',
-                value: '0',
-                subtitle: 'Open cases',
+                value: '${discipline.openCases}',
+                subtitle: discipline.openCases > 0 ? 'Open case(s)' : 'No open cases',
               ),
             ),
           ],
         ),
       ],
     );
+  }
+
+  static String _ordinal(int n) {
+    if (n % 100 >= 11 && n % 100 <= 13) return '${n}th';
+    switch (n % 10) {
+      case 1:
+        return '${n}st';
+      case 2:
+        return '${n}nd';
+      case 3:
+        return '${n}rd';
+      default:
+        return '${n}th';
+    }
   }
 }
 
@@ -418,8 +708,7 @@ class _StatCard extends StatelessWidget {
               Container(
                 width: 32,
                 height: 32,
-                decoration: BoxDecoration(
-                    color: iconBg, borderRadius: BorderRadius.circular(9)),
+                decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(9)),
                 alignment: Alignment.center,
                 child: Icon(icon, size: 16, color: iconColor),
               ),
@@ -441,8 +730,7 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 5),
           Text(
             value,
-            style: const TextStyle(
-                fontSize: 19, fontWeight: FontWeight.w600, color: _T.textPrimary),
+            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: _T.textPrimary),
           ),
           const SizedBox(height: 2),
           Text(subtitle, style: const TextStyle(fontSize: 11, color: _T.textSecondary)),
@@ -482,7 +770,8 @@ const _quickActions = [
 
 class _QuickActionsGrid extends StatelessWidget {
   final ValueChanged<String> onAction;
-  const _QuickActionsGrid({required this.onAction});
+  final Stream<int> messagesBadgeStream;
+  const _QuickActionsGrid({required this.onAction, required this.messagesBadgeStream});
 
   @override
   Widget build(BuildContext context) {
@@ -493,13 +782,26 @@ class _QuickActionsGrid extends StatelessWidget {
       mainAxisSpacing: 10,
       crossAxisSpacing: 10,
       childAspectRatio: 1.02,
-      children: _quickActions
-          .map((a) => _QuickActionTile(
-                label: a.label,
-                icon: a.icon,
-                onTap: () => onAction(a.label),
-              ))
-          .toList(),
+      children: _quickActions.map((a) {
+        // Only the Messages tile carries a count, so only it pays for a stream.
+        if (a.label != 'Messages') {
+          return _QuickActionTile(
+            label: a.label,
+            icon: a.icon,
+            onTap: () => onAction(a.label),
+          );
+        }
+        return StreamBuilder<int>(
+          stream: messagesBadgeStream,
+          initialData: 0,
+          builder: (context, snap) => _QuickActionTile(
+            label: a.label,
+            icon: a.icon,
+            badgeCount: snap.data ?? 0,
+            onTap: () => onAction(a.label),
+          ),
+        );
+      }).toList(),
     );
   }
 }
@@ -508,14 +810,20 @@ class _QuickActionTile extends StatelessWidget {
   final String label;
   final IconData icon;
   final VoidCallback onTap;
-  const _QuickActionTile({required this.label, required this.icon, required this.onTap});
+  final int badgeCount;
+  const _QuickActionTile({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    this.badgeCount = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap, // TODO: wire up remaining routes as each module ships
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         hoverColor: _T.cardBgHover,
         child: Container(
@@ -528,19 +836,46 @@ class _QuickActionTile extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                    color: _T.primaryPale, borderRadius: BorderRadius.circular(10)),
-                alignment: Alignment.center,
-                child: Icon(icon, size: 17, color: _T.primaryLight),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(color: _T.primaryPale, borderRadius: BorderRadius.circular(10)),
+                    alignment: Alignment.center,
+                    child: Icon(icon, size: 17, color: _T.primaryLight),
+                  ),
+                  if (badgeCount > 0)
+                    Positioned(
+                      top: -5,
+                      right: -6,
+                      child: Container(
+                        constraints: const BoxConstraints(minWidth: 17),
+                        height: 17,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: _T.danger,
+                          borderRadius: BorderRadius.circular(9),
+                          border: Border.all(color: _T.cardBg, width: 1.5),
+                        ),
+                        child: Text(
+                          badgeCount > 99 ? '99+' : '$badgeCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 8),
               Text(
                 label,
-                style: const TextStyle(
-                    fontSize: 11, fontWeight: FontWeight.w500, color: _T.textPrimary),
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: _T.textPrimary),
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -580,8 +915,7 @@ class _SectionHeader extends StatelessWidget {
               onTap: onSeeAll,
               child: const Text(
                 'See all',
-                style:
-                    TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _T.primaryLight),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _T.primaryLight),
               ),
             ),
         ],
@@ -590,22 +924,37 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-/// ─── Recent grades ─────────────────────────────────────────────────────
-class _MockGrade {
-  final String subject;
-  final String grade;
-  final int score;
-  const _MockGrade(this.subject, this.grade, this.score);
+/// ─── Shared empty-state row (mirrors the web dashboards' empty-state
+/// convention: a short explanation instead of blank/fake content) ────────
+class _EmptyRow extends StatelessWidget {
+  final String message;
+  const _EmptyRow({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      child: Text(
+        message,
+        style: const TextStyle(fontSize: 12.5, color: _T.textMuted),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
 }
 
-const _mockGrades = [
-  _MockGrade('Mathematics', 'A', 88),
-  _MockGrade('English', 'B+', 76),
-  _MockGrade('Biology', 'A-', 82),
-  _MockGrade('Chichewa', 'B', 71),
-  _MockGrade('Physical Science', 'C+', 63),
-];
+Widget _cardWrap({required List<Widget> children}) {
+  return Container(
+    decoration: BoxDecoration(
+      color: _T.cardBg,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: _T.border),
+    ),
+    child: Column(children: children),
+  );
+}
 
+/// ─── Recent grades ─────────────────────────────────────────────────────
 Color _gradeColor(String grade) {
   if (grade.startsWith('A')) return _T.success;
   if (grade.startsWith('B')) return _T.primaryLight;
@@ -621,29 +970,26 @@ Color _gradeColorPale(String grade) {
 }
 
 class _RecentGradesCard extends StatelessWidget {
-  const _RecentGradesCard();
+  final PerformanceSummary performance;
+  const _RecentGradesCard({required this.performance});
 
   @override
   Widget build(BuildContext context) {
+    final grades = performance.subjectGrades;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _SectionHeader(title: 'Recent Grades', onSeeAll: () {}),
-        Container(
-          decoration: BoxDecoration(
-            color: _T.cardBg,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _T.border),
-          ),
-          child: Column(
-            children: [
-              for (int i = 0; i < _mockGrades.length; i++) ...[
-                _GradeRow(grade: _mockGrades[i]),
-                if (i != _mockGrades.length - 1)
-                  const Divider(height: 1, color: _T.border, indent: 16, endIndent: 16),
-              ],
-            ],
-          ),
+        const _SectionHeader(title: 'Recent Grades'),
+        _cardWrap(
+          children: grades.isEmpty
+              ? const [_EmptyRow(message: 'No marks entered for this term yet.')]
+              : [
+                  for (int i = 0; i < grades.length; i++) ...[
+                    _GradeRow(grade: grades[i]),
+                    if (i != grades.length - 1)
+                      const Divider(height: 1, color: _T.border, indent: 16, endIndent: 16),
+                  ],
+                ],
         ),
       ],
     );
@@ -651,11 +997,12 @@ class _RecentGradesCard extends StatelessWidget {
 }
 
 class _GradeRow extends StatelessWidget {
-  final _MockGrade grade;
+  final SubjectGrade grade;
   const _GradeRow({required this.grade});
 
   @override
   Widget build(BuildContext context) {
+    final letter = letterGrade(grade.score);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -663,27 +1010,19 @@ class _GradeRow extends StatelessWidget {
           Expanded(
             child: Text(
               grade.subject,
-              style: const TextStyle(
-                  fontSize: 13.5, fontWeight: FontWeight.w500, color: _T.textPrimary),
+              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: _T.textPrimary),
             ),
           ),
-          Text('${grade.score}%',
-              style: const TextStyle(fontSize: 12.5, color: _T.textSecondary)),
+          Text('${grade.score.round()}%', style: const TextStyle(fontSize: 12.5, color: _T.textSecondary)),
           const SizedBox(width: 10),
           Container(
             width: 34,
             padding: const EdgeInsets.symmetric(vertical: 4),
-            decoration: BoxDecoration(
-              color: _gradeColorPale(grade.grade),
-              borderRadius: BorderRadius.circular(8),
-            ),
+            decoration: BoxDecoration(color: _gradeColorPale(letter), borderRadius: BorderRadius.circular(8)),
             alignment: Alignment.center,
             child: Text(
-              grade.grade,
-              style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: _gradeColor(grade.grade)),
+              letter,
+              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _gradeColor(letter)),
             ),
           ),
         ],
@@ -693,22 +1032,6 @@ class _GradeRow extends StatelessWidget {
 }
 
 /// ─── Upcoming (homework & deadlines) ──────────────────────────────────
-enum _DueStatus { overdue, soon, upcoming }
-
-class _MockTask {
-  final String title;
-  final String subject;
-  final String due;
-  final _DueStatus status;
-  const _MockTask(this.title, this.subject, this.due, this.status);
-}
-
-const _mockTasks = [
-  _MockTask('Algebra worksheet 4', 'Mathematics', 'Overdue by 1 day', _DueStatus.overdue),
-  _MockTask('Essay: Rainy Season', 'English', 'Due tomorrow', _DueStatus.soon),
-  _MockTask('Lab report — Osmosis', 'Biology', 'Due in 5 days', _DueStatus.upcoming),
-];
-
 class _DueStyle {
   final Color color;
   final Color bg;
@@ -717,43 +1040,49 @@ class _DueStyle {
 }
 
 const _dueStyles = {
-  _DueStatus.overdue: _DueStyle(_T.danger, _T.dangerPale, 'OVERDUE'),
-  _DueStatus.soon: _DueStyle(_T.warning, _T.warningPale, 'DUE SOON'),
-  _DueStatus.upcoming: _DueStyle(_T.textSecondary, _T.bg, 'UPCOMING'),
+  TaskDueStatus.overdue: _DueStyle(_T.danger, _T.dangerPale, 'OVERDUE'),
+  TaskDueStatus.soon: _DueStyle(_T.warning, _T.warningPale, 'DUE SOON'),
+  TaskDueStatus.upcoming: _DueStyle(_T.textSecondary, _T.bg, 'UPCOMING'),
 };
 
 class _UpcomingList extends StatelessWidget {
-  const _UpcomingList();
+  final List<HomeworkTask> tasks;
+  const _UpcomingList({required this.tasks});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _SectionHeader(title: 'Upcoming', onSeeAll: () {}),
-        Container(
-          decoration: BoxDecoration(
-            color: _T.cardBg,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _T.border),
-          ),
-          child: Column(
-            children: [
-              for (int i = 0; i < _mockTasks.length; i++) ...[
-                _TaskRow(task: _mockTasks[i]),
-                if (i != _mockTasks.length - 1)
-                  const Divider(height: 1, color: _T.border, indent: 16, endIndent: 16),
-              ],
-            ],
-          ),
+        const _SectionHeader(title: 'Upcoming'),
+        _cardWrap(
+          children: tasks.isEmpty
+              ? const [_EmptyRow(message: 'Nothing due — no homework assigned yet.')]
+              : [
+                  for (int i = 0; i < tasks.length; i++) ...[
+                    _TaskRow(task: tasks[i]),
+                    if (i != tasks.length - 1)
+                      const Divider(height: 1, color: _T.border, indent: 16, endIndent: 16),
+                  ],
+                ],
         ),
       ],
     );
   }
 }
 
+String _formatDue(DateTime due) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final days = due.difference(today).inDays;
+  if (days == 0) return 'Due today';
+  if (days == 1) return 'Due tomorrow';
+  if (days < 0) return 'Overdue by ${-days} day${-days == 1 ? '' : 's'}';
+  return 'Due in $days days';
+}
+
 class _TaskRow extends StatelessWidget {
-  final _MockTask task;
+  final HomeworkTask task;
   const _TaskRow({required this.task});
 
   @override
@@ -768,18 +1097,16 @@ class _TaskRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(task.title,
-                    style: const TextStyle(
-                        fontSize: 13.5, fontWeight: FontWeight.w500, color: _T.textPrimary)),
+                    style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: _T.textPrimary)),
                 const SizedBox(height: 2),
-                Text('${task.subject} · ${task.due}',
+                Text('${task.subject} · ${_formatDue(task.dueDate)}',
                     style: const TextStyle(fontSize: 11.5, color: _T.textMuted)),
               ],
             ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-            decoration:
-                BoxDecoration(color: style.bg, borderRadius: BorderRadius.circular(7)),
+            decoration: BoxDecoration(color: style.bg, borderRadius: BorderRadius.circular(7)),
             child: Text(
               style.label,
               style: TextStyle(
@@ -798,43 +1125,26 @@ class _TaskRow extends StatelessWidget {
 }
 
 /// ─── Announcements ──────────────────────────────────────────────────────
-class _MockAnnouncement {
-  final String title;
-  final String time;
-  final bool unread;
-  const _MockAnnouncement(this.title, this.time, this.unread);
-}
-
-const _mockAnnouncements = [
-  _MockAnnouncement('Mid-term exams begin 4 August', '2h ago', true),
-  _MockAnnouncement('Sports day rescheduled', '1d ago', false),
-  _MockAnnouncement('Parent-teacher meeting Friday', '3d ago', false),
-];
-
 class _AnnouncementsCard extends StatelessWidget {
-  const _AnnouncementsCard();
+  final List<AnnouncementItem> items;
+  const _AnnouncementsCard({required this.items});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _SectionHeader(title: 'Announcements', onSeeAll: () {}),
-        Container(
-          decoration: BoxDecoration(
-            color: _T.cardBg,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _T.border),
-          ),
-          child: Column(
-            children: [
-              for (int i = 0; i < _mockAnnouncements.length; i++) ...[
-                _AnnouncementRow(item: _mockAnnouncements[i]),
-                if (i != _mockAnnouncements.length - 1)
-                  const Divider(height: 1, color: _T.border, indent: 16, endIndent: 16),
-              ],
-            ],
-          ),
+        const _SectionHeader(title: 'Announcements'),
+        _cardWrap(
+          children: items.isEmpty
+              ? const [_EmptyRow(message: 'No announcements yet.')]
+              : [
+                  for (int i = 0; i < items.length; i++) ...[
+                    _AnnouncementRow(item: items[i]),
+                    if (i != items.length - 1)
+                      const Divider(height: 1, color: _T.border, indent: 16, endIndent: 16),
+                  ],
+                ],
         ),
       ],
     );
@@ -842,7 +1152,7 @@ class _AnnouncementsCard extends StatelessWidget {
 }
 
 class _AnnouncementRow extends StatelessWidget {
-  final _MockAnnouncement item;
+  final AnnouncementItem item;
   const _AnnouncementRow({required this.item});
 
   @override
@@ -852,30 +1162,33 @@ class _AnnouncementRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 5),
-            child: Container(
-              width: 7,
-              height: 7,
-              decoration: BoxDecoration(
-                color: item.unread ? _T.primary : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
-            ),
+          const Padding(
+            padding: EdgeInsets.only(top: 5),
+            child: SizedBox(width: 7, height: 7),
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              item.title,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: item.unread ? FontWeight.w600 : FontWeight.w400,
-                color: _T.textPrimary,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title.isEmpty ? '(Untitled)' : item.title,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _T.textPrimary),
+                ),
+                if (item.message.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    item.message,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11.5, color: _T.textSecondary),
+                  ),
+                ],
+              ],
             ),
           ),
           const SizedBox(width: 8),
-          Text(item.time, style: const TextStyle(fontSize: 11, color: _T.textMuted)),
+          Text(_relativeTime(item.postedAt), style: const TextStyle(fontSize: 11, color: _T.textMuted)),
         ],
       ),
     );
@@ -991,8 +1304,7 @@ class _SkeletonCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (i != rows - 1)
-                  const Divider(height: 1, color: _T.border, indent: 16, endIndent: 16),
+                if (i != rows - 1) const Divider(height: 1, color: _T.border, indent: 16, endIndent: 16),
               ],
             ],
           ),

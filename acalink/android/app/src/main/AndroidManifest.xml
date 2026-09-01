@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Android 13+ requires the user to grant notifications explicitly;
+         FirebaseMessaging.requestPermission() raises the prompt. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
         android:label="acalink"
         android:name="${applicationName}"
@@ -25,6 +28,13 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Notification channel used by scripts/push-worker.js. Android 8+
+             ignores a message whose channel does not exist, so this has to
+             match the channelId the worker sends. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="acalink_default" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

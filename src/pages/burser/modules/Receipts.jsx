@@ -3,23 +3,11 @@ import { useState, useEffect, useRef } from "react";
 import { db } from "../../../firebase";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import { Search, X, Printer, Receipt as ReceiptIcon } from "lucide-react";
-import "./staff-management.css"; 
+import "./staff-management.css";
 
 // ─── Avatar Helper ──────────────────────────────────────────────────────────
 function initials(name = "") {
   return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
-}
-
-const AVATAR_TONES = [
-  "bg-blue-500/20 text-blue-300",
-  "bg-violet-500/20 text-violet-300",
-  "bg-emerald-500/20 text-emerald-300",
-  "bg-orange-500/20 text-orange-300",
-  "bg-rose-500/20 text-rose-300",
-  "bg-cyan-500/20 text-cyan-300",
-];
-function avatarColor(name = "") {
-  return AVATAR_TONES[name.charCodeAt(0) % AVATAR_TONES.length] || AVATAR_TONES[0];
 }
 
 // ─── Printable Receipt ──────────────────────────────────────────────────────
@@ -88,7 +76,7 @@ function PrintableReceipt({ payment, schoolName, onClose }) {
             <div class="footer">
               Recorded by: ${payment.recordedBy}<br>
               Please keep this receipt for your records.<br>
-              SSP-PEP • Ministry of Education, Malawi
+              Acalink
             </div>
           </div>
         </body>
@@ -104,47 +92,47 @@ function PrintableReceipt({ payment, schoolName, onClose }) {
           <h3>Receipt Preview</h3>
           <button onClick={onClose} className="modal-close"><X size={18} /></button>
         </div>
-        <div className="modal-body p-0">
-          <div ref={receiptRef} className="p-8 bg-white border border-border rounded-t-3xl font-mono text-sm">
-            <div className="text-center mb-6 border-b border-dashed pb-6">
-              <div className="font-bold text-lg tracking-wider uppercase">{schoolName}</div>
-              <div className="font-semibold mt-1">OFFICIAL PAYMENT RECEIPT</div>
-              <div className="text-xs text-muted mt-1 font-mono">{payment.receiptNo}</div>
+        <div className="modal-body" style={{ padding: 0 }}>
+          <div ref={receiptRef} className="receipt-preview">
+            <div className="receipt-preview__header">
+              <div className="receipt-preview__school">{schoolName}</div>
+              <div className="receipt-preview__title">OFFICIAL PAYMENT RECEIPT</div>
+              <div className="receipt-preview__no">{payment.receiptNo}</div>
             </div>
 
-            <div className="space-y-4 text-sm">
-              <div className="flex justify-between"><span className="text-muted">Date</span><span>{payment.paymentDate}</span></div>
-              <div className="flex justify-between"><span className="text-muted">Academic Year</span><span>{payment.academicYear}</span></div>
-              <div className="flex justify-between"><span className="text-muted">Term</span><span>{payment.term}</span></div>
+            <div className="receipt-preview__section" style={{ borderTop: "none", paddingTop: 0 }}>
+              <div className="receipt-preview__row"><span>Date</span><span>{payment.paymentDate}</span></div>
+              <div className="receipt-preview__row"><span>Academic Year</span><span>{payment.academicYear}</span></div>
+              <div className="receipt-preview__row"><span>Term</span><span>{payment.term}</span></div>
             </div>
 
-            <div className="my-6 border-t border-dashed pt-6 space-y-4 text-sm">
-              <div className="flex justify-between"><span className="text-muted">Student</span><span className="font-medium">{payment.studentName}</span></div>
-              <div className="flex justify-between"><span className="text-muted">Code</span><span>{payment.studentCode}</span></div>
-              <div className="flex justify-between"><span className="text-muted">Class</span><span>{payment.className}</span></div>
+            <div className="receipt-preview__section">
+              <div className="receipt-preview__row"><span>Student</span><span>{payment.studentName}</span></div>
+              <div className="receipt-preview__row"><span>Code</span><span>{payment.studentCode}</span></div>
+              <div className="receipt-preview__row"><span>Class</span><span>{payment.className}</span></div>
             </div>
 
-            <div className="border-t border-dashed pt-6 space-y-4 text-sm">
-              <div className="flex justify-between"><span className="text-muted">Method</span><span>{payment.method}</span></div>
-              {payment.referenceNo && <div className="flex justify-between"><span className="text-muted">Ref No.</span><span>{payment.referenceNo}</span></div>}
+            <div className="receipt-preview__section">
+              <div className="receipt-preview__row"><span>Method</span><span>{payment.method}</span></div>
+              {payment.referenceNo && <div className="receipt-preview__row"><span>Ref No.</span><span>{payment.referenceNo}</span></div>}
             </div>
 
-            <div className="mt-8 pt-6 border-t-2 border-black flex justify-between items-end font-bold text-lg">
+            <div className="receipt-preview__amount">
               <span>AMOUNT PAID</span>
               <span>{`MWK ${Number(payment.amount).toLocaleString()}`}</span>
             </div>
 
-            <div className="flex justify-center my-8">
-              <div className="border-4 border-success text-success font-black text-xl px-8 py-1 tracking-[3px] rotate-[-6deg]">PAID</div>
+            <div className="receipt-preview__stamp-wrap">
+              <div className="receipt-preview__stamp">PAID</div>
             </div>
 
-            <div className="text-center text-xs text-muted border-t pt-6">
+            <div className="receipt-preview__footer">
               Recorded by: {payment.recordedBy}<br />
-              SSP-PEP • Ministry of Education, Malawi
+              Acalink
             </div>
           </div>
 
-          <div className="p-6 flex gap-3 border-t">
+          <div className="receipt-preview__actions">
             <button onClick={onClose} className="btn btn--secondary flex-1">Close</button>
             <button onClick={handlePrint} className="btn btn--accent flex-1">
               <Printer size={16} /> Print Receipt
@@ -200,9 +188,9 @@ export default function Receipts({ schoolCode, schoolName }) {
 
   const filtered = payments.filter((p) => {
     const q = search.toLowerCase();
-    const matchSearch = !search || 
-      p.receiptNo?.toLowerCase().includes(q) || 
-      p.studentName?.toLowerCase().includes(q) || 
+    const matchSearch = !search ||
+      p.receiptNo?.toLowerCase().includes(q) ||
+      p.studentName?.toLowerCase().includes(q) ||
       p.studentCode?.toLowerCase().includes(q);
     const matchClass = classFilter === "all" || p.classId === classFilter;
     return matchSearch && matchClass;
@@ -210,14 +198,14 @@ export default function Receipts({ schoolCode, schoolName }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex-between flex-wrap">
         <div>
-          <h2 style={{ fontFamily: "'Playfair Display', serif" }}>Receipts</h2>
+          <h2>Receipts</h2>
           <p className="text-muted">View, search and reprint official receipts</p>
         </div>
-        <select 
-          value={academicYear} 
-          onChange={(e) => setAcademicYear(e.target.value)} 
+        <select
+          value={academicYear}
+          onChange={(e) => setAcademicYear(e.target.value)}
           className="form-input form-input--compact"
         >
           {ACADEMIC_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
@@ -235,15 +223,19 @@ export default function Receipts({ schoolCode, schoolName }) {
             className="search-input"
           />
           {search && (
-            <button onClick={() => setSearch("")} className="absolute right-4 top-1/2 -translate-y-1/2 text-muted">
+            <button
+              onClick={() => setSearch("")}
+              className="icon-btn"
+              style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}
+            >
               <X size={16} />
             </button>
           )}
         </div>
 
-        <select 
-          value={classFilter} 
-          onChange={(e) => setClassFilter(e.target.value)} 
+        <select
+          value={classFilter}
+          onChange={(e) => setClassFilter(e.target.value)}
           className="form-input form-input--compact"
         >
           <option value="all">All Classes</option>
@@ -252,15 +244,15 @@ export default function Receipts({ schoolCode, schoolName }) {
       </div>
 
       {/* Table */}
-      <div className="card overflow-hidden">
+      <div className="card">
         {loading ? (
-          <div className="py-20 flex flex-col items-center justify-center text-muted">
+          <div className="flex flex-col items-center justify-center text-muted" style={{ padding: "80px 0" }}>
             <div className="spinner" style={{ width: "38px", height: "38px" }} />
-            <p className="mt-6">Loading receipts...</p>
+            <p className="mt-4">Loading receipts...</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="empty-state py-24">
-            <ReceiptIcon size={52} className="text-muted mb-4" />
+          <div className="empty-state">
+            <div className="empty-state__icon"><ReceiptIcon size={28} /></div>
             <div className="empty-state__title">No receipts found</div>
             <p className="empty-state__sub">Receipts appear after recording payments</p>
           </div>
@@ -274,23 +266,23 @@ export default function Receipts({ schoolCode, schoolName }) {
                   <th>Method</th>
                   <th>Date</th>
                   <th className="text-right">Amount</th>
-                  <th className="w-12"></th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((p) => (
-                  <tr key={p.id} className="hover:bg-primary-dim">
+                  <tr key={p.id}>
                     <td data-label="Receipt">
-                      <span className="font-mono text-sm font-medium">{p.receiptNo}</span>
+                      <span className="text-mono text-sm font-medium">{p.receiptNo}</span>
                     </td>
                     <td data-label="Student">
-                      <div className="flex items-center gap-3">
-                        <div className={`assignment-avatar text-xs ${avatarColor(p.studentName)}`}>
+                      <div className="flex items-center gap-2">
+                        <div className="assignment-avatar">
                           {initials(p.studentName)}
                         </div>
                         <div>
-                          <div className="font-medium">{p.studentName}</div>
-                          <div className="text-xs text-muted">{p.className}</div>
+                          <div className="data-table__primary">{p.studentName}</div>
+                          <div className="data-table__meta">{p.className}</div>
                         </div>
                       </div>
                     </td>
@@ -300,8 +292,8 @@ export default function Receipts({ schoolCode, schoolName }) {
                     <td data-label="Date" className="text-muted">{p.paymentDate}</td>
                     <td data-label="Amount" className="text-right font-semibold text-success">{fmt(p.amount)}</td>
                     <td className="text-right">
-                      <button 
-                        onClick={() => setPreviewPayment(p)} 
+                      <button
+                        onClick={() => setPreviewPayment(p)}
                         className="icon-btn"
                         title="View & Print"
                       >

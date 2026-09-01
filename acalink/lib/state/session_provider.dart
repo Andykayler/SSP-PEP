@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart' as shared_preferences;
 
 import '../models/student.dart';
 import '../services/auth_service.dart';
+import '../services/push_service.dart';
 
 enum SessionStatus { unknown, loggedOut, needsStudentPick, ready }
 
@@ -45,6 +48,9 @@ class SessionProvider extends ChangeNotifier {
         students = fetched;
         final savedStudentId = prefs.getString(_kSelectedStudentKey);
         _resolveSelection(savedStudentId);
+        // Re-assert this device on every launch: tokens rotate, and the app
+        // may have been reinstalled since the last registration.
+        unawaited(PushService.instance.register(savedPhone));
       }
     } catch (_) {
       status = SessionStatus.loggedOut;
@@ -76,6 +82,7 @@ class SessionProvider extends ChangeNotifier {
 
     final prefs = await shared_preferences.SharedPreferences.getInstance();
     await prefs.setString(_kPhoneKey, result.normalisedPhone);
+    unawaited(PushService.instance.register(result.normalisedPhone));
 
     _resolveSelection(null);
     loading = false;
@@ -122,6 +129,9 @@ class SessionProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    // Before the phone number is forgotten, so a shared handset stops
+    // receiving this family's notifications.
+    await PushService.instance.unregister();
     await _clearStoredSession();
     parentPhone = null;
     students = [];

@@ -9,6 +9,8 @@ import { initializeApp, deleteApp } from "firebase/app";
 import { IC } from "./icons";
 import { ROLES, roleMap } from "./constants";
 import { generatePassword, normalisePhone, fmtDate, initials } from "./helpers";
+import { notifyStaffAdded } from "../../../services/notificationHooks";
+import { pushNotification } from "../../../services/notifications";
 import { sendSms, sendEmail, EMAILJS_STAFF_TEMPLATE_ID, APP_URL } from "./notifications";
 import {
   RoleBadge, StatusPill, Modal, Input, Select, Btn, Spinner, EmptyState, ActionBtn,
@@ -112,6 +114,26 @@ export default function UserManagement({ schoolCode, schoolName }) {
         );
         smsSent = smsResult.success;
       }
+
+      // In-app notices: leadership sees the new colleague, and the colleague
+      // has something waiting the first time they sign in.
+      const roleLabel = roleMap[form.role]?.label || form.role;
+      await notifyStaffAdded({
+        schoolCode,
+        staffName: form.name.trim(),
+        role: roleLabel,
+        actor: { name: "Administrator", role: "admin" },
+      });
+      await pushNotification({
+        schoolCode,
+        recipientId: newUser.uid,
+        recipientName: form.name.trim(),
+        title: `Welcome to ${schoolName}`,
+        body: `Your ${roleLabel} account is ready. Change your password from your profile after signing in.`,
+        category: "system",
+        actorName: "Administrator",
+        tab: "overview",
+      });
 
       setShowAdd(false);
       setForm({ name: "", email: "", role: "", phone: "" });

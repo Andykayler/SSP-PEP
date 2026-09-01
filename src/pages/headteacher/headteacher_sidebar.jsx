@@ -310,7 +310,7 @@ export default function HeadTeacherSidebar({
             </svg>
           </div>
           <div>
-            <div className="sidebar__brand-name">SSP-PEP</div>
+            <div className="sidebar__brand-name">Acalink</div>
             <div className="sidebar__brand-sub">{portalLabel}</div>
           </div>
         </div>
