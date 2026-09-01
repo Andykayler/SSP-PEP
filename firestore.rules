@@ -438,6 +438,30 @@ service cloud.firestore {
     }
 
     // =============================================
+    // REPORT CARDS  (the issued term result)
+    // =============================================
+    // One snapshot per student per term, id `{schoolCode}__{studentId}__{term}`.
+    // Its EXISTENCE is the release: individual assessment components become
+    // visible in the parent app as each teacher publishes them, but the
+    // combined weighted result only appears once the head teacher issues the
+    // card from Reports → Report Cards.
+    //
+    // The parent app fetches it by id (a `get`, not a list), so gating on the
+    // document's own studentId is provable here in a way a list would not be.
+    match /report_cards/{cardId} {
+      allow read: if isAnonParent()
+                     ? isGuardianOfStudent(resource.data.studentId)
+                     : isStaffOfSchool(resource.data.schoolCode);
+
+      // Issuing and re-issuing is a leadership act; a class teacher publishing
+      // their own component does not release the combined result.
+      allow create, update: if isStaffOfSchool(request.resource.data.schoolCode) &&
+                            isAdminOrHead();
+
+      allow delete: if isStaffOfSchool(resource.data.schoolCode) && isAdmin();
+    }
+
+    // =============================================
     // PARENT DEVICES  (FCM registration tokens)
     // =============================================
     // One document per handset, keyed by the FCM token itself so a device can

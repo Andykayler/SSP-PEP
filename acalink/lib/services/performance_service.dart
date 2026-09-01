@@ -95,6 +95,10 @@ class PerformanceService {
     final Map<String, Map<String, Map<String, num>>> raw = {};
     for (final doc in marksSnap.docs) {
       final data = doc.data();
+      // Drafts stay invisible: a teacher half-way through entering a class
+      // should not have those marks on a parent's home screen. Publishing is
+      // the deliberate act that releases them.
+      if (data['publishedAt'] == null) continue;
       final component = (data['assessmentType'] as String?) ?? 'EndTerm';
       final marks = data['marks'] as Map<String, dynamic>? ?? {};
       marks.forEach((studentId, subjectMarks) {

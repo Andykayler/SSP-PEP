@@ -1,6 +1,8 @@
 // modules/ReportsModule.jsx
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { auth, db } from "../../../firebase";
+import { subscribeSchoolSettings, termOptions, academicYearFor } from "../../../services/academicTerm";
+import { notifyGuardians } from "../../../services/notifications";
 import "./staff-management.css";
 import {
   collection, query, where, getDocs, doc, getDoc, setDoc, writeBatch, serverTimestamp,
@@ -9,7 +11,7 @@ import {
   FileText, Download, Printer, TrendingUp, Award, Users,
   RefreshCw, Loader2, AlertCircle, ChevronDown, Search,
   BarChart2, X, CheckCircle, AlertTriangle, ArrowUp, ArrowDown, Minus,
-  GraduationCap, ArrowRight, Save,
+  GraduationCap, ArrowRight, Save, Send,
 } from "lucide-react";
 
 // School type → highest form/standard that type goes up to — mirrors the
@@ -55,7 +57,8 @@ const MANEB_GRADES = [
   { grade: 9, min: 0,  max: 39,  remark: "Fail",        color: "text-red-600",     bg: "bg-red-50",      border: "border-red-200" },
 ];
 
-const TERMS = ["Term 1 2026", "Term 2 2026", "Term 3 2025", "Term 1 2025", "Term 2 2025"];
+// Term options are derived from whatever the school has set as current, so
+// this module can never offer a term the rest of the system does not use.
 
 function getGradeInfo(score) {
   if (score === null || score === undefined || score === "") return null;
@@ -232,10 +235,13 @@ function ReportCardModal({ student, schoolCode, term, onClose }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function ReportsModule({ schoolCode }) {
+export default function ReportsModule({ schoolCode, userId, userName }) {
   const [reportType, setReportType] = useState("reportCards");
   const [selectedClassId, setSelectedClassId] = useState("all");
-  const [selectedTerm, setSelectedTerm] = useState("Term 1 2026");
+  const [selectedTerm, setSelectedTerm] = useState("");
+  const [schoolTerm, setSchoolTerm] = useState("");
+  const [releasing, setReleasing] = useState(false);
+  const [releaseNote, setReleaseNote] = useState(null);
   const [compareTerm, setCompareTerm] = useState("Term 3 2025");
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("rank"); // rank | name | average
@@ -254,6 +260,20 @@ export default function ReportsModule({ schoolCode }) {
   const [classesReady, setClassesReady] = useState(false);
   const [dataReady, setDataReady] = useState(false);
   const isLoading = !classesReady || !dataReady;
+
+  // The school's current term drives the default selection here, the same way
+  // it does in the teacher's mark entry.
+  useEffect(() => {
+    if (!schoolCode) return undefined;
+    const unsub = subscribeSchoolSettings(schoolCode, (settings) => {
+      const term = settings?.currentTerm || "";
+      setSchoolTerm(term);
+      setSelectedTerm((chosen) => chosen || term);
+    });
+    return () => unsub();
+  }, [schoolCode]);
+
+  const TERMS = termOptions(schoolTerm || selectedTerm);
 
   // Print style injection
   useEffect(() => {
@@ -472,6 +492,94 @@ export default function ReportsModule({ schoolCode }) {
   const SortIcon = ({ col }) => {
     if (sortBy !== col) return <Minus size={10} className="opacity-30" />;
     return sortDir === "asc" ? <ArrowUp size={10} /> : <ArrowDown size={10} />;
+  };
+
+  // ── Releasing report cards to families ──────────────────────────────────
+  // A report card is a snapshot, not a live view. Individual components become
+  // visible in the parent app as each teacher publishes them; the combined,
+  // weighted assessment stays hidden until the head teacher issues it here.
+  // Writing the document IS the release — the app shows the panel when the
+  // document exists.
+  const releaseReportCards = async () => {
+    const targets = sorted.filter((s) => s.average !== null && s.average !== undefined);
+    if (targets.length === 0) {
+      setReleaseNote({ type: "error", text: "No students have marks for this term yet." });
+      return;
+    }
+    const scope = selectedClassId === "all"
+      ? "every class"
+      : classes.find((c) => c.id === selectedClassId)?.name || "this class";
+    if (!window.confirm(
+      `Issue ${selectedTerm} report cards for ${targets.length} student(s) in ${scope}?\n\n`
+      + `Guardians will be notified and the combined result becomes visible in the `
+      + `ACALink app. Re-issuing overwrites the previous card.`
+    )) return;
+
+    setReleasing(true);
+    setReleaseNote(null);
+    try {
+      // Firestore caps a batch at 500 writes.
+      for (let i = 0; i < targets.length; i += 400) {
+        const batch = writeBatch(db);
+        targets.slice(i, i + 400).forEach((student) => {
+          const cid = student.classId;
+          const subjectNames = new Set();
+          ASSESSMENT_TYPES.forEach(({ id }) =>
+            (byAssessmentMap[cid]?.[id]?.subjects || []).forEach((sub) => subjectNames.add(sub)));
+
+          const subjects = [...subjectNames].map((subject) => {
+            const components = {};
+            ASSESSMENT_TYPES.forEach(({ id }) => {
+              const v = byAssessmentMap[cid]?.[id]?.marks?.[student.id]?.[subject];
+              if (v !== null && v !== undefined && v !== "") components[id] = Number(v);
+            });
+            return { subject, components, score: computeWeightedAverage(components) };
+          }).filter((row) => row.score !== null);
+
+          const docId = `${schoolCode}__${student.id}__${selectedTerm.replace(/\s+/g, "_")}`;
+          batch.set(doc(db, "report_cards", docId), {
+            schoolCode,
+            studentId: student.id,
+            studentName: fullName(student),
+            studentCode: student.studentCode || "",
+            classId: cid,
+            className: student.className || classes.find((c) => c.id === cid)?.name || "",
+            term: selectedTerm,
+            academicYear: academicYearFor(selectedTerm),
+            subjects,
+            overallAverage: student.average,
+            position: student.rank ?? null,
+            classSize: enrichedStudents.filter((s) => s.classId === cid).length,
+            generatedAt: serverTimestamp(),
+            generatedBy: userId || "",
+          });
+        });
+        await batch.commit();
+      }
+
+      await notifyGuardians({
+        students: targets,
+        schoolCode,
+        title: (s) => `${selectedTerm} report card for ${fullName(s)}`,
+        body: "Your child's report card has been issued. Open ACALink to see the full result.",
+        category: "performance",
+        priority: "high",
+        actorId: userId,
+        actorName: userName || "Head Teacher",
+        actorRole: "head_teacher",
+        entityType: "report_card",
+      });
+
+      setReleaseNote({
+        type: "ok",
+        text: `Issued ${targets.length} report card(s). Guardians notified.`,
+      });
+    } catch (err) {
+      console.error("Report card release failed:", err);
+      setReleaseNote({ type: "error", text: `Could not issue report cards: ${err.message}` });
+    } finally {
+      setReleasing(false);
+    }
   };
 
   // ── Promotion ───────────────────────────────────────────────────────────
@@ -779,8 +887,26 @@ export default function ReportsModule({ schoolCode }) {
                   <FileText size={18} />
                   <h3>Report Cards — {selectedClassId === "all" ? "All Classes" : classes.find(c => c.id === selectedClassId)?.name}</h3>
                 </div>
-                <span className="text-muted" style={{ fontSize: "0.7rem" }}>{sorted.length} student{sorted.length !== 1 ? "s" : ""}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-muted" style={{ fontSize: "0.7rem" }}>{sorted.length} student{sorted.length !== 1 ? "s" : ""}</span>
+                  <button
+                    type="button"
+                    className="btn btn--accent btn--sm"
+                    onClick={releaseReportCards}
+                    disabled={releasing || !selectedTerm}
+                    title="Publish the combined term result to the ACALink parent app"
+                  >
+                    {releasing ? <Loader2 size={13} className="spin" /> : <Send size={13} />}
+                    Issue to parents
+                  </button>
+                </div>
               </div>
+              {releaseNote && (
+                <div className={`alert alert--${releaseNote.type === "ok" ? "success" : "error"}`}
+                     style={{ margin: "0 16px 12px" }}>
+                  {releaseNote.text}
+                </div>
+              )}
               <div className="data-table-wrap">
                 <table className="data-table data-table--stack">
                   <thead>

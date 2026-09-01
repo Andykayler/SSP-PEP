@@ -120,6 +120,16 @@ before(async () => {
     await setDoc(doc(db, "announcements", "a1"), {
       schoolCode: SCHOOL, title: "Sports day", message: "m", readCount: 0,
     });
+    await setDoc(doc(db, "report_cards", `${SCHOOL}__${STUDENT}__Term_2_2026`), {
+      schoolCode: SCHOOL, studentId: STUDENT, studentName: "Test Child",
+      classId: CLASS, term: "Term 2 2026", subjects: [], overallAverage: 62,
+    });
+    // A published component and a draft one, to prove the app only ever sees
+    // the published half.
+    await setDoc(doc(db, "ca_marks", "cm_published"), {
+      schoolCode: SCHOOL, classId: CLASS, term: "Term 2 2026",
+      assessmentType: "CA1", teacherId: TEACHER, marks: {}, publishedAt: new Date(),
+    });
     await setDoc(doc(db, "school_settings", SCHOOL), {
       schoolCode: SCHOOL, schoolType: "Secondary",
       currentTerm: "Term 2 2026", promotionThreshold: 40,
@@ -269,6 +279,35 @@ describe("parent app writes", () => {
   it("cannot post into a staff discussion thread", async () => {
     await assertFails(addDoc(collection(asParent(), "activity_threads"), {
       schoolCode: SCHOOL, scopeId: CLASS, authorId: "anon_uid_1", replyCount: 0,
+    }));
+  });
+});
+
+describe("report cards", () => {
+  const CARD = `${SCHOOL}__${STUDENT}__Term_2_2026`;
+
+  it("a parent can read their child's issued report card", async () => {
+    await assertSucceeds(getDoc(doc(asParent(), "report_cards", CARD)));
+  });
+
+  it("a head teacher can issue one", async () => {
+    await assertSucceeds(setDoc(doc(asHead(), "report_cards", CARD), {
+      schoolCode: SCHOOL, studentId: STUDENT, classId: CLASS,
+      term: "Term 2 2026", subjects: [], overallAverage: 71,
+    }));
+  });
+
+  it("a class teacher cannot issue one — releasing is a leadership act", async () => {
+    await assertFails(setDoc(doc(asTeacher(), "report_cards", CARD), {
+      schoolCode: SCHOOL, studentId: STUDENT, classId: CLASS,
+      term: "Term 2 2026", subjects: [], overallAverage: 99,
+    }));
+  });
+
+  it("a parent cannot write one", async () => {
+    await assertFails(setDoc(doc(asParent(), "report_cards", CARD), {
+      schoolCode: SCHOOL, studentId: STUDENT, classId: CLASS,
+      term: "Term 2 2026", subjects: [], overallAverage: 100,
     }));
   });
 });

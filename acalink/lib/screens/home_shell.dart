@@ -19,6 +19,7 @@ import '../services/push_service.dart';
 import 'student_select_screen.dart';
 import 'fees_screen.dart';
 import 'notifications_screen.dart';
+import 'results_screen.dart';
 import 'messages_screen.dart';
 
 /// ─── Design tokens — mirrors StudentSelectScreen's _T. TODO: extract to a
@@ -245,7 +246,9 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
         _openFees(context, student);
         break;
       case 'Grades':
-        _scrollTo(_gradesKey);
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const ResultsScreen()),
+        );
         break;
       case 'Attendance':
         _scrollTo(_statsKey);
