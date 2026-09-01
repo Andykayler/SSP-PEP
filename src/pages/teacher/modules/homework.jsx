@@ -5,6 +5,7 @@ import {
   doc, getDoc, serverTimestamp,
 } from "firebase/firestore";
 import { notifyHomeworkPosted } from "../../../services/notificationHooks";
+import SubmissionPanel from "../../../components/homework/SubmissionPanel";
 import {
   Plus, Clock, Calendar, Eye, Edit2, Trash2,
   CheckCircle, AlertCircle,
@@ -654,6 +655,17 @@ export default function HomeworkModule({ userId, schoolCode, userName, userRole 
           )}
         </div>
       </div>
+
+      {/* Parent-app submissions: who has handed work in, and who is asking to
+          hand it in late. Sits above the assignment list because a waiting
+          request is the only thing here that blocks a family. */}
+      {!noAssignment && (
+        <SubmissionPanel
+          schoolCode={schoolCode}
+          teacherId={userId}
+          teacherName={userName}
+        />
+      )}
 
       {noAssignment && (
         <div className="alert alert--warning">

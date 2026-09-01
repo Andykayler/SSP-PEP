@@ -20,6 +20,8 @@ import 'student_select_screen.dart';
 import 'fees_screen.dart';
 import 'notifications_screen.dart';
 import 'results_screen.dart';
+import 'attendance_screen.dart';
+import 'homework_screen.dart';
 import 'messages_screen.dart';
 
 /// ─── Design tokens — mirrors StudentSelectScreen's _T. TODO: extract to a
@@ -251,10 +253,14 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
         );
         break;
       case 'Attendance':
-        _scrollTo(_statsKey);
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const AttendanceScreen()),
+        );
         break;
       case 'Homework':
-        _scrollTo(_homeworkKey);
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const HomeworkScreen()),
+        );
         break;
       case 'Announcements':
         _scrollTo(_announcementsKey);

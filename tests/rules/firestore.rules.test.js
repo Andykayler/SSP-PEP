@@ -120,6 +120,11 @@ before(async () => {
     await setDoc(doc(db, "announcements", "a1"), {
       schoolCode: SCHOOL, title: "Sports day", message: "m", readCount: 0,
     });
+    await setDoc(doc(db, "homework_submissions", `hw_1__${STUDENT}`), {
+      schoolCode: SCHOOL, homeworkId: "hw_1", homeworkTitle: "Essay",
+      studentId: STUDENT, studentName: "Test Child", classId: CLASS,
+      teacherId: TEACHER, status: "late_requested", requestReason: "was ill",
+    });
     await setDoc(doc(db, "report_cards", `${SCHOOL}__${STUDENT}__Term_2_2026`), {
       schoolCode: SCHOOL, studentId: STUDENT, studentName: "Test Child",
       classId: CLASS, term: "Term 2 2026", subjects: [], overallAverage: 62,
@@ -279,6 +284,57 @@ describe("parent app writes", () => {
   it("cannot post into a staff discussion thread", async () => {
     await assertFails(addDoc(collection(asParent(), "activity_threads"), {
       schoolCode: SCHOOL, scopeId: CLASS, authorId: "anon_uid_1", replyCount: 0,
+    }));
+  });
+});
+
+describe("homework submissions — the late-approval flow", () => {
+  const SUB = `hw_1__${STUDENT}`;
+
+  it("a parent can list their own child's submissions", async () => {
+    await assertSucceeds(getDocs(query(
+      collection(asParent(), "homework_submissions"),
+      where("studentId", "==", STUDENT),
+    )));
+  });
+
+  it("a parent can ask to submit late", async () => {
+    await assertSucceeds(setDoc(doc(asParent(), "homework_submissions", `hw_2__${STUDENT}`), {
+      schoolCode: SCHOOL, homeworkId: "hw_2", studentId: STUDENT,
+      classId: CLASS, teacherId: TEACHER, status: "late_requested",
+      requestReason: "internet was down",
+    }));
+  });
+
+  it("a parent CANNOT approve their own late request", async () => {
+    // The whole point of the flow: self-approval would make the deadline
+    // meaningless.
+    await assertFails(updateDoc(doc(asParent(), "homework_submissions", SUB), {
+      status: "late_approved",
+    }));
+  });
+
+  it("a parent cannot submit while their request is still pending", async () => {
+    await assertFails(updateDoc(doc(asParent(), "homework_submissions", SUB), {
+      status: "submitted",
+    }));
+  });
+
+  it("a parent cannot rewrite the teacher's decision note", async () => {
+    await assertFails(updateDoc(doc(asParent(), "homework_submissions", SUB), {
+      status: "late_requested", decisionNote: "teacher said fine",
+    }));
+  });
+
+  it("the teacher can approve it", async () => {
+    await assertSucceeds(updateDoc(doc(asTeacher(), "homework_submissions", SUB), {
+      status: "late_approved", decisionNote: "ok this once", decidedBy: TEACHER,
+    }));
+  });
+
+  it("a teacher from another school cannot", async () => {
+    await assertFails(updateDoc(doc(asOutsider(), "homework_submissions", SUB), {
+      status: "late_approved",
     }));
   });
 });
