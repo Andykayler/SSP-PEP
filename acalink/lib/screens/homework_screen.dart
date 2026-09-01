@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../core/tokens.dart';
+import '../theme/app_colors.dart';
 import '../models/student.dart';
 import '../services/homework_submission_service.dart';
 import '../state/session_provider.dart';
@@ -105,9 +105,9 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
     }
 
     return Scaffold(
-      backgroundColor: T.bg,
+      backgroundColor: context.colors.bg,
       appBar: AppBar(
-        backgroundColor: T.heroBg,
+        backgroundColor: context.colors.heroBg,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
@@ -115,16 +115,16 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Homework',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: T.textPrimary)),
+            Text('Homework',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: context.colors.textPrimary)),
             if (student != null)
               Text(student.fullName,
-                  style: const TextStyle(fontSize: 11.5, color: T.textMuted)),
+                  style: TextStyle(fontSize: 11.5, color: context.colors.textMuted)),
           ],
         ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: T.border),
+          child: Container(height: 1, color: context.colors.border),
         ),
       ),
       body: FutureBuilder<List<_Item>>(
@@ -206,7 +206,7 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
   void _toast(String message, {required bool ok}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       behavior: SnackBarBehavior.floating,
-      backgroundColor: ok ? T.success : T.danger,
+      backgroundColor: ok ? context.colors.success : context.colors.danger,
       content: Text(message, style: const TextStyle(fontSize: 13)),
     ));
   }
@@ -222,7 +222,7 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
     return showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: T.heroBg,
+      backgroundColor: context.colors.heroBg,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
@@ -236,8 +236,8 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(title,
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w600, color: T.textPrimary)),
+                style: TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w600, color: context.colors.textPrimary)),
             const SizedBox(height: 12),
             TextField(
               controller: controller,
@@ -248,12 +248,12 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
               style: const TextStyle(fontSize: 13.5),
               decoration: InputDecoration(
                 hintText: hint,
-                hintStyle: const TextStyle(fontSize: 13, color: T.textMuted),
+                hintStyle: TextStyle(fontSize: 13, color: context.colors.textMuted),
                 filled: true,
-                fillColor: T.bg,
+                fillColor: context.colors.bg,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: T.border),
+                  borderSide: BorderSide(color: context.colors.border),
                 ),
               ),
             ),
@@ -270,7 +270,7 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
                 Expanded(
                   child: FilledButton(
                     style: FilledButton.styleFrom(
-                      backgroundColor: T.primary,
+                      backgroundColor: context.colors.primary,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12)),
@@ -302,19 +302,19 @@ class _OverdueBanner extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: T.dangerPale,
+        color: context.colors.dangerPale,
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: T.danger.withValues(alpha: 0.25)),
+        border: Border.all(color: context.colors.danger.withValues(alpha: 0.25)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded, size: 19, color: T.danger),
+          Icon(Icons.warning_amber_rounded, size: 19, color: context.colors.danger),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               '$count piece${count == 1 ? '' : 's'} of work past the due date. '
               'Ask the teacher to accept a late submission.',
-              style: const TextStyle(fontSize: 12.5, color: T.textSecondary, height: 1.4),
+              style: TextStyle(fontSize: 12.5, color: context.colors.textSecondary, height: 1.4),
             ),
           ),
         ],
@@ -323,20 +323,20 @@ class _OverdueBanner extends StatelessWidget {
   }
 }
 
-({Color color, String label, IconData icon}) _statusStyle(SubmissionState s) {
+({Color color, String label, IconData icon}) _statusStyle(AppColors c, SubmissionState s) {
   switch (s) {
     case SubmissionState.submitted:
-      return (color: T.success, label: 'Submitted', icon: Icons.check_circle_rounded);
+      return (color: c.success, label: 'Submitted', icon: Icons.check_circle_rounded);
     case SubmissionState.overdue:
-      return (color: T.danger, label: 'Overdue', icon: Icons.warning_amber_rounded);
+      return (color: c.danger, label: 'Overdue', icon: Icons.warning_amber_rounded);
     case SubmissionState.requested:
-      return (color: T.warning, label: 'Awaiting approval', icon: Icons.hourglass_top_rounded);
+      return (color: c.warning, label: 'Awaiting approval', icon: Icons.hourglass_top_rounded);
     case SubmissionState.approved:
-      return (color: T.primary, label: 'Late submission allowed', icon: Icons.lock_open_rounded);
+      return (color: c.primary, label: 'Late submission allowed', icon: Icons.lock_open_rounded);
     case SubmissionState.declined:
-      return (color: T.danger, label: 'Request declined', icon: Icons.block_rounded);
+      return (color: c.danger, label: 'Request declined', icon: Icons.block_rounded);
     case SubmissionState.open:
-      return (color: T.primary, label: 'Due', icon: Icons.schedule_rounded);
+      return (color: c.primary, label: 'Due', icon: Icons.schedule_rounded);
   }
 }
 
@@ -358,7 +358,7 @@ class _HomeworkCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s = _statusStyle(item.state);
+    final s = _statusStyle(context.colors, item.state);
     final d = item.dueDate;
     final due = '${d.day} ${_months[d.month - 1]} ${d.year}';
 
@@ -366,12 +366,12 @@ class _HomeworkCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: T.cardBg,
+        color: context.colors.cardBg,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: item.state == SubmissionState.overdue
-              ? T.danger.withValues(alpha: 0.3)
-              : T.border,
+              ? context.colors.danger.withValues(alpha: 0.3)
+              : context.colors.border,
         ),
       ),
       child: Column(
@@ -385,12 +385,12 @@ class _HomeworkCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(item.title,
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w600, color: T.textPrimary)),
+                        style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w600, color: context.colors.textPrimary)),
                     const SizedBox(height: 2),
                     Text(
                       [if (item.subject.isNotEmpty) item.subject, 'Due $due'].join(' · '),
-                      style: const TextStyle(fontSize: 11.5, color: T.textMuted),
+                      style: TextStyle(fontSize: 11.5, color: context.colors.textMuted),
                     ),
                   ],
                 ),
@@ -418,7 +418,7 @@ class _HomeworkCard extends StatelessWidget {
           if (item.instructions.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(item.instructions,
-                style: const TextStyle(fontSize: 12.5, color: T.textSecondary, height: 1.45)),
+                style: TextStyle(fontSize: 12.5, color: context.colors.textSecondary, height: 1.45)),
           ],
 
           // Whatever the teacher said about a late request, shown verbatim so
@@ -430,7 +430,7 @@ class _HomeworkCard extends StatelessWidget {
             _Note(
               label: 'Teacher',
               text: item.submission!.decisionNote,
-              color: T.danger,
+              color: context.colors.danger,
             ),
           ],
           if (item.state == SubmissionState.requested &&
@@ -439,7 +439,7 @@ class _HomeworkCard extends StatelessWidget {
             _Note(
               label: 'Your request',
               text: item.submission!.requestReason,
-              color: T.warning,
+              color: context.colors.warning,
             ),
           ],
           if (item.state == SubmissionState.submitted) ...[
@@ -448,7 +448,7 @@ class _HomeworkCard extends StatelessWidget {
               item.submission?.wasLate == true
                   ? 'Submitted late, with the teacher’s approval.'
                   : 'Submitted on time.',
-              style: const TextStyle(fontSize: 11.5, color: T.textMuted),
+              style: TextStyle(fontSize: 11.5, color: context.colors.textMuted),
             ),
           ],
 
@@ -462,7 +462,7 @@ class _HomeworkCard extends StatelessWidget {
                     : (item.state == SubmissionState.overdue ? onRequest : onSubmit),
                 style: FilledButton.styleFrom(
                   backgroundColor:
-                      item.state == SubmissionState.overdue ? T.warning : T.primary,
+                      item.state == SubmissionState.overdue ? context.colors.warning : context.colors.primary,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
                 ),
@@ -515,7 +515,7 @@ class _Note extends StatelessWidget {
                   fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w700, color: color)),
           const SizedBox(height: 2),
           Text(text,
-              style: const TextStyle(fontSize: 12, color: T.textSecondary, height: 1.4)),
+              style: TextStyle(fontSize: 12, color: context.colors.textSecondary, height: 1.4)),
         ],
       ),
     );
@@ -537,18 +537,18 @@ class _Empty extends StatelessWidget {
               width: 62,
               height: 62,
               decoration: BoxDecoration(
-                  color: T.primaryPale, borderRadius: BorderRadius.circular(20)),
-              child: const Icon(Icons.menu_book_rounded, size: 28, color: T.primary),
+                  color: context.colors.primaryPale, borderRadius: BorderRadius.circular(20)),
+              child: Icon(Icons.menu_book_rounded, size: 28, color: context.colors.primary),
             ),
             const SizedBox(height: 14),
-            const Text('No homework set',
+            Text('No homework set',
                 style: TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w600, color: T.textPrimary)),
+                    fontSize: 16, fontWeight: FontWeight.w600, color: context.colors.textPrimary)),
             const SizedBox(height: 5),
-            const Text(
+            Text(
               'Work assigned to your child’s class appears here, with what still needs doing.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: T.textMuted, height: 1.5),
+              style: TextStyle(fontSize: 13, color: context.colors.textMuted, height: 1.5),
             ),
           ],
         ),

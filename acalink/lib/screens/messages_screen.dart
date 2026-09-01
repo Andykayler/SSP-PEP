@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/tokens.dart';
+import '../theme/app_colors.dart';
 import '../models/student.dart';
 import '../services/chat_service.dart';
 import '../state/session_provider.dart';
@@ -27,26 +28,26 @@ class _MessagesScreenState extends State<MessagesScreen> {
     final parentId = parentIdFor(phone);
 
     return Scaffold(
-      backgroundColor: T.bg,
+      backgroundColor: context.colors.bg,
       appBar: AppBar(
-        backgroundColor: T.heroBg,
+        backgroundColor: context.colors.heroBg,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
-        title: const Text(
+        title: Text(
           'Messages',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: T.textPrimary),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: context.colors.textPrimary),
         ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: T.border),
+          child: Container(height: 1, color: context.colors.border),
         ),
       ),
       floatingActionButton: student == null
           ? null
           : FloatingActionButton.extended(
               onPressed: () => _startNew(context, student, phone),
-              backgroundColor: T.primary,
+              backgroundColor: context.colors.primary,
               foregroundColor: Colors.white,
               icon: const Icon(Icons.edit_outlined, size: 18),
               label: const Text('New message', style: TextStyle(fontSize: 13.5)),
@@ -101,7 +102,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
     final picked = await showModalBottomSheet<StaffContact>(
       context: context,
-      backgroundColor: T.heroBg,
+      backgroundColor: context.colors.heroBg,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
@@ -150,7 +151,7 @@ class _ConversationTile extends StatelessWidget {
         : '${mineLast ? "You: " : ""}${conversation.lastMessage}';
 
     return Material(
-      color: T.cardBg,
+      color: context.colors.cardBg,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -159,7 +160,7 @@ class _ConversationTile extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: unread > 0 ? T.primary.withValues(alpha: 0.4) : T.border),
+            border: Border.all(color: unread > 0 ? context.colors.primary.withValues(alpha: 0.4) : context.colors.border),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -196,13 +197,13 @@ class _ConversationTile extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: unread > 0 ? FontWeight.w700 : FontWeight.w600,
-                              color: T.textPrimary,
+                              color: context.colors.textPrimary,
                             ),
                           ),
                         ),
                         Text(
                           relativeTime(conversation.lastMessageAt),
-                          style: const TextStyle(fontSize: 10.5, color: T.textMuted),
+                          style: TextStyle(fontSize: 10.5, color: context.colors.textMuted),
                         ),
                       ],
                     ),
@@ -211,7 +212,7 @@ class _ConversationTile extends StatelessWidget {
                       '${_roleLabel(conversation.staffRole)} · ${conversation.studentName}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11.5, color: T.primary),
+                      style: TextStyle(fontSize: 11.5, color: context.colors.primary),
                     ),
                     const SizedBox(height: 4),
                     Row(
@@ -223,7 +224,7 @@ class _ConversationTile extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 12.5,
-                              color: unread > 0 ? T.textSecondary : T.textMuted,
+                              color: unread > 0 ? context.colors.textSecondary : context.colors.textMuted,
                             ),
                           ),
                         ),
@@ -232,7 +233,7 @@ class _ConversationTile extends StatelessWidget {
                             margin: const EdgeInsets.only(left: 8),
                             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                             decoration: BoxDecoration(
-                              color: T.primary,
+                              color: context.colors.primary,
                               borderRadius: BorderRadius.circular(11),
                             ),
                             child: Text(
@@ -287,7 +288,7 @@ class _ContactPicker extends StatelessWidget {
             height: 4,
             margin: const EdgeInsets.only(top: 10, bottom: 14),
             decoration: BoxDecoration(
-              color: T.borderStrong,
+              color: context.colors.borderStrong,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -296,14 +297,14 @@ class _ContactPicker extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Who would you like to reach?',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: T.textPrimary),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.colors.textPrimary),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   'About ${student.fullName} · ${student.className}',
-                  style: const TextStyle(fontSize: 12.5, color: T.textMuted),
+                  style: TextStyle(fontSize: 12.5, color: context.colors.textMuted),
                 ),
               ],
             ),
@@ -331,17 +332,17 @@ class _ContactPicker extends StatelessWidget {
                   ),
                   title: Text(
                     c.name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: T.textPrimary,
+                      color: context.colors.textPrimary,
                     ),
                   ),
                   subtitle: Text(
                     c.roleLabel,
-                    style: const TextStyle(fontSize: 12, color: T.textMuted),
+                    style: TextStyle(fontSize: 12, color: context.colors.textMuted),
                   ),
-                  trailing: const Icon(Icons.chevron_right_rounded, color: T.textMuted),
+                  trailing: Icon(Icons.chevron_right_rounded, color: context.colors.textMuted),
                   onTap: () => Navigator.of(context).pop(c),
                 );
               },
@@ -369,28 +370,28 @@ class _EmptyMessages extends StatelessWidget {
               width: 62,
               height: 62,
               decoration: BoxDecoration(
-                color: T.purplePale,
+                color: context.colors.purplePale,
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Icon(Icons.forum_outlined, size: 28, color: T.purple),
+              child: Icon(Icons.forum_outlined, size: 28, color: context.colors.purple),
             ),
             const SizedBox(height: 14),
-            const Text(
+            Text(
               'No conversations yet',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: T.textPrimary),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.colors.textPrimary),
             ),
             const SizedBox(height: 5),
-            const Text(
+            Text(
               'Reach your child’s teacher or the head teacher directly — replies land right here.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: T.textMuted, height: 1.5),
+              style: TextStyle(fontSize: 13, color: context.colors.textMuted, height: 1.5),
             ),
             if (onStart != null) ...[
               const SizedBox(height: 18),
               FilledButton.icon(
                 onPressed: onStart,
                 style: FilledButton.styleFrom(
-                  backgroundColor: T.primary,
+                  backgroundColor: context.colors.primary,
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),

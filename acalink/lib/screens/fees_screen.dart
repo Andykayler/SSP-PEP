@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/student.dart';
-import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 import '../services/fees_service.dart';
 import '../widgets/payment_sheet.dart';
 
@@ -90,7 +90,7 @@ class _FeesScreenState extends State<FeesScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           behavior: SnackBarBehavior.floating,
-          backgroundColor: AppTheme.success,
+          backgroundColor: context.colors.success,
           content: Text(
             'Payment of ${formatCurrency(result.amount)} received · Ref ${result.reference}',
             style: const TextStyle(fontSize: 13),
@@ -106,20 +106,20 @@ class _FeesScreenState extends State<FeesScreen> {
 
     if (_loading) {
       return Scaffold(
-        backgroundColor: AppTheme.bg,
+        backgroundColor: context.colors.bg,
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     if (_error != null) {
       return Scaffold(
-        backgroundColor: AppTheme.bg,
-        body: Center(child: Text(_error!, style: const TextStyle(color: Colors.red))),
+        backgroundColor: context.colors.bg,
+        body: Center(child: Text(_error!, style: TextStyle(color: context.colors.danger))),
       );
     }
 
     return Scaffold(
-      backgroundColor: AppTheme.bg,
+      backgroundColor: context.colors.bg,
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
@@ -168,31 +168,31 @@ class _FeesHeader extends StatelessWidget {
         children: [
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_rounded, color: AppTheme.textPrimary),
+            icon: Icon(Icons.arrow_back_rounded, color: context.colors.textPrimary),
           ),
           const SizedBox(width: 2),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'FEES',
                   style: TextStyle(
-                    fontFamily: AppTheme.fontMono,
+                    fontFamily: context.colors.fontMono,
                     fontSize: 9,
                     letterSpacing: 2.4,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textMuted,
+                    color: context.colors.textMuted,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   studentName,
-                  style: const TextStyle(
-                    fontFamily: AppTheme.fontDisplay,
+                  style: TextStyle(
+                    fontFamily: context.colors.fontDisplay,
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
+                    color: context.colors.textPrimary,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -229,10 +229,10 @@ class _BalanceCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppTheme.navyStart, AppTheme.navyEnd],
+          colors: [context.colors.navyStart, context.colors.navyEnd],
         ),
         borderRadius: BorderRadius.circular(22),
       ),
@@ -245,7 +245,7 @@ class _BalanceCard extends StatelessWidget {
               Text(
                 settled ? 'FULLY SETTLED' : 'OUTSTANDING BALANCE',
                 style: TextStyle(
-                  fontFamily: AppTheme.fontMono,
+                  fontFamily: context.colors.fontMono,
                   fontSize: 9,
                   letterSpacing: 2,
                   fontWeight: FontWeight.w600,
@@ -259,10 +259,10 @@ class _BalanceCard extends StatelessWidget {
                     color: Colors.white.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(7),
                   ),
-                  child: const Text(
+                  child: Text(
                     'DUE 5 AUG 2026',
                     style: TextStyle(
-                      fontFamily: AppTheme.fontMono,
+                      fontFamily: context.colors.fontMono,
                       fontSize: 8.5,
                       letterSpacing: 0.6,
                       fontWeight: FontWeight.w700,
@@ -290,7 +290,7 @@ class _BalanceCard extends StatelessWidget {
               minHeight: 6,
               backgroundColor: Colors.white.withOpacity(0.15),
               valueColor: AlwaysStoppedAnimation(
-                settled ? AppTheme.success : Colors.white,
+                settled ? context.colors.success : Colors.white,
               ),
             ),
           ),
@@ -306,7 +306,7 @@ class _BalanceCard extends StatelessWidget {
               onPressed: onPay,
               style: ElevatedButton.styleFrom(
                 backgroundColor: settled ? Colors.white.withOpacity(0.12) : Colors.white,
-                foregroundColor: settled ? Colors.white.withOpacity(0.6) : AppTheme.navyStart,
+                foregroundColor: settled ? Colors.white.withOpacity(0.6) : context.colors.navyStart,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
@@ -337,30 +337,30 @@ class _FeeBreakdownCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(bottom: 10, left: 2),
           child: Text(
             'Fee Breakdown',
             style: TextStyle(
-              fontFamily: AppTheme.fontDisplay,
+              fontFamily: context.colors.fontDisplay,
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: AppTheme.textPrimary,
+              color: context.colors.textPrimary,
             ),
           ),
         ),
         Container(
           decoration: BoxDecoration(
-            color: AppTheme.cardBg,
+            color: context.colors.cardBg,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppTheme.border),
+            border: Border.all(color: context.colors.border),
           ),
           child: Column(
             children: [
               for (int i = 0; i < lines.length; i++) ...[
                 _FeeLineRow(line: lines[i]),
                 if (i != lines.length - 1)
-                  const Divider(height: 1, color: AppTheme.border, indent: 16, endIndent: 16),
+                  Divider(height: 1, color: context.colors.border, indent: 16, endIndent: 16),
               ],
             ],
           ),
@@ -377,11 +377,11 @@ class _StatusStyle {
   const _StatusStyle(this.color, this.bg, this.label);
 }
 
-const _statusStyles = {
-  FeeStatus.paid: _StatusStyle(AppTheme.success, AppTheme.successPale, 'PAID'),
-  FeeStatus.partial: _StatusStyle(AppTheme.warning, AppTheme.warningPale, 'PARTIAL'),
-  FeeStatus.unpaid: _StatusStyle(AppTheme.danger, AppTheme.dangerPale, 'UNPAID'),
-};
+Map<FeeStatus, _StatusStyle> _statusStyles(AppColors c) => {
+      FeeStatus.paid: _StatusStyle(c.success, c.successPale, 'PAID'),
+      FeeStatus.partial: _StatusStyle(c.warning, c.warningPale, 'PARTIAL'),
+      FeeStatus.unpaid: _StatusStyle(c.danger, c.dangerPale, 'UNPAID'),
+    };
 
 class _FeeLineRow extends StatelessWidget {
   final FeeLine line;
@@ -389,7 +389,7 @@ class _FeeLineRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = _statusStyles[line.status]!;
+    final style = _statusStyles(context.colors)[line.status]!;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -399,14 +399,14 @@ class _FeeLineRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(line.name,
-                    style: const TextStyle(
-                        fontSize: 13.5, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
+                    style: TextStyle(
+                        fontSize: 13.5, fontWeight: FontWeight.w500, color: context.colors.textPrimary)),
                 const SizedBox(height: 2),
                 Text(
                   line.balance > 0
                       ? '${formatCurrency(line.paid)} of ${formatCurrency(line.charged)} paid'
                       : '${formatCurrency(line.charged)} settled',
-                  style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted),
+                  style: TextStyle(fontSize: 11.5, color: context.colors.textMuted),
                 ),
               ],
             ),
@@ -418,7 +418,7 @@ class _FeeLineRow extends StatelessWidget {
             child: Text(
               style.label,
               style: TextStyle(
-                fontFamily: AppTheme.fontMono,
+                fontFamily: context.colors.fontMono,
                 fontSize: 8.5,
                 letterSpacing: 0.6,
                 fontWeight: FontWeight.w700,
@@ -442,30 +442,30 @@ class _PaymentHistoryCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(bottom: 10, left: 2),
           child: Text(
             'Payment History',
             style: TextStyle(
-              fontFamily: AppTheme.fontDisplay,
+              fontFamily: context.colors.fontDisplay,
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: AppTheme.textPrimary,
+              color: context.colors.textPrimary,
             ),
           ),
         ),
         Container(
           decoration: BoxDecoration(
-            color: AppTheme.cardBg,
+            color: context.colors.cardBg,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppTheme.border),
+            border: Border.all(color: context.colors.border),
           ),
           child: payments.isEmpty
-              ? const Padding(
+              ? Padding(
                   padding: EdgeInsets.symmetric(vertical: 28),
                   child: Center(
                     child: Text('No payments recorded yet',
-                        style: TextStyle(fontSize: 12.5, color: AppTheme.textMuted)),
+                        style: TextStyle(fontSize: 12.5, color: context.colors.textMuted)),
                   ),
                 )
               : Column(
@@ -473,7 +473,7 @@ class _PaymentHistoryCard extends StatelessWidget {
                     for (int i = 0; i < payments.length; i++) ...[
                       _PaymentRow(payment: payments[i]),
                       if (i != payments.length - 1)
-                        const Divider(height: 1, color: AppTheme.border, indent: 16, endIndent: 16),
+                        Divider(height: 1, color: context.colors.border, indent: 16, endIndent: 16),
                     ],
                   ],
                 ),
@@ -497,9 +497,9 @@ class _PaymentRow extends StatelessWidget {
             width: 34,
             height: 34,
             decoration: BoxDecoration(
-                color: AppTheme.successPale, borderRadius: BorderRadius.circular(10)),
+                color: context.colors.successPale, borderRadius: BorderRadius.circular(10)),
             alignment: Alignment.center,
-            child: const Icon(Icons.check_rounded, size: 16, color: AppTheme.success),
+            child: Icon(Icons.check_rounded, size: 16, color: context.colors.success),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -507,17 +507,17 @@ class _PaymentRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(payment.method,
-                    style: const TextStyle(
-                        fontSize: 13.5, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
+                    style: TextStyle(
+                        fontSize: 13.5, fontWeight: FontWeight.w500, color: context.colors.textPrimary)),
                 const SizedBox(height: 2),
                 Text('${payment.date} · Ref ${payment.reference}',
-                    style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                    style: TextStyle(fontSize: 11, color: context.colors.textMuted)),
               ],
             ),
           ),
           Text(formatCurrency(payment.amount),
-              style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.success)),
+              style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w700, color: context.colors.success)),
         ],
       ),
     );

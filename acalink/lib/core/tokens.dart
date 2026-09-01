@@ -1,41 +1,11 @@
 import 'package:flutter/material.dart';
 
-/// Shared design tokens for ACALink screens. HomeShell and StudentSelectScreen
-/// each carry a private `_T` copy of these values; new screens use this one so
-/// there is a single place to change the palette from here on.
-class T {
-  static const bg = Color(0xFFF8F6F0);
-  static const heroBg = Color(0xFFFFFFFF);
-  static const cardBg = Color(0xFFFFFFFF);
-  static const border = Color(0xFFE3DFD3);
-  static const borderStrong = Color(0xFFCDC7B5);
-
-  static const textPrimary = Color(0xFF1E2A44);
-  static const textSecondary = Color(0xFF5B6478);
-  static const textMuted = Color(0xFF95978F);
-
-  static const primary = Color(0xFF4F6EF7);
-  static const primaryDark = Color(0xFF3454E0);
-  static const primaryPale = Color(0x144F6EF7);
-
-  static const navyStart = Color(0xFF2D3A5E);
-  static const navyEnd = Color(0xFF3D4F7A);
-
-  static const warning = Color(0xFFC47D0E);
-  static const warningPale = Color(0x1AE8A800);
-
-  static const success = Color(0xFF2E9E5B);
-  static const successPale = Color(0x142E9E5B);
-
-  static const danger = Color(0xFFC4453D);
-  static const dangerPale = Color(0x14C4453D);
-
-  static const purple = Color(0xFF8B5CF6);
-  static const purplePale = Color(0x148B5CF6);
-
-  static const fontMono = 'monospace';
-}
-
+/// Non-color helpers shared across ACALink screens. The color palette itself
+/// used to live here as `class T` — superseded by the theme-aware
+/// [AppColors] extension in `theme/app_colors.dart` (`context.colors`), so
+/// both light and dark actually work instead of this being a single static
+/// light-only palette.
+///
 /// Deterministic avatar tint, so the same person keeps the same colour
 /// everywhere in the app. Mirrors the web portal's `tintFor`.
 const _avatarTints = <Color>[

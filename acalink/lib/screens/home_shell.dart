@@ -23,40 +23,8 @@ import 'results_screen.dart';
 import 'attendance_screen.dart';
 import 'homework_screen.dart';
 import 'messages_screen.dart';
-
-/// ─── Design tokens — mirrors StudentSelectScreen's _T. TODO: extract to a
-/// shared lib/theme/app_theme.dart once a third screen needs these. ───────
-class _T {
-  static const bg = Color(0xFFF8F6F0);
-  static const heroBg = Color(0xFFFFFFFF);
-  static const cardBg = Color(0xFFFFFFFF);
-  static const cardBgHover = Color(0xFFF3F0E8);
-  static const border = Color(0xFFE3DFD3);
-  static const borderStrong = Color(0xFFCDC7B5);
-
-  static const textPrimary = Color(0xFF1E2A44);
-  static const textSecondary = Color(0xFF5B6478);
-  static const textMuted = Color(0xFF95978F);
-
-  static const primary = Color(0xFF4F6EF7);
-  static const primaryLight = Color(0xFF3454E0);
-  static const primaryPale = Color(0x144F6EF7);
-
-  static const navyStart = Color(0xFF2D3A5E);
-  static const navyEnd = Color(0xFF3D4F7A);
-
-  static const warning = Color(0xFFC47D0E);
-  static const warningPale = Color(0x1AE8A800);
-
-  static const success = Color(0xFF2E9E5B);
-  static const successPale = Color(0x142E9E5B);
-
-  static const danger = Color(0xFFC4453D);
-  static const dangerPale = Color(0x14C4453D);
-
-  static const fontMono = 'monospace';
-  static const fontDisplay = null;
-}
+import '../state/theme_provider.dart';
+import '../theme/app_colors.dart';
 
 String _relativeTime(DateTime? dt) {
   if (dt == null) return '';
@@ -284,7 +252,7 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
     }
 
     return Scaffold(
-      backgroundColor: _T.bg,
+      backgroundColor: context.colors.bg,
       body: SafeArea(
         child: CustomScrollView(
           controller: _scrollController,
@@ -401,16 +369,16 @@ class _ErrorBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _T.dangerPale,
+        color: context.colors.dangerPale,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _T.danger.withOpacity(0.25)),
+        border: Border.all(color: context.colors.danger.withOpacity(0.25)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded, size: 16, color: _T.danger),
+          Icon(Icons.error_outline_rounded, size: 16, color: context.colors.danger),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(message, style: const TextStyle(fontSize: 12, color: _T.danger)),
+            child: Text(message, style: TextStyle(fontSize: 12, color: context.colors.danger)),
           ),
         ],
       ),
@@ -444,9 +412,9 @@ class _DashboardHero extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(20, 16, 20, 12),
       padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
       decoration: BoxDecoration(
-        color: _T.heroBg,
+        color: context.colors.heroBg,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: _T.border),
+        border: Border.all(color: context.colors.border),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -455,10 +423,10 @@ class _DashboardHero extends StatelessWidget {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [_T.navyStart, _T.navyEnd],
+                colors: [context.colors.navyStart, context.colors.navyEnd],
               ),
               borderRadius: BorderRadius.circular(14),
             ),
@@ -475,16 +443,20 @@ class _DashboardHero extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Container(width: 14, height: 1, color: _T.warning),
+                    Container(width: 14, height: 1, color: context.colors.warning),
                     const SizedBox(width: 7),
-                    Text(
-                      term.isEmpty ? 'TERM NOT SET' : AcademicTermService.display(term),
-                      style: const TextStyle(
-                        fontFamily: _T.fontMono,
-                        fontSize: 9,
-                        letterSpacing: 2.4,
-                        fontWeight: FontWeight.w600,
-                        color: _T.textMuted,
+                    Flexible(
+                      child: Text(
+                        term.isEmpty ? 'TERM NOT SET' : AcademicTermService.display(term),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: context.colors.fontMono,
+                          fontSize: 9,
+                          letterSpacing: 2.4,
+                          fontWeight: FontWeight.w600,
+                          color: context.colors.textMuted,
+                        ),
                       ),
                     ),
                   ],
@@ -492,11 +464,11 @@ class _DashboardHero extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   name,
-                  style: const TextStyle(
-                    fontFamily: _T.fontDisplay,
+                  style: TextStyle(
+                    fontFamily: context.colors.fontDisplay,
                     fontSize: 21,
                     fontWeight: FontWeight.w600,
-                    color: _T.textPrimary,
+                    color: context.colors.textPrimary,
                     height: 1.1,
                   ),
                   maxLines: 1,
@@ -506,12 +478,22 @@ class _DashboardHero extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     subtitle,
-                    style: const TextStyle(fontSize: 12.5, color: _T.textSecondary),
+                    style: TextStyle(fontSize: 12.5, color: context.colors.textSecondary),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Consumer<ThemeProvider>(
+            builder: (context, theme, _) => _IconPillButton(
+              icon: theme.mode == ThemeMode.dark
+                  ? Icons.light_mode_outlined
+                  : Icons.dark_mode_outlined,
+              count: 0,
+              onTap: () => theme.toggle(),
             ),
           ),
           const SizedBox(width: 8),
@@ -550,15 +532,15 @@ class _IconPillButton extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: _T.bg,
-            border: Border.all(color: _T.border),
+            color: context.colors.bg,
+            border: Border.all(color: context.colors.border),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Stack(
             alignment: Alignment.center,
             clipBehavior: Clip.none,
             children: [
-              Icon(icon, size: 18, color: _T.textSecondary),
+              Icon(icon, size: 18, color: context.colors.textSecondary),
               if (count > 0)
                 Positioned(
                   top: 3,
@@ -569,9 +551,9 @@ class _IconPillButton extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: _T.danger,
+                      color: context.colors.danger,
                       borderRadius: BorderRadius.circular(9),
-                      border: Border.all(color: _T.heroBg, width: 1.5),
+                      border: Border.all(color: context.colors.heroBg, width: 1.5),
                     ),
                     child: Text(
                       count > 99 ? '99+' : '$count',
@@ -634,8 +616,8 @@ class _StatsRow extends StatelessWidget {
             Expanded(
               child: _StatCard(
                 icon: Icons.event_available_rounded,
-                iconColor: _T.success,
-                iconBg: _T.successPale,
+                iconColor: context.colors.success,
+                iconBg: context.colors.successPale,
                 label: 'ATTENDANCE',
                 value: attendanceValue,
                 subtitle: attendanceSub,
@@ -645,8 +627,8 @@ class _StatsRow extends StatelessWidget {
             Expanded(
               child: _StatCard(
                 icon: Icons.leaderboard_rounded,
-                iconColor: _T.primaryLight,
-                iconBg: _T.primaryPale,
+                iconColor: context.colors.primaryLight,
+                iconBg: context.colors.primaryPale,
                 label: 'CLASS RANK',
                 value: rankValue,
                 subtitle: rankSub,
@@ -660,8 +642,8 @@ class _StatsRow extends StatelessWidget {
             Expanded(
               child: _StatCard(
                 icon: Icons.account_balance_wallet_rounded,
-                iconColor: _T.warning,
-                iconBg: _T.warningPale,
+                iconColor: context.colors.warning,
+                iconBg: context.colors.warningPale,
                 label: 'FEE BALANCE',
                 value: feeValue,
                 subtitle: feeSub,
@@ -672,8 +654,8 @@ class _StatsRow extends StatelessWidget {
             Expanded(
               child: _StatCard(
                 icon: Icons.shield_moon_rounded,
-                iconColor: discipline.openCases > 0 ? _T.warning : _T.success,
-                iconBg: discipline.openCases > 0 ? _T.warningPale : _T.successPale,
+                iconColor: discipline.openCases > 0 ? context.colors.warning : context.colors.success,
+                iconBg: discipline.openCases > 0 ? context.colors.warningPale : context.colors.successPale,
                 label: 'DISCIPLINE',
                 value: '${discipline.openCases}',
                 subtitle: discipline.openCases > 0 ? 'Open case(s)' : 'No open cases',
@@ -724,9 +706,9 @@ class _StatCard extends StatelessWidget {
     final card = Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _T.cardBg,
+        color: context.colors.cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _T.border),
+        border: Border.all(color: context.colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -742,27 +724,27 @@ class _StatCard extends StatelessWidget {
                 child: Icon(icon, size: 16, color: iconColor),
               ),
               if (onTap != null)
-                const Icon(Icons.chevron_right_rounded, size: 16, color: _T.textMuted),
+                Icon(Icons.chevron_right_rounded, size: 16, color: context.colors.textMuted),
             ],
           ),
           const SizedBox(height: 12),
           Text(
             label,
-            style: const TextStyle(
-              fontFamily: _T.fontMono,
+            style: TextStyle(
+              fontFamily: context.colors.fontMono,
               fontSize: 9,
               letterSpacing: 1.6,
               fontWeight: FontWeight.w600,
-              color: _T.textMuted,
+              color: context.colors.textMuted,
             ),
           ),
           const SizedBox(height: 5),
           Text(
             value,
-            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: _T.textPrimary),
+            style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: context.colors.textPrimary),
           ),
           const SizedBox(height: 2),
-          Text(subtitle, style: const TextStyle(fontSize: 11, color: _T.textSecondary)),
+          Text(subtitle, style: TextStyle(fontSize: 11, color: context.colors.textSecondary)),
         ],
       ),
     );
@@ -774,7 +756,7 @@ class _StatCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        hoverColor: _T.cardBgHover,
+        hoverColor: context.colors.cardBgHover,
         child: card,
       ),
     );
@@ -854,12 +836,12 @@ class _QuickActionTile extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        hoverColor: _T.cardBgHover,
+        hoverColor: context.colors.cardBgHover,
         child: Container(
           decoration: BoxDecoration(
-            color: _T.cardBg,
+            color: context.colors.cardBg,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _T.border),
+            border: Border.all(color: context.colors.border),
           ),
           padding: const EdgeInsets.symmetric(vertical: 14),
           child: Column(
@@ -871,9 +853,9 @@ class _QuickActionTile extends StatelessWidget {
                   Container(
                     width: 34,
                     height: 34,
-                    decoration: BoxDecoration(color: _T.primaryPale, borderRadius: BorderRadius.circular(10)),
+                    decoration: BoxDecoration(color: context.colors.primaryPale, borderRadius: BorderRadius.circular(10)),
                     alignment: Alignment.center,
-                    child: Icon(icon, size: 17, color: _T.primaryLight),
+                    child: Icon(icon, size: 17, color: context.colors.primaryLight),
                   ),
                   if (badgeCount > 0)
                     Positioned(
@@ -885,9 +867,9 @@ class _QuickActionTile extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: _T.danger,
+                          color: context.colors.danger,
                           borderRadius: BorderRadius.circular(9),
-                          border: Border.all(color: _T.cardBg, width: 1.5),
+                          border: Border.all(color: context.colors.cardBg, width: 1.5),
                         ),
                         child: Text(
                           badgeCount > 99 ? '99+' : '$badgeCount',
@@ -904,7 +886,7 @@ class _QuickActionTile extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 label,
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: _T.textPrimary),
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: context.colors.textPrimary),
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -932,19 +914,19 @@ class _SectionHeader extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontFamily: _T.fontDisplay,
+            style: TextStyle(
+              fontFamily: context.colors.fontDisplay,
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: _T.textPrimary,
+              color: context.colors.textPrimary,
             ),
           ),
           if (onSeeAll != null)
             GestureDetector(
               onTap: onSeeAll,
-              child: const Text(
+              child: Text(
                 'See all',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _T.primaryLight),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: context.colors.primaryLight),
               ),
             ),
         ],
@@ -965,37 +947,37 @@ class _EmptyRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       child: Text(
         message,
-        style: const TextStyle(fontSize: 12.5, color: _T.textMuted),
+        style: TextStyle(fontSize: 12.5, color: context.colors.textMuted),
         textAlign: TextAlign.center,
       ),
     );
   }
 }
 
-Widget _cardWrap({required List<Widget> children}) {
+Widget _cardWrap(BuildContext context, {required List<Widget> children}) {
   return Container(
     decoration: BoxDecoration(
-      color: _T.cardBg,
+      color: context.colors.cardBg,
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: _T.border),
+      border: Border.all(color: context.colors.border),
     ),
     child: Column(children: children),
   );
 }
 
 /// ─── Recent grades ─────────────────────────────────────────────────────
-Color _gradeColor(String grade) {
-  if (grade.startsWith('A')) return _T.success;
-  if (grade.startsWith('B')) return _T.primaryLight;
-  if (grade.startsWith('C')) return _T.warning;
-  return _T.danger;
+Color _gradeColor(AppColors c, String grade) {
+  if (grade.startsWith('A')) return c.success;
+  if (grade.startsWith('B')) return c.primaryLight;
+  if (grade.startsWith('C')) return c.warning;
+  return c.danger;
 }
 
-Color _gradeColorPale(String grade) {
-  if (grade.startsWith('A')) return _T.successPale;
-  if (grade.startsWith('B')) return _T.primaryPale;
-  if (grade.startsWith('C')) return _T.warningPale;
-  return _T.dangerPale;
+Color _gradeColorPale(AppColors c, String grade) {
+  if (grade.startsWith('A')) return c.successPale;
+  if (grade.startsWith('B')) return c.primaryPale;
+  if (grade.startsWith('C')) return c.warningPale;
+  return c.dangerPale;
 }
 
 class _RecentGradesCard extends StatelessWidget {
@@ -1009,14 +991,14 @@ class _RecentGradesCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const _SectionHeader(title: 'Recent Grades'),
-        _cardWrap(
+        _cardWrap(context,
           children: grades.isEmpty
               ? const [_EmptyRow(message: 'No marks entered for this term yet.')]
               : [
                   for (int i = 0; i < grades.length; i++) ...[
                     _GradeRow(grade: grades[i]),
                     if (i != grades.length - 1)
-                      const Divider(height: 1, color: _T.border, indent: 16, endIndent: 16),
+                      Divider(height: 1, color: context.colors.border, indent: 16, endIndent: 16),
                   ],
                 ],
         ),
@@ -1039,19 +1021,19 @@ class _GradeRow extends StatelessWidget {
           Expanded(
             child: Text(
               grade.subject,
-              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: _T.textPrimary),
+              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: context.colors.textPrimary),
             ),
           ),
-          Text('${grade.score.round()}%', style: const TextStyle(fontSize: 12.5, color: _T.textSecondary)),
+          Text('${grade.score.round()}%', style: TextStyle(fontSize: 12.5, color: context.colors.textSecondary)),
           const SizedBox(width: 10),
           Container(
             width: 34,
             padding: const EdgeInsets.symmetric(vertical: 4),
-            decoration: BoxDecoration(color: _gradeColorPale(letter), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: _gradeColorPale(context.colors, letter), borderRadius: BorderRadius.circular(8)),
             alignment: Alignment.center,
             child: Text(
               letter,
-              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _gradeColor(letter)),
+              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _gradeColor(context.colors, letter)),
             ),
           ),
         ],
@@ -1068,11 +1050,11 @@ class _DueStyle {
   const _DueStyle(this.color, this.bg, this.label);
 }
 
-const _dueStyles = {
-  TaskDueStatus.overdue: _DueStyle(_T.danger, _T.dangerPale, 'OVERDUE'),
-  TaskDueStatus.soon: _DueStyle(_T.warning, _T.warningPale, 'DUE SOON'),
-  TaskDueStatus.upcoming: _DueStyle(_T.textSecondary, _T.bg, 'UPCOMING'),
-};
+Map<TaskDueStatus, _DueStyle> _dueStyles(AppColors c) => {
+      TaskDueStatus.overdue: _DueStyle(c.danger, c.dangerPale, 'OVERDUE'),
+      TaskDueStatus.soon: _DueStyle(c.warning, c.warningPale, 'DUE SOON'),
+      TaskDueStatus.upcoming: _DueStyle(c.textSecondary, c.bg, 'UPCOMING'),
+    };
 
 class _UpcomingList extends StatelessWidget {
   final List<HomeworkTask> tasks;
@@ -1084,14 +1066,14 @@ class _UpcomingList extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const _SectionHeader(title: 'Upcoming'),
-        _cardWrap(
+        _cardWrap(context,
           children: tasks.isEmpty
               ? const [_EmptyRow(message: 'Nothing due — no homework assigned yet.')]
               : [
                   for (int i = 0; i < tasks.length; i++) ...[
                     _TaskRow(task: tasks[i]),
                     if (i != tasks.length - 1)
-                      const Divider(height: 1, color: _T.border, indent: 16, endIndent: 16),
+                      Divider(height: 1, color: context.colors.border, indent: 16, endIndent: 16),
                   ],
                 ],
         ),
@@ -1116,7 +1098,7 @@ class _TaskRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = _dueStyles[task.status]!;
+    final style = _dueStyles(context.colors)[task.status]!;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -1126,10 +1108,10 @@ class _TaskRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(task.title,
-                    style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: _T.textPrimary)),
+                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: context.colors.textPrimary)),
                 const SizedBox(height: 2),
                 Text('${task.subject} · ${_formatDue(task.dueDate)}',
-                    style: const TextStyle(fontSize: 11.5, color: _T.textMuted)),
+                    style: TextStyle(fontSize: 11.5, color: context.colors.textMuted)),
               ],
             ),
           ),
@@ -1139,7 +1121,7 @@ class _TaskRow extends StatelessWidget {
             child: Text(
               style.label,
               style: TextStyle(
-                fontFamily: _T.fontMono,
+                fontFamily: context.colors.fontMono,
                 fontSize: 8.5,
                 letterSpacing: 0.6,
                 fontWeight: FontWeight.w700,
@@ -1164,14 +1146,14 @@ class _AnnouncementsCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const _SectionHeader(title: 'Announcements'),
-        _cardWrap(
+        _cardWrap(context,
           children: items.isEmpty
               ? const [_EmptyRow(message: 'No announcements yet.')]
               : [
                   for (int i = 0; i < items.length; i++) ...[
                     _AnnouncementRow(item: items[i]),
                     if (i != items.length - 1)
-                      const Divider(height: 1, color: _T.border, indent: 16, endIndent: 16),
+                      Divider(height: 1, color: context.colors.border, indent: 16, endIndent: 16),
                   ],
                 ],
         ),
@@ -1202,7 +1184,7 @@ class _AnnouncementRow extends StatelessWidget {
               children: [
                 Text(
                   item.title.isEmpty ? '(Untitled)' : item.title,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _T.textPrimary),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.colors.textPrimary),
                 ),
                 if (item.message.isNotEmpty) ...[
                   const SizedBox(height: 2),
@@ -1210,14 +1192,14 @@ class _AnnouncementRow extends StatelessWidget {
                     item.message,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11.5, color: _T.textSecondary),
+                    style: TextStyle(fontSize: 11.5, color: context.colors.textSecondary),
                   ),
                 ],
               ],
             ),
           ),
           const SizedBox(width: 8),
-          Text(_relativeTime(item.postedAt), style: const TextStyle(fontSize: 11, color: _T.textMuted)),
+          Text(_relativeTime(item.postedAt), style: TextStyle(fontSize: 11, color: context.colors.textMuted)),
         ],
       ),
     );
@@ -1247,7 +1229,7 @@ class _Shimmer extends StatelessWidget {
           width: width,
           height: height,
           decoration: BoxDecoration(
-            color: Color.lerp(_T.border, _T.cardBgHover, controller.value),
+            color: Color.lerp(context.colors.border, context.colors.cardBgHover, controller.value),
             borderRadius: BorderRadius.circular(radius),
           ),
         );
@@ -1260,12 +1242,12 @@ class _StatsRowSkeleton extends StatelessWidget {
   final Animation<double> shimmer;
   const _StatsRowSkeleton({required this.shimmer});
 
-  Widget _card() => Container(
+  Widget _card(BuildContext context) => Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: _T.cardBg,
+          color: context.colors.cardBg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _T.border),
+          border: Border.all(color: context.colors.border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1285,9 +1267,9 @@ class _StatsRowSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Row(children: [Expanded(child: _card()), const SizedBox(width: 12), Expanded(child: _card())]),
+        Row(children: [Expanded(child: _card(context)), const SizedBox(width: 12), Expanded(child: _card(context))]),
         const SizedBox(height: 12),
-        Row(children: [Expanded(child: _card()), const SizedBox(width: 12), Expanded(child: _card())]),
+        Row(children: [Expanded(child: _card(context)), const SizedBox(width: 12), Expanded(child: _card(context))]),
       ],
     );
   }
@@ -1308,9 +1290,9 @@ class _SkeletonCard extends StatelessWidget {
         _SectionHeader(title: title),
         Container(
           decoration: BoxDecoration(
-            color: _T.cardBg,
+            color: context.colors.cardBg,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _T.border),
+            border: Border.all(color: context.colors.border),
           ),
           child: Column(
             children: [
@@ -1333,7 +1315,7 @@ class _SkeletonCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (i != rows - 1) const Divider(height: 1, color: _T.border, indent: 16, endIndent: 16),
+                if (i != rows - 1) Divider(height: 1, color: context.colors.border, indent: 16, endIndent: 16),
               ],
             ],
           ),
@@ -1357,19 +1339,19 @@ class _Footer extends StatelessWidget {
           Text(
             '© 2026 SSP-PEP · Ministry of Education, Malawi',
             style: TextStyle(
-              fontFamily: _T.fontMono,
+              fontFamily: context.colors.fontMono,
               fontSize: 9,
               letterSpacing: 0.5,
-              color: _T.textMuted.withOpacity(0.8),
+              color: context.colors.textMuted.withOpacity(0.8),
             ),
           ),
           Text(
             'v1.4.1',
             style: TextStyle(
-              fontFamily: _T.fontMono,
+              fontFamily: context.colors.fontMono,
               fontSize: 9,
               letterSpacing: 0.5,
-              color: _T.textMuted.withOpacity(0.8),
+              color: context.colors.textMuted.withOpacity(0.8),
             ),
           ),
         ],

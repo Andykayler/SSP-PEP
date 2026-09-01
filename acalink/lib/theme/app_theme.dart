@@ -1,39 +1,112 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-/// ─── Design tokens — shared across HomeShell, StudentSelectScreen,
-/// FeesScreen, and any future screen. Previously duplicated as a
-/// private `_T` class in each file; extracted here per the long-
-/// standing TODO now that a third screen needed it. ──────────────────
+import 'app_colors.dart';
+
+/// Builds the app's two real `ThemeData`s from [AppColors], so every screen
+/// gets consistent chrome (app bars, inputs, buttons, snack bars, dividers)
+/// without repeating it. Supersedes the old unrelated `AppTheme.light()`
+/// factory that lived in `core/app_theme.dart` and the static color-const
+/// `AppTheme` class that used to live in this file.
 class AppTheme {
   AppTheme._();
 
-  static const bg = Color(0xFFF8F6F0);
-  static const heroBg = Color(0xFFFFFFFF);
-  static const cardBg = Color(0xFFFFFFFF);
-  static const cardBgHover = Color(0xFFF3F0E8);
-  static const border = Color(0xFFE3DFD3);
-  static const borderStrong = Color(0xFFCDC7B5);
+  static ThemeData get light => _build(AppColors.light, Brightness.light);
+  static ThemeData get dark => _build(AppColors.dark, Brightness.dark);
 
-  static const textPrimary = Color(0xFF1E2A44);
-  static const textSecondary = Color(0xFF5B6478);
-  static const textMuted = Color(0xFF95978F);
+  static ThemeData _build(AppColors c, Brightness brightness) {
+    final base = ThemeData(brightness: brightness, useMaterial3: true);
+    final textTheme = GoogleFonts.dmSansTextTheme(base.textTheme).apply(
+      bodyColor: c.textPrimary,
+      displayColor: c.textPrimary,
+    );
 
-  static const primary = Color(0xFF4F6EF7);
-  static const primaryLight = Color(0xFF3454E0);
-  static const primaryPale = Color(0x144F6EF7);
-
-  static const navyStart = Color(0xFF2D3A5E);
-  static const navyEnd = Color(0xFF3D4F7A);
-
-  static const warning = Color(0xFFC47D0E);
-  static const warningPale = Color(0x1AE8A800);
-
-  static const success = Color(0xFF2E9E5B);
-  static const successPale = Color(0x142E9E5B);
-
-  static const danger = Color(0xFFC4453D);
-  static const dangerPale = Color(0x14C4453D);
-
-  static const fontMono = 'monospace';
-  static const fontDisplay = null;
+    return base.copyWith(
+      scaffoldBackgroundColor: c.bg,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: c.primary,
+        brightness: brightness,
+        primary: c.primary,
+        secondary: c.secondary,
+        error: c.danger,
+        surface: c.bg,
+      ),
+      extensions: [c],
+      textTheme: textTheme,
+      splashFactory: InkRipple.splashFactory,
+      appBarTheme: AppBarTheme(
+        backgroundColor: c.heroBg,
+        foregroundColor: c.textPrimary,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        titleTextStyle: textTheme.titleLarge?.copyWith(
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: c.textPrimary,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: c.cardBg,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: c.border),
+        ),
+      ),
+      dividerTheme: DividerThemeData(color: c.border, space: 1, thickness: 1),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: c.inputBg,
+        hintStyle: TextStyle(color: c.textMuted),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: c.inputBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: c.inputBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: c.primary, width: 1.4),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: c.danger),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: c.primary,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: c.primary,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: c.primary),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: c.textPrimary,
+        contentTextStyle: TextStyle(color: c.bg, fontSize: 13),
+        behavior: SnackBarBehavior.floating,
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: c.heroBg,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(color: c.primary),
+      iconTheme: IconThemeData(color: c.textSecondary),
+    );
+  }
 }

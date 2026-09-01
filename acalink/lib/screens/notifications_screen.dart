@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/tokens.dart';
+import '../theme/app_colors.dart';
 import '../services/notifications_service.dart';
 import '../state/session_provider.dart';
 import 'messages_screen.dart';
@@ -29,19 +30,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final selectedId = session.selectedStudent?.id;
 
     return Scaffold(
-      backgroundColor: T.bg,
+      backgroundColor: context.colors.bg,
       appBar: AppBar(
-        backgroundColor: T.heroBg,
+        backgroundColor: context.colors.heroBg,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
-        title: const Text(
+        title: Text(
           'Notifications',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: T.textPrimary),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: context.colors.textPrimary),
         ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: T.border),
+          child: Container(height: 1, color: context.colors.border),
         ),
       ),
       body: StreamBuilder<List<ParentNotification>>(
@@ -135,7 +136,7 @@ class _FilterBar extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-      color: T.heroBg,
+      color: context.colors.heroBg,
       child: Row(
         children: [
           Expanded(
@@ -159,7 +160,7 @@ class _FilterBar extends StatelessWidget {
             TextButton(
               onPressed: onMarkAll,
               style: TextButton.styleFrom(
-                foregroundColor: T.primary,
+                foregroundColor: context.colors.primary,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 minimumSize: const Size(0, 32),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -182,7 +183,7 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? T.primaryPale : T.bg,
+      color: selected ? context.colors.primaryPale : context.colors.bg,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         onTap: onTap,
@@ -191,14 +192,14 @@ class _Chip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: selected ? T.primary : T.border),
+            border: Border.all(color: selected ? context.colors.primary : context.colors.border),
           ),
           child: Text(
             label,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: selected ? T.primaryDark : T.textSecondary,
+              color: selected ? context.colors.primaryDark : context.colors.textSecondary,
             ),
           ),
         ),
@@ -208,24 +209,24 @@ class _Chip extends StatelessWidget {
 }
 
 /// Icon + colour for each notification category, matching the web bell.
-({IconData icon, Color color, Color pale}) _styleFor(String category) {
+({IconData icon, Color color, Color pale}) _styleFor(AppColors c, String category) {
   switch (category) {
     case 'announcement':
-      return (icon: Icons.campaign_outlined, color: T.primary, pale: T.primaryPale);
+      return (icon: Icons.campaign_outlined, color: c.primary, pale: c.primaryPale);
     case 'attendance':
-      return (icon: Icons.event_available_rounded, color: T.warning, pale: T.warningPale);
+      return (icon: Icons.event_available_rounded, color: c.warning, pale: c.warningPale);
     case 'performance':
-      return (icon: Icons.grade_rounded, color: T.success, pale: T.successPale);
+      return (icon: Icons.grade_rounded, color: c.success, pale: c.successPale);
     case 'discipline':
-      return (icon: Icons.gavel_rounded, color: T.danger, pale: T.dangerPale);
+      return (icon: Icons.gavel_rounded, color: c.danger, pale: c.dangerPale);
     case 'homework':
-      return (icon: Icons.menu_book_rounded, color: T.primary, pale: T.primaryPale);
+      return (icon: Icons.menu_book_rounded, color: c.primary, pale: c.primaryPale);
     case 'fees':
-      return (icon: Icons.account_balance_wallet_rounded, color: T.warning, pale: T.warningPale);
+      return (icon: Icons.account_balance_wallet_rounded, color: c.warning, pale: c.warningPale);
     case 'message':
-      return (icon: Icons.chat_bubble_outline_rounded, color: T.purple, pale: T.purplePale);
+      return (icon: Icons.chat_bubble_outline_rounded, color: c.purple, pale: c.purplePale);
     default:
-      return (icon: Icons.notifications_none_rounded, color: T.textSecondary, pale: T.bg);
+      return (icon: Icons.notifications_none_rounded, color: c.textSecondary, pale: c.bg);
   }
 }
 
@@ -242,7 +243,7 @@ class _NotificationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = _styleFor(item.category);
+    final style = _styleFor(context.colors, item.category);
 
     return Dismissible(
       key: ValueKey(item.id),
@@ -252,13 +253,13 @@ class _NotificationTile extends StatelessWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: T.dangerPale,
+          color: context.colors.dangerPale,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: const Icon(Icons.delete_outline_rounded, color: T.danger, size: 20),
+        child: Icon(Icons.delete_outline_rounded, color: context.colors.danger, size: 20),
       ),
       child: Material(
-        color: item.read ? T.cardBg : const Color(0xFFF3F5FF),
+        color: item.read ? context.colors.cardBg : context.colors.primaryPale,
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: onTap,
@@ -267,7 +268,7 @@ class _NotificationTile extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: item.read ? T.border : T.primary.withValues(alpha: 0.35)),
+              border: Border.all(color: item.read ? context.colors.border : context.colors.primary.withValues(alpha: 0.35)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -294,7 +295,7 @@ class _NotificationTile extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 13.5,
                                 fontWeight: item.read ? FontWeight.w600 : FontWeight.w700,
-                                color: T.textPrimary,
+                                color: context.colors.textPrimary,
                                 height: 1.3,
                               ),
                             ),
@@ -304,8 +305,8 @@ class _NotificationTile extends StatelessWidget {
                               width: 8,
                               height: 8,
                               margin: const EdgeInsets.only(left: 8, top: 3),
-                              decoration: const BoxDecoration(
-                                color: T.primary,
+                              decoration: BoxDecoration(
+                                color: context.colors.primary,
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -315,7 +316,7 @@ class _NotificationTile extends StatelessWidget {
                         const SizedBox(height: 3),
                         Text(
                           item.body,
-                          style: const TextStyle(fontSize: 12.5, color: T.textSecondary, height: 1.45),
+                          style: TextStyle(fontSize: 12.5, color: context.colors.textSecondary, height: 1.45),
                         ),
                       ],
                       const SizedBox(height: 7),
@@ -326,32 +327,32 @@ class _NotificationTile extends StatelessWidget {
                         children: [
                           Text(
                             relativeTime(item.createdAt),
-                            style: const TextStyle(fontSize: 11, color: T.textMuted),
+                            style: TextStyle(fontSize: 11, color: context.colors.textMuted),
                           ),
                           if (item.studentName.isNotEmpty)
                             Text(
                               '· ${item.studentName}',
-                              style: const TextStyle(fontSize: 11, color: T.textMuted),
+                              style: TextStyle(fontSize: 11, color: context.colors.textMuted),
                             ),
                           if (item.actorName.isNotEmpty && item.actorName != 'System')
                             Text(
                               '· ${item.actorName}',
-                              style: const TextStyle(fontSize: 11, color: T.textMuted),
+                              style: TextStyle(fontSize: 11, color: context.colors.textMuted),
                             ),
                           if (item.isUrgent)
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                               decoration: BoxDecoration(
-                                color: T.dangerPale,
+                                color: context.colors.dangerPale,
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: const Text(
+                              child: Text(
                                 'URGENT',
                                 style: TextStyle(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: 0.6,
-                                  color: T.danger,
+                                  color: context.colors.danger,
                                 ),
                               ),
                             ),
@@ -392,21 +393,21 @@ class _EmptyInbox extends StatelessWidget {
               width: 62,
               height: 62,
               decoration: BoxDecoration(
-                color: T.primaryPale,
+                color: context.colors.primaryPale,
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Icon(Icons.notifications_none_rounded, size: 28, color: T.primary),
+              child: Icon(Icons.notifications_none_rounded, size: 28, color: context.colors.primary),
             ),
             const SizedBox(height: 14),
-            const Text(
+            Text(
               'All caught up',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: T.textPrimary),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.colors.textPrimary),
             ),
             const SizedBox(height: 5),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, color: T.textMuted, height: 1.5),
+              style: TextStyle(fontSize: 13, color: context.colors.textMuted, height: 1.5),
             ),
           ],
         ),

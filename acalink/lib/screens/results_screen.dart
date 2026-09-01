@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../core/tokens.dart';
+import '../theme/app_colors.dart';
 import '../services/results_service.dart';
 import '../state/session_provider.dart';
 
@@ -37,9 +37,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
     }
 
     return Scaffold(
-      backgroundColor: T.bg,
+      backgroundColor: context.colors.bg,
       appBar: AppBar(
-        backgroundColor: T.heroBg,
+        backgroundColor: context.colors.heroBg,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
@@ -47,16 +47,16 @@ class _ResultsScreenState extends State<ResultsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Results',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: T.textPrimary)),
+            Text('Results',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: context.colors.textPrimary)),
             if (student != null)
               Text(student.fullName,
-                  style: const TextStyle(fontSize: 11.5, color: T.textMuted)),
+                  style: TextStyle(fontSize: 11.5, color: context.colors.textMuted)),
           ],
         ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: T.border),
+          child: Container(height: 1, color: context.colors.border),
         ),
       ),
       body: FutureBuilder<ResultsData>(
@@ -119,30 +119,30 @@ class _TermBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: issued ? T.successPale : T.primaryPale,
+        color: issued ? context.colors.successPale : context.colors.primaryPale,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: (issued ? T.success : T.primary).withValues(alpha: 0.25),
+          color: (issued ? context.colors.success : context.colors.primary).withValues(alpha: 0.25),
         ),
       ),
       child: Row(
         children: [
           Icon(issued ? Icons.verified_rounded : Icons.timelapse_rounded,
-              size: 19, color: issued ? T.success : T.primary),
+              size: 19, color: issued ? context.colors.success : context.colors.primary),
           const SizedBox(width: 11),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(term,
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w700, color: T.textPrimary)),
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700, color: context.colors.textPrimary)),
                 const SizedBox(height: 2),
                 Text(
                   issued
                       ? 'Report card issued — the final assessment is below.'
                       : 'Marks so far this term. The final assessment appears when the school issues the report card.',
-                  style: const TextStyle(fontSize: 12, color: T.textSecondary, height: 1.4),
+                  style: TextStyle(fontSize: 12, color: context.colors.textSecondary, height: 1.4),
                 ),
               ],
             ),
@@ -202,7 +202,7 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? T.primaryPale : T.cardBg,
+      color: selected ? context.colors.primaryPale : context.colors.cardBg,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         onTap: onTap,
@@ -211,13 +211,13 @@ class _Chip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: selected ? T.primary : T.border),
+            border: Border.all(color: selected ? context.colors.primary : context.colors.border),
           ),
           child: Text(label,
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
-                color: selected ? T.primaryDark : T.textSecondary,
+                color: selected ? context.colors.primaryDark : context.colors.textSecondary,
               )),
         ),
       ),
@@ -225,16 +225,16 @@ class _Chip extends StatelessWidget {
   }
 }
 
-Color _toneColor(String tone) {
+Color _toneColor(AppColors c, String tone) {
   switch (tone) {
     case 'success':
-      return T.success;
+      return c.success;
     case 'primary':
-      return T.primary;
+      return c.primary;
     case 'warning':
-      return T.warning;
+      return c.warning;
     default:
-      return T.danger;
+      return c.danger;
   }
 }
 
@@ -245,7 +245,7 @@ class _GradePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final g = gradeFor(score);
-    final c = _toneColor(g.tone);
+    final c = _toneColor(context.colors, g.tone);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
@@ -279,9 +279,9 @@ class _SubjectTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: T.cardBg,
+        color: context.colors.cardBg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: T.border),
+        border: Border.all(color: context.colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -290,17 +290,17 @@ class _SubjectTile extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(result.subject,
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w600, color: T.textPrimary)),
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w600, color: context.colors.textPrimary)),
               ),
               if (filter == 'ALL' && weighted != null) _GradePill(score: weighted),
             ],
           ),
           if (filter == 'ALL' && weighted != null && !result.complete)
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(top: 3),
               child: Text('Provisional — not all components published',
-                  style: TextStyle(fontSize: 10.5, color: T.textMuted)),
+                  style: TextStyle(fontSize: 10.5, color: context.colors.textMuted)),
             ),
           const SizedBox(height: 10),
           ...showing.map((c) {
@@ -313,7 +313,7 @@ class _SubjectTile extends StatelessWidget {
                   SizedBox(
                     width: 84,
                     child: Text(c.label,
-                        style: const TextStyle(fontSize: 12, color: T.textSecondary)),
+                        style: TextStyle(fontSize: 12, color: context.colors.textSecondary)),
                   ),
                   Expanded(
                     child: ClipRRect(
@@ -321,8 +321,8 @@ class _SubjectTile extends StatelessWidget {
                       child: LinearProgressIndicator(
                         value: (score / 100).clamp(0, 1).toDouble(),
                         minHeight: 6,
-                        backgroundColor: T.bg,
-                        valueColor: AlwaysStoppedAnimation(_toneColor(g.tone)),
+                        backgroundColor: context.colors.bg,
+                        valueColor: AlwaysStoppedAnimation(_toneColor(context.colors, g.tone)),
                       ),
                     ),
                   ),
@@ -334,7 +334,7 @@ class _SubjectTile extends StatelessWidget {
                         style: TextStyle(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w600,
-                            color: _toneColor(g.tone))),
+                            color: _toneColor(context.colors, g.tone))),
                   ),
                 ],
               ),
@@ -357,9 +357,9 @@ class _ReportCardPanel extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: T.cardBg,
+        color: context.colors.cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: T.success.withValues(alpha: 0.3)),
+        border: Border.all(color: context.colors.success.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -368,7 +368,7 @@ class _ReportCardPanel extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(15),
             decoration: BoxDecoration(
-              color: T.successPale,
+              color: context.colors.successPale,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
             ),
             child: Column(
@@ -376,11 +376,11 @@ class _ReportCardPanel extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.workspace_premium_rounded, size: 18, color: T.success),
+                    Icon(Icons.workspace_premium_rounded, size: 18, color: context.colors.success),
                     const SizedBox(width: 8),
                     Text('Report card · ${card.term}',
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w700, color: T.textPrimary)),
+                        style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w700, color: context.colors.textPrimary)),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -408,16 +408,16 @@ class _ReportCardPanel extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("HEAD TEACHER'S REMARK",
+                  Text("HEAD TEACHER'S REMARK",
                       style: TextStyle(
                           fontSize: 9.5,
                           letterSpacing: 1.4,
                           fontWeight: FontWeight.w700,
-                          color: T.textMuted)),
+                          color: context.colors.textMuted)),
                   const SizedBox(height: 4),
                   Text(card.headTeacherRemark!,
-                      style: const TextStyle(
-                          fontSize: 12.5, color: T.textSecondary, height: 1.5)),
+                      style: TextStyle(
+                          fontSize: 12.5, color: context.colors.textSecondary, height: 1.5)),
                 ],
               ),
             ),
@@ -432,7 +432,7 @@ class _ReportCardPanel extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(s.subject,
-                            style: const TextStyle(fontSize: 12.5, color: T.textPrimary)),
+                            style: TextStyle(fontSize: 12.5, color: context.colors.textPrimary)),
                       ),
                       if (w != null) _GradePill(score: w),
                     ],
@@ -446,7 +446,7 @@ class _ReportCardPanel extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(15, 0, 15, 13),
               child: Text(
                 'Issued ${card.generatedAt!.day}/${card.generatedAt!.month}/${card.generatedAt!.year}',
-                style: const TextStyle(fontSize: 10.5, color: T.textMuted),
+                style: TextStyle(fontSize: 10.5, color: context.colors.textMuted),
               ),
             ),
         ],
@@ -468,14 +468,14 @@ class _Stat extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label.toUpperCase(),
-              style: const TextStyle(
-                  fontSize: 9.5, letterSpacing: 1.3, fontWeight: FontWeight.w700, color: T.textMuted)),
+              style: TextStyle(
+                  fontSize: 9.5, letterSpacing: 1.3, fontWeight: FontWeight.w700, color: context.colors.textMuted)),
           const SizedBox(height: 2),
           Text(value,
-              style: const TextStyle(
-                  fontSize: 24, fontWeight: FontWeight.w700, color: T.textPrimary, height: 1.1)),
+              style: TextStyle(
+                  fontSize: 24, fontWeight: FontWeight.w700, color: context.colors.textPrimary, height: 1.1)),
           if (sub.isNotEmpty)
-            Text(sub, style: const TextStyle(fontSize: 11, color: T.textSecondary)),
+            Text(sub, style: TextStyle(fontSize: 11, color: context.colors.textSecondary)),
         ],
       ),
     );
@@ -500,19 +500,19 @@ class _Empty extends StatelessWidget {
               width: 62,
               height: 62,
               decoration: BoxDecoration(
-                color: T.primaryPale,
+                color: context.colors.primaryPale,
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Icon(icon, size: 28, color: T.primary),
+              child: Icon(icon, size: 28, color: context.colors.primary),
             ),
             const SizedBox(height: 14),
             Text(title,
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w600, color: T.textPrimary)),
+                style: TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w600, color: context.colors.textPrimary)),
             const SizedBox(height: 5),
             Text(message,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 13, color: T.textMuted, height: 1.5)),
+                style: TextStyle(fontSize: 13, color: context.colors.textMuted, height: 1.5)),
           ],
         ),
       ),

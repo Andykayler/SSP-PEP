@@ -3,36 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../models/student.dart';
 import '../state/session_provider.dart';
+import '../theme/app_colors.dart';
 import 'home_shell.dart';
-
-/// ─── Light theme tokens, mirrored from the SSP-PEP web dashboard CSS ─────
-/// Cream/navy/gold system — pull exact values from your real
-/// [data-theme="light"] variables once you have them centralized.
-class _T {
-  static const bg = Color(0xFFF8F6F0); // cream page background
-  static const heroBg = Color(0xFFFFFFFF);
-  static const cardBg = Color(0xFFFFFFFF);
-  static const cardBgHover = Color(0xFFF3F0E8);
-  static const border = Color(0xFFE3DFD3);
-  static const borderStrong = Color(0xFFCDC7B5);
-
-  static const textPrimary = Color(0xFF1E2A44); // deep navy
-  static const textSecondary = Color(0xFF5B6478);
-  static const textMuted = Color(0xFF95978F);
-
-  static const primary = Color(0xFF4F6EF7);
-  static const primaryLight = Color(0xFF3454E0);
-  static const primaryPale = Color(0x144F6EF7);
-
-  static const navyStart = Color(0xFF2D3A5E);
-  static const navyEnd = Color(0xFF3D4F7A);
-
-  static const warning = Color(0xFFC47D0E);
-  static const warningPale = Color(0x1AE8A800);
-
-  static const fontMono = 'monospace';
-  static const fontDisplay = null;
-}
 
 class StudentSelectScreen extends StatefulWidget {
   const StudentSelectScreen({super.key});
@@ -65,7 +37,7 @@ class _StudentSelectScreenState extends State<StudentSelectScreen> {
           }).toList();
 
     return Scaffold(
-      backgroundColor: _T.bg,
+      backgroundColor: context.colors.bg,
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
@@ -154,9 +126,9 @@ class _Hero extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(20, 16, 20, 20),
       padding: const EdgeInsets.fromLTRB(24, 26, 24, 26),
       decoration: BoxDecoration(
-        color: _T.heroBg,
+        color: context.colors.heroBg,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: _T.border),
+        border: Border.all(color: context.colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,29 +141,29 @@ class _Hero extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Container(width: 16, height: 1, color: _T.warning),
+                        Container(width: 16, height: 1, color: context.colors.warning),
                         const SizedBox(width: 8),
                         Text(
                           'ACALink',
                           style: TextStyle(
-                            fontFamily: _T.fontMono,
+                            fontFamily: context.colors.fontMono,
                             fontSize: 9,
                             letterSpacing: 3,
                             fontWeight: FontWeight.w600,
-                            color: _T.textMuted,
+                            color: context.colors.textMuted,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 10),
-                    const Text(
+                    Text(
                       'Choose a child',
                       style: TextStyle(
-                        fontFamily: _T.fontDisplay,
+                        fontFamily: context.colors.fontDisplay,
                         fontSize: 28,
                         letterSpacing: 0.3,
                         fontWeight: FontWeight.w500,
-                        color: _T.textPrimary,
+                        color: context.colors.textPrimary,
                         height: 1.1,
                       ),
                     ),
@@ -200,9 +172,9 @@ class _Hero extends StatelessWidget {
                       totalStudents == 0
                           ? 'No students linked to this account yet'
                           : 'Select a student profile to continue',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
-                        color: _T.textSecondary,
+                        color: context.colors.textSecondary,
                         fontWeight: FontWeight.w400,
                       ),
                     ),
@@ -237,21 +209,21 @@ class _LogoutPill extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: _T.bg,
-            border: Border.all(color: _T.border),
+            color: context.colors.bg,
+            border: Border.all(color: context.colors.border),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.logout, size: 15, color: _T.textSecondary),
+              Icon(Icons.logout, size: 15, color: context.colors.textSecondary),
               SizedBox(width: 6),
               Text(
                 'Sign out',
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w500,
-                  color: _T.textSecondary,
+                  color: context.colors.textSecondary,
                 ),
               ),
             ],
@@ -272,20 +244,20 @@ class _SearchField extends StatelessWidget {
     return Container(
       height: 44,
       decoration: BoxDecoration(
-        color: _T.bg,
+        color: context.colors.bg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _T.border),
+        border: Border.all(color: context.colors.border),
       ),
       child: TextField(
         controller: controller,
         onChanged: onChanged,
-        style: const TextStyle(fontSize: 13.5, color: _T.textPrimary),
+        style: TextStyle(fontSize: 13.5, color: context.colors.textPrimary),
         decoration: InputDecoration(
           isDense: true,
           border: InputBorder.none,
           hintText: 'Search by name, class, or school',
-          hintStyle: const TextStyle(fontSize: 13.5, color: _T.textMuted),
-          prefixIcon: const Icon(Icons.search, size: 18, color: _T.textMuted),
+          hintStyle: TextStyle(fontSize: 13.5, color: context.colors.textMuted),
+          prefixIcon: Icon(Icons.search, size: 18, color: context.colors.textMuted),
           contentPadding: const EdgeInsets.symmetric(vertical: 12),
         ),
       ),
@@ -308,13 +280,13 @@ class _StudentCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(18),
-        hoverColor: _T.cardBgHover,
-        splashColor: _T.primaryPale,
+        hoverColor: context.colors.cardBgHover,
+        splashColor: context.colors.primaryPale,
         child: Ink(
           decoration: BoxDecoration(
-            color: _T.cardBg,
+            color: context.colors.cardBg,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: _T.border),
+            border: Border.all(color: context.colors.border),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
           child: Row(
@@ -323,18 +295,18 @@ class _StudentCard extends StatelessWidget {
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [_T.navyStart, _T.navyEnd],
+                    colors: [context.colors.navyStart, context.colors.navyEnd],
                   ),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 alignment: Alignment.center,
                 child: Text(
                   initial.toUpperCase(),
-                  style: const TextStyle(
-                    fontFamily: _T.fontDisplay,
+                  style: TextStyle(
+                    fontFamily: context.colors.fontDisplay,
                     fontSize: 16,
                     color: Colors.white,
                     letterSpacing: 1,
@@ -349,10 +321,10 @@ class _StudentCard extends StatelessWidget {
                   children: [
                     Text(
                       student.fullName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14.5,
                         fontWeight: FontWeight.w600,
-                        color: _T.textPrimary,
+                        color: context.colors.textPrimary,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -360,11 +332,11 @@ class _StudentCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       '${student.className} · ${student.schoolName}',
-                      style: const TextStyle(
-                        fontFamily: _T.fontMono,
+                      style: TextStyle(
+                        fontFamily: context.colors.fontMono,
                         fontSize: 10,
                         letterSpacing: 0.4,
-                        color: _T.textMuted,
+                        color: context.colors.textMuted,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -377,14 +349,14 @@ class _StudentCard extends StatelessWidget {
                 width: 30,
                 height: 30,
                 decoration: BoxDecoration(
-                  color: _T.primaryPale,
+                  color: context.colors.primaryPale,
                   borderRadius: BorderRadius.circular(9),
                 ),
                 alignment: Alignment.center,
-                child: const Icon(
+                child: Icon(
                   Icons.chevron_right,
                   size: 16,
-                  color: _T.primaryLight,
+                  color: context.colors.primaryLight,
                 ),
               ),
             ],
@@ -411,27 +383,27 @@ class _EmptyState extends StatelessWidget {
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: _T.primaryPale,
+                color: context.colors.primaryPale,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(Icons.person_off_outlined,
-                  color: _T.primaryLight, size: 24),
+              child: Icon(Icons.person_off_outlined,
+                  color: context.colors.primaryLight, size: 24),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'No students linked yet',
               style: TextStyle(
-                fontFamily: _T.fontDisplay,
+                fontFamily: context.colors.fontDisplay,
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
-                color: _T.textPrimary,
+                color: context.colors.textPrimary,
               ),
             ),
             const SizedBox(height: 5),
-            const Text(
+            Text(
               'Ask the school to link a student to your account.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12.5, color: _T.textMuted),
+              style: TextStyle(fontSize: 12.5, color: context.colors.textMuted),
             ),
           ],
         ),
@@ -455,25 +427,25 @@ class _NoResultsState extends StatelessWidget {
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                color: _T.warningPale,
+                color: context.colors.warningPale,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Icon(Icons.search_off, color: _T.warning, size: 22),
+              child: Icon(Icons.search_off, color: context.colors.warning, size: 22),
             ),
             const SizedBox(height: 14),
-            const Text(
+            Text(
               'No matches',
               style: TextStyle(
-                fontFamily: _T.fontDisplay,
+                fontFamily: context.colors.fontDisplay,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
-                color: _T.textPrimary,
+                color: context.colors.textPrimary,
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'Try a different name, class, or school.',
-              style: TextStyle(fontSize: 12.5, color: _T.textMuted),
+              style: TextStyle(fontSize: 12.5, color: context.colors.textMuted),
             ),
           ],
         ),
@@ -496,19 +468,19 @@ class _Footer extends StatelessWidget {
           Text(
             '© 2026 SSP-PEP · Ministry of Education, Malawi',
             style: TextStyle(
-              fontFamily: _T.fontMono,
+              fontFamily: context.colors.fontMono,
               fontSize: 9,
               letterSpacing: 0.5,
-              color: _T.textMuted.withOpacity(0.8),
+              color: context.colors.textMuted.withOpacity(0.8),
             ),
           ),
           Text(
             'v1.4.1',
             style: TextStyle(
-              fontFamily: _T.fontMono,
+              fontFamily: context.colors.fontMono,
               fontSize: 9,
               letterSpacing: 0.5,
-              color: _T.textMuted.withOpacity(0.8),
+              color: context.colors.textMuted.withOpacity(0.8),
             ),
           ),
         ],

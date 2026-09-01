@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/student.dart';
-import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 import '../services/fees_service.dart';
 
 /// ─── Payment sheet ─────────────────────────────────────────────────────
@@ -133,8 +133,8 @@ class _PaymentSheetState extends State<PaymentSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
-        decoration: const BoxDecoration(
-          color: AppTheme.bg,
+        decoration: BoxDecoration(
+          color: context.colors.bg,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
@@ -162,51 +162,51 @@ class _PaymentSheetState extends State<PaymentSheet> {
               height: 4,
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: AppTheme.borderStrong,
+                color: context.colors.borderStrong,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
-          const Text(
+          Text(
             'Make a Payment',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: context.colors.textPrimary),
           ),
           const SizedBox(height: 2),
           Text(
             'Outstanding balance: ${formatCurrency(widget.outstandingBalance)}',
-            style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+            style: TextStyle(fontSize: 12.5, color: context.colors.textSecondary),
           ),
           const SizedBox(height: 20),
 
-          const Text('AMOUNT (MWK)',
+          Text('AMOUNT (MWK)',
               style: TextStyle(
-                  fontFamily: AppTheme.fontMono,
+                  fontFamily: context.colors.fontMono,
                   fontSize: 9,
                   letterSpacing: 1.6,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textMuted)),
+                  color: context.colors.textMuted)),
           const SizedBox(height: 6),
           _field(
             controller: _amountCtrl,
             keyboardType: TextInputType.number,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.colors.textPrimary),
           ),
           const SizedBox(height: 18),
 
-          const Text('TERM',
+          Text('TERM',
               style: TextStyle(
-                  fontFamily: AppTheme.fontMono,
+                  fontFamily: context.colors.fontMono,
                   fontSize: 9,
                   letterSpacing: 1.6,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textMuted)),
+                  color: context.colors.textMuted)),
           const SizedBox(height: 6),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
-              color: AppTheme.cardBg,
+              color: context.colors.cardBg,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTheme.border),
+              border: Border.all(color: context.colors.border),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
@@ -222,13 +222,13 @@ class _PaymentSheetState extends State<PaymentSheet> {
           ),
           const SizedBox(height: 18),
 
-          const Text('PAYMENT METHOD',
+          Text('PAYMENT METHOD',
               style: TextStyle(
-                  fontFamily: AppTheme.fontMono,
+                  fontFamily: context.colors.fontMono,
                   fontSize: 9,
                   letterSpacing: 1.6,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textMuted)),
+                  color: context.colors.textMuted)),
           const SizedBox(height: 8),
           ...payMethods.map((m) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -241,36 +241,36 @@ class _PaymentSheetState extends State<PaymentSheet> {
 
           if (_selected.needsPhone) ...[
             const SizedBox(height: 4),
-            const Text('MOBILE MONEY NUMBER',
+            Text('MOBILE MONEY NUMBER',
                 style: TextStyle(
-                    fontFamily: AppTheme.fontMono,
+                    fontFamily: context.colors.fontMono,
                     fontSize: 9,
                     letterSpacing: 1.6,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textMuted)),
+                    color: context.colors.textMuted)),
             const SizedBox(height: 6),
             _field(controller: _phoneCtrl, keyboardType: TextInputType.phone, hintText: '099X XXX XXX'),
           ],
 
           const SizedBox(height: 18),
-          const Text('REFERENCE / TRANSACTION NO. (OPTIONAL)',
+          Text('REFERENCE / TRANSACTION NO. (OPTIONAL)',
               style: TextStyle(
-                  fontFamily: AppTheme.fontMono,
+                  fontFamily: context.colors.fontMono,
                   fontSize: 9,
                   letterSpacing: 1.6,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textMuted)),
+                  color: context.colors.textMuted)),
           const SizedBox(height: 6),
           _field(controller: _referenceCtrl, hintText: 'Leave blank to auto-fill from phone number'),
 
           const SizedBox(height: 18),
-          const Text('NOTES (OPTIONAL)',
+          Text('NOTES (OPTIONAL)',
               style: TextStyle(
-                  fontFamily: AppTheme.fontMono,
+                  fontFamily: context.colors.fontMono,
                   fontSize: 9,
                   letterSpacing: 1.6,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textMuted)),
+                  color: context.colors.textMuted)),
           const SizedBox(height: 6),
           _field(controller: _notesCtrl, maxLines: 2),
 
@@ -278,11 +278,11 @@ class _PaymentSheetState extends State<PaymentSheet> {
             const SizedBox(height: 12),
             Row(
               children: [
-                const Icon(Icons.error_outline_rounded, size: 15, color: AppTheme.danger),
+                Icon(Icons.error_outline_rounded, size: 15, color: context.colors.danger),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(_error!,
-                      style: const TextStyle(fontSize: 12, color: AppTheme.danger)),
+                      style: TextStyle(fontSize: 12, color: context.colors.danger)),
                 ),
               ],
             ),
@@ -294,7 +294,7 @@ class _PaymentSheetState extends State<PaymentSheet> {
             child: ElevatedButton(
               onPressed: _submit,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.navyStart,
+                backgroundColor: context.colors.navyStart,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 14),
@@ -320,23 +320,23 @@ class _PaymentSheetState extends State<PaymentSheet> {
       controller: controller,
       keyboardType: keyboardType,
       maxLines: maxLines,
-      style: style ?? const TextStyle(fontSize: 14, color: AppTheme.textPrimary),
+      style: style ?? TextStyle(fontSize: 14, color: context.colors.textPrimary),
       decoration: InputDecoration(
         hintText: hintText,
         filled: true,
-        fillColor: AppTheme.cardBg,
+        fillColor: context.colors.cardBg,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppTheme.border),
+          borderSide: BorderSide(color: context.colors.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppTheme.border),
+          borderSide: BorderSide(color: context.colors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppTheme.primary, width: 1.4),
+          borderSide: BorderSide(color: context.colors.primary, width: 1.4),
         ),
       ),
     );
@@ -360,13 +360,13 @@ class _MethodTile extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
           decoration: BoxDecoration(
-            color: selected ? AppTheme.primaryPale : AppTheme.cardBg,
+            color: selected ? context.colors.primaryPale : context.colors.cardBg,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: selected ? AppTheme.primary : AppTheme.border, width: selected ? 1.3 : 1),
+            border: Border.all(color: selected ? context.colors.primary : context.colors.border, width: selected ? 1.3 : 1),
           ),
           child: Row(
             children: [
-              Icon(_payMethodIcons[option.method], size: 17, color: selected ? AppTheme.primaryLight : AppTheme.textSecondary),
+              Icon(_payMethodIcons[option.method], size: 17, color: selected ? context.colors.primaryLight : context.colors.textSecondary),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -374,14 +374,14 @@ class _MethodTile extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
-                    color: selected ? AppTheme.primaryLight : AppTheme.textPrimary,
+                    color: selected ? context.colors.primaryLight : context.colors.textPrimary,
                   ),
                 ),
               ),
               Icon(
                 selected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
                 size: 18,
-                color: selected ? AppTheme.primary : AppTheme.textMuted,
+                color: selected ? context.colors.primary : context.colors.textMuted,
               ),
             ],
           ),
@@ -396,7 +396,7 @@ class _SubmittingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
+    return Padding(
       padding: EdgeInsets.symmetric(vertical: 48),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -404,11 +404,11 @@ class _SubmittingView extends StatelessWidget {
           SizedBox(
             width: 28,
             height: 28,
-            child: CircularProgressIndicator(strokeWidth: 2.6, color: AppTheme.primary),
+            child: CircularProgressIndicator(strokeWidth: 2.6, color: context.colors.primary),
           ),
           SizedBox(height: 16),
           Text('Processing payment…',
-              style: TextStyle(fontSize: 13.5, color: AppTheme.textSecondary)),
+              style: TextStyle(fontSize: 13.5, color: context.colors.textSecondary)),
         ],
       ),
     );
@@ -428,26 +428,26 @@ class _SuccessView extends StatelessWidget {
         Container(
           width: 56,
           height: 56,
-          decoration: const BoxDecoration(color: AppTheme.successPale, shape: BoxShape.circle),
+          decoration: BoxDecoration(color: context.colors.successPale, shape: BoxShape.circle),
           alignment: Alignment.center,
-          child: const Icon(Icons.check_rounded, size: 28, color: AppTheme.success),
+          child: Icon(Icons.check_rounded, size: 28, color: context.colors.success),
         ),
         const SizedBox(height: 16),
-        const Text('Payment Received',
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+        Text('Payment Received',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: context.colors.textPrimary)),
         const SizedBox(height: 4),
         Text(formatCurrency(payment.amount),
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: context.colors.textPrimary)),
         const SizedBox(height: 4),
         Text('${payment.method} · Receipt ${payment.receiptNo}',
-            style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+            style: TextStyle(fontSize: 12, color: context.colors.textMuted)),
         const SizedBox(height: 22),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
             onPressed: () => Navigator.of(context).pop(payment),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.navyStart,
+              backgroundColor: context.colors.navyStart,
               foregroundColor: Colors.white,
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 14),

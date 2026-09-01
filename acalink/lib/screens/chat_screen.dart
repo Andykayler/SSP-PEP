@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/tokens.dart';
+import '../theme/app_colors.dart';
 import '../services/chat_service.dart';
 import '../state/session_provider.dart';
 
@@ -108,9 +109,9 @@ class _ChatScreenState extends State<ChatScreen> {
     final myId = phone.isEmpty ? '' : 'parent:$phone';
 
     return Scaffold(
-      backgroundColor: T.bg,
+      backgroundColor: context.colors.bg,
       appBar: AppBar(
-        backgroundColor: T.heroBg,
+        backgroundColor: context.colors.heroBg,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         titleSpacing: 0,
@@ -138,17 +139,17 @@ class _ChatScreenState extends State<ChatScreen> {
                     _staffName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: T.textPrimary,
+                      color: context.colors.textPrimary,
                     ),
                   ),
                   Text(
                     _subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11.5, color: T.textMuted),
+                    style: TextStyle(fontSize: 11.5, color: context.colors.textMuted),
                   ),
                 ],
               ),
@@ -157,7 +158,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: T.border),
+          child: Container(height: 1, color: context.colors.border),
         ),
       ),
       body: Column(
@@ -249,13 +250,13 @@ class _DayDivider extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 12),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         decoration: BoxDecoration(
-          color: T.heroBg,
-          border: Border.all(color: T.border),
+          color: context.colors.heroBg,
+          border: Border.all(color: context.colors.border),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
           label,
-          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: T.textMuted),
+          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: context.colors.textMuted),
         ),
       ),
     );
@@ -281,8 +282,8 @@ class _Bubble extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.fromLTRB(13, 9, 13, 7),
         decoration: BoxDecoration(
-          color: mine ? T.primary : T.cardBg,
-          border: Border.all(color: mine ? T.primary : T.border),
+          color: mine ? context.colors.primary : context.colors.cardBg,
+          border: Border.all(color: mine ? context.colors.primary : context.colors.border),
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
@@ -298,10 +299,10 @@ class _Bubble extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 2),
                 child: Text(
                   message.senderName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: T.primary,
+                    color: context.colors.primary,
                   ),
                 ),
               ),
@@ -310,7 +311,7 @@ class _Bubble extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13.5,
                 height: 1.45,
-                color: mine ? Colors.white : T.textPrimary,
+                color: mine ? Colors.white : context.colors.textPrimary,
               ),
             ),
             const SizedBox(height: 3),
@@ -320,7 +321,7 @@ class _Bubble extends StatelessWidget {
                 time,
                 style: TextStyle(
                   fontSize: 9.5,
-                  color: mine ? Colors.white70 : T.textMuted,
+                  color: mine ? Colors.white70 : context.colors.textMuted,
                 ),
               ),
             ),
@@ -348,9 +349,9 @@ class _Composer extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(
         12, 10, 12, 10 + MediaQuery.of(context).viewPadding.bottom,
       ),
-      decoration: const BoxDecoration(
-        color: T.heroBg,
-        border: Border(top: BorderSide(color: T.border)),
+      decoration: BoxDecoration(
+        color: context.colors.heroBg,
+        border: Border(top: BorderSide(color: context.colors.border)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -361,31 +362,31 @@ class _Composer extends StatelessWidget {
               minLines: 1,
               maxLines: 5,
               textCapitalization: TextCapitalization.sentences,
-              style: const TextStyle(fontSize: 13.5, color: T.textPrimary),
+              style: TextStyle(fontSize: 13.5, color: context.colors.textPrimary),
               decoration: InputDecoration(
                 hintText: 'Write a message…',
-                hintStyle: const TextStyle(fontSize: 13.5, color: T.textMuted),
+                hintStyle: TextStyle(fontSize: 13.5, color: context.colors.textMuted),
                 filled: true,
-                fillColor: T.bg,
+                fillColor: context.colors.bg,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(22),
-                  borderSide: const BorderSide(color: T.border),
+                  borderSide: BorderSide(color: context.colors.border),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(22),
-                  borderSide: const BorderSide(color: T.border),
+                  borderSide: BorderSide(color: context.colors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(22),
-                  borderSide: const BorderSide(color: T.primary),
+                  borderSide: BorderSide(color: context.colors.primary),
                 ),
               ),
             ),
           ),
           const SizedBox(width: 8),
           Material(
-            color: T.primary,
+            color: context.colors.primary,
             borderRadius: BorderRadius.circular(22),
             child: InkWell(
               onTap: sending ? null : onSend,
@@ -423,21 +424,21 @@ class _ChatIntro extends StatelessWidget {
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: T.primaryPale,
+                color: context.colors.primaryPale,
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: const Icon(Icons.waving_hand_outlined, size: 25, color: T.primary),
+              child: Icon(Icons.waving_hand_outlined, size: 25, color: context.colors.primary),
             ),
             const SizedBox(height: 13),
-            const Text(
+            Text(
               'Say hello',
-              style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: T.textPrimary),
+              style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: context.colors.textPrimary),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'Messages here reach the school straight away and stay on record for both of you.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12.5, color: T.textMuted, height: 1.5),
+              style: TextStyle(fontSize: 12.5, color: context.colors.textMuted, height: 1.5),
             ),
           ],
         ),

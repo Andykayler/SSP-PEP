@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../core/tokens.dart';
+import '../theme/app_colors.dart';
 import '../services/attendance_detail_service.dart';
 import '../state/session_provider.dart';
 
@@ -31,9 +31,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
 
     return Scaffold(
-      backgroundColor: T.bg,
+      backgroundColor: context.colors.bg,
       appBar: AppBar(
-        backgroundColor: T.heroBg,
+        backgroundColor: context.colors.heroBg,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
@@ -41,16 +41,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Attendance',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: T.textPrimary)),
+            Text('Attendance',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: context.colors.textPrimary)),
             if (student != null)
               Text(student.fullName,
-                  style: const TextStyle(fontSize: 11.5, color: T.textMuted)),
+                  style: TextStyle(fontSize: 11.5, color: context.colors.textMuted)),
           ],
         ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: T.border),
+          child: Container(height: 1, color: context.colors.border),
         ),
       ),
       body: FutureBuilder<AttendanceHistory>(
@@ -87,11 +87,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               ),
               const SizedBox(height: 12),
               if (days.isEmpty)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.symmetric(vertical: 30),
                   child: Center(
                     child: Text('Nothing in this category — good news.',
-                        style: TextStyle(fontSize: 12.5, color: T.textMuted)),
+                        style: TextStyle(fontSize: 12.5, color: context.colors.textMuted)),
                   ),
                 )
               else
@@ -114,19 +114,19 @@ class _RateCard extends StatelessWidget {
     // Thresholds a school would recognise: below 90% is usually where a
     // conversation starts, below 75% is a serious concern.
     final tone = rate == null
-        ? T.textMuted
+        ? context.colors.textMuted
         : rate >= 90
-            ? T.success
+            ? context.colors.success
             : rate >= 75
-                ? T.warning
-                : T.danger;
+                ? context.colors.warning
+                : context.colors.danger;
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: T.cardBg,
+        color: context.colors.cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: T.border),
+        border: Border.all(color: context.colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -141,7 +141,7 @@ class _RateCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 5),
                 child: Text('attendance rate\nover ${history.marked} marked days',
-                    style: const TextStyle(fontSize: 11.5, color: T.textMuted, height: 1.4)),
+                    style: TextStyle(fontSize: 11.5, color: context.colors.textMuted, height: 1.4)),
               ),
             ],
           ),
@@ -151,26 +151,26 @@ class _RateCard extends StatelessWidget {
             child: LinearProgressIndicator(
               value: rate == null ? 0 : (rate / 100).clamp(0, 1),
               minHeight: 8,
-              backgroundColor: T.bg,
+              backgroundColor: context.colors.bg,
               valueColor: AlwaysStoppedAnimation(tone),
             ),
           ),
           const SizedBox(height: 14),
           Row(
             children: [
-              _Tally(label: 'Present', value: history.present, color: T.success),
-              _Tally(label: 'Late', value: history.late, color: T.warning),
-              _Tally(label: 'Absent', value: history.absent, color: T.danger),
+              _Tally(label: 'Present', value: history.present, color: context.colors.success),
+              _Tally(label: 'Late', value: history.late, color: context.colors.warning),
+              _Tally(label: 'Absent', value: history.absent, color: context.colors.danger),
               if (history.excused > 0)
-                _Tally(label: 'Excused', value: history.excused, color: T.primary),
+                _Tally(label: 'Excused', value: history.excused, color: context.colors.primary),
             ],
           ),
           if (history.excused > 0)
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(top: 8),
               child: Text(
                 'Excused days are left out of the rate — they neither help nor hurt it.',
-                style: TextStyle(fontSize: 10.5, color: T.textMuted, height: 1.4),
+                style: TextStyle(fontSize: 10.5, color: context.colors.textMuted, height: 1.4),
               ),
             ),
         ],
@@ -197,11 +197,11 @@ class _Tally extends StatelessWidget {
                   decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
               const SizedBox(width: 5),
               Text('$value',
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w700, color: T.textPrimary)),
+                  style: TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w700, color: context.colors.textPrimary)),
             ],
           ),
-          Text(label, style: const TextStyle(fontSize: 10.5, color: T.textMuted)),
+          Text(label, style: TextStyle(fontSize: 10.5, color: context.colors.textMuted)),
         ],
       ),
     );
@@ -230,7 +230,7 @@ class _Filters extends StatelessWidget {
         children: [
           for (final (value, label) in chips) ...[
             Material(
-              color: selected == value ? T.primaryPale : T.cardBg,
+              color: selected == value ? context.colors.primaryPale : context.colors.cardBg,
               borderRadius: BorderRadius.circular(20),
               child: InkWell(
                 onTap: () => onChange(value),
@@ -239,13 +239,13 @@ class _Filters extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: selected == value ? T.primary : T.border),
+                    border: Border.all(color: selected == value ? context.colors.primary : context.colors.border),
                   ),
                   child: Text(label,
                       style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
-                        color: selected == value ? T.primaryDark : T.textSecondary,
+                        color: selected == value ? context.colors.primaryDark : context.colors.textSecondary,
                       )),
                 ),
               ),
@@ -258,18 +258,18 @@ class _Filters extends StatelessWidget {
   }
 }
 
-({Color color, IconData icon}) _styleFor(String status) {
+({Color color, IconData icon}) _styleFor(AppColors c, String status) {
   switch (status) {
     case 'Present':
-      return (color: T.success, icon: Icons.check_circle_rounded);
+      return (color: c.success, icon: Icons.check_circle_rounded);
     case 'Late':
-      return (color: T.warning, icon: Icons.schedule_rounded);
+      return (color: c.warning, icon: Icons.schedule_rounded);
     case 'Absent':
-      return (color: T.danger, icon: Icons.cancel_rounded);
+      return (color: c.danger, icon: Icons.cancel_rounded);
     case 'Excused':
-      return (color: T.primary, icon: Icons.verified_user_rounded);
+      return (color: c.primary, icon: Icons.verified_user_rounded);
     default:
-      return (color: T.textMuted, icon: Icons.help_outline_rounded);
+      return (color: c.textMuted, icon: Icons.help_outline_rounded);
   }
 }
 
@@ -283,7 +283,7 @@ class _DayRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s = _styleFor(day.status);
+    final s = _styleFor(context.colors, day.status);
     final d = day.parsed;
     final label = d == null
         ? day.date
@@ -293,9 +293,9 @@ class _DayRow extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: T.cardBg,
+        color: context.colors.cardBg,
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: T.border),
+        border: Border.all(color: context.colors.border),
       ),
       child: Row(
         children: [
@@ -314,13 +314,13 @@ class _DayRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(label,
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w600, color: T.textPrimary)),
+                    style: TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600, color: context.colors.textPrimary)),
                 if (day.remark.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(day.remark,
-                        style: const TextStyle(fontSize: 11.5, color: T.textSecondary)),
+                        style: TextStyle(fontSize: 11.5, color: context.colors.textSecondary)),
                   ),
               ],
             ),
@@ -333,7 +333,7 @@ class _DayRow extends StatelessWidget {
                       fontSize: 12, fontWeight: FontWeight.w700, color: s.color)),
               if (day.time.isNotEmpty)
                 Text(day.time,
-                    style: const TextStyle(fontSize: 10.5, color: T.textMuted)),
+                    style: TextStyle(fontSize: 10.5, color: context.colors.textMuted)),
             ],
           ),
         ],
@@ -360,17 +360,17 @@ class _EmptyState extends StatelessWidget {
               width: 62,
               height: 62,
               decoration: BoxDecoration(
-                  color: T.primaryPale, borderRadius: BorderRadius.circular(20)),
-              child: Icon(icon, size: 28, color: T.primary),
+                  color: context.colors.primaryPale, borderRadius: BorderRadius.circular(20)),
+              child: Icon(icon, size: 28, color: context.colors.primary),
             ),
             const SizedBox(height: 14),
             Text(title,
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w600, color: T.textPrimary)),
+                style: TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w600, color: context.colors.textPrimary)),
             const SizedBox(height: 5),
             Text(message,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 13, color: T.textMuted, height: 1.5)),
+                style: TextStyle(fontSize: 13, color: context.colors.textMuted, height: 1.5)),
           ],
         ),
       ),
