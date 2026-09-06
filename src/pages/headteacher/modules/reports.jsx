@@ -6,6 +6,9 @@ import { notifyGuardians } from "../../../services/notifications";
 import { fetchClearances, reportCardAllowed } from "../../../services/feeClearance";
 import { sendSmsToMany } from "../../../services/sms";
 import { smsFallbackCategories } from "../../../services/smsFallback";
+import { isModuleOn } from "../../../services/modules";
+import { fetchTermSummaries } from "../../../services/termSummary";
+import { fetchInsights } from "../../../services/aiInsight";
 import "./staff-management.css";
 import {
   collection, query, where, getDocs, doc, getDoc, setDoc, writeBatch, serverTimestamp,
@@ -503,6 +506,58 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
   // weighted assessment stays hidden until the head teacher issues it here.
   // Writing the document IS the release — the app shows the panel when the
   // document exists.
+  /**
+   * The whole report card as an SMS: every subject with its mark, then the
+   * average and the position.
+   *
+   * Subject names are written out in full rather than abbreviated. These are a
+   * parent's only copy of the result — they cannot open the app, which is why
+   * they are being sent an SMS — and "SES 68" is a worse thing to receive than
+   * a message one segment longer.
+   *
+   * Twilio rejects anything past 1600 characters, so a pupil carrying an
+   * unusual number of subjects is trimmed rather than failing outright: a
+   * report missing its last two lines still beats no report.
+   */
+  const reportCardSms = (student, subjects, insight = "") => {
+    const cls = student.className || classes.find((c) => c.id === student.classId)?.name || "";
+    const size = enrichedStudents.filter((x) => x.classId === student.classId).length;
+    const avg = student.average !== null && student.average !== undefined
+      ? `${Number(student.average).toFixed(1)}%`
+      : "n/a";
+
+    const marks = subjects
+      .map((r) => `${r.subject} ${Math.round(r.score)}`)
+      .join(", ");
+
+    const head = `${selectedTerm} report: ${fullName(student)}${cls ? `, ${cls}` : ""}`;
+    const tail = `Average ${avg}${student.rank ? `, position ${student.rank} of ${size}` : ""}`;
+
+    // The insight goes last, after the marks it refers to — a parent reading a
+    // truncated message on a basic handset should still have the result even
+    // if the advice is cut off, never the reverse.
+    const text = [head, marks || "No subject marks recorded", tail, insight]
+      .filter(Boolean)
+      .join("\n");
+
+    return text.length <= 1600 ? text : text.slice(0, 1597) + "...";
+  };
+
+  /**
+   * Roughly how many billable parts a message costs. A single SMS holds 160
+   * GSM-7 characters, but a concatenated one only 153 per part, because each
+   * part gives up seven characters to the header that reassembles them —
+   * which is why a 161-character message bills as two 153s, not 160 + 1.
+   *
+   * Approximate by design: a non-Latin character anywhere in the text drops
+   * the limits to 70 and 67, and this does not attempt to detect that.
+   */
+  const smsSegments = (text) => {
+    const n = (text || "").length;
+    if (n === 0) return 0;
+    return n <= 160 ? 1 : Math.ceil(n / 153);
+  };
+
   const releaseReportCards = async () => {
     const scored = sorted.filter((s) => s.average !== null && s.average !== undefined);
     if (scored.length === 0) {
@@ -544,6 +599,11 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
     setReleasing(true);
     setReleaseNote(null);
     try {
+      // Per-student subject rows, kept as they are computed for the report card
+      // document so the SMS below can quote the same marks without walking
+      // byAssessmentMap a second time.
+      const subjectsById = new Map();
+
       // Firestore caps a batch at 500 writes.
       for (let i = 0; i < targets.length; i += 400) {
         const batch = writeBatch(db);
@@ -561,6 +621,8 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
             });
             return { subject, components, score: computeWeightedAverage(components) };
           }).filter((row) => row.score !== null);
+
+          subjectsById.set(student.id, subjects);
 
           const docId = `${schoolCode}__${student.id}__${selectedTerm.replace(/\s+/g, "_")}`;
           batch.set(doc(db, "report_cards", docId), {
@@ -613,31 +675,81 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
       // parent a report exists without saying what is in it just sends them to
       // the school to ask — the trip this is supposed to save.
       let smsNote = "";
-      if (smsFallbackCategories(schoolSettings).includes("report")) {
-        const recipients = targets
-          .filter((s) => s.guardianPhone)
-          .map((s) => {
-            const cls = s.className || classes.find((c) => c.id === s.classId)?.name || "";
-            const size = enrichedStudents.filter((x) => x.classId === s.classId).length;
-            const avg = s.average !== null && s.average !== undefined
-              ? `${Number(s.average).toFixed(1)}%` : "n/a";
-            const pos = s.rank ? ` Position ${s.rank} of ${size}.` : "";
-            return {
-              to: s.guardianPhone,
-              ref: s.id,
-              message: `${selectedTerm} report: ${fullName(s)}${cls ? `, ${cls}` : ""}. `
-                     + `Average ${avg}.${pos} Full report available from the school.`,
-            };
+      if (isModuleOn(schoolSettings, "sms")
+          && smsFallbackCategories(schoolSettings).includes("report")) {
+
+        // ── AI insight ──
+        // Optional, and everything below tolerates it being absent: a pupil
+        // with no insight gets the same report card the previous version sent.
+        // The model is never allowed to delay or block a release.
+        let insights = new Map();
+        if (isModuleOn(schoolSettings, "ai_insights")) {
+          setReleaseNote({ type: "ok", text: "Preparing insights…" });
+
+          const summaries = await fetchTermSummaries({ schoolCode, term: selectedTerm });
+
+          // Class averages give the model something to judge a mark against —
+          // 55% means nothing until you know the class sat at 48 or at 71.
+          const classAverages = new Map();
+          classes.forEach((c) => {
+            const marks = enrichedStudents
+              .filter((s) => s.classId === c.id && s.average !== null && s.average !== undefined)
+              .map((s) => Number(s.average));
+            if (marks.length > 0) {
+              classAverages.set(c.id, Math.round(marks.reduce((a, b) => a + b, 0) / marks.length));
+            }
           });
 
+          insights = await fetchInsights(
+            targets.filter((s) => s.guardianPhone).map((s) => {
+              const sum = summaries.get(s.id);
+              return {
+                id: s.id,
+                name: fullName(s),
+                className: s.className || classes.find((c) => c.id === s.classId)?.name || "",
+                average: s.average !== null && s.average !== undefined
+                  ? Math.round(Number(s.average)) : null,
+                classAverage: classAverages.get(s.classId) ?? null,
+                position: s.rank ?? null,
+                classSize: enrichedStudents.filter((x) => x.classId === s.classId).length,
+                subjects: (subjectsById.get(s.id) || [])
+                  .map((r) => ({ subject: r.subject, score: Math.round(r.score) })),
+                attendance: sum
+                  ? { present: sum.present, daysRecorded: sum.daysRecorded, late: sum.late }
+                  : null,
+                discipline: sum
+                  ? { cases: sum.disciplineCases, offenses: sum.offenses }
+                  : null,
+              };
+            }),
+            {
+              onProgress: (done, total) =>
+                setReleaseNote({ type: "ok", text: `Preparing insights ${done}/${total}…` }),
+            },
+          );
+        }
+
+        const recipients = targets
+          .filter((s) => s.guardianPhone)
+          .map((s) => ({
+            to: s.guardianPhone,
+            ref: s.id,
+            message: reportCardSms(s, subjectsById.get(s.id) || [], insights.get(s.id) || ""),
+          }));
+
         if (recipients.length > 0) {
+          // A full report card runs past one segment, and each segment bills
+          // separately — so the count is reported rather than left for the
+          // school to discover on the Twilio invoice.
+          const segments = recipients.reduce((sum, r) => sum + smsSegments(r.message), 0);
+
           setReleaseNote({ type: "ok", text: `Sending SMS 0/${recipients.length}…` });
           const res = await sendSmsToMany(recipients, {
             onProgress: (done, total) =>
               setReleaseNote({ type: "ok", text: `Sending SMS ${done}/${total}…` }),
           });
           smsNote = res.failed === 0
-            ? ` ${res.sent} SMS sent.`
+            ? ` ${res.sent} SMS sent (~${segments} billable parts).`
             : ` ${res.sent} SMS sent, ${res.failed} failed`
               + `${res.failures[0]?.reason ? ` (${res.failures[0].reason})` : ""}.`;
         }

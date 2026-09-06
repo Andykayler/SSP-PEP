@@ -14,6 +14,9 @@ import {
   SMS_ALWAYS_CATEGORIES, SMS_FALLBACK_CATEGORIES,
   smsFallbackCategories, setSmsFallbackCategories,
 } from "../../../services/smsFallback";
+import {
+  MODULES, moduleById, enabledModules, nextModuleState, setEnabledModules,
+} from "../../../services/modules";
 
 // ─── MODULE 3: School Settings ────────────────────────────────────────────────
 export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
@@ -57,6 +60,19 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
 
     setSavingSms(true);
     const res = await setSmsFallbackCategories({ schoolCode, categories: next, actorId: "" });
+    setSavingSms(false);
+    if (!res.ok) setError(res.error);
+  }
+
+  /**
+   * Switching a module writes the whole list. Dependencies are resolved in
+   * `nextModuleState` rather than here, so the rule that AI insights need SMS
+   * is stated once and applies wherever a module is toggled.
+   */
+  async function toggleModule(id, on) {
+    const next = nextModuleState(settings, id, on);
+    setSavingSms(true);
+    const res = await setEnabledModules({ schoolCode, modules: next, actorId: "" });
     setSavingSms(false);
     if (!res.ok) setError(res.error);
   }
@@ -237,85 +253,149 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
         </div>
       </div>
 
-      {/* ── SMS fallback ──
-          Guardians who never install ACALink otherwise hear nothing after the
-          enrolment message. Each category ticked here is sent as an SMS when,
-          and only when, the guardian has no device registered. */}
+      {/* ── Modules ──
+          Optional features, declared once in services/modules.js. Anything
+          that costs the school money is off until someone switches it on, and
+          the cost is stated next to the switch rather than left to be
+          discovered on an invoice. Adding a module here means adding an entry
+          to MODULES — this screen does not change. */}
       <div className="card" style={{ padding: 28 }}>
         <p style={{ fontFamily: "var(--font-display)", fontSize: 16, color: "var(--text)", letterSpacing: 0.5 }}>
-          SMS Fallback
+          Modules
         </p>
         <p style={{ fontSize: 12, color: "var(--text3)", marginTop: 2, marginBottom: 18 }}>
-          Each message is charged against your SMS balance. Nothing here is on until you
-          switch it on.
+          Optional features for this school. Everything here is off until you switch it on.
         </p>
 
-        {/* Sent to everyone — the school decided parents should be told, which
-            does not mean only the parents who installed something. */}
-        <p style={{ fontSize: 11, fontWeight: 700, color: "var(--text)", letterSpacing: 0.4, marginBottom: 8 }}>
-          SENT TO EVERY GUARDIAN
-        </p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
-          {SMS_ALWAYS_CATEGORIES.map((c) => {
-            const on = smsFallbackCategories(settings).includes(c.id);
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {MODULES.map((m) => {
+            const on = enabledModules(settings).includes(m.id);
+            const blocked = m.requires && !enabledModules(settings).includes(m.requires);
+            const requiredName = m.requires ? moduleById(m.requires)?.name : "";
+
             return (
-              <button
-                key={c.id}
-                type="button"
-                disabled={savingSms}
-                onClick={() => toggleSmsCategory(c.id)}
-                className={`choice-btn ${on ? "choice-btn--active" : ""}`}
-                style={{ textAlign: "left" }}
-                aria-pressed={on}
-              >
-                <strong>{c.label}</strong>
-                <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 2 }}>{c.blurb}</div>
-                <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 6, letterSpacing: 0.4 }}>
-                  {on ? "SMS ON — ALL GUARDIANS" : "OFF"} · ~{c.perTerm}/guardian/term
+              <div key={m.id}>
+                <div
+                  style={{
+                    display: "flex", alignItems: "flex-start", gap: 14,
+                    padding: "14px 16px",
+                    border: "1px solid var(--line)",
+                    borderLeft: `3px solid ${on && !blocked ? "var(--primary)" : "var(--line)"}`,
+                    borderRadius: 8,
+                    opacity: blocked ? 0.6 : 1,
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <strong style={{ fontSize: 13, color: "var(--text)" }}>{m.name}</strong>
+                      {m.billing === "metered" && (
+                        <span style={{
+                          fontSize: 9, letterSpacing: 0.6, padding: "2px 6px", borderRadius: 3,
+                          background: "var(--warning-pale, rgba(240,185,11,0.15))", color: "var(--text3)",
+                        }}>
+                          BILLED ON USE
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 4, lineHeight: 1.5 }}>
+                      {m.summary}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 4 }}>
+                      {m.cost}
+                    </div>
+                    {blocked && (
+                      <div style={{ fontSize: 11, color: "var(--warning, #f0b90b)", marginTop: 6 }}>
+                        Needs {requiredName} switched on first.
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={savingSms}
+                    onClick={() => toggleModule(m.id, !on)}
+                    aria-pressed={on}
+                    aria-label={`${on ? "Disable" : "Enable"} ${m.name}`}
+                    className={`choice-btn ${on ? "choice-btn--active" : ""}`}
+                    style={{ flex: "0 0 auto", minWidth: 74, textAlign: "center", padding: "8px 12px" }}
+                  >
+                    {on ? "ON" : "OFF"}
+                  </button>
                 </div>
-              </button>
+
+                {/* The SMS module's own configuration — which notifications go
+                    out. Only shown once SMS is on, because choosing categories
+                    for a switched-off module is a decision with no effect. */}
+                {m.id === "sms" && on && (
+                  <div style={{ padding: "14px 16px 2px 19px" }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: "var(--text)", letterSpacing: 0.4, marginBottom: 8 }}>
+                      SENT TO EVERY GUARDIAN
+                    </p>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
+                      {SMS_ALWAYS_CATEGORIES.map((c) => {
+                        const catOn = smsFallbackCategories(settings).includes(c.id);
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            disabled={savingSms}
+                            onClick={() => toggleSmsCategory(c.id)}
+                            className={`choice-btn ${catOn ? "choice-btn--active" : ""}`}
+                            style={{ textAlign: "left" }}
+                            aria-pressed={catOn}
+                          >
+                            <strong>{c.label}</strong>
+                            <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 2 }}>{c.blurb}</div>
+                            <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 6, letterSpacing: 0.4 }}>
+                              {catOn ? "SMS ON — ALL GUARDIANS" : "OFF"} · ~{c.perTerm}/guardian/term
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <p style={{ fontSize: 11, fontWeight: 700, color: "var(--text)", letterSpacing: 0.4, margin: "22px 0 4px" }}>
+                      SENT ONLY TO GUARDIANS WITHOUT THE APP
+                    </p>
+                    <p style={{ fontSize: 11, color: "var(--text3)", marginBottom: 10 }}>
+                      Guardians using ACALink are notified in the app, free. These reach the
+                      families on feature phones so they are not left out — a guardian who
+                      installs the app stops costing anything.
+                    </p>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
+                      {SMS_FALLBACK_CATEGORIES.map((c) => {
+                        const catOn = smsFallbackCategories(settings).includes(c.id);
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            disabled={savingSms}
+                            onClick={() => toggleSmsCategory(c.id)}
+                            className={`choice-btn ${catOn ? "choice-btn--active" : ""}`}
+                            style={{ textAlign: "left" }}
+                            aria-pressed={catOn}
+                          >
+                            <strong>{c.label}</strong>
+                            <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 2 }}>{c.blurb}</div>
+                            <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 6, letterSpacing: 0.4 }}>
+                              {catOn ? "SMS ON" : "APP ONLY"} · ~{c.perTerm}/guardian/term
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {smsFallbackCategories(settings).length === 0 && (
+                      <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 14 }}>
+                        SMS is on but no notification is selected, so nothing will be sent.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
-
-        {/* Fallback only — a guardian on the app already got a free push. */}
-        <p style={{ fontSize: 11, fontWeight: 700, color: "var(--text)", letterSpacing: 0.4, margin: "22px 0 4px" }}>
-          SENT ONLY TO GUARDIANS WITHOUT THE APP
-        </p>
-        <p style={{ fontSize: 11, color: "var(--text3)", marginBottom: 10 }}>
-          Guardians using ACALink are notified in the app, free. These reach the families
-          on feature phones so they are not left out — a guardian who installs the app
-          stops costing anything.
-        </p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
-          {SMS_FALLBACK_CATEGORIES.map((c) => {
-            const on = smsFallbackCategories(settings).includes(c.id);
-            return (
-              <button
-                key={c.id}
-                type="button"
-                disabled={savingSms}
-                onClick={() => toggleSmsCategory(c.id)}
-                className={`choice-btn ${on ? "choice-btn--active" : ""}`}
-                style={{ textAlign: "left" }}
-                aria-pressed={on}
-              >
-                <strong>{c.label}</strong>
-                <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 2 }}>{c.blurb}</div>
-                <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 6, letterSpacing: 0.4 }}>
-                  {on ? "SMS ON" : "APP ONLY"} · ~{c.perTerm}/guardian/term
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        {smsFallbackCategories(settings).length === 0 && (
-          <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 14 }}>
-            Nothing selected. Guardians without the app currently receive no notifications
-            after their enrolment message.
-          </p>
-        )}
       </div>
 
       {/* Class stats */}
