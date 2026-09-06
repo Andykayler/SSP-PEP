@@ -586,7 +586,11 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
         schoolCode,
         title: (s) => `${selectedTerm} report card for ${fullName(s)}`,
         body: "Your child's report card has been issued. Open ACALink to see the full result.",
-        category: "performance",
+        // `report`, not `performance`: this is the head teacher issuing the
+        // term's official result, not a teacher publishing one subject. The
+        // distinction is what lets a school send an SMS for this and stay
+        // silent for the dozen subject publications that precede it.
+        category: "report",
         priority: "high",
         actorId: userId,
         actorName: userName || "Head Teacher",

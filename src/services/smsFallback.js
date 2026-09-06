@@ -35,7 +35,33 @@ import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 export const SMS_FALLBACK_FIELD = "smsFallbackCategories";
 
 /**
- * The categories a school may route to SMS, in the order they are offered.
+ * Categories sent to EVERY guardian, whether or not they use the app.
+ *
+ * Only report cards qualify. Issuing them is a deliberate, once-a-term act by
+ * the head teacher — the moment the term's result becomes official — and a
+ * school that decides parents should be told does not mean "only the parents
+ * who happen to have installed something". A guardian holding the app gets the
+ * push and the SMS both; that duplication is the point, not a bug.
+ *
+ * Note this is emphatically NOT `performance`, which fires every time any
+ * teacher publishes any subject's marks. Routing that to SMS would be roughly
+ * a dozen messages per guardian per term to say the same thing repeatedly.
+ */
+export const SMS_ALWAYS_CATEGORIES = [
+  {
+    id: "report",
+    label: "Report cards issued",
+    blurb:
+      "Sent to every guardian when the head teacher issues report cards — " +
+      "once a term, app or no app.",
+    perTerm: 1,
+  },
+];
+
+/**
+ * Categories sent ONLY to guardians with no registered device, in the order
+ * they are offered. A guardian using the app gets the free in-app push and
+ * costs the school nothing.
  *
  * Deliberately a subset of CATEGORY_META: `message`, `mention` and `thread`
  * are conversations that only make sense inside the app, and `staff`/`system`
@@ -49,12 +75,6 @@ export const SMS_FALLBACK_CATEGORIES = [
     label: "Fee balances and payments",
     blurb: "A receipt when money is recorded, and arrears notices.",
     perTerm: 3,
-  },
-  {
-    id: "performance",
-    label: "Results published",
-    blurb: "One message per subject whose marks are released.",
-    perTerm: 6,
   },
   {
     id: "discipline",
@@ -88,15 +108,29 @@ export const SMS_FALLBACK_CATEGORIES = [
  */
 export const DEFAULT_SMS_FALLBACK = [];
 
-/** The enabled category ids on a settings document, always an array. */
+/** Every category a school may switch on, both kinds together. */
+export const SMS_CATEGORIES = [...SMS_ALWAYS_CATEGORIES, ...SMS_FALLBACK_CATEGORIES];
+
+/** True when this category goes out regardless of whether the app is installed. */
+export function isAlwaysCategory(id) {
+  return SMS_ALWAYS_CATEGORIES.some((c) => c.id === id);
+}
+
+/**
+ * The enabled category ids on a settings document, always an array.
+ *
+ * Unknown ids are dropped rather than trusted — `performance` was offered here
+ * briefly and any school that ticked it should stop paying for a dozen
+ * subject-publication messages a term the moment this deploys.
+ */
 export function smsFallbackCategories(settings) {
   const raw = settings?.[SMS_FALLBACK_FIELD];
   if (!Array.isArray(raw)) return DEFAULT_SMS_FALLBACK;
-  const known = new Set(SMS_FALLBACK_CATEGORIES.map((c) => c.id));
+  const known = new Set(SMS_CATEGORIES.map((c) => c.id));
   return raw.filter((id) => known.has(id));
 }
 
-/** Whether one category is set to fall back to SMS for this school. */
+/** Whether one category is set to send SMS for this school. */
 export function isSmsFallbackOn(settings, category) {
   return smsFallbackCategories(settings).includes(category);
 }
@@ -109,12 +143,21 @@ export function isSmsFallbackOn(settings, category) {
  * app never triggers a fallback, so a school where everyone installs ACALink
  * pays nothing however many categories are ticked.
  */
-export function estimateMessages(categories, guardiansWithoutApp = 0) {
+export function estimateMessages(categories, guardiansWithoutApp = 0, totalGuardians = 0) {
   const enabled = new Set(categories || []);
-  const perGuardian = SMS_FALLBACK_CATEGORIES
+
+  const fallbackPer = SMS_FALLBACK_CATEGORIES
     .filter((c) => enabled.has(c.id))
     .reduce((sum, c) => sum + c.perTerm, 0);
-  return perGuardian * Math.max(0, guardiansWithoutApp);
+
+  // Always-categories reach the whole roll, so they scale with every guardian
+  // rather than only the ones without a device.
+  const alwaysPer = SMS_ALWAYS_CATEGORIES
+    .filter((c) => enabled.has(c.id))
+    .reduce((sum, c) => sum + c.perTerm, 0);
+
+  return fallbackPer * Math.max(0, guardiansWithoutApp)
+       + alwaysPer * Math.max(0, totalGuardians);
 }
 
 /**
@@ -124,7 +167,7 @@ export function estimateMessages(categories, guardiansWithoutApp = 0) {
 export async function setSmsFallbackCategories({ schoolCode, categories, actorId = "" }) {
   if (!schoolCode) return { ok: false, error: "No school code." };
 
-  const known = new Set(SMS_FALLBACK_CATEGORIES.map((c) => c.id));
+  const known = new Set(SMS_CATEGORIES.map((c) => c.id));
   const clean = [...new Set((categories || []).filter((id) => known.has(id)))];
 
   try {

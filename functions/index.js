@@ -139,6 +139,13 @@ async function pruneDeadTokens(tokens, responses) {
 const SMS_FALLBACK_FIELD = "smsFallbackCategories";
 
 /**
+ * Categories sent to every guardian rather than only those without the app.
+ * Mirrors SMS_ALWAYS_CATEGORIES in src/services/smsFallback.js — keep the two
+ * in step, since nothing at build time links them.
+ */
+const ALWAYS_CATEGORIES = new Set(["report"]);
+
+/**
  * Settings are read once per notification, and a class fan-out is hundreds of
  * notifications for one school — so without a cache, publishing marks to 600
  * pupils is 600 identical reads. Instances are reused between invocations, so
@@ -198,9 +205,14 @@ function phoneFromRecipient(recipientId) {
  * notification so the reason a guardian did or did not get a message is
  * visible on the document itself rather than only in the logs.
  */
-async function sendSmsFallback(n) {
+async function sendSmsFallback(n, { hasDevice }) {
   const categories = await smsCategoriesFor(n.schoolCode);
   if (!categories.includes(n.category)) return "not_enabled";
+
+  // Report cards go to every guardian. Everything else is a fallback: a
+  // guardian with the app already got a free push and must not be charged for
+  // a second copy of it.
+  if (!ALWAYS_CATEGORIES.has(n.category) && hasDevice) return "has_device";
 
   const accountSid = TWILIO_ACC_SID.value();
   const authToken = TWILIO_AUTH_TOKEN.value();
@@ -265,10 +277,13 @@ export const pushNotification = onDocumentCreated({
   }
 
   const tokens = await tokensFor(n.recipientId);
+
+  // Attempted before the push, and for guardians with a device too, because a
+  // report card is sent by SMS whether or not the app is installed. The
+  // fallback categories still check `hasDevice` inside.
+  const smsFallback = await sendSmsFallback(n, { hasDevice: tokens.length > 0 });
+
   if (tokens.length === 0) {
-    // No app on any device — the only remaining way to reach this guardian is
-    // SMS, and only for the categories the school has paid to route that way.
-    const smsFallback = await sendSmsFallback(n);
     await snap.ref.update({
       pushedAt: FieldValue.serverTimestamp(),
       pushSkipped: "no_devices",
@@ -284,6 +299,7 @@ export const pushNotification = onDocumentCreated({
     await snap.ref.update({
       pushedAt: FieldValue.serverTimestamp(),
       pushDelivered: res.successCount,
+      smsFallback,
     });
   } catch (err) {
     // Deliberately not stamped, and rethrown: an unstamped document plus a

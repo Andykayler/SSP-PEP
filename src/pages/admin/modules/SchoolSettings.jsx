@@ -11,7 +11,8 @@ import { Modal, Input, Select, Textarea, Btn, EmptyState, ActionBtn } from "./ui
 import { SCHOOL_TYPES, setSchoolType, schoolTypeLabel } from "../../../services/schoolProfile";
 import { subscribeSchoolSettings } from "../../../services/academicTerm";
 import {
-  SMS_FALLBACK_CATEGORIES, smsFallbackCategories, setSmsFallbackCategories,
+  SMS_ALWAYS_CATEGORIES, SMS_FALLBACK_CATEGORIES,
+  smsFallbackCategories, setSmsFallbackCategories,
 } from "../../../services/smsFallback";
 
 // ─── MODULE 3: School Settings ────────────────────────────────────────────────
@@ -244,14 +245,48 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
         <p style={{ fontFamily: "var(--font-display)", fontSize: 16, color: "var(--text)", letterSpacing: 0.5 }}>
           SMS Fallback
         </p>
-        <p style={{ fontSize: 12, color: "var(--text3)", marginTop: 2, marginBottom: 16 }}>
-          Guardians using the ACALink app are notified in the app, free. Tick a category
-          below and guardians <strong>without</strong> the app get that notification as an
-          SMS instead, so families on feature phones are not left out. Each message is
-          charged against your SMS balance — a guardian who installs the app stops costing
-          anything.
+        <p style={{ fontSize: 12, color: "var(--text3)", marginTop: 2, marginBottom: 18 }}>
+          Each message is charged against your SMS balance. Nothing here is on until you
+          switch it on.
         </p>
 
+        {/* Sent to everyone — the school decided parents should be told, which
+            does not mean only the parents who installed something. */}
+        <p style={{ fontSize: 11, fontWeight: 700, color: "var(--text)", letterSpacing: 0.4, marginBottom: 8 }}>
+          SENT TO EVERY GUARDIAN
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
+          {SMS_ALWAYS_CATEGORIES.map((c) => {
+            const on = smsFallbackCategories(settings).includes(c.id);
+            return (
+              <button
+                key={c.id}
+                type="button"
+                disabled={savingSms}
+                onClick={() => toggleSmsCategory(c.id)}
+                className={`choice-btn ${on ? "choice-btn--active" : ""}`}
+                style={{ textAlign: "left" }}
+                aria-pressed={on}
+              >
+                <strong>{c.label}</strong>
+                <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 2 }}>{c.blurb}</div>
+                <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 6, letterSpacing: 0.4 }}>
+                  {on ? "SMS ON — ALL GUARDIANS" : "OFF"} · ~{c.perTerm}/guardian/term
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Fallback only — a guardian on the app already got a free push. */}
+        <p style={{ fontSize: 11, fontWeight: 700, color: "var(--text)", letterSpacing: 0.4, margin: "22px 0 4px" }}>
+          SENT ONLY TO GUARDIANS WITHOUT THE APP
+        </p>
+        <p style={{ fontSize: 11, color: "var(--text3)", marginBottom: 10 }}>
+          Guardians using ACALink are notified in the app, free. These reach the families
+          on feature phones so they are not left out — a guardian who installs the app
+          stops costing anything.
+        </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
           {SMS_FALLBACK_CATEGORIES.map((c) => {
             const on = smsFallbackCategories(settings).includes(c.id);

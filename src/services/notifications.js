@@ -53,6 +53,12 @@ export const CATEGORY_META = {
   announcement: { label: "Announcement", tone: "info",    tab: "announcements" },
   attendance:   { label: "Attendance",   tone: "warning", tab: "attendance" },
   performance:  { label: "Results",      tone: "success", tab: "performance" },
+  // Separate from `performance` because the two are different events with
+  // different weight: a teacher publishing one subject's marks happens many
+  // times a term, while the head teacher issuing report cards happens once and
+  // is the moment the term's result becomes official. Only the latter is worth
+  // an SMS — see services/smsFallback.js.
+  report:       { label: "Report Card",  tone: "success", tab: "performance" },
   discipline:   { label: "Discipline",   tone: "danger",  tab: "discipline" },
   homework:     { label: "Homework",     tone: "info",    tab: "Homework" },
   fees:         { label: "Fees",         tone: "warning", tab: "payments" },

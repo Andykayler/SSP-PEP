@@ -217,6 +217,10 @@ class _Chip extends StatelessWidget {
       return (icon: Icons.event_available_rounded, color: c.warning, pale: c.warningPale);
     case 'performance':
       return (icon: Icons.grade_rounded, color: c.success, pale: c.successPale);
+    // The term's official result, issued by the head teacher — given its own
+    // mark so it does not read as one more subject publication in the list.
+    case 'report':
+      return (icon: Icons.assignment_turned_in_rounded, color: c.success, pale: c.successPale);
     case 'discipline':
       return (icon: Icons.gavel_rounded, color: c.danger, pale: c.dangerPale);
     case 'homework':
