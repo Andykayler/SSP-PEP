@@ -402,6 +402,50 @@ class _ReportCardPanel extends StatelessWidget {
               ],
             ),
           ),
+          // Labelled as automatically generated, deliberately. A parent reading
+          // advice about their child is entitled to know whether a teacher wrote
+          // it or a machine did, and presenting it beside the head teacher's own
+          // remark without saying so would imply the wrong author.
+          if (card.insight != null && card.insight!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(15, 13, 15, 0),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(12, 11, 12, 12),
+                decoration: BoxDecoration(
+                  color: context.colors.primaryPale,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.auto_awesome_rounded,
+                            size: 13, color: context.colors.primary),
+                        const SizedBox(width: 5),
+                        Text('TERM INSIGHT',
+                            style: TextStyle(
+                                fontSize: 9.5,
+                                letterSpacing: 1.4,
+                                fontWeight: FontWeight.w700,
+                                color: context.colors.primary)),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(card.insight!,
+                        style: TextStyle(
+                            fontSize: 12.5,
+                            color: context.colors.textSecondary,
+                            height: 1.5)),
+                    const SizedBox(height: 6),
+                    Text('Automatically generated from marks, attendance and conduct.',
+                        style: TextStyle(
+                            fontSize: 10, color: context.colors.textMuted)),
+                  ],
+                ),
+              ),
+            ),
           if (card.headTeacherRemark != null && card.headTeacherRemark!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(15, 13, 15, 0),

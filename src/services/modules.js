@@ -55,10 +55,13 @@ export const MODULES = [
     name: "AI term insights",
     summary:
       "Adds a short, plain-English summary to each report card — how the term " +
-      "went across marks, attendance and conduct, and what to work on next term.",
-    cost: "Adds roughly one extra SMS part per pupil per term, plus AI usage.",
+      "went across marks, attendance and conduct, and what to work on next term. " +
+      "Shown in the ACALink app, and included in the report SMS if that is on.",
+    // No `requires`. The insight is written onto the report card itself, so it
+    // reaches app users whether or not the school pays for SMS. Tying it to SMS
+    // would mean a school that only uses the app could not have it at all.
+    cost: "AI usage per pupil per term. Adds about one SMS part where SMS is on.",
     billing: "metered",
-    requires: "sms",
   },
 ];
 

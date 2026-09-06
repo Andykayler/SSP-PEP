@@ -92,6 +92,26 @@ function describe(s) {
   return lines.join("\n");
 }
 
+/**
+ * Removes a reasoning model's thinking from its answer.
+ *
+ * Qwen3 and similar models emit `<think>…</think>` inside `message.content`
+ * before the real reply. Left in, a parent receives the model's internal
+ * monologue truncated at 200 characters instead of a sentence about their
+ * child — so this runs before anything else touches the text.
+ *
+ * An UNCLOSED `<think>` means the model ran out of tokens mid-thought and
+ * never produced an answer at all. Everything from that tag on is discarded,
+ * which usually leaves nothing — and nothing is the correct result, because
+ * there genuinely is no insight in that response.
+ */
+function stripReasoning(raw) {
+  let text = String(raw || "").replace(/<think>[\s\S]*?<\/think>/gi, " ");
+  const unclosed = text.search(/<think>/i);
+  if (unclosed !== -1) text = text.slice(0, unclosed);
+  return text.replace(/\s+/g, " ").trim();
+}
+
 async function insightFor(student, apiKey) {
   const res = await fetch(GROQ_URL, {
     method: "POST",
@@ -104,7 +124,12 @@ async function insightFor(student, apiKey) {
       // Low but not zero: the same phrasing repeated across every child in a
       // class reads like a form letter and parents compare notes.
       temperature: 0.4,
-      max_tokens: 120,
+      // Generous for two sentences, because a reasoning model spends most of
+      // this budget thinking before it writes anything. Cut it to ~120 and a
+      // model like qwen3 exhausts the allowance mid-thought and never reaches
+      // the answer. The 200-character ceiling on the output is enforced after
+      // the reasoning is stripped, so a large budget costs tokens, not length.
+      max_tokens: 1024,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: describe(student) },
@@ -114,16 +139,42 @@ async function insightFor(student, apiKey) {
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`groq ${res.status}: ${detail.slice(0, 200)}`);
+    const err = new Error(`groq ${res.status}: ${detail.slice(0, 200)}`);
+
+    // A bad key or a retired model name fails identically for every pupil, and
+    // silently: without this flag the school issues a whole term's reports,
+    // sees no insights, and is given nothing to act on. Configuration faults
+    // are separated from per-pupil ones so the caller can say what is wrong.
+    if (res.status === 401 || res.status === 403 || res.status === 404) {
+      err.configError = res.status === 404
+        ? `Model "${MODEL}" was not found. Check ACALINK_AI_MODEL against Groq's model list.`
+        : "The AI key was rejected. Check ACALINK_AI_API.";
+    } else if (res.status === 400 && /model/i.test(detail)) {
+      err.configError = `Groq rejected the model "${MODEL}". Check ACALINK_AI_MODEL.`;
+    }
+    throw err;
   }
 
   const data = await res.json();
-  const text = data?.choices?.[0]?.message?.content?.trim();
-  if (!text) throw new Error("empty completion");
+  const raw = data?.choices?.[0]?.message?.content;
+  if (!raw) throw new Error("empty completion");
 
-  // Collapse any newlines the model adds — an SMS is one run of text — and
-  // enforce the length ceiling the prompt only asks for.
-  const flat = text.replace(/\s+/g, " ").trim();
+  // Reasoning first, then whitespace — an SMS is one run of text.
+  const flat = stripReasoning(raw);
+
+  if (!flat) {
+    // Nothing survived, meaning the response was entirely thinking. That fails
+    // identically for every pupil, so it is raised as a configuration fault
+    // with the fix in it rather than as one pupil's bad luck.
+    const err = new Error("model returned only reasoning, no answer");
+    err.configError =
+      `The model "${MODEL}" used its whole token budget on reasoning without answering. ` +
+      "Use a non-reasoning model for insights, or raise max_tokens.";
+    throw err;
+  }
+
+  // Enforce the length ceiling the prompt only asks for, trimming back to a
+  // word boundary so a parent is not left mid-word.
   return flat.length <= MAX_INSIGHT_CHARS
     ? flat
     : flat.slice(0, MAX_INSIGHT_CHARS - 1).replace(/[\s,;:]+\S*$/, "") + ".";
@@ -155,6 +206,7 @@ export default async function handler(req, res) {
   }
 
   const results = new Array(students.length);
+  let configError = null;
   let cursor = 0;
 
   async function worker() {
@@ -164,10 +216,11 @@ export default async function handler(req, res) {
       try {
         results[i] = { id: s?.id ?? null, insight: await insightFor(s, apiKey) };
       } catch (err) {
-        // Logged, not surfaced: the caller only needs to know it has no
-        // insight for this pupil, and a model error is not a school's problem.
         console.error(`insight failed for ${s?.id}: ${err.message}`);
         results[i] = { id: s?.id ?? null, insight: null };
+        // First one wins: they are all the same fault, and repeating it per
+        // pupil would bury the one sentence the school needs to read.
+        if (err.configError && !configError) configError = err.configError;
       }
     }
   }
@@ -176,5 +229,7 @@ export default async function handler(req, res) {
     Array.from({ length: Math.min(CONCURRENCY, students.length) }, worker),
   );
 
-  return res.status(200).json({ results });
+  // Still a 200 with results: the report cards themselves are fine, and this
+  // is advisory. `configError` is what turns a silent absence into a message.
+  return res.status(200).json({ results, configError });
 }

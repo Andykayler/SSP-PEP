@@ -645,6 +645,86 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
         await batch.commit();
       }
 
+      // ── AI insight ──
+      //
+      // Runs after the cards are written, never before: the result is the thing
+      // the school came here to issue, and it must be safely saved before
+      // anything waits on a language model. Everything downstream tolerates an
+      // empty map — a pupil with no insight gets exactly the report card this
+      // screen produced before the module existed.
+      //
+      // Generated once and used twice: written onto the report card, where the
+      // app reads it, and passed to the SMS below. Not gated on SMS — a school
+      // using only the app still gets insights.
+      let insights = new Map();
+      let insightError = null;
+      if (isModuleOn(schoolSettings, "ai_insights")) {
+        setReleaseNote({ type: "ok", text: "Preparing insights…" });
+
+        const summaries = await fetchTermSummaries({ schoolCode, term: selectedTerm });
+
+        // Class averages give the model something to judge a mark against —
+        // 55% means nothing until you know the class sat at 48 or at 71.
+        const classAverages = new Map();
+        classes.forEach((c) => {
+          const marks = enrichedStudents
+            .filter((s) => s.classId === c.id && s.average !== null && s.average !== undefined)
+            .map((s) => Number(s.average));
+          if (marks.length > 0) {
+            classAverages.set(c.id, Math.round(marks.reduce((a, b) => a + b, 0) / marks.length));
+          }
+        });
+
+        ({ insights, error: insightError } = await fetchInsights(
+          targets.map((s) => {
+            const sum = summaries.get(s.id);
+            return {
+              id: s.id,
+              name: fullName(s),
+              className: s.className || classes.find((c) => c.id === s.classId)?.name || "",
+              average: s.average !== null && s.average !== undefined
+                ? Math.round(Number(s.average)) : null,
+              classAverage: classAverages.get(s.classId) ?? null,
+              position: s.rank ?? null,
+              classSize: enrichedStudents.filter((x) => x.classId === s.classId).length,
+              subjects: (subjectsById.get(s.id) || [])
+                .map((r) => ({ subject: r.subject, score: Math.round(r.score) })),
+              attendance: sum
+                ? { present: sum.present, daysRecorded: sum.daysRecorded, late: sum.late }
+                : null,
+              discipline: sum
+                ? { cases: sum.disciplineCases, offenses: sum.offenses }
+                : null,
+            };
+          }),
+          {
+            onProgress: (done, total) =>
+              setReleaseNote({ type: "ok", text: `Preparing insights ${done}/${total}…` }),
+          },
+        ));
+
+        // Second pass over the cards just written, adding the insight. Separate
+        // from the first so a model failure cannot cost the school its results.
+        if (insights.size > 0) {
+          const withInsight = targets.filter((s) => insights.has(s.id));
+          for (let i = 0; i < withInsight.length; i += 400) {
+            const batch = writeBatch(db);
+            withInsight.slice(i, i + 400).forEach((student) => {
+              const docId = `${schoolCode}__${student.id}__${selectedTerm.replace(/\s+/g, "_")}`;
+              batch.set(
+                doc(db, "report_cards", docId),
+                { insight: insights.get(student.id), insightAt: serverTimestamp() },
+                { merge: true },
+              );
+            });
+            await batch.commit();
+          }
+        }
+      }
+
+      // Notified only now, with the insight already on the card — a parent who
+      // taps the notification the second it arrives should find the finished
+      // report, not one that grows a paragraph while they are reading it.
       await notifyGuardians({
         students: targets,
         schoolCode,
@@ -678,57 +758,6 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
       if (isModuleOn(schoolSettings, "sms")
           && smsFallbackCategories(schoolSettings).includes("report")) {
 
-        // ── AI insight ──
-        // Optional, and everything below tolerates it being absent: a pupil
-        // with no insight gets the same report card the previous version sent.
-        // The model is never allowed to delay or block a release.
-        let insights = new Map();
-        if (isModuleOn(schoolSettings, "ai_insights")) {
-          setReleaseNote({ type: "ok", text: "Preparing insights…" });
-
-          const summaries = await fetchTermSummaries({ schoolCode, term: selectedTerm });
-
-          // Class averages give the model something to judge a mark against —
-          // 55% means nothing until you know the class sat at 48 or at 71.
-          const classAverages = new Map();
-          classes.forEach((c) => {
-            const marks = enrichedStudents
-              .filter((s) => s.classId === c.id && s.average !== null && s.average !== undefined)
-              .map((s) => Number(s.average));
-            if (marks.length > 0) {
-              classAverages.set(c.id, Math.round(marks.reduce((a, b) => a + b, 0) / marks.length));
-            }
-          });
-
-          insights = await fetchInsights(
-            targets.filter((s) => s.guardianPhone).map((s) => {
-              const sum = summaries.get(s.id);
-              return {
-                id: s.id,
-                name: fullName(s),
-                className: s.className || classes.find((c) => c.id === s.classId)?.name || "",
-                average: s.average !== null && s.average !== undefined
-                  ? Math.round(Number(s.average)) : null,
-                classAverage: classAverages.get(s.classId) ?? null,
-                position: s.rank ?? null,
-                classSize: enrichedStudents.filter((x) => x.classId === s.classId).length,
-                subjects: (subjectsById.get(s.id) || [])
-                  .map((r) => ({ subject: r.subject, score: Math.round(r.score) })),
-                attendance: sum
-                  ? { present: sum.present, daysRecorded: sum.daysRecorded, late: sum.late }
-                  : null,
-                discipline: sum
-                  ? { cases: sum.disciplineCases, offenses: sum.offenses }
-                  : null,
-              };
-            }),
-            {
-              onProgress: (done, total) =>
-                setReleaseNote({ type: "ok", text: `Preparing insights ${done}/${total}…` }),
-            },
-          );
-        }
-
         const recipients = targets
           .filter((s) => s.guardianPhone)
           .map((s) => ({
@@ -755,9 +784,14 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
         }
       }
 
+      // The release itself succeeded either way — the cards are written and the
+      // guardians told — so a failed insight is reported alongside that, not
+      // instead of it. Saying nothing would leave the school to notice on its
+      // own that a module it switched on is doing nothing.
       setReleaseNote({
-        type: "ok",
-        text: `Issued ${targets.length} report card(s). Guardians notified.${smsNote}`,
+        type: insightError ? "error" : "ok",
+        text: `Issued ${targets.length} report card(s). Guardians notified.${smsNote}`
+            + (insightError ? ` Insights unavailable: ${insightError}` : ""),
       });
     } catch (err) {
       console.error("Report card release failed:", err);

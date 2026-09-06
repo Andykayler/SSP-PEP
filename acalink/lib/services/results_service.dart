@@ -81,6 +81,12 @@ class ReportCard {
   final int? position;
   final int? classSize;
   final String? headTeacherRemark;
+
+  /// Automatically generated summary of the term — marks, attendance and
+  /// conduct read together. Written by the portal when the school has the AI
+  /// insights module on, absent otherwise, so every read has to tolerate null.
+  final String? insight;
+
   final DateTime? generatedAt;
 
   const ReportCard({
@@ -91,6 +97,7 @@ class ReportCard {
     required this.position,
     required this.classSize,
     required this.headTeacherRemark,
+    required this.insight,
     required this.generatedAt,
   });
 
@@ -120,6 +127,7 @@ class ReportCard {
       position: d['position'] as int?,
       classSize: d['classSize'] as int?,
       headTeacherRemark: d['headTeacherRemark'] as String?,
+      insight: d['insight'] as String?,
       generatedAt: ts is Timestamp ? ts.toDate() : null,
     );
   }
