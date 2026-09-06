@@ -16,12 +16,15 @@ import '../services/announcements_service.dart';
 import '../services/notifications_service.dart';
 import '../services/chat_service.dart';
 import '../services/push_service.dart';
+import '../services/dashboard_watcher.dart';
 import 'student_select_screen.dart';
 import 'fees_screen.dart';
 import 'notifications_screen.dart';
 import 'results_screen.dart';
 import 'attendance_screen.dart';
 import 'homework_screen.dart';
+import 'calendar_screen.dart';
+import 'discipline_screen.dart';
 import 'messages_screen.dart';
 import '../state/theme_provider.dart';
 import '../theme/app_colors.dart';
@@ -55,6 +58,7 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
   final _announcementsService = AnnouncementsService();
   final _notificationsService = NotificationsService();
   final _chatService = ChatService();
+  final _watcher = DashboardWatcher();
 
   bool _loading = true;
   String? _error;
@@ -71,6 +75,11 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
   // The badge streams are built once per phone number rather than per build:
   // calling watch* inside build() would tear down and re-open a Firestore
   // listener on every rebuild.
+  // Cancelled and rebuilt when the selected child changes, so the previous
+  // child's listeners cannot overwrite the new one's figures.
+  StreamSubscription<DashboardSection>? _watchSub;
+  String? _watchingStudentId;
+
   String? _streamsForPhone;
   Stream<int> _unreadNotifications = const Stream<int>.empty();
   Stream<int> _unreadMessages = const Stream<int>.empty();
@@ -129,6 +138,8 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
 
   @override
   void dispose() {
+    _watchSub?.cancel();
+    _watcher.stop();
     _shimmer.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -173,6 +184,8 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
         _loading = false;
       });
 
+      _startWatching(student);
+
       // Announcements shown on the dashboard count as read. markRead is
       // idempotent, so re-rendering does not inflate the count.
       final phone = context.mounted ? _streamsForPhone ?? '' : '';
@@ -192,6 +205,63 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
       // Cleared even on the !mounted early return, so a student switch that
       // races a teardown does not leave the guard stuck.
       _loadInFlightFor = null;
+    }
+  }
+
+  /// Keeps the dashboard current without the parent reopening the app.
+  ///
+  /// Started only after the first load has succeeded: the listeners report
+  /// *changes*, so there is nothing for them to say until there is something
+  /// on screen to change.
+  void _startWatching(Student student) {
+    if (_watchingStudentId == student.id) return;
+    _watchingStudentId = student.id;
+    _watchSub?.cancel();
+    _watchSub = _watcher
+        .start(student, academicYear: feesAcademicYear)
+        .listen((section) => _refreshSection(section, student));
+  }
+
+  /// Re-reads just the part that moved. A teacher saving a register should
+  /// cost one attendance read, not a whole dashboard.
+  Future<void> _refreshSection(DashboardSection section, Student student) async {
+    try {
+      switch (section) {
+        case DashboardSection.fees:
+          final v = await _feesService.fetchStudentFees(student);
+          if (mounted) setState(() => _fees = v);
+        case DashboardSection.attendance:
+          final v = await _attendanceService.fetchRecentAttendance(student);
+          if (mounted) setState(() => _attendance = v);
+        case DashboardSection.performance:
+          final v = await _performanceService.fetchPerformance(student);
+          if (mounted) setState(() => _performance = v);
+        case DashboardSection.discipline:
+          final v = await _disciplineService.fetchSummary(student);
+          if (mounted) setState(() => _discipline = v);
+        case DashboardSection.homework:
+          final v = await _homeworkService.fetchUpcoming(student);
+          if (mounted) setState(() => _homework = v);
+        case DashboardSection.announcements:
+          final v = await _announcementsService.fetchRecent(student.schoolCode);
+          if (mounted) setState(() => _announcements = v);
+        case DashboardSection.term:
+          // The term decides which marks count as current, so a term change
+          // invalidates the grades card as well as the label.
+          AcademicTermService.clearCache();
+          final t = await AcademicTermService().currentTerm(student.schoolCode);
+          final p = await _performanceService.fetchPerformance(student);
+          if (mounted) {
+            setState(() {
+              _term = t;
+              _performance = p;
+            });
+          }
+      }
+    } catch (e) {
+      // A failed refresh leaves the last good figure on screen, which is
+      // better than blanking a card the parent was reading.
+      debugPrint('[dashboard] could not refresh ${section.name}: $e');
     }
   }
 
@@ -230,6 +300,16 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
           MaterialPageRoute(builder: (_) => const HomeworkScreen()),
         );
         break;
+      case 'Discipline':
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const DisciplineScreen()),
+        );
+        break;
+      case 'Calendar':
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const CalendarScreen()),
+        );
+        break;
       case 'Announcements':
         _scrollTo(_announcementsKey);
         break;
@@ -248,6 +328,13 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
     _ensureBadgeStreams(session.parentPhone ?? '');
 
     if (student != null && _loadedForStudentId != student.id) {
+      // The old child's listeners must go before the new child's data lands,
+      // or a late callback from the previous subscription overwrites it.
+      if (_watchingStudentId != null && _watchingStudentId != student.id) {
+        _watchSub?.cancel();
+        _watcher.stop();
+        _watchingStudentId = null;
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadDashboard(student));
     }
 
@@ -776,6 +863,8 @@ const _quickActions = [
   _QuickAction('Homework', Icons.menu_book_rounded),
   _QuickAction('Fees', Icons.account_balance_wallet_rounded),
   _QuickAction('Messages', Icons.chat_bubble_outline_rounded),
+  _QuickAction('Discipline', Icons.shield_moon_rounded),
+  _QuickAction('Calendar', Icons.event_note_rounded),
   _QuickAction('Announcements', Icons.campaign_outlined),
 ];
 

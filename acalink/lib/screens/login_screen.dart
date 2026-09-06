@@ -241,7 +241,7 @@ class _LoginCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'One phone number covers all your children at this school.',
+            'One password covers all your children, at every school on ACALink.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13, color: c.textSecondary, height: 1.5),
           ),

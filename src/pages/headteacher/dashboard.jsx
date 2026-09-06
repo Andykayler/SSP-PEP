@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { auth, db } from "../../firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { signOut, onAuthStateChanged } from "firebase/auth";
-import { Users, Calendar, Award, AlertTriangle, Bell, Home, FileText, UserCheck, ClipboardCheck, MessageSquare } from "lucide-react";
+import { Users, Calendar, Award, AlertTriangle, Bell, Home, FileText, UserCheck, ClipboardCheck, MessageSquare, CalendarDays, GraduationCap, Wallet, BedDouble, Package, UserPlus } from "lucide-react";
 
 import DashboardShell from "../../components/DashboardShell";
 import TermCard from "../../components/TermCard";
@@ -17,6 +17,14 @@ import PerformanceAnalytics from "./modules/PerformanceModule";
 import ReportsModule from "./modules/reports";
 import StaffManagement from "./modules/StaffManagement";
 import AnnouncementsModule from "./modules/announcement";
+import CalendarModule from "./modules/CalendarModule";
+import ExamReadiness from "./modules/ExamReadiness";
+import Admissions from "./modules/Admissions";
+import Boarding from "./modules/Boarding";
+import Inventory from "./modules/Inventory";
+import ArrearsModule from "../../components/fees/ArrearsModule";
+import { subscribeSchoolSettings } from "../../services/academicTerm";
+import { boards } from "../../services/schoolProfile";
 import "../admin/admin_dashboard.css"; // shared component styles
 
 function greeting() {
@@ -39,6 +47,9 @@ export default function HeadTeacherDashboard() {
   // Messages module can open it straight away.
   const [pendingConversationId, setPendingConversationId] = useState(null);
   const [schoolData, setSchoolData] = useState(null);
+  // Boarding modules appear only when the school keeps students overnight,
+  // which the administrator answers once during setup.
+  const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState("");
 
@@ -75,6 +86,12 @@ export default function HeadTeacherDashboard() {
     });
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    const code = userData?.schoolCode;
+    if (!code) return;
+    return subscribeSchoolSettings(code, setSettings);
+  }, [userData?.schoolCode]);
 
   // Pressing Back after Sign Out can restore this dashboard straight from
   // the browser's back-forward cache (bfcache) — a frozen DOM snapshot from
@@ -117,6 +134,14 @@ export default function HeadTeacherDashboard() {
     { id: "reports", label: "Reports & Exports", icon: <FileText className="w-5 h-5" />, component: <ReportsModule schoolCode={schoolCode} userId={uid} userName={displayName} /> },
     { id: "staff", label: "Staff Management", icon: <Users className="w-5 h-5" />, component: <StaffManagement schoolCode={schoolCode} schoolName={schoolName} /> },
     { id: "announcements", label: "Announcements", icon: <Bell className="w-5 h-5" />, component: <AnnouncementsModule schoolCode={schoolCode} userId={uid} userName={displayName} /> },
+    { id: "calendar", label: "School Calendar", icon: <CalendarDays className="w-5 h-5" />, component: <CalendarModule schoolCode={schoolCode} currentUser={currentUser} /> },
+    { id: "readiness", label: "Exam Readiness", icon: <GraduationCap className="w-5 h-5" />, component: <ExamReadiness schoolCode={schoolCode} /> },
+    { id: "arrears", label: "Arrears & Clearance", icon: <Wallet className="w-5 h-5" />, component: <ArrearsModule schoolCode={schoolCode} currentUser={currentUser} canDecide /> },
+    { id: "admissions", label: "Admissions", icon: <UserPlus className="w-5 h-5" />, component: <Admissions schoolCode={schoolCode} currentUser={currentUser} schoolBoards={boards(settings)} /> },
+    ...(boards(settings)
+      ? [{ id: "boarding", label: "Boarding", icon: <BedDouble className="w-5 h-5" />, component: <Boarding schoolCode={schoolCode} currentUser={currentUser} /> }]
+      : []),
+    { id: "inventory", label: "Inventory", icon: <Package className="w-5 h-5" />, component: <Inventory schoolCode={schoolCode} currentUser={currentUser} /> },
   ];
 
   const currentNavItem = navItems.find((item) => item.id === currentTab);

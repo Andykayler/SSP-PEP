@@ -7,8 +7,10 @@ import {
 import { notifyAttendanceSaved } from "../../../services/notificationHooks";
 import {
   CheckCircle, XCircle, Clock, Save, Users, Search,
-  RefreshCw, AlertCircle, Loader2, ChevronDown, Download,
+  RefreshCw, AlertCircle, Loader2, ChevronDown, Download, CloudOff,
 } from "lucide-react";
+import useOnlineStatus from "../../../hooks/useOnlineStatus";
+import { commitWithGrace } from "../../../services/offlineWrite";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -143,8 +145,9 @@ export default function AttendanceModule({ userId, schoolCode, userName, userRol
   const [studentsReady,    setStudentsReady]     = useState(false);
   const [attendanceReady,  setAttendanceReady]   = useState(false);
   const [saving,           setSaving]           = useState(false);
-  const [saveStatus,       setSaveStatus]       = useState(""); // "saved" | "error" | ""
+  const [saveStatus,       setSaveStatus]       = useState(""); // "saved" | "queued" | "error" | ""
   const [error,            setError]            = useState("");
+  const online = useOnlineStatus();
 
   const isLoading    = !classesReady || !studentsReady || !attendanceReady;
   const noAssignment = classesReady && classes.length === 0;
@@ -309,43 +312,67 @@ export default function AttendanceModule({ userId, schoolCode, userName, userRol
     setSaveStatus("");
   };
 
-  // ── Save to Firestore ────────────────────────────────────────────────────────
+  // ── Save to Firestore ─────────────────────────────────────────────────────
+  // Offline, setDoc() puts the register in the local cache straight away but
+  // its promise does not settle until the write reaches the server. Awaiting it
+  // would leave a teacher on "Saving…" for the rest of the lesson with no idea
+  // whether the register survived. So the write is raced against a short grace
+  // period: if the write wins, it is on the server; if the timer wins, it is
+  // durable on this device and Firestore will send it when the network returns.
+  // Both are successes — they are worded differently because they mean
+  // different things to the person holding the phone.
   const handleSave = async () => {
     if (!filterClassId || !selectedDate) return;
     setSaving(true);
     setSaveStatus("");
 
-    try {
-      const docId = attendanceDocId(schoolCode, filterClassId, selectedDate);
-      await setDoc(doc(db, "attendance", docId), {
-        schoolCode,
-        classId:   filterClassId,
-        className: selectedClass?.name || "",
-        date:      selectedDate,
-        teacherId: userId,
-        records:   attendance,
-        savedAt:   serverTimestamp(),
-      });
-      // Only absences and late arrivals reach guardians, and only ones that
-      // changed since the last save — see the hook.
-      await notifyAttendanceSaved({
-        schoolCode,
-        className: selectedClass?.name || "",
-        date: selectedDate,
-        records: attendance,
-        previousRecords: savedRecordsRef.current,
-        students,
-        actor: { id: userId, name: userName || "Class Teacher", role: userRole || "class_teacher" },
-      });
-      savedRecordsRef.current = attendance;
-      setSaveStatus("saved");
-      setTimeout(() => setSaveStatus(""), 3500);
-    } catch (err) {
-      console.error("Save error:", err);
-      setSaveStatus("error");
-    } finally {
-      setSaving(false);
+    const docId = attendanceDocId(schoolCode, filterClassId, selectedDate);
+    const previous = savedRecordsRef.current;
+
+    // Only absences and late arrivals reach guardians, and only ones that
+    // changed since the last save — see the hook. Queued offline, these reach
+    // families whenever the device next syncs.
+    const committed = setDoc(doc(db, "attendance", docId), {
+      schoolCode,
+      classId:   filterClassId,
+      className: selectedClass?.name || "",
+      date:      selectedDate,
+      teacherId: userId,
+      records:   attendance,
+      savedAt:   serverTimestamp(),
+    }).then(() => notifyAttendanceSaved({
+      schoolCode,
+      className: selectedClass?.name || "",
+      date: selectedDate,
+      records: attendance,
+      previousRecords: previous,
+      students,
+      actor: { id: userId, name: userName || "Class Teacher", role: userRole || "class_teacher" },
+    }));
+
+    // The register is in the cache the moment setDoc is called, so the diff
+    // baseline moves now — re-saving must not re-notify these same families.
+    savedRecordsRef.current = attendance;
+
+    const { status, error } = await commitWithGrace(committed, {
+      // A queued write that is later refused outright — a rules denial rather
+      // than a slow network — must not leave the teacher believing it landed.
+      onLateFailure: (err) => {
+        console.error("Queued attendance rejected:", err);
+        savedRecordsRef.current = previous;
+        setSaveStatus("error");
+      },
+    });
+
+    if (status === "failed") {
+      console.error("Save error:", error);
+      savedRecordsRef.current = previous;
     }
+    setSaveStatus(status === "failed" ? "error" : status);
+    if (status !== "failed") {
+      setTimeout(() => setSaveStatus(""), status === "queued" ? 6000 : 3500);
+    }
+    setSaving(false);
   };
 
   // ── CSV Export ───────────────────────────────────────────────────────────────
@@ -424,11 +451,27 @@ export default function AttendanceModule({ userId, schoolCode, userName, userRol
         </div>
       </div>
 
+      {!online && (
+        <div className="alert alert--warning">
+          <CloudOff size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+          You are offline. You can still mark and save this register — it will sync
+          to the school as soon as the connection returns.
+        </div>
+      )}
+
       {/* ── Save feedback ────────────────────────────────────────────────────── */}
       {saveStatus === "saved" && (
         <div className="alert alert--success">
           <CheckCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
           Attendance saved successfully for {selectedClass?.name} on {fmtDate(selectedDate)}.
+        </div>
+      )}
+      {saveStatus === "queued" && (
+        <div className="alert alert--warning">
+          <CloudOff size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+          Saved on this device. {selectedClass?.name} for {fmtDate(selectedDate)} will
+          sync to the school — and reach guardians — once you have a connection. It is
+          safe to close this page.
         </div>
       )}
       {saveStatus === "error" && (

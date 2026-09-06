@@ -130,3 +130,60 @@ export async function setCurrentTerm({ schoolCode, term, actorId }) {
     return { ok: false, error: err.message };
   }
 }
+
+// ─── Reconciling the two term vocabularies ───────────────────────────────────
+//
+// The fee modules predate this file and store terms as "Term 1" with no year,
+// offering "Full Year" as a fourth option. Everything else — marks, report
+// cards, school_settings — stores "Term 1 2026". Any code comparing a fee
+// record against the current term has to speak both, or it silently matches
+// nothing: a charge of "Term 1" tested against "Term 1 2026" is simply not
+// equal, and the arrears, sponsorship and expenditure figures all quietly
+// read zero.
+//
+// Rather than migrate the fee data — which would break the bursar's existing
+// screens — the short form is read as belonging to the academic year now
+// running. That is an assumption, and it is the right one: a school's fee
+// records are for the year they are in, and no year-less record can mean
+// anything else.
+
+/** True for the fee modules' catch-all option, which covers every term. */
+export function isFullYear(term) {
+  return String(term || "").trim().toLowerCase() === "full year";
+}
+
+/**
+ * Expands a stored term into the canonical "Term N YYYY" form.
+ *
+ * A year-less "Term N" takes the year of `currentTerm`; "Full Year" resolves
+ * to that year's first term, since that is when annual fees are charged.
+ * Returns "" for anything unrecognisable, which callers treat as unsortable
+ * rather than as the oldest possible debt.
+ */
+export function resolveTerm(stored, currentTerm) {
+  const exact = parseTerm(stored);
+  if (exact) return formatTerm(exact.number, exact.year);
+
+  const now = parseTerm(currentTerm);
+  if (!now) return "";
+
+  if (isFullYear(stored)) return formatTerm(1, now.year);
+
+  const short = /^Term\s+(\d+)$/i.exec(String(stored || "").trim());
+  return short ? formatTerm(Number(short[1]), now.year) : "";
+}
+
+/**
+ * Whether a stored term refers to the term now running.
+ * "Full Year" matches any term within the same academic year.
+ */
+export function termsMatch(stored, currentTerm) {
+  if (!stored || !currentTerm) return false;
+  if (stored === currentTerm) return true;
+
+  const now = parseTerm(currentTerm);
+  if (!now) return false;
+  if (isFullYear(stored)) return true;
+
+  return resolveTerm(stored, currentTerm) === formatTerm(now.number, now.year);
+}

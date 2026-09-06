@@ -23,6 +23,12 @@ Map<String, dynamic> _ctx(Student s) => {
 // real source once confirmed.
 const _academicYear = "2025/2026"; // TODO: make dynamic / from provider
 
+/// The same value, exported so anything watching these collections filters
+/// on the year the fetch filters on. A listener that disagreed would either
+/// be refused outright — a list is authorised from its own constraints — or
+/// simply never fire, which is worse because it looks like nothing changed.
+const feesAcademicYear = _academicYear;
+
 /// ─── Domain models (aligned with Firebase schema from bursar view) ───────
 enum FeeStatus { paid, partial, unpaid }
 

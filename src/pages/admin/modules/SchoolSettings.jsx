@@ -8,6 +8,8 @@ import { IC } from "./icons";
 import { DISTRICTS, PRIMARY_SUBJECTS, SECONDARY_SUBJECTS } from "./constants";
 import { normalisePhone } from "./helpers";
 import { Modal, Input, Select, Textarea, Btn, EmptyState, ActionBtn } from "./ui";
+import { SCHOOL_TYPES, setSchoolType, schoolTypeLabel } from "../../../services/schoolProfile";
+import { subscribeSchoolSettings } from "../../../services/academicTerm";
 
 // ─── MODULE 3: School Settings ────────────────────────────────────────────────
 export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
@@ -20,12 +22,29 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
   const [editingClass, setEditingClass]     = useState(null);
   const [classForm, setClassForm]   = useState({ name: "", level: "primary", subjects: [] });
   const [levelFilter, setLevelFilter] = useState("all");
+  // Held here as well as in the setup gate, because a school that starts as
+  // day and opens a hostel two years later needs to be able to say so.
+  const [settings, setSettings]     = useState(null);
+  const [savingType, setSavingType] = useState(false);
   const [classSearch, setClassSearch] = useState("");
 
   useEffect(() => {
     if (schoolData) setForm({ name: schoolData.name||"", district: schoolData.district||"", address: schoolData.address||"", phone: schoolData.phone||"", email: schoolData.email||"" });
     fetchClasses();
   }, [schoolData]);
+
+  useEffect(() => {
+    if (!schoolCode) return;
+    return subscribeSchoolSettings(schoolCode, setSettings);
+  }, [schoolCode]);
+
+  async function changeSchoolType(next) {
+    if (next === settings?.schoolType) return;
+    setSavingType(true);
+    const res = await setSchoolType({ schoolCode, schoolType: next, actorId: "" });
+    setSavingType(false);
+    if (!res.ok) setError(res.error);
+  }
 
   async function fetchClasses() {
     try {
@@ -166,6 +185,32 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
           <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", paddingTop: 8 }}>
             <Btn onClick={handleSaveSchool} loading={loading} variant="accent">Save School Info</Btn>
           </div>
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: 28 }}>
+        <p style={{ fontFamily: "var(--font-display)", fontSize: 16, color: "var(--text)", letterSpacing: 0.5 }}>
+          School Type
+        </p>
+        <p style={{ fontSize: 12, color: "var(--text3)", marginTop: 2, marginBottom: 16 }}>
+          Currently <strong>{schoolTypeLabel(settings?.schoolType)}</strong>. Boarding tools —
+          dormitories, the sign-out register and the sick bay — appear in the head teacher&rsquo;s
+          portal only when the school keeps students overnight.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+          {SCHOOL_TYPES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              disabled={savingType}
+              onClick={() => changeSchoolType(t.id)}
+              className={`choice-btn ${settings?.schoolType === t.id ? "choice-btn--active" : ""}`}
+              style={{ textAlign: "left" }}
+            >
+              <strong>{t.label}</strong>
+              <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 2 }}>{t.blurb}</div>
+            </button>
+          ))}
         </div>
       </div>
 

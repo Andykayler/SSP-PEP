@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { auth, db } from "../../../firebase";
 import { subscribeSchoolSettings, termOptions, academicYearFor } from "../../../services/academicTerm";
 import { notifyGuardians } from "../../../services/notifications";
+import { fetchClearances, reportCardAllowed } from "../../../services/feeClearance";
 import "./staff-management.css";
 import {
   collection, query, where, getDocs, doc, getDoc, setDoc, writeBatch, serverTimestamp,
@@ -501,16 +502,39 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
   // Writing the document IS the release — the app shows the panel when the
   // document exists.
   const releaseReportCards = async () => {
-    const targets = sorted.filter((s) => s.average !== null && s.average !== undefined);
-    if (targets.length === 0) {
+    const scored = sorted.filter((s) => s.average !== null && s.average !== undefined);
+    if (scored.length === 0) {
       setReleaseNote({ type: "error", text: "No students have marks for this term yet." });
       return;
     }
+
+    // A student whose report card the school has decided to withhold over fees
+    // must not have it issued anyway — that decision was recorded and the
+    // family was told it stands. Held-back students are named rather than
+    // silently dropped, so nobody wonders later why a card never arrived.
+    const clearances = await fetchClearances(schoolCode, selectedTerm);
+    const withheld = scored.filter((s) => !reportCardAllowed(clearances.get(s.id)));
+    const targets = scored.filter((s) => reportCardAllowed(clearances.get(s.id)));
+
+    if (targets.length === 0) {
+      setReleaseNote({
+        type: "error",
+        text: `All ${withheld.length} student(s) with marks have their report card withheld `
+          + `over fees. Clear them in Arrears & Clearance first.`,
+      });
+      return;
+    }
+
     const scope = selectedClassId === "all"
       ? "every class"
       : classes.find((c) => c.id === selectedClassId)?.name || "this class";
     if (!window.confirm(
       `Issue ${selectedTerm} report cards for ${targets.length} student(s) in ${scope}?\n\n`
+      + (withheld.length > 0
+        ? `${withheld.length} student(s) are held back over fees and will be skipped: `
+          + `${withheld.slice(0, 5).map(fullName).join(", ")}`
+          + `${withheld.length > 5 ? ` and ${withheld.length - 5} more` : ""}.\n\n`
+        : "")
       + `Guardians will be notified and the combined result becomes visible in the `
       + `ACALink app. Re-issuing overwrites the previous card.`
     )) return;

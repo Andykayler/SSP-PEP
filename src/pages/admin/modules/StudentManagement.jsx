@@ -6,11 +6,19 @@ import {
 
 import { IC } from "./icons";
 import { GENDERS, DISTRICTS } from "./constants";
-import { generatePassword, generateStudentCode, normalisePhone, initials, fmtDate } from "./helpers";
+import { generateStudentCode, normalisePhone, initials, fmtDate } from "./helpers";
 import { sendSms, sendEmail, EMAILJS_GUARDIAN_TEMPLATE_ID, APP_URL } from "./notifications";
 import {
   StatusPill, Modal, Input, Select, Btn, Spinner, EmptyState, ActionBtn, StudentCodeBadge, NotifStatus,
 } from "./ui";
+import {
+  resolveGuardianLink, notifyGuardianOfPendingLink, enrolmentSms, isLinkPending,
+  LINK_ACTIVE, LINK_PENDING,
+} from "../../../services/guardianLink";
+import BulkImportModal from "../../../components/import/BulkImportModal";
+import {
+  STUDENT_COLUMNS, STUDENT_SAMPLE, validateStudentRows, importStudents,
+} from "../../../services/bulkImport";
 
 // Base URL of the Express backend (server.js). Update this when you deploy
 // (e.g. to your production API domain) — it's used for the transfer
@@ -39,6 +47,7 @@ export default function StudentManagement({ schoolCode, schoolName }) {
   const [regForm, setRegForm]                         = useState(EMPTY_REG);
   const [regErrors, setRegErrors]                     = useState({});
   const [newStudentResult, setNewStudentResult]       = useState(null);
+  const [showBulk, setShowBulk]                       = useState(false);
 
   // ── Transfer OUT lookup/request state ──
   const [transferCode, setTransferCode]         = useState("");
@@ -123,10 +132,15 @@ export default function StudentManagement({ schoolCode, schoolName }) {
     const studentCode    = generateStudentCode();
     const fullName       = `${regForm.firstName.trim()} ${regForm.lastName.trim()}`;
     const cls            = classes.find(c => c.id === regForm.classId);
-    const parentPassword = generatePassword();
     const guardianPhone  = normalisePhone(regForm.guardianPhone);
 
     try {
+      // Does this guardian already exist on ACALink? If so the child joins the
+      // account they already have — same password, no second credential — but
+      // only once they have confirmed it. See services/guardianLink.js.
+      const link = await resolveGuardianLink({ phone: guardianPhone });
+      const parentPassword = link.password;
+
       const studentData = {
         studentCode,
         firstName: regForm.firstName.trim(), lastName: regForm.lastName.trim(),
@@ -140,10 +154,24 @@ export default function StudentManagement({ schoolCode, schoolName }) {
         classId: regForm.classId, className: cls?.name || "",
         schoolCode, schoolName, status: "active",
         parentPortalPassword: parentPassword,
+        guardianLinkStatus: link.isNewGuardian ? LINK_ACTIVE : LINK_PENDING,
+        guardianLinkRequestedAt: serverTimestamp(),
         transferHistory: [{ schoolCode, schoolName, joinedAt: new Date().toISOString(), action: "enrolled" }],
         createdAt: serverTimestamp(),
       };
-      await addDoc(collection(db, "students"), studentData);
+      const studentRef = await addDoc(collection(db, "students"), studentData);
+
+      // An existing guardian is told in-app as well as by SMS, because the
+      // notice has to reach the account the child was attached to — that is
+      // where the confirmation happens.
+      if (!link.isNewGuardian) {
+        await notifyGuardianOfPendingLink({
+          schoolCode, schoolName,
+          studentId: studentRef.id,
+          studentName: fullName,
+          phone: guardianPhone,
+        });
+      }
 
       // ── Email to guardian ──
       let emailSent = false;
@@ -157,9 +185,13 @@ export default function StudentManagement({ schoolCode, schoolName }) {
             student_code:   studentCode,
             school_name:    schoolName,
             class_name:     cls?.name || "",
-            parent_password: parentPassword,
-            portal_url:     `${APP_URL}/parent-portal`,
-            login_note:     `Use Student Code: ${studentCode} and the password above to log into the parent portal.`,
+            // An existing guardian already has a password; sending another
+            // would tell them to change something that has not changed.
+            parent_password: link.isNewGuardian ? parentPassword : "(your existing ACALink password)",
+            portal_url:     APP_URL,
+            login_note:     link.isNewGuardian
+              ? `Sign in to the ACALink app with your phone number ${guardianPhone} and the password above. One password covers all your children.`
+              : `${fullName} has been added to your existing ACALink account. Open the app and confirm with your current password to see their records.`,
           },
         });
       }
@@ -169,7 +201,13 @@ export default function StudentManagement({ schoolCode, schoolName }) {
       if (guardianPhone) {
         const smsResult = await sendSms(
           guardianPhone,
-          `${schoolName}: ${fullName} has been enrolled in ${cls?.name || "school"}.\nStudent Code: ${studentCode}\nParent Portal: ${APP_URL}/parent-portal\nPassword: ${parentPassword}\nKeep this code safe — it's used for transfers too.`
+          enrolmentSms({
+            link, schoolName,
+            studentName: fullName,
+            className: cls?.name || "",
+            studentCode,
+            appUrl: APP_URL,
+          })
         );
         smsSent = smsResult.success;
       }
@@ -180,6 +218,7 @@ export default function StudentManagement({ schoolCode, schoolName }) {
         guardianPhone,
         emailSent,
         smsSent,
+        link,
       });
       setRegForm(EMPTY_REG); setRegErrors({});
       fetchStudents();
@@ -351,6 +390,9 @@ export default function StudentManagement({ schoolCode, schoolName }) {
           <h2 className="module-title">Student Management</h2>
           <p className="module-sub">{students.length} students enrolled — {schoolName}</p>
         </div>
+        <Btn variant="primary" onClick={() => setShowBulk(true)}>
+          {IC.plus}<span style={{ marginLeft: 6 }}>Import from CSV</span>
+        </Btn>
       </div>
 
       <div className="sub-tabs" style={{ overflowX: "auto" }}>
@@ -419,7 +461,22 @@ export default function StudentManagement({ schoolCode, schoolName }) {
                           <div style={{ fontSize: 12, color: "var(--text2)" }}>{s.guardianName || "—"}</div>
                           <div style={{ fontSize: 11, color: "var(--text3)" }}>{s.guardianPhone || ""}</div>
                         </td>
-                        <td data-label="Status"><StatusPill active={s.status !== "suspended"} /></td>
+                        <td data-label="Status">
+                          <StatusPill active={s.status !== "suspended"} />
+                          {isLinkPending(s) && (
+                            <div
+                              title="The guardian has not yet confirmed this child in the app, so they cannot see the records."
+                              style={{
+                                marginTop: 4, fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
+                                textTransform: "uppercase", color: "#b45309",
+                                background: "rgba(232,168,0,0.14)", borderRadius: 6,
+                                padding: "2px 6px", display: "inline-block",
+                              }}
+                            >
+                              Awaiting guardian
+                            </div>
+                          )}
+                        </td>
                         <td data-label="Actions">
                           <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
                             <ActionBtn onClick={() => setShowDetail(s)} icon={IC.eye} title="View profile" />
@@ -451,6 +508,37 @@ export default function StudentManagement({ schoolCode, schoolName }) {
                 <StudentCodeBadge code={newStudentResult.code} />
                 <span style={{ fontSize: 11, color: "var(--text3)" }}>Used for transfers and parent portal login</span>
               </div>
+
+              {/* What happened to the guardian's account — the clerk needs to
+                  know whether credentials went out or a confirmation is owed,
+                  because the two produce very different phone calls later. */}
+              {newStudentResult.link && (
+                <div
+                  className={`alert alert--${newStudentResult.link.isNewGuardian ? "info" : "warning"}`}
+                  style={{ marginBottom: 16, textAlign: "left" }}
+                >
+                  {newStudentResult.link.isNewGuardian ? IC.info : IC.warning}
+                  <span>
+                    {newStudentResult.link.isNewGuardian ? (
+                      <>
+                        New guardian account created for {newStudentResult.guardianPhone}.
+                        Their password has been sent — it covers every child they enrol,
+                        at any school.
+                      </>
+                    ) : (
+                      <>
+                        This number already belongs to a guardian with{" "}
+                        {newStudentResult.link.siblingCount} child
+                        {newStudentResult.link.siblingCount === 1 ? "" : "ren"} on ACALink
+                        {newStudentResult.link.guardianName ? ` (${newStudentResult.link.guardianName})` : ""}.
+                        No new password was issued. The student stays hidden until the
+                        guardian confirms in the app. <strong>If that is not the right
+                        guardian, remove this student and check the number.</strong>
+                      </>
+                    )}
+                  </span>
+                </div>
+              )}
 
               {/* Notification delivery summary */}
               <div style={{ marginBottom: 16 }}>
@@ -805,6 +893,66 @@ export default function StudentManagement({ schoolCode, schoolName }) {
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* ── Bulk import ── */}
+      {showBulk && (
+        <BulkImportModal
+          title="Import students from a spreadsheet"
+          noun="student"
+          columns={STUDENT_COLUMNS}
+          sample={STUDENT_SAMPLE}
+          templateName="acalink-students-template.csv"
+          previewColumns={[
+            { label: "Name",     get: (r) => r.data.fullName },
+            { label: "Class",    get: (r) => r.data.className },
+            { label: "Guardian", get: (r) => r.data.guardianName },
+            { label: "Phone",    get: (r) => r.data.guardianPhone },
+          ]}
+          onValidate={(rows) =>
+            validateStudentRows({ rows, classes, existingStudents: students })
+          }
+          onImport={(validated, onProgress) =>
+            importStudents({
+              rows: validated,
+              schoolCode, schoolName,
+              sendSms, appUrl: APP_URL, onProgress,
+            })
+          }
+          renderResult={(res) => (
+            <div className="space-y-3">
+              <div className="alert alert--success">
+                {IC.check}
+                <span>
+                  {res.created} student{res.created === 1 ? "" : "s"} enrolled across{" "}
+                  {res.families} guardian account{res.families === 1 ? "" : "s"}.
+                </span>
+              </div>
+              {res.pending > 0 && (
+                <div className="alert alert--warning">
+                  {IC.warning}
+                  <span>
+                    {res.pending} of them joined a guardian who was already on ACALink.
+                    Those records stay hidden until the guardian confirms in the app —
+                    they show as <strong>Awaiting guardian</strong> in the list.
+                  </span>
+                </div>
+              )}
+              {res.failed.length > 0 && (
+                <div className="alert alert--error">
+                  {IC.warning}
+                  <span>
+                    {res.failed.length} row{res.failed.length === 1 ? "" : "s"} failed to
+                    save: lines {res.failed.map((f) => f.line).join(", ")}. Nothing else
+                    was affected — re-upload just those rows.
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+          onClose={() => setShowBulk(false)}
+          onDone={() => fetchStudents()}
+        />
       )}
     </div>
   );

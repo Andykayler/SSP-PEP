@@ -5,12 +5,14 @@ import 'package:shared_preferences/shared_preferences.dart' as shared_preference
 
 import '../models/student.dart';
 import '../services/auth_service.dart';
+import '../services/guardian_link_service.dart';
 import '../services/push_service.dart';
 
 enum SessionStatus { unknown, loggedOut, needsStudentPick, ready }
 
 class SessionProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
+  final GuardianLinkService _linkService = GuardianLinkService();
 
   static const _kPhoneKey = 'acalink_parent_phone';
   static const _kSelectedStudentKey = 'acalink_selected_student_id';
@@ -18,6 +20,12 @@ class SessionProvider extends ChangeNotifier {
   SessionStatus status = SessionStatus.unknown;
   String? parentPhone;
   List<Student> students = [];
+
+  /// Children a school has attached to this number that the guardian has not
+  /// confirmed yet. Shown in the picker, but never selectable — confirming is
+  /// the only way through, and that needs the password they already hold.
+  List<Student> pending = [];
+
   Student? selectedStudent;
   String? error;
   bool loading = false;
@@ -39,13 +47,14 @@ class SessionProvider extends ChangeNotifier {
 
     try {
       final fetched = await _authService.fetchStudentsForPhone(savedPhone);
-      if (fetched.isEmpty) {
+      if (fetched.students.isEmpty && fetched.pending.isEmpty) {
         // Family no longer has any linked students — fall back to login.
         await _clearStoredSession();
         status = SessionStatus.loggedOut;
       } else {
         parentPhone = savedPhone;
-        students = fetched;
+        students = fetched.students;
+        pending = fetched.pending;
         final savedStudentId = prefs.getString(_kSelectedStudentKey);
         _resolveSelection(savedStudentId);
         // Re-assert this device on every launch: tokens rotate, and the app
@@ -79,6 +88,7 @@ class SessionProvider extends ChangeNotifier {
 
     parentPhone = result.normalisedPhone;
     students = result.students;
+    pending = result.pending;
 
     final prefs = await shared_preferences.SharedPreferences.getInstance();
     await prefs.setString(_kPhoneKey, result.normalisedPhone);
@@ -91,7 +101,10 @@ class SessionProvider extends ChangeNotifier {
   }
 
   void _resolveSelection(String? savedStudentId) {
-    if (students.length == 1) {
+    // A lone child normally skips the picker. Not while something is waiting to
+    // be confirmed: that notice is only shown on the picker, and jumping past it
+    // is how a guardian never learns a school added a child to their account.
+    if (students.length == 1 && pending.isEmpty) {
       selectedStudent = students.first;
       status = SessionStatus.ready;
       _persistSelectedStudent(selectedStudent!.id);
@@ -117,6 +130,36 @@ class SessionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Confirms that a child a school attached to this number really is theirs.
+  ///
+  /// Returns null on success, or a message to show. The decision is made by the
+  /// Cloud Function, not here — see GuardianLinkService for why. On success the
+  /// whole roll is re-read rather than moving the child between the two lists
+  /// locally, because the server may have changed more than we asked about.
+  Future<String?> confirmPending(Student student, String password) async {
+    final phone = parentPhone;
+    if (phone == null) return 'You are signed out. Sign in again.';
+
+    loading = true;
+    notifyListeners();
+
+    final error = await _linkService.confirm(
+      studentId: student.id,
+      phone: phone,
+      password: password,
+    );
+
+    if (error == null) {
+      final refreshed = await _authService.fetchStudentsForPhone(phone);
+      students = refreshed.students;
+      pending = refreshed.pending;
+    }
+
+    loading = false;
+    notifyListeners();
+    return error;
+  }
+
   /// Lets a parent jump back to the switcher without logging out.
   void openStudentSwitcher() {
     status = SessionStatus.needsStudentPick;
@@ -135,6 +178,7 @@ class SessionProvider extends ChangeNotifier {
     await _clearStoredSession();
     parentPhone = null;
     students = [];
+    pending = [];
     selectedStudent = null;
     status = SessionStatus.loggedOut;
     notifyListeners();

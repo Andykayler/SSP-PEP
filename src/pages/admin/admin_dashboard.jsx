@@ -16,6 +16,9 @@ import SchoolSettings from "./modules/SchoolSettings";
 import Billing from "./modules/Billing";
 import Announcements from "./modules/Announcements";
 import AuditLog from "./modules/AuditLog";
+import SchoolSetupGate from "../../components/setup/SchoolSetupGate";
+import { subscribeSchoolSettings } from "../../services/academicTerm";
+import { isSetUp } from "../../services/schoolProfile";
 
 // ─── MAIN DASHBOARD ───────────────────────────────────────────────────────────
 export default function AdminDashboard() {
@@ -26,6 +29,9 @@ export default function AdminDashboard() {
   const [schoolData, setSchoolData]   = useState(null);
   const [loading,    setLoading]      = useState(true);
   const [authError,  setAuthError]    = useState("");
+  // null while unknown, so the gate is not flashed at a school that is
+  // already set up before its settings have arrived.
+  const [settings,   setSettings]     = useState(undefined);
 
   const [theme, setTheme] = useState(getInitialTheme);
   useEffect(() => { applyTheme(theme); }, [theme]);
@@ -63,6 +69,12 @@ export default function AdminDashboard() {
     window.addEventListener("pageshow", handlePageShow);
     return () => window.removeEventListener("pageshow", handlePageShow);
   }, []);
+
+  useEffect(() => {
+    const code = userData?.schoolCode;
+    if (!code) return;
+    return subscribeSchoolSettings(code, setSettings);
+  }, [userData?.schoolCode]);
 
   const handleSignOut = async () => { await signOut(auth); window.location.href = "/"; };
 
@@ -134,13 +146,27 @@ export default function AdminDashboard() {
         </header>
 
         <main className="page-content">
+          {/* Until the school has said whether it boards and which term is
+              running, the modules below would be configured against nothing —
+              so setup comes first rather than as a prompt to dismiss. */}
+          {schoolCode && settings !== undefined && !isSetUp(settings) ? (
+            <SchoolSetupGate
+              schoolCode={schoolCode}
+              schoolName={schoolName}
+              actorId={authUser?.uid || ""}
+              onDone={(next) => setSettings((prev) => ({ ...(prev || {}), ...next }))}
+            />
+          ) : (
+          <>
           {currentTab === "overview"      && <Overview userData={userData} schoolData={schoolData} schoolCode={schoolCode} setTab={setCurrentTab} />}
           {currentTab === "users"         && <UserManagement schoolCode={schoolCode} schoolName={schoolName} />}
           {currentTab === "students"      && <StudentManagement schoolCode={schoolCode} schoolName={schoolName} />}
           {currentTab === "settings"      && <SchoolSettings schoolCode={schoolCode} schoolData={schoolData} onUpdate={setSchoolData} />}
-          {currentTab === "billing"       && <Billing schoolData={schoolData} />}
+          {currentTab === "billing"       && <Billing schoolData={schoolData} schoolCode={schoolCode} />}
           {currentTab === "announcements" && <Announcements schoolCode={schoolCode} userName={displayName} />}
           {currentTab === "audit"         && <AuditLog schoolCode={schoolCode} />}
+          </>
+          )}
         </main>
 
         <footer className="dashboard-footer">

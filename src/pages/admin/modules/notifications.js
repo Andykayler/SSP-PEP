@@ -1,15 +1,27 @@
-// ─── EMAIL CONFIG (from .env.local) ──────────────────────────────────────────
-export const EMAILJS_SERVICE_ID           = import.meta.env.VITE_EMAILJS_SERVICE_ID           || "";
-export const EMAILJS_PUBLIC_KEY           = import.meta.env.VITE_EMAILJS_PUBLIC_KEY           || "";
-export const EMAILJS_STAFF_TEMPLATE_ID    = import.meta.env.VITE_EMAILJS_STAFF_TEMPLATE_ID    || "";
-export const EMAILJS_GUARDIAN_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_GUARDIAN_TEMPLATE_ID || "";
-export const APP_URL                      = import.meta.env.VITE_APP_URL || window.location.origin;
+// ─── EMAIL CONFIG ────────────────────────────────────────────────────────────
+// Names carry no VITE_ prefix because that is how they are set in the Vercel
+// project. They still reach the browser only because vite.config.js allowlists
+// the EMAILJS_ and APP_URL prefixes — drop that and every value here silently
+// becomes "", which EmailJS rejects without any error you would notice.
+//
+// These are inlined at BUILD time, not read at runtime: changing one in the
+// Vercel dashboard does nothing until the next deploy.
+export const EMAILJS_SERVICE_ID           = import.meta.env.EMAILJS_SERVICE_ID           || "";
+export const EMAILJS_PUBLIC_KEY           = import.meta.env.EMAILJS_PUBLIC_KEY           || "";
+export const EMAILJS_STAFF_TEMPLATE_ID    = import.meta.env.EMAILJS_STAFF_TEMPLATE_ID    || "";
+export const EMAILJS_GUARDIAN_TEMPLATE_ID = import.meta.env.EMAILJS_GUARDIAN_TEMPLATE_ID || "";
+export const APP_URL                      = import.meta.env.APP_URL || window.location.origin;
 
 // ─── SMS helper (calls our /api/send-sms route) ───────────────────────────────
+//
+// The path is relative, which is what lets the same code work in both places:
+// in production it hits the serverless function in api/send-sms.js, and in
+// `npm run dev` the Vite proxy forwards /api to server.js on port 3001.
+// Twilio credentials stay server-side either way — they are never bundled.
 export async function sendSms(to, message) {
   if (!to) return { success: false, reason: "no_number" };
   try {
-    const res = await fetch("http://localhost:3001/api/send-sms", {
+    const res = await fetch("/api/send-sms", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ to: to.trim(), message }),

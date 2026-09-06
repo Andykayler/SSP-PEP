@@ -5,6 +5,7 @@ import {
   collection, query, where, getDocs, addDoc,
   serverTimestamp, orderBy,
 } from "firebase/firestore";
+import { fetchSponsorships } from "../../../services/sponsorships";
 import { notifyPaymentRecorded } from "../../../services/notificationHooks";
 import {
   Search, X, Plus, Check, Receipt, User, RefreshCw,
@@ -55,7 +56,7 @@ function genReceiptNo() {
 const PAYMENT_METHODS = ["Cash", "Airtel Money", "TNM Mpamba", "National Bank Transfer", "Standard Bank Transfer", "NBS Transfer", "Cheque", "Other"];
 const ACADEMIC_YEARS = ["2024/2025", "2025/2026", "2026/2027"];
 const TERMS = ["Term 1", "Term 2", "Term 3", "Full Year"];
-const EMPTY_FORM = { amount: "", method: "Cash", referenceNo: "", term: "Term 1", notes: "", date: today() };
+const EMPTY_FORM = { amount: "", method: "Cash", referenceNo: "", term: "Term 1", notes: "", date: today(), sponsorId: "" };
 
 const METHOD_BADGE = {
   "Cash": "tag tag--green",
@@ -181,6 +182,9 @@ export default function Payments({ schoolCode, bursarName }) {
   const [formErrors, setFormErrors] = useState({});
   const [actionLoading, setActionLoading] = useState(false);
   const [modalError, setModalError] = useState("");
+  // Sponsorships for this school, so a payment can be attributed to the
+  // organisation that actually sent it rather than to the family.
+  const [sponsorships, setSponsorships] = useState([]);
 
   const [lastReceipt, setLastReceipt] = useState(null);
   const [toast, setToast] = useState(null);
@@ -206,6 +210,13 @@ export default function Payments({ schoolCode, bursarName }) {
   }, [schoolCode, academicYear]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  useEffect(() => {
+    if (!schoolCode) return;
+    let alive = true;
+    fetchSponsorships(schoolCode).then((rows) => { if (alive) setSponsorships(rows); });
+    return () => { alive = false; };
+  }, [schoolCode]);
 
   const studentFinancials = useCallback((studentId) => {
     const totalCharged = feeAssignments.filter((fa) => fa.studentId === studentId).reduce((s, fa) => s + (fa.amount || 0), 0);
@@ -273,6 +284,13 @@ export default function Payments({ schoolCode, bursarName }) {
         // are always distinguishable in the ledger.
         source: "bursar",
         status: "verified",
+        // Blank for a payment from the family. When set, the sponsorship
+        // module counts this against what that sponsor undertook to cover —
+        // without it a sponsor's money looks the same as a parent's and the
+        // "received" figure never moves.
+        sponsorId: form.sponsorId || "",
+        sponsorName: sponsorships.find((x) => x.sponsorId === form.sponsorId)?.sponsorName
+          || "",
         createdAt: serverTimestamp(),
       });
 
@@ -589,6 +607,24 @@ export default function Payments({ schoolCode, bursarName }) {
                       {TERMS.map((t) => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>
+
+                  {sponsorships.some((x) => x.studentId === selectedStudent?.id) && (
+                    <div className="field">
+                      <label className="field__label">Paid by</label>
+                      <select
+                        value={form.sponsorId}
+                        onChange={(e) => setForm((p) => ({ ...p, sponsorId: e.target.value }))}
+                        className="field__select"
+                      >
+                        <option value="">The family</option>
+                        {sponsorships
+                          .filter((x) => x.studentId === selectedStudent?.id)
+                          .map((x) => (
+                            <option key={x.id} value={x.sponsorId}>{x.sponsorName}</option>
+                          ))}
+                      </select>
+                    </div>
+                  )}
 
                   <div className="field">
                     <label className="field__label">Payment Date</label>

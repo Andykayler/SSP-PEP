@@ -23,6 +23,145 @@ class _StudentSelectScreenState extends State<StudentSelectScreen> {
     super.dispose();
   }
 
+  /// Asks for the guardian's existing password, then hands it to the server.
+  ///
+  /// Nothing about the child is shown beyond the name and school the enrolment
+  /// SMS already carried — if this landed on the wrong number, the holder
+  /// should learn nothing new from it.
+  Future<void> _confirm(BuildContext context, Student student) async {
+    final session = context.read<SessionProvider>();
+    final controller = TextEditingController();
+    String? error;
+
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          Future<void> submit() async {
+            final result =
+                await session.confirmPending(student, controller.text);
+            if (result == null) {
+              if (sheetContext.mounted) Navigator.of(sheetContext).pop(true);
+            } else {
+              setSheetState(() => error = result);
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: sheetContext.colors.modalBg,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(22)),
+              ),
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 38,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: sheetContext.colors.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Is ${student.fullName} your child?',
+                    style: TextStyle(
+                      fontFamily: sheetContext.colors.fontDisplay,
+                      fontSize: 21,
+                      fontWeight: FontWeight.w500,
+                      color: sheetContext.colors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${student.schoolName} added them to your account. Enter '
+                    'your ACALink password to confirm — the same one you '
+                    'already use. You will not be given a new password.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.45,
+                      color: sheetContext.colors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  TextField(
+                    controller: controller,
+                    obscureText: true,
+                    autofocus: true,
+                    onSubmitted: (_) => submit(),
+                    decoration: InputDecoration(
+                      hintText: 'Your password',
+                      filled: true,
+                      fillColor: sheetContext.colors.inputBg,
+                      errorText: error,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            BorderSide(color: sheetContext.colors.inputBorder),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'If you were not expecting this, do not confirm — contact '
+                    '${student.schoolName}.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: sheetContext.colors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.of(sheetContext).pop(false),
+                          child: const Text('Not mine'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: session.loading ? null : submit,
+                          child: session.loading
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Text('Confirm'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${student.fullName} added to your account.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = context.watch<SessionProvider>();
@@ -50,12 +189,34 @@ class _StudentSelectScreenState extends State<StudentSelectScreen> {
                 showSearch: all.length > 4,
               ),
             ),
-            if (all.isEmpty)
+            // Anything a school has attached but the guardian has not confirmed
+            // sits above the grid, not inside it. It is not a child they can
+            // open yet, and mixing the two would invite tapping one expecting
+            // records and getting a password prompt instead.
+            if (session.pending.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                  child: Column(
+                    children: [
+                      for (final p in session.pending)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _PendingCard(
+                            student: p,
+                            onConfirm: () => _confirm(context, p),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            if (all.isEmpty && session.pending.isEmpty)
               const SliverFillRemaining(
                 hasScrollBody: false,
                 child: _EmptyState(),
               )
-            else if (filtered.isEmpty)
+            else if (filtered.isEmpty && all.isNotEmpty)
               const SliverFillRemaining(
                 hasScrollBody: false,
                 child: _NoResultsState(),
@@ -368,6 +529,73 @@ class _StudentCard extends StatelessWidget {
 }
 
 /// ─── Empty / no-results states ───────────────────────────────────────────
+/// A child a school has attached to this number but which is not yet confirmed.
+///
+/// Deliberately shows the name and the school and nothing else. If a clerk
+/// mistyped a digit this card is sitting in a stranger's app, and the stranger
+/// should be able to learn no more from it than the enrolment SMS already told
+/// them.
+class _PendingCard extends StatelessWidget {
+  final Student student;
+  final VoidCallback onConfirm;
+
+  const _PendingCard({required this.student, required this.onConfirm});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        color: c.warningPale,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: c.warning.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.person_add_alt_1_outlined, size: 22, color: c.warningDark),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  student.fullName,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: c.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${student.schoolName} added this child. Confirm to see '
+                  'their records.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.35,
+                    color: c.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          FilledButton(
+            onPressed: onConfirm,
+            style: FilledButton.styleFrom(
+              backgroundColor: c.warningDark,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              visualDensity: VisualDensity.compact,
+            ),
+            child: const Text('Confirm', style: TextStyle(fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
 

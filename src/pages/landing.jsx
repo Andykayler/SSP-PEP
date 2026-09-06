@@ -5,6 +5,7 @@ import {
   Sun, Moon, X, Menu, Smartphone, Apple, Monitor, LogIn, School,
   BarChart3, MessageCircle, Star, Check, Minus, ArrowRight, ChevronUp, ChevronDown,
 } from "lucide-react";
+import { BANDS, MIN_PLATFORM_PER_TERM, CADENCES, TERMS_PER_YEAR } from "../services/pricing";
 import "./landing.css";
 
 /* ─── Minimal brand marks (lucide-react intentionally excludes trademarked
@@ -345,63 +346,71 @@ const SlideStats = ({ active }) => {
 };
 
 /* ─── SLIDE 4 — PRICING ─────────────────────────────── */
+/* Rates come from services/pricing.js so this page can never drift away from
+   what the billing screen actually invoices. Cards are grouped by school size
+   because that is how a head teacher identifies their own school — the bands
+   themselves are marginal, so a school spanning two of them pays each rate on
+   the learners that fall in it. */
+const rate = id => (BANDS.find(b => b.id === id) || {}).rate;
+const mk = n => `MK ${Number(n).toLocaleString("en-US")}`;
+
 const PLANS = [
   {
-    name: "Starter",
-    tag: "Free forever",
-    price: "MK 0",
-    period: "/ month",
-    desc: "Perfect for small schools just getting started.",
+    name: "Small school",
+    tag: "Up to 250 learners",
+    price: mk(rate("A")),
+    period: "/ learner / term",
+    desc: "Everything included from day one — no module is locked behind a tier.",
     accent: false,
     features: [
-      { label: "Up to 200 students",         yes: true  },
-      { label: "1 admin account",            yes: true  },
-      { label: "Grade & attendance tracking", yes: true  },
-      { label: "Parent notifications",       yes: true  },
-      { label: "PDF report export",          yes: false },
-      { label: "Parent–teacher chat",        yes: false },
-      { label: "Multi-campus support",       yes: false },
-      { label: "Priority support",           yes: false },
-    ],
-    cta: "Get Started Free",
-    ctaLink: "/register",
-  },
-  {
-    name: "Growth",
-    tag: "Most popular",
-    price: "MK 12,500",
-    period: "/ month",
-    desc: "For growing schools that need the full toolkit.",
-    accent: true,
-    features: [
-      { label: "Up to 1,500 students",       yes: true  },
-      { label: "5 staff accounts",           yes: true  },
-      { label: "Grade & attendance tracking", yes: true  },
-      { label: "Parent notifications",       yes: true  },
-      { label: "PDF report export",          yes: true  },
-      { label: "Parent–teacher chat",        yes: true  },
-      { label: "Multi-campus support",       yes: false },
-      { label: "Priority support",           yes: false },
+      { label: "Every module included",        yes: true  },
+      { label: "Guardian mobile app",          yes: true  },
+      { label: "Fees, receipts & arrears",     yes: true  },
+      { label: "Attendance, grades & reports", yes: true  },
+      { label: "SMS wallet, pay as you use",   yes: true  },
+      { label: `Minimum ${mk(MIN_PLATFORM_PER_TERM)} per term`, yes: true },
+      { label: "Priority support",             yes: false },
+      { label: "Dedicated account manager",    yes: false },
     ],
     cta: "Start 30-Day Trial",
     ctaLink: "/register",
   },
   {
-    name: "Enterprise",
-    tag: "Unlimited scale",
-    price: "Custom",
-    period: "",
-    desc: "For large districts and multi-school networks.",
+    name: "Growing school",
+    tag: "Most popular",
+    price: `from ${mk(rate("C"))}`,
+    period: "/ learner / term",
+    desc: "251–1,200 learners. Your rate drops as your roll grows, automatically.",
+    accent: true,
+    features: [
+      { label: "Everything in Small school",   yes: true  },
+      { label: `${mk(rate("B"))} per learner from 251`, yes: true },
+      { label: `${mk(rate("C"))} per learner from 601`, yes: true },
+      { label: "Boarding & inventory modules", yes: true  },
+      { label: "Bulk import & data migration", yes: true  },
+      { label: "Admissions & exam readiness",  yes: true  },
+      { label: "Priority support",             yes: true  },
+      { label: "Dedicated account manager",    yes: false },
+    ],
+    cta: "Start 30-Day Trial",
+    ctaLink: "/register",
+  },
+  {
+    name: "Large school",
+    tag: "1,201+ learners",
+    price: `from ${mk(rate("D"))}`,
+    period: "/ learner / term",
+    desc: "For the largest schools and multi-school groups. Volume terms by agreement.",
     accent: false,
     features: [
-      { label: "Unlimited students",         yes: true  },
-      { label: "Unlimited staff accounts",   yes: true  },
-      { label: "Grade & attendance tracking", yes: true  },
-      { label: "Parent notifications",       yes: true  },
-      { label: "PDF report export",          yes: true  },
-      { label: "Parent–teacher chat",        yes: true  },
-      { label: "Multi-campus support",       yes: true  },
-      { label: "Priority support",           yes: true  },
+      { label: "Everything in Growing school", yes: true  },
+      { label: `${mk(rate("D"))} per learner from 1,201`, yes: true },
+      { label: "Volume terms by agreement",    yes: true  },
+      { label: "Group billing arrangements",   yes: true  },
+      { label: "Custom reporting",             yes: true  },
+      { label: "Guided onboarding & training", yes: true  },
+      { label: "Priority support",             yes: true  },
+      { label: "Dedicated account manager",    yes: true  },
     ],
     cta: "Contact Sales",
     ctaLink: "/signin",
@@ -416,8 +425,10 @@ const SlidePricing = ({ active }) => (
         <h2 className="section-title" style={{ textAlign: "center" }}>
           Simple, <em>transparent pricing</em>
         </h2>
-        <p style={{ fontSize: 12, color: "var(--dark-soft)", opacity: 0.65, maxWidth: 380, margin: "0 auto" }}>
-          No hidden fees. Cancel anytime. All plans include a 30-day free trial.
+        <p style={{ fontSize: 12, color: "var(--dark-soft)", opacity: 0.65, maxWidth: 460, margin: "0 auto" }}>
+          You pay per learner, per term — {TERMS_PER_YEAR} terms a year, invoiced when schools
+          collect fees. Prepay the year and save {Math.round((1 - CADENCES.annual.multiplier) * 100)}%.
+          Every plan starts with a 30-day free trial.
         </p>
       </div>
 

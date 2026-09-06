@@ -7,13 +7,22 @@ import '../models/student.dart';
 class ParentLoginResult {
   final bool success;
   final String? error;
+
+  /// Children this guardian has confirmed. These are visible immediately.
   final List<Student> students;
+
+  /// Children a school has attached to this number but which the guardian has
+  /// not yet confirmed. Listed in the picker so they know something is waiting,
+  /// but none of their data is reachable until they confirm.
+  final List<Student> pending;
+
   final String normalisedPhone;
 
   ParentLoginResult({
     required this.success,
     this.error,
     this.students = const [],
+    this.pending = const [],
     this.normalisedPhone = '',
   });
 }
@@ -30,10 +39,18 @@ class AuthService {
     }
   }
 
-  /// Looks up every student linked to [rawPhone], then checks whether
-  /// [password] matches the parentPortalPassword on at least one of them.
-  /// On success, the parent gets access to ALL students under that phone —
-  /// not just the one whose password they typed.
+  /// Looks up every student linked to [rawPhone] and checks [password] against
+  /// the ones this guardian has already confirmed.
+  ///
+  /// On success the guardian gets all of their confirmed children, at every
+  /// school — the lookup is deliberately not scoped to one school, because a
+  /// guardian is one person across ACALink. Children a school has attached but
+  /// which are still awaiting confirmation come back separately in [pending].
+  ///
+  /// Pending records are excluded from the password check on purpose. Accepting
+  /// one would mean a school that attached a child to the wrong number could
+  /// hand the stranger a working login, which is the exact failure confirmation
+  /// exists to prevent.
   Future<ParentLoginResult> loginWithPhonePassword({
     required String rawPhone,
     required String password,
@@ -57,9 +74,21 @@ class AuthService {
       );
     }
 
-    final students = snap.docs.map(Student.fromDoc).toList();
+    final all = snap.docs.map(Student.fromDoc).toList();
+    final confirmed = all.where((s) => !s.isPendingConfirmation).toList();
+    final pending = all.where((s) => s.isPendingConfirmation).toList();
+
+    if (confirmed.isEmpty) {
+      // Every record on this number is awaiting confirmation, which means no
+      // password has ever been issued for it. Only a school can resolve this.
+      return ParentLoginResult(
+        success: false,
+        error: 'This number has no confirmed account yet. Contact the school.',
+      );
+    }
+
     final passwordMatches =
-        students.any((s) => s.parentPortalPassword == password.trim());
+        confirmed.any((s) => s.parentPortalPassword == password.trim());
 
     if (!passwordMatches) {
       return ParentLoginResult(success: false, error: 'Incorrect password.');
@@ -67,20 +96,32 @@ class AuthService {
 
     return ParentLoginResult(
       success: true,
-      students: students,
+      students: confirmed,
+      pending: pending,
       normalisedPhone: phone,
     );
   }
 
-  /// Re-fetches all students for a phone number without a password check —
+  /// Re-fetches the students for a phone number without a password check —
   /// used to refresh the session on app relaunch once we already trust it
   /// (phone is stored locally after a successful login).
-  Future<List<Student>> fetchStudentsForPhone(String phone) async {
+  ///
+  /// Split the same way as [loginWithPhonePassword], so a child attached since
+  /// the last launch shows up as awaiting confirmation rather than silently
+  /// appearing among the confirmed ones.
+  Future<ParentLoginResult> fetchStudentsForPhone(String phone) async {
     await ensureSignedIn();
     final snap = await _firestore
         .collection('students')
         .where('guardianPhone', isEqualTo: phone)
         .get();
-    return snap.docs.map(Student.fromDoc).toList();
+
+    final all = snap.docs.map(Student.fromDoc).toList();
+    return ParentLoginResult(
+      success: true,
+      students: all.where((s) => !s.isPendingConfirmation).toList(),
+      pending: all.where((s) => s.isPendingConfirmation).toList(),
+      normalisedPhone: phone,
+    );
   }
 }

@@ -747,11 +747,203 @@ service cloud.firestore {
       allow delete: if request.auth != null && isAdmin() && sameSchool(schoolCode);
     }
     // =============================================
+    // GUARDIAN LINK CONFIRMATION
+    //
+    // When a school enrols a student onto a guardian account that already
+    // exists, the record is attached as pending and stays hidden until the
+    // guardian confirms it with the password they already hold. The app writes
+    // one of these documents and watches it; the verifyGuardianLink Cloud
+    // Function stamps the verdict and deletes the attempted password.
+    //
+    // Create-only, and readable solely by the session that wrote it. Nobody
+    // may update or delete: the function runs on the Admin SDK, which bypasses
+    // rules entirely, so allowing writes here would only ever help an attacker
+    // mark their own request verified.
+    // =============================================
+    match /guardian_link_requests/{requestId} {
+      allow create: if isSignedIn() &&
+                    request.resource.data.status == 'pending' &&
+                    request.resource.data.requestedByUid == request.auth.uid &&
+                    request.resource.data.studentId is string &&
+                    request.resource.data.phone is string &&
+                    request.resource.data.password is string &&
+                    request.resource.data.password.size() <= 128;
+      allow read: if isSignedIn() &&
+                  resource.data.requestedByUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // =============================================
     // DEFAULT DENY — must be last
     // =============================================
     match /{document=**} {
       allow read, write: if false;
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ARREARS, CLEARANCE AND PAYMENT PLANS
+    //
+    // A clearance decides whether a child sits an examination and whether their
+    // report card is released, so only the head teacher may write one — the
+    // bursar supplies the balance, the head teacher makes the call. Guardians
+    // are told by notification rather than by reading this collection, so no
+    // parent branch is needed here.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /fee_clearance/{clearanceId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+      allow create, update: if isStaff() && isHeadTeacher() &&
+        sameSchool(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isHeadTeacher() &&
+        sameSchool(resource.data.schoolCode);
+    }
+
+    // The log of what has been sent, so the office is not guessing whether a
+    // family has already been chased this term.
+    match /fee_reminders/{reminderId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+      allow create, update: if isStaff() && isFinance() &&
+        sameSchool(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isAdmin() && sameSchool(resource.data.schoolCode);
+    }
+
+    match /payment_plans/{planId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+      allow create, update: if isStaff() && isFinance() &&
+        sameSchool(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SPONSORS AND BURSARIES
+    //
+    // Finance owns both. A sponsor's contact details are not a parent's
+    // business, so there is deliberately no anonymous branch.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /sponsors/{sponsorId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+      allow create, update: if isStaff() && isFinance() &&
+        sameSchool(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isFinance() && sameSchool(resource.data.schoolCode);
+    }
+
+    match /sponsorships/{sponsorshipId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+      allow create, update: if isStaff() && isFinance() &&
+        sameSchool(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isFinance() && sameSchool(resource.data.schoolCode);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SCHOOL CALENDAR
+    //
+    // The one collection here parents read directly. The anonymous branch comes
+    // FIRST in the chain because an anonymous session has no users/{uid}
+    // document, and any helper reaching for myData() errors instead of
+    // returning false.
+    //
+    // The parent app queries on schoolCode alone, which is what this allows;
+    // staff-only events are filtered client-side rather than in the rule,
+    // because a rule that also tested `audience` would force every query to
+    // constrain it. Nothing on a school calendar is sensitive — the cost of
+    // getting that wrong is a parent seeing a staff meeting, and the cost of a
+    // second required filter is the whole screen failing to load.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /school_events/{eventId} {
+      allow read: if isAnonParent() || (isStaff() && sameSchool(resource.data.schoolCode));
+      allow create, update: if isStaff() && isAdminOrHead() &&
+        sameSchool(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // EXPENSES
+    //
+    // Read is restricted to finance and leadership rather than all staff: a
+    // teacher has no reason to see what the school paid for anything, and
+    // salary lines live in here.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /expenses/{expenseId} {
+      allow read: if isStaff() && (isFinance() || isHeadTeacher()) &&
+        sameSchool(resource.data.schoolCode);
+      allow create, update: if isStaff() && isFinance() &&
+        sameSchool(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isFinance() && sameSchool(resource.data.schoolCode);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ADMISSIONS
+    //
+    // Applicants are not yet students, and their guardians have no account, so
+    // this is staff-only throughout. Enrolment writes into /students, which has
+    // its own rules.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /admissions/{applicationId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+      allow create, update: if isStaff() && isAdminOrHead() &&
+        sameSchool(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // BOARDING
+    //
+    // Any member of staff may read the sign-out register — a duty teacher at
+    // lights out is not necessarily a head teacher — but only leadership may
+    // write to it, since a sign-out notifies the family.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /dormitories/{dormId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+      allow create, update: if isStaff() && isAdminOrHead() &&
+        sameSchool(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+    }
+
+    match /boarding_allocations/{allocationId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+      allow create, update: if isStaff() && isAdminOrHead() &&
+        sameSchool(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+    }
+
+    match /boarding_signouts/{signoutId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+      allow create: if isStaff() && sameSchool(request.resource.data.schoolCode);
+      allow update: if isStaff() && sameSchool(resource.data.schoolCode) &&
+        sameSchool(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+    }
+
+    // A child's medical record. Leadership only, and never a parent branch —
+    // guardians are told by notification, not given the log to browse.
+    match /sickbay_visits/{visitId} {
+      allow read: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+      allow create: if isStaff() && isAdminOrHead() &&
+        sameSchool(request.resource.data.schoolCode);
+      allow update: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+      allow delete: if isStaff() && isAdmin() && sameSchool(resource.data.schoolCode);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // INVENTORY
+    //
+    // Readable by all staff, because a subject teacher handing out textbooks
+    // needs to see what is left; writable by leadership.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /inventory_items/{itemId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+      allow create, update: if isStaff() && isAdminOrHead() &&
+        sameSchool(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+    }
+
+    match /inventory_issues/{issueId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+      allow create: if isStaff() && sameSchool(request.resource.data.schoolCode);
+      allow update: if isStaff() && sameSchool(resource.data.schoolCode) &&
+        sameSchool(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+    }
+
   }
 }
 

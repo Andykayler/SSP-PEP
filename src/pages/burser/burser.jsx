@@ -8,6 +8,9 @@ import StudentFees from "./modules/StudentFees";
 import Payments from "./modules/Payments";
 import Reports from "./modules/Reports";
 import Receipts from "./modules/Receipts";
+import Sponsors from "./modules/Sponsors";
+import Expenses from "./modules/Expenses";
+import ArrearsModule from "../../components/fees/ArrearsModule";
 import "../admin/admin_dashboard.css";
 
 const IC = {
@@ -39,6 +42,9 @@ function BursarOverview({ userData, schoolData, schoolCode, setTab }) {
     { tab: "student-fees", icon: IC.students, title: "Student Fees", desc: "View balances and assign fees" },
     { tab: "payments", icon: IC.billing, title: "Payments", desc: "Record and track all payments" },
     { tab: "receipts", icon: IC.billing, title: "Receipts", desc: "Generate printable official receipts" },
+    { tab: "arrears", icon: IC.students, title: "Arrears & Clearance", desc: "Who owes, for how long, and what was decided" },
+    { tab: "sponsors", icon: IC.students, title: "Sponsors & Bursaries", desc: "Who pays for which student" },
+    { tab: "expenses", icon: IC.billing, title: "Expenses & Petty Cash", desc: "Money out, beside money in" },
     { tab: "reports", icon: IC.audit, title: "Financial Reports", desc: "Summaries, exports & analytics" },
   ];
 
@@ -128,6 +134,9 @@ export default function BursarDashboard() {
     { id: "student-fees", label: "Student Fees", icon: IC.students },
     { id: "payments", label: "Payments", icon: IC.billing },
     { id: "receipts", label: "Receipts", icon: IC.billing },
+    { id: "arrears", label: "Arrears & Clearance", icon: IC.students },
+    { id: "sponsors", label: "Sponsors & Bursaries", icon: IC.students },
+    { id: "expenses", label: "Expenses", icon: IC.billing },
     { id: "reports", label: "Reports", icon: IC.audit },
   ];
 
@@ -174,6 +183,19 @@ export default function BursarDashboard() {
       {currentTab === "student-fees" && <StudentFees schoolCode={schoolCode} schoolName={schoolName} />}
       {currentTab === "payments" && <Payments schoolCode={schoolCode} schoolName={schoolName} bursarName={displayName} />}
       {currentTab === "receipts" && <Receipts schoolCode={schoolCode} schoolName={schoolName} />}
+      {currentTab === "arrears" && (
+        <ArrearsModule
+          schoolCode={schoolCode}
+          currentUser={{ id: uid, name: displayName, role: "bursar" }}
+          canDecide={false}
+        />
+      )}
+      {currentTab === "sponsors" && (
+        <Sponsors schoolCode={schoolCode} currentUser={{ id: uid, name: displayName, role: "bursar" }} />
+      )}
+      {currentTab === "expenses" && (
+        <Expenses schoolCode={schoolCode} currentUser={{ id: uid, name: displayName, role: "bursar" }} />
+      )}
       {currentTab === "reports" && <Reports schoolCode={schoolCode} schoolName={schoolName} />}
     </DashboardShell>
   );

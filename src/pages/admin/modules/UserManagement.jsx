@@ -15,6 +15,11 @@ import { sendSms, sendEmail, EMAILJS_STAFF_TEMPLATE_ID, APP_URL } from "./notifi
 import {
   RoleBadge, StatusPill, Modal, Input, Select, Btn, Spinner, EmptyState, ActionBtn,
 } from "./ui";
+import BulkImportModal from "../../../components/import/BulkImportModal";
+import {
+  STAFF_COLUMNS, STAFF_SAMPLE, validateStaffRows, importStaff,
+} from "../../../services/bulkImport";
+import { downloadCsv } from "../../../services/csv";
 
 // ─── Create a user WITHOUT hijacking the admin's current session ─────────────
 // createUserWithEmailAndPassword on the primary `auth` instance signs the app
@@ -47,6 +52,7 @@ export default function UserManagement({ schoolCode, schoolName }) {
   // form includes phone for SMS
   const [form, setForm]       = useState({ name: "", email: "", role: "", phone: "" });
   const [formErrors, setFormErrors] = useState({});
+  const [showBulk, setShowBulk]     = useState(false);
 
   useEffect(() => { fetchUsers(); }, []);
 
@@ -224,7 +230,12 @@ export default function UserManagement({ schoolCode, schoolName }) {
           <h2 className="module-title">User Management</h2>
           <p className="module-sub">{users.length} staff accounts — {schoolName}</p>
         </div>
-        <Btn onClick={openAdd} variant="gold" size="sm">{IC.plus} Add User</Btn>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Btn onClick={() => setShowBulk(true)} variant="primary" size="sm">
+            {IC.plus} Import from CSV
+          </Btn>
+          <Btn onClick={openAdd} variant="gold" size="sm">{IC.plus} Add User</Btn>
+        </div>
       </div>
 
       {successMsg && (
@@ -373,6 +384,85 @@ export default function UserManagement({ schoolCode, schoolName }) {
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* ── Bulk import ── */}
+      {showBulk && (
+        <BulkImportModal
+          title="Import staff from a spreadsheet"
+          noun="staff member"
+          columns={STAFF_COLUMNS}
+          sample={STAFF_SAMPLE}
+          templateName="acalink-staff-template.csv"
+          previewColumns={[
+            { label: "Name",  get: (r) => r.data.name },
+            { label: "Email", get: (r) => r.data.email },
+            { label: "Role",  get: (r) => roleMap[r.data.role]?.label || r.data.role },
+            { label: "Phone", get: (r) => r.data.phone },
+          ]}
+          onValidate={(rows) => validateStaffRows({ rows, existingUsers: users })}
+          onImport={(validated, onProgress) =>
+            importStaff({
+              rows: validated,
+              schoolCode, schoolName,
+              sendSms, sendEmail,
+              emailTemplateId: EMAILJS_STAFF_TEMPLATE_ID,
+              appUrl: APP_URL,
+              onProgress,
+            })
+          }
+          renderResult={(res) => (
+            <div className="space-y-3">
+              <div className="alert alert--success">
+                {IC.check}
+                <span>
+                  {res.created} account{res.created === 1 ? "" : "s"} created. Each person
+                  must change their password on first sign-in.
+                </span>
+              </div>
+              {res.failed.length > 0 && (
+                <div className="alert alert--error">
+                  {IC.warning}
+                  <div>
+                    <p style={{ fontWeight: 600, fontSize: 13, marginBottom: 3 }}>
+                      {res.failed.length} account{res.failed.length === 1 ? "" : "s"} could not be created
+                    </p>
+                    {res.failed.map((f) => (
+                      <p key={f.line} style={{ fontSize: 12 }}>
+                        Line {f.line} ({f.email}): {f.error}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {res.credentials.length > 0 && (
+                <>
+                  <div className="alert alert--warning">
+                    {IC.warning}
+                    <span>
+                      Passwords are shown once and cannot be retrieved afterwards. Download
+                      the list if anyone's email or SMS does not arrive.
+                    </span>
+                  </div>
+                  <Btn
+                    variant="ghost"
+                    onClick={() =>
+                      downloadCsv(
+                        "acalink-staff-credentials.csv",
+                        ["Name", "Email", "Role", "Phone", "Password"],
+                        res.credentials.map((c) => [c.name, c.email, c.role, c.phone, c.password])
+                      )
+                    }
+                  >
+                    Download credentials
+                  </Btn>
+                </>
+              )}
+            </div>
+          )}
+          onClose={() => setShowBulk(false)}
+          onDone={() => fetchUsers()}
+        />
       )}
     </div>
   );

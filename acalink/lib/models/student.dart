@@ -21,6 +21,14 @@ class Student {
   final String guardianRelation;
   final String parentPortalPassword; // plaintext today — see security note
 
+  /// 'active' once the guardian has confirmed this child is theirs, 'pending'
+  /// while a school has attached it to an account that already existed.
+  ///
+  /// Missing on every record enrolled before confirmation was introduced, and
+  /// read as active for exactly that reason — those families already use the
+  /// app, and asking all of them to re-confirm at once would lock them out.
+  final String guardianLinkStatus;
+
   Student({
     required this.id,
     required this.studentCode,
@@ -39,7 +47,10 @@ class Student {
     required this.guardianEmail,
     required this.guardianRelation,
     required this.parentPortalPassword,
+    required this.guardianLinkStatus,
   });
+
+  bool get isPendingConfirmation => guardianLinkStatus == 'pending';
 
   factory Student.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data() ?? {};
@@ -61,6 +72,7 @@ class Student {
       guardianEmail: d['guardianEmail'] ?? '',
       guardianRelation: d['guardianRelation'] ?? '',
       parentPortalPassword: d['parentPortalPassword'] ?? '',
+      guardianLinkStatus: d['guardianLinkStatus'] ?? 'active',
     );
   }
 }

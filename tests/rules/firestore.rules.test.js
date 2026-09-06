@@ -34,6 +34,7 @@ const OTHER_SCHOOL = "TEST-SCHOOL-2";
 const TEACHER = "teacher_uid_1";
 const HEAD = "head_uid_1";
 const OUTSIDER = "teacher_uid_other_school";
+const BURSAR = "bursar_uid_1";
 const PHONE = "+265991234567";
 const PARENT = `parent:${PHONE}`;
 const STUDENT = "student_1";
@@ -46,6 +47,7 @@ let testEnv;
 const asTeacher = () => testEnv.authenticatedContext(TEACHER).firestore();
 const asHead = () => testEnv.authenticatedContext(HEAD).firestore();
 const asOutsider = () => testEnv.authenticatedContext(OUTSIDER).firestore();
+const asBursar = () => testEnv.authenticatedContext(BURSAR).firestore();
 
 /** The parent app signs in anonymously — no users/{uid} document exists. */
 const asParent = () =>
@@ -67,6 +69,9 @@ before(async () => {
     const db = ctx.firestore();
     await setDoc(doc(db, "users", TEACHER), {
       name: "Test Teacher", role: "class_teacher", schoolCode: SCHOOL, assignedClasses: ["Form 1A"],
+    });
+    await setDoc(doc(db, "users", BURSAR), {
+      name: "Test Bursar", role: "bursar", schoolCode: SCHOOL,
     });
     await setDoc(doc(db, "users", HEAD), {
       name: "Test Head", role: "head_teacher", schoolCode: SCHOOL, assignedClasses: [],
@@ -400,5 +405,253 @@ describe("staff writes", () => {
     await assertFails(updateDoc(doc(asOutsider(), "activity_threads", THREAD), {
       reactions: { "👍": [OUTSIDER] },
     }));
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The modules added alongside arrears, sponsors, the calendar and boarding.
+//
+// These cover the cases where getting the rule wrong has a consequence beyond
+// a broken screen: who may withhold a child's report card, what a parent can
+// read, and which staff can see a colleague's salary line or a child's medical
+// record.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("fee clearance — who may withhold a report card", () => {
+  it("a head teacher can record a clearance decision", async () => {
+    await assertSucceeds(setDoc(doc(asHead(), "fee_clearance", `${SCHOOL}__${STUDENT}__Term_1`), {
+      schoolCode: SCHOOL, studentId: STUDENT, term: "Term 1 2026",
+      status: "blocked", reason: "Fees unpaid since Term 3.",
+    }));
+  });
+
+  it("a bursar cannot — they supply the balance, the head teacher decides", async () => {
+    await assertFails(setDoc(doc(asBursar(), "fee_clearance", `${SCHOOL}__${STUDENT}__Term_2`), {
+      schoolCode: SCHOOL, studentId: STUDENT, term: "Term 2 2026",
+      status: "blocked", reason: "Fees unpaid.",
+    }));
+  });
+
+  it("a bursar can still read the decisions", async () => {
+    await assertSucceeds(getDocs(query(
+      collection(asBursar(), "fee_clearance"),
+      where("schoolCode", "==", SCHOOL),
+      where("term", "==", "Term 1 2026"),
+    )));
+  });
+
+  it("a head teacher at another school cannot decide here", async () => {
+    await assertFails(setDoc(doc(asOutsider(), "fee_clearance", `${SCHOOL}__${STUDENT}__Term_3`), {
+      schoolCode: SCHOOL, studentId: STUDENT, term: "Term 3 2026", status: "cleared", reason: "",
+    }));
+  });
+});
+
+describe("payment plans and reminders", () => {
+  it("a bursar can record a payment plan", async () => {
+    await assertSucceeds(setDoc(doc(asBursar(), "payment_plans", `${SCHOOL}__${STUDENT}__T1`), {
+      schoolCode: SCHOOL, studentId: STUDENT, term: "Term 1 2026",
+      instalments: [{ dueDate: "2026-10-01", amount: 50000, paid: false }],
+    }));
+  });
+
+  it("a class teacher cannot", async () => {
+    await assertFails(setDoc(doc(asTeacher(), "payment_plans", `${SCHOOL}__${STUDENT}__T2`), {
+      schoolCode: SCHOOL, studentId: STUDENT, term: "Term 2 2026", instalments: [],
+    }));
+  });
+});
+
+describe("sponsorships", () => {
+  it("a bursar can add a sponsor", async () => {
+    await assertSucceeds(addDoc(collection(asBursar(), "sponsors"), {
+      schoolCode: SCHOOL, name: "Blantyre Synod Education Fund", type: "church",
+    }));
+  });
+
+  it("a class teacher cannot", async () => {
+    await assertFails(addDoc(collection(asTeacher(), "sponsors"), {
+      schoolCode: SCHOOL, name: "Not allowed", type: "individual",
+    }));
+  });
+
+  it("a parent cannot read the sponsor list", async () => {
+    await assertFails(getDocs(query(
+      collection(asParent(), "sponsors"),
+      where("schoolCode", "==", SCHOOL),
+    )));
+  });
+});
+
+describe("school calendar — the one collection parents read directly", () => {
+  it("a head teacher can add an event", async () => {
+    await assertSucceeds(addDoc(collection(asHead(), "school_events"), {
+      schoolCode: SCHOOL, title: "Term 1 opens", category: "term",
+      startDate: "2026-09-07", audience: "everyone",
+    }));
+  });
+
+  it("a parent can list the calendar filtered on schoolCode", async () => {
+    await assertSucceeds(getDocs(query(
+      collection(asParent(), "school_events"),
+      where("schoolCode", "==", SCHOOL),
+    )));
+  });
+
+  it("a parent cannot write to it", async () => {
+    await assertFails(addDoc(collection(asParent(), "school_events"), {
+      schoolCode: SCHOOL, title: "Fake holiday", category: "holiday", startDate: "2026-10-01",
+    }));
+  });
+
+  it("a class teacher cannot add one either — the calendar is the office's", async () => {
+    await assertFails(addDoc(collection(asTeacher(), "school_events"), {
+      schoolCode: SCHOOL, title: "Unauthorised", category: "other", startDate: "2026-10-01",
+    }));
+  });
+});
+
+describe("expenses — salary lines are not staffroom reading", () => {
+  it("a bursar can record an expense", async () => {
+    await assertSucceeds(addDoc(collection(asBursar(), "expenses"), {
+      schoolCode: SCHOOL, date: "2026-09-02", category: "salaries",
+      description: "September salaries", amount: 4200000,
+    }));
+  });
+
+  it("a class teacher cannot read the ledger", async () => {
+    await assertFails(getDocs(query(
+      collection(asTeacher(), "expenses"),
+      where("schoolCode", "==", SCHOOL),
+    )));
+  });
+
+  it("a head teacher can", async () => {
+    await assertSucceeds(getDocs(query(
+      collection(asHead(), "expenses"),
+      where("schoolCode", "==", SCHOOL),
+    )));
+  });
+});
+
+describe("boarding and the sick bay", () => {
+  it("a head teacher can sign a boarder out", async () => {
+    await assertSucceeds(addDoc(collection(asHead(), "boarding_signouts"), {
+      schoolCode: SCHOOL, studentId: STUDENT, studentName: "Test Student",
+      reason: "Medical appointment",
+    }));
+  });
+
+  it("any staff member can read the register — a duty teacher checks it at night", async () => {
+    await assertSucceeds(getDocs(query(
+      collection(asTeacher(), "boarding_signouts"),
+      where("schoolCode", "==", SCHOOL),
+    )));
+  });
+
+  it("a class teacher cannot read the sick bay log — it is a medical record", async () => {
+    await assertFails(getDocs(query(
+      collection(asTeacher(), "sickbay_visits"),
+      where("schoolCode", "==", SCHOOL),
+    )));
+  });
+
+  it("a parent cannot read the sick bay log either", async () => {
+    await assertFails(getDocs(query(
+      collection(asParent(), "sickbay_visits"),
+      where("schoolCode", "==", SCHOOL),
+    )));
+  });
+});
+
+describe("admissions and inventory", () => {
+  it("a head teacher can record an application", async () => {
+    await assertSucceeds(addDoc(collection(asHead(), "admissions"), {
+      schoolCode: SCHOOL, applicantName: "New Applicant", guardianPhone: PHONE, status: "applied",
+    }));
+  });
+
+  it("a parent cannot list applications", async () => {
+    await assertFails(getDocs(query(
+      collection(asParent(), "admissions"),
+      where("schoolCode", "==", SCHOOL),
+    )));
+  });
+
+  it("a class teacher can see what stock is left", async () => {
+    await assertSucceeds(getDocs(query(
+      collection(asTeacher(), "inventory_items"),
+      where("schoolCode", "==", SCHOOL),
+    )));
+  });
+
+  it("a class teacher can issue a textbook", async () => {
+    await assertSucceeds(addDoc(collection(asTeacher(), "inventory_issues"), {
+      schoolCode: SCHOOL, itemId: "item_1", studentId: STUDENT, quantity: 1,
+    }));
+  });
+});
+
+describe("guardian link confirmation", () => {
+  // The parent app writes one of these to prove a child a school attached to
+  // its number really is theirs; verifyGuardianLink stamps the verdict. The
+  // rules have one job: let a guardian ask, and let nobody answer.
+  const request = (uid) => ({
+    studentId: STUDENT,
+    phone: PHONE,
+    password: "Blue#1234",
+    requestedByUid: uid,
+    status: "pending",
+  });
+
+  it("a guardian can ask to confirm a child", async () => {
+    await assertSucceeds(addDoc(
+      collection(asParent(), "guardian_link_requests"),
+      request("anon_uid_1"),
+    ));
+  });
+
+  it("a request cannot be filed under somebody else's session", async () => {
+    // Otherwise a request could be planted for a uid that is about to read it.
+    await assertFails(addDoc(
+      collection(asParent(), "guardian_link_requests"),
+      request("some_other_uid"),
+    ));
+  });
+
+  it("a request cannot be created already verified", async () => {
+    await assertFails(addDoc(
+      collection(asParent(), "guardian_link_requests"),
+      { ...request("anon_uid_1"), status: "verified" },
+    ));
+  });
+
+  it("nobody can mark their own request verified", async () => {
+    // The Cloud Function runs on the Admin SDK and bypasses rules, so there is
+    // no legitimate client write here at all — only an attacker would want one.
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "guardian_link_requests", "req_1"),
+        request("anon_uid_1"));
+    });
+    await assertFails(updateDoc(
+      doc(asParent(), "guardian_link_requests", "req_1"),
+      { status: "verified" },
+    ));
+  });
+
+  it("a guardian can read the verdict on their own request", async () => {
+    await assertSucceeds(getDoc(
+      doc(asParent(), "guardian_link_requests", "req_1"),
+    ));
+  });
+
+  it("but not on somebody else's", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "guardian_link_requests", "req_2"),
+        request("a_different_anon_uid"));
+    });
+    await assertFails(getDoc(
+      doc(asParent(), "guardian_link_requests", "req_2"),
+    ));
   });
 });
