@@ -33,6 +33,25 @@ const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 /** Overridable, because hosted model names are retired on someone else's schedule. */
 const MODEL = process.env.ACALINK_AI_MODEL || "llama-3.3-70b-versatile";
 
+/**
+ * Reasoning-model controls, all optional and all off unless set.
+ *
+ * A reasoning model such as qwen3 thinks before it answers, and for a task
+ * this small the thinking is pure cost — it can consume the whole token
+ * budget and leave nothing for the two sentences actually wanted. Groq exposes
+ * switches for this, but they are not accepted by every model, so nothing is
+ * sent unless the deployment asks for it:
+ *
+ *   ACALINK_AI_REASONING_EFFORT=none     stop the model thinking at all
+ *   ACALINK_AI_REASONING_FORMAT=hidden   keep thinking out of `content`
+ *   ACALINK_AI_MAX_TOKENS=2048           room for thinking AND an answer
+ *
+ * The simpler fix is a non-reasoning model, which needs none of these.
+ */
+const REASONING_EFFORT = process.env.ACALINK_AI_REASONING_EFFORT || "";
+const REASONING_FORMAT = process.env.ACALINK_AI_REASONING_FORMAT || "";
+const MAX_TOKENS = Number(process.env.ACALINK_AI_MAX_TOKENS) || 2048;
+
 /** Pupils per request. Kept low so the whole batch clears the function timeout. */
 const MAX_BATCH = 8;
 
@@ -125,11 +144,14 @@ async function insightFor(student, apiKey) {
       // class reads like a form letter and parents compare notes.
       temperature: 0.4,
       // Generous for two sentences, because a reasoning model spends most of
-      // this budget thinking before it writes anything. Cut it to ~120 and a
-      // model like qwen3 exhausts the allowance mid-thought and never reaches
-      // the answer. The 200-character ceiling on the output is enforced after
-      // the reasoning is stripped, so a large budget costs tokens, not length.
-      max_tokens: 1024,
+      // this budget thinking before it writes anything. The 200-character
+      // ceiling is enforced after the reasoning is stripped, so a large budget
+      // costs tokens, not message length.
+      max_tokens: MAX_TOKENS,
+      // Only sent when configured — an unrecognised parameter is a 400 from
+      // models that do not reason, and most of them do not.
+      ...(REASONING_EFFORT ? { reasoning_effort: REASONING_EFFORT } : {}),
+      ...(REASONING_FORMAT ? { reasoning_format: REASONING_FORMAT } : {}),
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: describe(student) },
@@ -156,8 +178,23 @@ async function insightFor(student, apiKey) {
   }
 
   const data = await res.json();
-  const raw = data?.choices?.[0]?.message?.content;
-  if (!raw) throw new Error("empty completion");
+  const message = data?.choices?.[0]?.message;
+  const raw = message?.content;
+
+  // With reasoning_format set, Groq moves the thinking into its own field and
+  // leaves `content` clean — but an empty `content` alongside a populated
+  // `reasoning` means the model thought and never concluded, which is the same
+  // failure as an unclosed <think> and is reported the same way below.
+  if (!raw) {
+    if (message?.reasoning) {
+      const err = new Error("model produced reasoning but no answer");
+      err.configError =
+        `The model "${MODEL}" reasoned without answering. Set ACALINK_AI_REASONING_EFFORT=none, ` +
+        "raise ACALINK_AI_MAX_TOKENS, or use a non-reasoning model.";
+      throw err;
+    }
+    throw new Error("empty completion");
+  }
 
   // Reasoning first, then whitespace — an SMS is one run of text.
   const flat = stripReasoning(raw);
@@ -168,8 +205,9 @@ async function insightFor(student, apiKey) {
     // with the fix in it rather than as one pupil's bad luck.
     const err = new Error("model returned only reasoning, no answer");
     err.configError =
-      `The model "${MODEL}" used its whole token budget on reasoning without answering. ` +
-      "Use a non-reasoning model for insights, or raise max_tokens.";
+      `The model "${MODEL}" used its whole ${MAX_TOKENS}-token budget on reasoning without ` +
+      "answering. Set ACALINK_AI_REASONING_EFFORT=none, raise ACALINK_AI_MAX_TOKENS, " +
+      "or use a non-reasoning model such as llama-3.3-70b-versatile.";
     throw err;
   }
 
