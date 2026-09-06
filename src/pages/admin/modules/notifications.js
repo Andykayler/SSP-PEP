@@ -12,31 +12,12 @@ export const EMAILJS_STAFF_TEMPLATE_ID    = import.meta.env.EMAILJS_STAFF_TEMPLA
 export const EMAILJS_GUARDIAN_TEMPLATE_ID = import.meta.env.EMAILJS_GUARDIAN_TEMPLATE_ID || "";
 export const APP_URL                      = import.meta.env.APP_URL || window.location.origin;
 
-// ─── SMS helper (calls our /api/send-sms route) ───────────────────────────────
-//
-// The path is relative, which is what lets the same code work in both places:
-// in production it hits the serverless function in api/send-sms.js, and in
-// `npm run dev` the Vite proxy forwards /api to server.js on port 3001.
-// Twilio credentials stay server-side either way — they are never bundled.
-export async function sendSms(to, message) {
-  if (!to) return { success: false, reason: "no_number" };
-  try {
-    const res = await fetch("/api/send-sms", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ to: to.trim(), message }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      console.error("SMS failed:", data);
-      return { success: false, reason: data.error || "api_error" };
-    }
-    return { success: true };
-  } catch (err) {
-    console.error("SMS error:", err);
-    return { success: false, reason: "network_error" };
-  }
-}
+// ─── SMS helper ───────────────────────────────────────────────────────────────
+// Moved to services/sms.js so the head teacher's reports module can send SMS
+// without importing from the admin portal. Re-exported here so the enrolment
+// and staff screens keep working off their existing import — the same
+// arrangement helpers.js uses for normalisePhone.
+export { sendSms, sendSmsToMany } from "../../../services/sms";
 
 // ─── EMAIL helper ─────────────────────────────────────────────────────────────
 export async function sendEmail({ templateId, toEmail, toName, params }) {

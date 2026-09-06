@@ -46,6 +46,14 @@ export const SMS_FALLBACK_FIELD = "smsFallbackCategories";
  * Note this is emphatically NOT `performance`, which fires every time any
  * teacher publishes any subject's marks. Routing that to SMS would be roughly
  * a dozen messages per guardian per term to say the same thing repeatedly.
+ *
+ * ── Who sends these ─────────────────────────────────────────────────────────
+ * The portal, directly, in headteacher/modules/reports.jsx — not the Cloud
+ * Function. Because the message goes out irrespective of app installation,
+ * deciding to send it needs nothing the browser cannot see, so this works with
+ * no Firebase Functions deployment at all. The categories below are the ones
+ * that DO need the function, since only the Admin SDK can read
+ * `parent_devices` to find out who lacks the app.
  */
 export const SMS_ALWAYS_CATEGORIES = [
   {

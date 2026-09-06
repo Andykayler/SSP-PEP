@@ -4,6 +4,8 @@ import { auth, db } from "../../../firebase";
 import { subscribeSchoolSettings, termOptions, academicYearFor } from "../../../services/academicTerm";
 import { notifyGuardians } from "../../../services/notifications";
 import { fetchClearances, reportCardAllowed } from "../../../services/feeClearance";
+import { sendSmsToMany } from "../../../services/sms";
+import { smsFallbackCategories } from "../../../services/smsFallback";
 import "./staff-management.css";
 import {
   collection, query, where, getDocs, doc, getDoc, setDoc, writeBatch, serverTimestamp,
@@ -598,9 +600,52 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
         entityType: "report_card",
       });
 
+      // ── SMS to every guardian ──
+      //
+      // Sent from here rather than from a Cloud Function because this message
+      // goes out regardless of whether the guardian uses the app, so nothing
+      // needs to check `parent_devices` — the one fact a browser cannot see.
+      // The in-app notification above already covers app users; this reaches
+      // the families on feature phones, who are otherwise told nothing.
+      //
+      // The mark itself is in the message on purpose. A guardian without the
+      // app cannot act on "open ACALink to see the result", and telling a
+      // parent a report exists without saying what is in it just sends them to
+      // the school to ask — the trip this is supposed to save.
+      let smsNote = "";
+      if (smsFallbackCategories(schoolSettings).includes("report")) {
+        const recipients = targets
+          .filter((s) => s.guardianPhone)
+          .map((s) => {
+            const cls = s.className || classes.find((c) => c.id === s.classId)?.name || "";
+            const size = enrichedStudents.filter((x) => x.classId === s.classId).length;
+            const avg = s.average !== null && s.average !== undefined
+              ? `${Number(s.average).toFixed(1)}%` : "n/a";
+            const pos = s.rank ? ` Position ${s.rank} of ${size}.` : "";
+            return {
+              to: s.guardianPhone,
+              ref: s.id,
+              message: `${selectedTerm} report: ${fullName(s)}${cls ? `, ${cls}` : ""}. `
+                     + `Average ${avg}.${pos} Full report available from the school.`,
+            };
+          });
+
+        if (recipients.length > 0) {
+          setReleaseNote({ type: "ok", text: `Sending SMS 0/${recipients.length}…` });
+          const res = await sendSmsToMany(recipients, {
+            onProgress: (done, total) =>
+              setReleaseNote({ type: "ok", text: `Sending SMS ${done}/${total}…` }),
+          });
+          smsNote = res.failed === 0
+            ? ` ${res.sent} SMS sent.`
+            : ` ${res.sent} SMS sent, ${res.failed} failed`
+              + `${res.failures[0]?.reason ? ` (${res.failures[0].reason})` : ""}.`;
+        }
+      }
+
       setReleaseNote({
         type: "ok",
-        text: `Issued ${targets.length} report card(s). Guardians notified.`,
+        text: `Issued ${targets.length} report card(s). Guardians notified.${smsNote}`,
       });
     } catch (err) {
       console.error("Report card release failed:", err);

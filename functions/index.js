@@ -140,10 +140,18 @@ const SMS_FALLBACK_FIELD = "smsFallbackCategories";
 
 /**
  * Categories sent to every guardian rather than only those without the app.
- * Mirrors SMS_ALWAYS_CATEGORIES in src/services/smsFallback.js — keep the two
- * in step, since nothing at build time links them.
+ *
+ * Empty, and deliberately so. The one such category — `report` — is sent by
+ * the portal itself in headteacher/modules/reports.jsx, because a message that
+ * goes out regardless of app installation needs nothing this function uniquely
+ * knows. Adding "report" back here would double-send: every guardian would get
+ * the portal's SMS and this one.
+ *
+ * What is left for this function is the genuinely app-dependent case, which a
+ * browser cannot decide: `parent_devices` is unreadable by every client, so
+ * only the Admin SDK can tell whether a guardian has the app at all.
  */
-const ALWAYS_CATEGORIES = new Set(["report"]);
+const ALWAYS_CATEGORIES = new Set();
 
 /**
  * Settings are read once per notification, and a class fan-out is hundreds of
