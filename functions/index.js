@@ -21,10 +21,25 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { setGlobalOptions } from "firebase-functions/v2";
+import { defineSecret } from "firebase-functions/params";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import { logger } from "firebase-functions";
+
+// Twilio credentials for the SMS fallback (see sendSmsFallback below). Held as
+// deployed secrets rather than plain config so they are not readable from the
+// function's environment listing:
+//
+//     firebase functions:secrets:set TWILIO_ACC_SID
+//     firebase functions:secrets:set TWILIO_AUTH_TOKEN
+//     firebase functions:secrets:set TWILIO_PHONE_NUMBER
+//
+// Absent secrets are not an error — the fallback simply stays off, which is
+// the same outcome as a school that has not opted in.
+const TWILIO_ACC_SID = defineSecret("TWILIO_ACC_SID");
+const TWILIO_AUTH_TOKEN = defineSecret("TWILIO_AUTH_TOKEN");
+const TWILIO_PHONE_NUMBER = defineSecret("TWILIO_PHONE_NUMBER");
 
 initializeApp();
 const db = getFirestore();
@@ -109,7 +124,134 @@ async function pruneDeadTokens(tokens, responses) {
   logger.info(`pruned ${dead.length} dead token(s)`);
 }
 
-export const pushNotification = onDocumentCreated("notifications/{id}", async (event) => {
+// ─── SMS fallback ────────────────────────────────────────────────────────────
+// A guardian with no registered device never sees an in-app notification,
+// because there is no app to see it in. For the categories a school has opted
+// into, the message is sent as an SMS instead — see src/services/smsFallback.js
+// for why this is a per-school choice rather than always on.
+//
+// This lives in the function rather than the portal because the deciding fact
+// is whether `parent_devices` holds a token for the guardian, and that
+// collection is `allow read: if false` for every client. The Admin SDK is the
+// only thing that can see it, and the push path already looks it up.
+
+/** Field on `school_settings/{schoolCode}`. Mirrors SMS_FALLBACK_FIELD. */
+const SMS_FALLBACK_FIELD = "smsFallbackCategories";
+
+/**
+ * Settings are read once per notification, and a class fan-out is hundreds of
+ * notifications for one school — so without a cache, publishing marks to 600
+ * pupils is 600 identical reads. Instances are reused between invocations, so
+ * a short TTL cache collapses a burst into one read while still picking up a
+ * change from the settings screen within the minute.
+ */
+const settingsCache = new Map();
+const SETTINGS_TTL_MS = 60_000;
+
+async function smsCategoriesFor(schoolCode) {
+  if (!schoolCode) return [];
+
+  const hit = settingsCache.get(schoolCode);
+  if (hit && Date.now() - hit.at < SETTINGS_TTL_MS) return hit.categories;
+
+  let categories = [];
+  try {
+    const snap = await db.collection("school_settings").doc(schoolCode).get();
+    const raw = snap.exists ? snap.get(SMS_FALLBACK_FIELD) : null;
+    categories = Array.isArray(raw) ? raw : [];
+  } catch (err) {
+    // A settings read failure must not stop the notification being stamped.
+    logger.error(`settings read failed for ${schoolCode}: ${err.message}`);
+  }
+
+  settingsCache.set(schoolCode, { categories, at: Date.now() });
+  return categories;
+}
+
+/**
+ * One GSM-7 segment is 160 characters and each segment bills separately, so a
+ * message that runs to 161 costs double for the sake of a word. Titles and
+ * bodies from notificationHooks.js sit well inside that; anything longer is
+ * cut rather than allowed to silently double the school's bill.
+ */
+const SMS_MAX = 160;
+
+function composeSms(n) {
+  const parts = [n.title, n.body].map((s) => String(s || "").trim()).filter(Boolean);
+  const text = parts.join(". ").replace(/\s+/g, " ");
+  return text.length <= SMS_MAX ? text : text.slice(0, SMS_MAX - 1).trimEnd() + "…";
+}
+
+/**
+ * The guardian's number is already the second half of the recipient id
+ * (`parent:+265991234567`), written by parentRecipientId() through
+ * normalisePhone(), so it is E.164 by construction. Validated anyway — a
+ * malformed number is a 400 from Twilio and a wasted call.
+ */
+function phoneFromRecipient(recipientId) {
+  const phone = String(recipientId || "").slice(PARENT_PREFIX.length);
+  return /^\+\d{7,15}$/.test(phone) ? phone : "";
+}
+
+/**
+ * Sends one SMS. Returns a short status string that is stamped onto the
+ * notification so the reason a guardian did or did not get a message is
+ * visible on the document itself rather than only in the logs.
+ */
+async function sendSmsFallback(n) {
+  const categories = await smsCategoriesFor(n.schoolCode);
+  if (!categories.includes(n.category)) return "not_enabled";
+
+  const accountSid = TWILIO_ACC_SID.value();
+  const authToken = TWILIO_AUTH_TOKEN.value();
+  const fromNumber = TWILIO_PHONE_NUMBER.value();
+  if (!accountSid || !authToken || !fromNumber) {
+    logger.warn("SMS fallback enabled but Twilio secrets are not set");
+    return "not_configured";
+  }
+
+  const to = phoneFromRecipient(n.recipientId);
+  if (!to) return "bad_number";
+
+  try {
+    const res = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization:
+            "Basic " + Buffer.from(`${accountSid}:${authToken}`).toString("base64"),
+        },
+        body: new URLSearchParams({
+          To: to,
+          From: fromNumber,
+          Body: composeSms(n),
+        }).toString(),
+      },
+    );
+
+    const data = await res.json();
+    if (!res.ok) {
+      // 21408 is an unenabled destination country and 21608 an unverified
+      // number on a trial account — both are Twilio console settings, not
+      // faults here, and both are worth naming in the log.
+      logger.error(`SMS fallback rejected for ${n.recipientId}: ${data?.code} ${data?.message}`);
+      return `failed_${data?.code || res.status}`;
+    }
+
+    logger.info(`SMS fallback sent to ${n.recipientId} (${n.category})`);
+    return "sent";
+  } catch (err) {
+    logger.error(`SMS fallback error for ${n.recipientId}: ${err.message}`);
+    return "error";
+  }
+}
+
+export const pushNotification = onDocumentCreated({
+  document: "notifications/{id}",
+  secrets: [TWILIO_ACC_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER],
+}, async (event) => {
   const snap = event.data;
   if (!snap) return;
 
@@ -124,7 +266,14 @@ export const pushNotification = onDocumentCreated("notifications/{id}", async (e
 
   const tokens = await tokensFor(n.recipientId);
   if (tokens.length === 0) {
-    await snap.ref.update({ pushedAt: FieldValue.serverTimestamp(), pushSkipped: "no_devices" });
+    // No app on any device — the only remaining way to reach this guardian is
+    // SMS, and only for the categories the school has paid to route that way.
+    const smsFallback = await sendSmsFallback(n);
+    await snap.ref.update({
+      pushedAt: FieldValue.serverTimestamp(),
+      pushSkipped: "no_devices",
+      smsFallback,
+    });
     return;
   }
 

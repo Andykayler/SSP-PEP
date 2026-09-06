@@ -10,6 +10,9 @@ import { normalisePhone } from "./helpers";
 import { Modal, Input, Select, Textarea, Btn, EmptyState, ActionBtn } from "./ui";
 import { SCHOOL_TYPES, setSchoolType, schoolTypeLabel } from "../../../services/schoolProfile";
 import { subscribeSchoolSettings } from "../../../services/academicTerm";
+import {
+  SMS_FALLBACK_CATEGORIES, smsFallbackCategories, setSmsFallbackCategories,
+} from "../../../services/smsFallback";
 
 // ─── MODULE 3: School Settings ────────────────────────────────────────────────
 export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
@@ -37,6 +40,25 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
     if (!schoolCode) return;
     return subscribeSchoolSettings(schoolCode, setSettings);
   }, [schoolCode]);
+
+  const [savingSms, setSavingSms] = useState(false);
+
+  /**
+   * Toggling one category writes the whole list, because the setting is stored
+   * as an array rather than a field per category — a school adding a category
+   * next term should not leave a document littered with dead booleans.
+   */
+  async function toggleSmsCategory(id) {
+    const current = smsFallbackCategories(settings);
+    const next = current.includes(id)
+      ? current.filter((c) => c !== id)
+      : [...current, id];
+
+    setSavingSms(true);
+    const res = await setSmsFallbackCategories({ schoolCode, categories: next, actorId: "" });
+    setSavingSms(false);
+    if (!res.ok) setError(res.error);
+  }
 
   async function changeSchoolType(next) {
     if (next === settings?.schoolType) return;
@@ -212,6 +234,53 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* ── SMS fallback ──
+          Guardians who never install ACALink otherwise hear nothing after the
+          enrolment message. Each category ticked here is sent as an SMS when,
+          and only when, the guardian has no device registered. */}
+      <div className="card" style={{ padding: 28 }}>
+        <p style={{ fontFamily: "var(--font-display)", fontSize: 16, color: "var(--text)", letterSpacing: 0.5 }}>
+          SMS Fallback
+        </p>
+        <p style={{ fontSize: 12, color: "var(--text3)", marginTop: 2, marginBottom: 16 }}>
+          Guardians using the ACALink app are notified in the app, free. Tick a category
+          below and guardians <strong>without</strong> the app get that notification as an
+          SMS instead, so families on feature phones are not left out. Each message is
+          charged against your SMS balance — a guardian who installs the app stops costing
+          anything.
+        </p>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
+          {SMS_FALLBACK_CATEGORIES.map((c) => {
+            const on = smsFallbackCategories(settings).includes(c.id);
+            return (
+              <button
+                key={c.id}
+                type="button"
+                disabled={savingSms}
+                onClick={() => toggleSmsCategory(c.id)}
+                className={`choice-btn ${on ? "choice-btn--active" : ""}`}
+                style={{ textAlign: "left" }}
+                aria-pressed={on}
+              >
+                <strong>{c.label}</strong>
+                <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 2 }}>{c.blurb}</div>
+                <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 6, letterSpacing: 0.4 }}>
+                  {on ? "SMS ON" : "APP ONLY"} · ~{c.perTerm}/guardian/term
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {smsFallbackCategories(settings).length === 0 && (
+          <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 14 }}>
+            Nothing selected. Guardians without the app currently receive no notifications
+            after their enrolment message.
+          </p>
+        )}
       </div>
 
       {/* Class stats */}
