@@ -104,6 +104,70 @@ export function termOptions(currentTerm) {
   return out;
 }
 
+// ─── Term access ─────────────────────────────────────────────────────────────
+// Who may look at which term, and who may write to it.
+//
+// The school records against exactly one term at a time — the one the head
+// teacher set — and that is the whole point of setting it. Offering a free
+// choice of term wherever marks are entered undoes it: marks get filed under a
+// term nobody is reading, and the mistake is invisible until a report card
+// comes out empty. The head teacher's Performance module defaulted to a
+// hardcoded "Term 1 2026" for exactly this reason.
+//
+// So: recording is always the current term, never a choice. Looking back is a
+// separate, read-only act, and one the two roles are trusted with differently.
+
+/**
+ * Terms that already happened, newest first, excluding the current one.
+ * Never includes a future term — there is nothing recorded in one, and
+ * offering it is how marks end up somewhere nobody looks.
+ */
+export function pastTermOptions(currentTerm, count = 5) {
+  const parsed = parseTerm(currentTerm);
+  if (!parsed) return [];
+
+  const out = [];
+  let cursor = { number: parsed.number, year: parsed.year };
+  for (let i = 0; i < count; i += 1) {
+    cursor = cursor.number <= 1
+      ? { number: TERMS_PER_YEAR, year: cursor.year - 1 }
+      : { number: cursor.number - 1, year: cursor.year };
+    out.push(formatTerm(cursor.number, cursor.year));
+  }
+  return out;
+}
+
+/** True when `term` is neither the current one nor in the future. */
+export function isPastTerm(term, currentTerm) {
+  const a = parseTerm(term);
+  const b = parseTerm(currentTerm);
+  if (!a || !b) return false;
+  return a.year < b.year || (a.year === b.year && a.number < b.number);
+}
+
+/**
+ * Whether marks may be entered against `term`.
+ *
+ * A head teacher may correct a past term — someone has to be able to fix a
+ * transcription error found after the fact, and they are the one accountable
+ * for the result. A class teacher may not: their job is the term in progress,
+ * and a quietly edited past mark is exactly the change a school cannot audit.
+ *
+ * Enforced in firestore.rules as well. This copy is what stops the UI offering
+ * an action that would be rejected; the rules are what make it true.
+ */
+export function canEditTerm({ term, currentTerm, role }) {
+  if (!term || !currentTerm) return false;
+  if (term === currentTerm) return true;
+  return role === "admin" || role === "head_teacher" || role === "headteacher";
+}
+
+/** Whether this role may look at terms other than the current one at all. */
+export function canViewPastTerms(role) {
+  return role === "admin" || role === "head_teacher" || role === "headteacher"
+      || role === "teacher" || role === "class_teacher";
+}
+
 // ─── Reading ─────────────────────────────────────────────────────────────────
 
 export async function fetchSchoolSettings(schoolCode) {

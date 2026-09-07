@@ -8,6 +8,9 @@ import {
   Award, AlertTriangle, RefreshCw, Loader2, AlertCircle,
   Search, ChevronDown, Users, BarChart2, Eye, X, PieChart, Info,
 } from "lucide-react";
+import {
+  subscribeSchoolSettings, pastTermOptions, isPastTerm,
+} from "../../../services/academicTerm";
 
 // ─── Assessment components & their weight toward the overall term grade ──────
 // Mirrors the teacher-side Performance module exactly — same ids are used as
@@ -178,17 +181,34 @@ function StudentModal({ student, subjectRows, assessmentLabel, isOverall, onClos
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-const TERMS = ["Term 1 2026", "Term 2 2026", "Term 3 2025", "Term 1 2025", "Term 2 2025"];
 
 export default function PerformanceModule({ schoolCode }) {
   const [classes,        setClasses]        = useState([]);
   const [selectedClassId,setSelectedClassId]= useState("all");
-  const [selectedTerm,   setSelectedTerm]   = useState("Term 1 2026");
+  // Empty until the school's own term arrives. This used to default to the
+  // literal "Term 1 2026" and choose from a hardcoded list, so the head
+  // teacher was shown a term the school might not be in and marks recorded
+  // against the real one looked missing.
+  const [selectedTerm,   setSelectedTerm]   = useState("");
+  const [schoolTerm,     setSchoolTerm]     = useState("");
+  const [viewingPast,    setViewingPast]    = useState(false);
   const [selectedAssessment, setSelectedAssessment] = useState(ASSESSMENT_TYPES[0].id);
   const [viewMode,       setViewMode]       = useState("ranking"); // ranking | analytics | overall
   const [search,         setSearch]         = useState("");
   const [viewingStudent, setViewingStudent] = useState(null);
   const [error,          setError]          = useState("");
+
+  // The school's current term is the default and the only one shown until the
+  // head teacher deliberately looks back.
+  useEffect(() => {
+    if (!schoolCode) return undefined;
+    const unsub = subscribeSchoolSettings(schoolCode, (settings) => {
+      const term = settings?.currentTerm || "";
+      setSchoolTerm(term);
+      setSelectedTerm((chosen) => chosen || term);
+    });
+    return () => unsub();
+  }, [schoolCode]);
 
   const [allStudents,    setAllStudents]    = useState([]);
   // classId -> assessmentType -> { subjects: [], marks: { studentId: { subject: score } }, teacherIds: [] }
@@ -417,6 +437,21 @@ export default function PerformanceModule({ schoolCode }) {
             Continuous Assessment · MANEB grade scale (1–9) · {selectedTerm} ·{" "}
             {isOverall ? "Overall (weighted)" : selectedAssessmentLabel}
           </p>
+          {/* Named explicitly, because a past term looks identical to the
+              current one once the page has loaded — and a head teacher reading
+              last term's ranking as this term's is the whole failure. */}
+          {isPastTerm(selectedTerm, schoolTerm) && (
+            <p style={{ fontSize: 11, color: "var(--warning, #f0b90b)", marginTop: 4 }}>
+              Viewing a past term. The school is recording against {schoolTerm}.{" "}
+              <button
+                type="button"
+                onClick={() => { setSelectedTerm(schoolTerm); setViewingPast(false); }}
+                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit", textDecoration: "underline", fontSize: 11 }}
+              >
+                Back to current
+              </button>
+            </p>
+          )}
         </div>
         <button onClick={fetchData} disabled={isLoading} className="icon-btn" title="Refresh">
           <RefreshCw size={16} className={isLoading ? "spin" : ""} />
@@ -466,14 +501,37 @@ export default function PerformanceModule({ schoolCode }) {
             <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
           </div>
         </div>
+        {/* The current term is shown, not chosen — the school records against
+            one term and picking another here only ever hid live marks. Looking
+            back is a separate, deliberate act, and read-only either way since
+            nothing on this screen writes marks. */}
         <div>
           <label className="field__label">TERM</label>
-          <div className="relative">
-            <select value={selectedTerm} onChange={e => setSelectedTerm(e.target.value)} className="field__select">
-              {TERMS.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
-          </div>
+          {viewingPast ? (
+            <div className="relative">
+              <select
+                value={selectedTerm}
+                onChange={e => setSelectedTerm(e.target.value)}
+                className="field__select"
+              >
+                {[schoolTerm, ...pastTermOptions(schoolTerm)].filter(Boolean).map(t => (
+                  <option key={t} value={t}>{t}{t === schoolTerm ? " (current)" : ""}</option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text/40 pointer-events-none" />
+            </div>
+          ) : (
+            <div className="field__select" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <span>{schoolTerm || "Not set"}</span>
+              <button
+                type="button"
+                onClick={() => setViewingPast(true)}
+                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 11, color: "var(--primary, #4f6ef7)" }}
+              >
+                View past
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Assessment component — irrelevant on the combined Overall tab */}

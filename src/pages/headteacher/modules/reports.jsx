@@ -1,7 +1,9 @@
 // modules/ReportsModule.jsx
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { auth, db } from "../../../firebase";
-import { subscribeSchoolSettings, termOptions, academicYearFor } from "../../../services/academicTerm";
+import {
+  subscribeSchoolSettings, pastTermOptions, isPastTerm, academicYearFor,
+} from "../../../services/academicTerm";
 import { notifyGuardians } from "../../../services/notifications";
 import { fetchClearances, reportCardAllowed } from "../../../services/feeClearance";
 import { sendSmsToMany } from "../../../services/sms";
@@ -248,7 +250,10 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
   const [schoolTerm, setSchoolTerm] = useState("");
   const [releasing, setReleasing] = useState(false);
   const [releaseNote, setReleaseNote] = useState(null);
-  const [compareTerm, setCompareTerm] = useState("Term 3 2025");
+  // Empty until the school's term is known, then defaults to the term before
+  // it. This was the literal "Term 3 2025", so every school compared against
+  // one particular term in one particular year whatever term they were in.
+  const [compareTerm, setCompareTerm] = useState("");
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("rank"); // rank | name | average
   const [sortDir, setSortDir] = useState("asc");
@@ -275,11 +280,15 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
       const term = settings?.currentTerm || "";
       setSchoolTerm(term);
       setSelectedTerm((chosen) => chosen || term);
+      setCompareTerm((chosen) => chosen || pastTermOptions(term, 1)[0] || "");
     });
     return () => unsub();
   }, [schoolCode]);
 
-  const TERMS = termOptions(schoolTerm || selectedTerm);
+  // Current term first, then terms that have actually happened. Never a future
+  // one: nothing is recorded in it, so a report for it is a blank page that
+  // reads as a school with no marks.
+  const TERMS = [schoolTerm, ...pastTermOptions(schoolTerm)].filter(Boolean);
 
   // Print style injection
   useEffect(() => {
@@ -974,6 +983,22 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
         <div>
           <h2 style={{ fontFamily: "'Playfair Display', serif" }}>Reports &amp; Analytics</h2>
           <p className="text-muted">{selectedTerm} · MANEB grade scale (1–9) · Continuous Assessment</p>
+          {/* A past term's report looks exactly like the current one once
+              rendered. Issuing last term's cards by mistake is not a recoverable
+              error — guardians have already been told — so the state is named. */}
+          {isPastTerm(selectedTerm, schoolTerm) && (
+            <p style={{ fontSize: 11, color: "var(--warning, #f0b90b)", marginTop: 4 }}>
+              Viewing {selectedTerm}, which has ended. The school is recording against{" "}
+              {schoolTerm}.{" "}
+              <button
+                type="button"
+                onClick={() => setSelectedTerm(schoolTerm)}
+                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit", textDecoration: "underline", fontSize: 11 }}
+              >
+                Back to current
+              </button>
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
           <button onClick={fetchData} disabled={isLoading} className="icon-btn" title="Refresh">

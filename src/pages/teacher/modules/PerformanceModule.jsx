@@ -5,7 +5,9 @@ import {
   setDoc, serverTimestamp,
 } from "firebase/firestore";
 import { notifyMarksPublished } from "../../../services/notificationHooks";
-import { subscribeSchoolSettings, termOptions } from "../../../services/academicTerm";
+import {
+  subscribeSchoolSettings, pastTermOptions, isPastTerm, canEditTerm,
+} from "../../../services/academicTerm";
 import {
   Award, AlertTriangle, RefreshCw, Loader2, CheckCircle,
   AlertCircle, Search, ChevronDown, Users,
@@ -226,8 +228,12 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
   const [overallData,  setOverallData]  = useState({});
   const [overallReady, setOverallReady] = useState(false);
 
-  // The school's term is the default for new entry, but a teacher can still
-  // look back at an earlier one from the dropdown.
+  // Whether the teacher has deliberately opened a past term. Entry always
+  // targets the school's current term; looking back is a separate act.
+  const [viewingPast, setViewingPast] = useState(false);
+
+  // The school's term is what marks are entered against. A teacher may look
+  // back at an earlier one, but only to read it — see `readOnly` below.
   useEffect(() => {
     if (!schoolCode) return undefined;
     const unsub = subscribeSchoolSettings(schoolCode, (settings) => {
@@ -526,7 +532,11 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
   );
 
   const noStudents = classesReady && studentsReady && students.length === 0 && selectedClassId;
-  const TERMS = termOptions(schoolTerm || selectedTerm);
+  // Marks belong to the term the school set. A teacher editing a past term is
+  // a change nobody can audit, so the UI refuses it and firestore.rules
+  // enforces it — this constant only keeps the screen honest about which.
+  const readOnly = !canEditTerm({ term: selectedTerm, currentTerm: schoolTerm, role: "teacher" });
+  const TERMS = [schoolTerm, ...pastTermOptions(schoolTerm)].filter(Boolean);
 
   const VIEW_TABS = [
     { id: "marks",     icon: Edit3,     label: "Marks" },
@@ -550,6 +560,21 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
               ? `${selectedClass?.name || ""} · Overall (weighted) · ${selectedTerm} · MANEB grade scale (1–9)`
               : `${selectedClass?.name || ""} · ${selectedAssessmentLabel} · MANEB grade scale (1–9)`}
           </p>
+          {/* Says why the marks will not take, rather than leaving a teacher
+              typing into a table that silently discards what they enter. */}
+          {isPastTerm(selectedTerm, schoolTerm) && (
+            <p style={{ fontSize: 11, color: "var(--warning, #f0b90b)", marginTop: 4 }}>
+              {selectedTerm} has ended — these marks are read-only. The school is recording
+              against {schoolTerm}.{" "}
+              <button
+                type="button"
+                onClick={() => { setSelectedTerm(schoolTerm); setViewingPast(false); setDirty(false); }}
+                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit", textDecoration: "underline", fontSize: 11 }}
+              >
+                Back to {schoolTerm}
+              </button>
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -560,13 +585,13 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
           >
             <RefreshCw size={16} />
           </button>
-          {dirty && viewMode !== "overall" && (
+          {dirty && viewMode !== "overall" && !readOnly && (
             <button onClick={saveAllMarks} disabled={saving} style={saveBtnStyle(saving)}>
               {saving ? <Spinner size={15} /> : <Save size={15} />}
               Save {selectedAssessmentLabel} marks
             </button>
           )}
-          {viewMode !== "overall" && scoredStudentIds.length > 0 && (
+          {viewMode !== "overall" && scoredStudentIds.length > 0 && !readOnly && (
             <button
               onClick={publishResults}
               disabled={publishing}
@@ -614,18 +639,35 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
           </div>
         </div>
 
+        {/* Not a dropdown while recording. The school records against one term
+            and offering a choice here is how marks end up filed under a term
+            the parent app never queries. Past terms are reachable, but only
+            through a deliberate switch that turns the screen read-only. */}
         <div>
           <label style={labelStyle}>Term</label>
-          <div style={{ position: "relative" }}>
-            <select
-              value={selectedTerm}
-              onChange={e => { setSelectedTerm(e.target.value); setDirty(false); }}
-              style={{ ...inputStyle, appearance: "none", paddingRight: 32, minWidth: 140 }}
-            >
-              {TERMS.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
-          </div>
+          {viewingPast ? (
+            <div style={{ position: "relative" }}>
+              <select
+                value={selectedTerm}
+                onChange={e => { setSelectedTerm(e.target.value); setDirty(false); }}
+                style={{ ...inputStyle, appearance: "none", paddingRight: 32, minWidth: 140 }}
+              >
+                {TERMS.map(t => <option key={t} value={t}>{t}{t === schoolTerm ? " (current)" : ""}</option>)}
+              </select>
+              <ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
+            </div>
+          ) : (
+            <div style={{ ...inputStyle, minWidth: 140, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <span>{schoolTerm || "Not set"}</span>
+              <button
+                type="button"
+                onClick={() => setViewingPast(true)}
+                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 11, color: "var(--primary, #4f6ef7)" }}
+              >
+                View past
+              </button>
+            </div>
+          )}
         </div>
 
         {viewMode !== "overall" && (
@@ -776,6 +818,7 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
                             <ScoreCell
                               key={subj}
                               value={student.subjectMarks[subj] ?? null}
+                              disabled={readOnly}
                               onCommit={score => updateMark(student.id, subj, score)}
                             />
                           ))}
@@ -811,7 +854,7 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
                     ? `published to guardians ${publishedAt.toLocaleDateString("en-GB")}`
                     : "not yet published to guardians"}
                 </p>
-                <button onClick={saveAllMarks} disabled={!dirty || saving} style={saveBtnStyle(!dirty || saving)}>
+                <button onClick={saveAllMarks} disabled={!dirty || saving || readOnly} style={saveBtnStyle(!dirty || saving || readOnly)}>
                   {saving ? <Spinner size={13} /> : <Save size={13} />}
                   Save {selectedAssessmentLabel} marks
                 </button>

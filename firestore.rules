@@ -24,6 +24,21 @@ service cloud.firestore {
     function sameSchool(schoolCode) {
       return myData().schoolCode == schoolCode;
     }
+
+    // The term the school is recording against. Costs one document read per
+    // marks write, which is the price of the guarantee: without it a class
+    // teacher can file marks under any term they like, and the mistake only
+    // surfaces when a report card comes out empty.
+    function currentTermOf(schoolCode) {
+      return get(/databases/$(database)/documents/school_settings/$(schoolCode)).data.currentTerm;
+    }
+
+    // True when this write targets the open term. A head teacher is exempt —
+    // someone has to be able to correct a transcription error found after the
+    // term closed, and they are the one accountable for the result.
+    function isWritableTerm(schoolCode, term) {
+      return isAdminOrHead() || term == currentTermOf(schoolCode);
+    }
     function isMyClass() {
       return myData().assignedClasses.hasAny([resource.data.className]) ||
              myData().assignedClasses.hasAny([request.resource.data.className]);
@@ -340,12 +355,17 @@ service cloud.firestore {
                resource.data.teacherId == request.auth.uid ||
                (isAdminOrHead() && sameSchool(resource.data.schoolCode))));
 
+  // Writes are confined to the open term. The portal already hides the
+  // controls, but a hidden button is a courtesy, not a control — this is what
+  // makes "a teacher cannot enter marks for a term that is not set" true.
   allow update: if request.auth != null &&
-                resource.data.teacherId == request.auth.uid;
+                resource.data.teacherId == request.auth.uid &&
+                isWritableTerm(resource.data.schoolCode, request.resource.data.term);
 
   allow create: if request.auth != null &&
                 request.resource.data.teacherId == request.auth.uid &&
-                sameSchool(request.resource.data.schoolCode);
+                sameSchool(request.resource.data.schoolCode) &&
+                isWritableTerm(request.resource.data.schoolCode, request.resource.data.term);
 
   allow delete: if request.auth != null &&
                 isAdmin() &&
