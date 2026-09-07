@@ -50,7 +50,7 @@ const MODEL = process.env.ACALINK_AI_MODEL || "llama-3.3-70b-versatile";
  */
 const REASONING_EFFORT = process.env.ACALINK_AI_REASONING_EFFORT || "";
 const REASONING_FORMAT = process.env.ACALINK_AI_REASONING_FORMAT || "";
-const MAX_TOKENS = Number(process.env.ACALINK_AI_MAX_TOKENS) || 2048;
+const MAX_TOKENS = Number(process.env.ACALINK_AI_MAX_TOKENS) || 3072;
 
 /** Pupils per request. Kept low so the whole batch clears the function timeout. */
 const MAX_BATCH = 8;
@@ -65,50 +65,155 @@ const CONCURRENCY = 4;
  */
 const MAX_INSIGHT_CHARS = 200;
 
+/**
+ * Ceiling on the app-facing analysis. Generous, because the app has room and
+ * a paragraph is the point — but bounded, so one runaway completion cannot
+ * bloat a report card document.
+ */
+const MAX_ANALYSIS_CHARS = 900;
+
 const SYSTEM_PROMPT = [
-  "You write one short note to a parent about their child's school term in Malawi.",
+  "You are an experienced Malawian head teacher writing to a parent about their child's term.",
+  "You are given the child's full record: this term's subject marks, how those marks compare",
+  "to the class, previous terms' averages and positions, how the child moved through the",
+  "assessments within the term, attendance, and conduct.",
   "",
-  "Rules:",
-  "- Plain English. No jargon, no markdown, no bullet points, no emoji.",
-  "- At most two sentences and 200 characters total.",
-  "- Address the parent about their child by first name.",
-  "- Say one specific thing that went well and one specific thing to work on.",
-  "- If a subject is clearly weakest, name that subject.",
-  "- If attendance is poor, say attendance is the thing to fix first.",
-  "- Never invent marks, subjects or facts that are not given to you.",
-  "- Never promise outcomes. Never mention fees. Do not sign off or greet.",
+  "Analyse, do not describe. The parent can already see the marks — your job is to say what",
+  "they mean. Work out:",
+  "- The direction of travel. Compare this term's average and position to previous terms.",
+  "  A mark is good or bad only relative to the class and to where the child was before.",
+  "- Which subject most needs attention. Prefer a subject that is both below the class",
+  "  average and falling, over one that is merely the lowest number.",
+  "- Whether the child faded or built through the term, from the assessment sequence.",
+  "- Whether attendance or conduct explains the marks. If a child is missing many days,",
+  "  that is the cause and everything else is a symptom — say so plainly.",
+  "",
+  "Reply with ONLY a JSON object, no markdown fences, in exactly this shape:",
+  '{"sms": "...", "analysis": "..."}',
+  "",
+  '"sms": at most 200 characters. One or two sentences. The single most useful thing this',
+  "parent could know, and one specific action for next term. This is read on a basic phone",
+  "by a parent who may have no other contact with the school.",
+  "",
+  '"analysis": 3 to 5 sentences. The fuller picture, read in the app. Reference actual',
+  "numbers and name actual subjects. Say what changed since last term and why it matters.",
+  "End with one concrete, affordable thing the family can do at home.",
+  "",
+  "Rules for both:",
+  "- Plain English a parent with limited schooling can act on. No jargon, no markdown,",
+  "  no bullet points, no emoji, no headings.",
+  "- Refer to the child by first name.",
+  "- Use only the facts given. Never invent a mark, a subject, or a trend.",
+  "- If there is no previous term, say this is the first record and do not imply a trend.",
+  "- Be honest about poor performance but never disparaging. Address the parent, never the",
+  "  child. Never predict exam results, never mention fees, never greet or sign off.",
 ].join("\n");
 
-/** The pupil, described to the model as plainly as it will be read back. */
+/**
+ * The pupil's whole record, laid out for the model.
+ *
+ * Every line here is something the model cannot work out on its own and would
+ * otherwise guess at. Subject marks are paired with that subject's class
+ * average, because 62 in a class averaging 41 and 62 in a class averaging 78
+ * call for opposite advice — and the single overall class average that used to
+ * be sent could not distinguish them.
+ */
 function describe(s) {
   const lines = [
     `Child: ${s.name || "the pupil"}`,
     s.className ? `Class: ${s.className}` : null,
+    s.term ? `Term being reported: ${s.term}` : null,
     s.average !== null && s.average !== undefined ? `Term average: ${s.average}%` : null,
     s.classAverage !== null && s.classAverage !== undefined
-      ? `Class average: ${s.classAverage}%` : null,
+      ? `Class average this term: ${s.classAverage}%` : null,
     s.position && s.classSize ? `Position: ${s.position} of ${s.classSize}` : null,
   ].filter(Boolean);
 
   if (Array.isArray(s.subjects) && s.subjects.length > 0) {
-    lines.push(`Subject marks: ${s.subjects.map((r) => `${r.subject} ${r.score}`).join(", ")}`);
+    lines.push("");
+    lines.push("Subject marks this term (child vs class average for that subject):");
+    s.subjects.forEach((r) => {
+      const cls = r.classAverage !== null && r.classAverage !== undefined
+        ? ` (class ${r.classAverage})` : "";
+      lines.push(`  ${r.subject}: ${r.score}${cls}`);
+    });
   }
-  if (s.attendance) {
+
+  // Within the term: CA1 → CA2 → Mid-term → End of term. Whether a child
+  // faded or built is invisible in the average and obvious in this sequence.
+  if (Array.isArray(s.progression) && s.progression.length > 1) {
+    lines.push("");
+    lines.push("Assessment sequence within this term (in order):");
+    lines.push(`  ${s.progression.map((p) => `${p.label} ${p.score}`).join(" -> ")}`);
+  }
+
+  if (Array.isArray(s.history) && s.history.length > 0) {
+    lines.push("");
+    lines.push("Previous terms, oldest first:");
+    s.history.forEach((h) => {
+      const pos = h.position && h.classSize ? `, position ${h.position} of ${h.classSize}` : "";
+      const subs = h.subjects?.length
+        ? ` [${h.subjects.map((r) => `${r.subject} ${r.score}`).join(", ")}]` : "";
+      lines.push(`  ${h.term}: average ${h.average ?? "n/a"}%${pos}${subs}`);
+    });
+  } else {
+    lines.push("");
+    lines.push("Previous terms: none on record. This is the first report for this child.");
+  }
+
+  lines.push("");
+  if (s.attendance?.daysRecorded) {
+    const rate = Math.round((s.attendance.present / s.attendance.daysRecorded) * 100);
     lines.push(
-      `Attendance: present ${s.attendance.present} of ${s.attendance.daysRecorded} days` +
+      `Attendance: present ${s.attendance.present} of ${s.attendance.daysRecorded} days (${rate}%)` +
+      (s.attendance.absent ? `, absent ${s.attendance.absent}` : "") +
       (s.attendance.late ? `, late ${s.attendance.late} times` : ""),
     );
+  } else {
+    lines.push("Attendance: no register recorded this term.");
   }
+
   if (s.discipline?.cases) {
     lines.push(
       `Conduct: ${s.discipline.cases} recorded incident(s)` +
+      (s.discipline.serious ? `, ${s.discipline.serious} serious` : "") +
       (s.discipline.offenses?.length ? ` (${s.discipline.offenses.join("; ")})` : ""),
     );
   } else {
-    lines.push("Conduct: no incidents recorded");
+    lines.push("Conduct: no incidents recorded.");
   }
 
   return lines.join("\n");
+}
+
+/**
+ * Pulls `{sms, analysis}` out of the model's reply.
+ *
+ * Models wrap JSON in markdown fences, prepend a sentence, or ignore the
+ * format entirely. Rather than fail on any of that, the object is located
+ * inside the text; if there is no usable JSON at all the whole reply becomes
+ * the analysis and the SMS is cut from it, which is still a working result.
+ */
+function parseInsight(text) {
+  const fenced = text.replace(/```(?:json)?/gi, " ");
+  const start = fenced.indexOf("{");
+  const end = fenced.lastIndexOf("}");
+
+  if (start !== -1 && end > start) {
+    try {
+      const obj = JSON.parse(fenced.slice(start, end + 1));
+      const sms = typeof obj.sms === "string" ? obj.sms.trim() : "";
+      const analysis = typeof obj.analysis === "string" ? obj.analysis.trim() : "";
+      if (sms || analysis) {
+        return { sms: sms || analysis, analysis: analysis || sms };
+      }
+    } catch {
+      // Falls through to the plain-text path below.
+    }
+  }
+
+  const flat = text.replace(/\s+/g, " ").trim();
+  return flat ? { sms: flat, analysis: flat } : null;
 }
 
 /**
@@ -199,6 +304,21 @@ async function insightFor(student, apiKey) {
   // Reasoning first, then whitespace — an SMS is one run of text.
   const flat = stripReasoning(raw);
 
+  if (flat) {
+    const parsed = parseInsight(flat);
+    if (parsed) {
+      const sms = parsed.sms.replace(/\s+/g, " ").trim();
+      return {
+        // The SMS is billed by the character; the analysis is read in the app,
+        // where length costs nothing, so only the SMS is capped.
+        sms: sms.length <= MAX_INSIGHT_CHARS
+          ? sms
+          : sms.slice(0, MAX_INSIGHT_CHARS - 1).replace(/[\s,;:]+\S*$/, "") + ".",
+        analysis: parsed.analysis.replace(/\s+/g, " ").trim().slice(0, MAX_ANALYSIS_CHARS),
+      };
+    }
+  }
+
   if (!flat) {
     // Nothing survived, meaning the response was entirely thinking. That fails
     // identically for every pupil, so it is raised as a configuration fault
@@ -211,11 +331,6 @@ async function insightFor(student, apiKey) {
     throw err;
   }
 
-  // Enforce the length ceiling the prompt only asks for, trimming back to a
-  // word boundary so a parent is not left mid-word.
-  return flat.length <= MAX_INSIGHT_CHARS
-    ? flat
-    : flat.slice(0, MAX_INSIGHT_CHARS - 1).replace(/[\s,;:]+\S*$/, "") + ".";
 }
 
 export default async function handler(req, res) {
@@ -252,10 +367,11 @@ export default async function handler(req, res) {
       const i = cursor++;
       const s = students[i];
       try {
-        results[i] = { id: s?.id ?? null, insight: await insightFor(s, apiKey) };
+        const out = await insightFor(s, apiKey);
+        results[i] = { id: s?.id ?? null, insight: out.sms, analysis: out.analysis };
       } catch (err) {
         console.error(`insight failed for ${s?.id}: ${err.message}`);
-        results[i] = { id: s?.id ?? null, insight: null };
+        results[i] = { id: s?.id ?? null, insight: null, analysis: null };
         // First one wins: they are all the same fault, and repeating it per
         // pupil would bury the one sentence the school needs to read.
         if (err.configError && !configError) configError = err.configError;

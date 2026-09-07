@@ -439,7 +439,7 @@ class _ReportCardPanel extends StatelessWidget {
                             color: context.colors.textSecondary,
                             height: 1.5)),
                     const SizedBox(height: 6),
-                    Text('Automatically generated from marks, attendance and conduct.',
+                    Text("Automatically generated from this term's marks, attendance and conduct, compared with previous terms.",
                         style: TextStyle(
                             fontSize: 10, color: context.colors.textMuted)),
                   ],

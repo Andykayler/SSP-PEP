@@ -21,7 +21,9 @@ const BATCH_SIZE = 8;
  * className, average, classAverage, position, classSize, subjects,
  * attendance, discipline.
  *
- * Returns `{ insights, error }`. `insights` maps student id to insight text;
+ * Returns `{ insights, error }`. `insights` maps student id to
+ * `{ sms, analysis }` — the capped line the SMS carries, and the fuller
+ * paragraph stored on the report card for the app;
  * pupils the model could not summarise are simply absent, and a miss means
  * "send the report without a note", never a failure worth stopping for.
  *
@@ -53,7 +55,14 @@ export async function fetchInsights(students, { onProgress } = {}) {
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
         (data.results || []).forEach((r) => {
-          if (r?.id && r.insight) insights.set(r.id, r.insight);
+          // Two outputs per pupil: a capped line for the SMS and a fuller
+          // analysis for the app, which has room for a paragraph.
+          if (r?.id && (r.insight || r.analysis)) {
+            insights.set(r.id, {
+              sms: r.insight || r.analysis,
+              analysis: r.analysis || r.insight,
+            });
+          }
         });
         if (data.configError && !error) error = data.configError;
       } else {

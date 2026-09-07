@@ -9,7 +9,7 @@ import { fetchClearances, reportCardAllowed } from "../../../services/feeClearan
 import { sendSmsToMany } from "../../../services/sms";
 import { smsFallbackCategories } from "../../../services/smsFallback";
 import { isModuleOn } from "../../../services/modules";
-import { fetchTermSummaries } from "../../../services/termSummary";
+import { fetchTermSummaries, fetchReportCardHistory } from "../../../services/termSummary";
 import { fetchInsights } from "../../../services/aiInsight";
 import "./staff-management.css";
 import {
@@ -670,7 +670,10 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
       if (isModuleOn(schoolSettings, "ai_insights")) {
         setReleaseNote({ type: "ok", text: "Preparing insights…" });
 
-        const summaries = await fetchTermSummaries({ schoolCode, term: selectedTerm });
+        const [summaries, cardHistory] = await Promise.all([
+          fetchTermSummaries({ schoolCode, term: selectedTerm }),
+          fetchReportCardHistory({ schoolCode, upToTerm: selectedTerm }),
+        ]);
 
         // Class averages give the model something to judge a mark against —
         // 55% means nothing until you know the class sat at 48 or at 71.
@@ -684,6 +687,37 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
           }
         });
 
+        // Per-subject class averages. The overall figure cannot distinguish a
+        // 62 in a class averaging 41 from a 62 in a class averaging 78, and
+        // those two need opposite advice.
+        const subjectAverages = new Map();   // classId -> { subject -> average }
+        classes.forEach((c) => {
+          const inClass = enrichedStudents.filter((s) => s.classId === c.id);
+          const bySubject = {};
+          inClass.forEach((s) => {
+            (s.subjects || []).forEach((subj) => {
+              const v = Number(s.subjectMarks?.[subj]);
+              if (Number.isFinite(v)) (bySubject[subj] ||= []).push(v);
+            });
+          });
+          const out = {};
+          Object.entries(bySubject).forEach(([subj, vals]) => {
+            out[subj] = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+          });
+          subjectAverages.set(c.id, out);
+        });
+
+        // How the pupil moved through the term's assessments. A fade and a
+        // climb produce the same average and mean opposite things.
+        const progressionFor = (student) => ASSESSMENT_TYPES.map(({ id, label }) => {
+          const marksForType = byAssessmentMap[student.classId]?.[id]?.marks?.[student.id];
+          if (!marksForType) return null;
+          const vals = Object.values(marksForType)
+            .map(Number).filter(Number.isFinite);
+          if (vals.length === 0) return null;
+          return { label, score: Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) };
+        }).filter(Boolean);
+
         ({ insights, error: insightError } = await fetchInsights(
           targets.map((s) => {
             const sum = summaries.get(s.id);
@@ -696,13 +730,20 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
               classAverage: classAverages.get(s.classId) ?? null,
               position: s.rank ?? null,
               classSize: enrichedStudents.filter((x) => x.classId === s.classId).length,
-              subjects: (subjectsById.get(s.id) || [])
-                .map((r) => ({ subject: r.subject, score: Math.round(r.score) })),
+              term: selectedTerm,
+              subjects: (subjectsById.get(s.id) || []).map((r) => ({
+                subject: r.subject,
+                score: Math.round(r.score),
+                classAverage: subjectAverages.get(s.classId)?.[r.subject] ?? null,
+              })),
+              progression: progressionFor(s),
+              history: cardHistory.get(s.id) || [],
               attendance: sum
-                ? { present: sum.present, daysRecorded: sum.daysRecorded, late: sum.late }
+                ? { present: sum.present, daysRecorded: sum.daysRecorded,
+                    absent: sum.absent, late: sum.late }
                 : null,
               discipline: sum
-                ? { cases: sum.disciplineCases, offenses: sum.offenses }
+                ? { cases: sum.disciplineCases, serious: sum.seriousCases, offenses: sum.offenses }
                 : null,
             };
           }),
@@ -722,7 +763,14 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
               const docId = `${schoolCode}__${student.id}__${selectedTerm.replace(/\s+/g, "_")}`;
               batch.set(
                 doc(db, "report_cards", docId),
-                { insight: insights.get(student.id), insightAt: serverTimestamp() },
+                {
+                  // The app shows the full analysis; the SMS carries the short
+                  // line. Both are stored so the two never drift apart and the
+                  // school can see exactly what each parent was sent.
+                  insight: insights.get(student.id).analysis,
+                  insightSms: insights.get(student.id).sms,
+                  insightAt: serverTimestamp(),
+                },
                 { merge: true },
               );
             });
@@ -772,7 +820,7 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
           .map((s) => ({
             to: s.guardianPhone,
             ref: s.id,
-            message: reportCardSms(s, subjectsById.get(s.id) || [], insights.get(s.id) || ""),
+            message: reportCardSms(s, subjectsById.get(s.id) || [], insights.get(s.id)?.sms || ""),
           }));
 
         if (recipients.length > 0) {

@@ -14,7 +14,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { db } from "../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
-import { termWindow } from "./academicTerm";
+import { termWindow, isPastTerm } from "./academicTerm";
 
 /** Register marks. `Late` counts as present for attendance rate, separately for punctuality. */
 const PRESENT = new Set(["Present", "Late"]);
@@ -105,6 +105,55 @@ export async function fetchTermSummaries({ schoolCode, term }) {
   }
 
   return summaries;
+}
+
+/**
+ * Every report card already issued, per pupil, oldest first.
+ *
+ * This is the difference between a remark and an analysis. "65% this term" is
+ * not a finding — it is 65% after 48% last term, or after 79%, and those are
+ * opposite stories needing opposite advice. Each issued card already stores
+ * the average, the position and the per-subject marks for its term, so the
+ * history is sitting there; nothing was reading it.
+ *
+ * Terms at or after `upToTerm` are excluded, so re-issuing a card does not
+ * feed the term its own previous attempt back to the model as history.
+ */
+export async function fetchReportCardHistory({ schoolCode, upToTerm }) {
+  const history = new Map();
+  if (!schoolCode) return history;
+
+  try {
+    const snap = await getDocs(query(
+      collection(db, "report_cards"),
+      where("schoolCode", "==", schoolCode),
+    ));
+
+    snap.docs.forEach((d) => {
+      const c = d.data();
+      if (!c?.studentId || !c.term) return;
+      if (upToTerm && !isPastTerm(c.term, upToTerm)) return;
+
+      if (!history.has(c.studentId)) history.set(c.studentId, []);
+      history.get(c.studentId).push({
+        term: c.term,
+        average: typeof c.overallAverage === "number" ? Math.round(c.overallAverage) : null,
+        position: c.position ?? null,
+        classSize: c.classSize ?? null,
+        subjects: (c.subjects || [])
+          .filter((r) => typeof r?.score === "number")
+          .map((r) => ({ subject: r.subject, score: Math.round(r.score) })),
+      });
+    });
+
+    // Oldest first, so a reader — human or model — sees the direction of travel
+    // rather than having to sort it out.
+    history.forEach((rows) => rows.sort((a, b) => (isPastTerm(a.term, b.term) ? -1 : 1)));
+  } catch (err) {
+    console.error("[termSummary] report card history read failed:", err);
+  }
+
+  return history;
 }
 
 /** Attendance as a percentage, or null when no register was ever taken. */
