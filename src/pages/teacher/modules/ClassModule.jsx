@@ -6,8 +6,9 @@ import {
 } from "firebase/firestore";
 import {
   Plus, Calendar, Clock, BookOpen, Edit2, Eye, Trash2,
-  X, Save, RefreshCw, AlertCircle, CheckCircle, Loader2, Search,
+  X, Save, RefreshCw, AlertCircle, CheckCircle, Loader2, Search, Sparkles,
 } from "lucide-react";
+import { draftLessonPlan } from "../../../services/aiLessonPlan";
 
 // ─── period config ────────────────────────────────────────────────────────────
 const PERIODS = [
@@ -551,6 +552,38 @@ function PlanModal({ plan, myClasses, mySubjects, onSave, onClose }) {
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const selectedPeriod = getPeriod(form.periodNumber);
 
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError,   setAiError]   = useState(null);
+
+  // Drafts objectives/resources/assessment from just class+subject+topic —
+  // see api/ai-lesson-plan.js. Fills blanks only, so a teacher who already
+  // typed something here (or is editing a saved plan) never has it overwritten.
+  const handleGenerate = async () => {
+    setAiError(null);
+    setAiLoading(true);
+    const { plan, error } = await draftLessonPlan({
+      className: form.className,
+      subject: form.subject,
+      topic: form.topic,
+      week: form.week,
+      term: form.term,
+    });
+    setAiLoading(false);
+    if (!plan) {
+      setAiError(error || "Could not draft a plan.");
+      return;
+    }
+    setForm((f) => ({
+      ...f,
+      objectives: f.objectives || plan.objectives,
+      resources:  f.resources  || plan.resources,
+      assessment: f.assessment || plan.assessment,
+      // This form has no separate "activities" field — the lesson flow the AI
+      // drafts fits naturally into Notes rather than being dropped.
+      notes: f.notes || plan.activities,
+    }));
+  };
+
   const handleSave = async () => {
     if (!form.topic.trim())      { setError("Topic is required."); return; }
     if (!form.objectives.trim()) { setError("Learning objectives are required."); return; }
@@ -629,13 +662,39 @@ function PlanModal({ plan, myClasses, mySubjects, onSave, onClose }) {
 
           <div>
             <label style={labelStyle}>Topic / Chapter *</label>
-            <input
-              type="text"
-              placeholder="e.g. Factorisation of quadratic expressions"
-              value={form.topic}
-              onChange={(e) => set("topic", e.target.value)}
-              style={inputStyle}
-            />
+            <div style={{ display: "flex", gap: 10 }}>
+              <input
+                type="text"
+                placeholder="e.g. Factorisation of quadratic expressions"
+                value={form.topic}
+                onChange={(e) => set("topic", e.target.value)}
+                style={inputStyle}
+              />
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={aiLoading || !form.topic.trim() || !form.subject}
+                title="Draft objectives, resources and assessment from the topic"
+                style={{
+                  ...ghostBtnStyle, flex: "0 0 auto", padding: "0 16px",
+                  display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap",
+                  opacity: (aiLoading || !form.topic.trim() || !form.subject) ? 0.5 : 1,
+                  cursor: (aiLoading || !form.topic.trim() || !form.subject) ? "not-allowed" : "pointer",
+                }}
+              >
+                {aiLoading ? <Spinner size={14} /> : <Sparkles size={14} />}
+                {aiLoading ? "Drafting…" : "Generate with AI"}
+              </button>
+            </div>
+            {aiError && (
+              <p style={{ fontSize: 11, color: "var(--danger-light)", marginTop: 6 }}>{aiError}</p>
+            )}
+            {!aiError && (
+              <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>
+                Drafts objectives, resources and assessment for a Malawian classroom (MANEB syllabus,
+                chalkboard-and-textbook resources). Review and edit before saving.
+              </p>
+            )}
           </div>
 
           <div>
