@@ -12,6 +12,12 @@ const AdminDashboard = lazy(() => import("../pages/admin/admin_dashboard"));
 const TeacherDashboard = lazy(() => import("../pages/teacher/teacherdashboard"));
 const HeadteacherDashboard = lazy(() => import("../pages/headteacher/dashboard"));
 const BursarDashboard = lazy(() => import("../pages/burser/burser"));
+const DirectorDashboard = lazy(() => import("../pages/director/dashboard"));
+
+// Where PayChangu returns the payer's browser. Split out too: it is reached
+// once per payment, from an external redirect, and has nothing to do with the
+// portal chunk the payer happened to start from.
+const PayReturn = lazy(() => import("../pages/PayReturn"));
 
 // Matches the loading state the dashboards render themselves while they check
 // auth, so a split chunk arriving is visually indistinguishable from the auth
@@ -57,6 +63,14 @@ const router = createBrowserRouter([
   {
     path: "/bursar",
     element: portal(<BursarDashboard />),
+  },
+  {
+    path: "/director",
+    element: portal(<DirectorDashboard />),
+  },
+  {
+    path: "/pay/return",
+    element: portal(<PayReturn />),
   },
 ]);
 

@@ -9,8 +9,9 @@ import { fetchSponsorships } from "../../../services/sponsorships";
 import { notifyPaymentRecorded } from "../../../services/notificationHooks";
 import {
   Search, X, Plus, Check, Receipt, User, RefreshCw,
-  AlertTriangle,
+  AlertTriangle, Smartphone,
 } from "lucide-react";
+import PayChanguCheckout from "../../../components/payments/PayChanguCheckout";
 import "./staff-management.css";
 
 // ─── Shared Modal ───────────────────────────────────────────────────────────
@@ -188,6 +189,12 @@ export default function Payments({ schoolCode, bursarName }) {
 
   const [lastReceipt, setLastReceipt] = useState(null);
   const [toast, setToast] = useState(null);
+
+  // Collecting by mobile money rather than by hand. The distinction that
+  // matters is not convenience: a payment taken this way is confirmed by the
+  // gateway and written server-side, so the amount is never something a
+  // browser said. See api/_lib/paychangu.js.
+  const [collecting, setCollecting] = useState(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -374,6 +381,9 @@ export default function Payments({ schoolCode, bursarName }) {
           </select>
           <Btn variant="secondary" onClick={fetchAll} loading={loading}>
             <RefreshCw size={16} />
+          </Btn>
+          <Btn variant="primary" onClick={() => setCollecting({ student: null })}>
+            <Smartphone size={16} /> Collect Online
           </Btn>
           <Btn variant="accent" onClick={() => openModal()}>
             <Plus size={16} /> Record Payment
@@ -661,6 +671,54 @@ export default function Payments({ schoolCode, bursarName }) {
             )}
           </form>
         </Modal>
+      )}
+
+      {/* ── Collect online: pick the student, then hand over to PayChangu ──
+          Split in two because the two halves have different failure modes. If
+          the wrong child is chosen the money still arrives, credited to the
+          wrong account, and unpicking that is a manual correction — so the
+          choice is made deliberately, on its own screen, with the balance
+          shown, before any amount is entered. */}
+      {collecting && !collecting.student && (
+        <Modal
+          title="Collect a payment online"
+          subtitle="Airtel Money, TNM Mpamba or card. The receipt is written only once PayChangu confirms the money."
+          onClose={() => setCollecting(null)}
+        >
+          <div className="space-y-4">
+            <StudentSearch
+              students={students}
+              studentFinancials={studentFinancials}
+              onSelect={(s) => setCollecting({ student: s })}
+            />
+            <p className="text-muted" style={{ fontSize: 12.5 }}>
+              Search by name, student code or class. Their outstanding balance is used as the
+              suggested amount — part-payment is fine.
+            </p>
+          </div>
+        </Modal>
+      )}
+
+      {collecting?.student && (
+        <PayChanguCheckout
+          purpose="school_fee"
+          title={`Collect from ${collecting.student.fullName}`}
+          subtitle={`${collecting.student.studentCode} · ${collecting.student.className || "No class"}`}
+          context={{
+            studentId: collecting.student.id,
+            term: form.term || "Term 1",
+            academicYear,
+          }}
+          defaultAmount={Math.max(0, collecting.student.balance || 0)}
+          payerName={collecting.student.guardianName || ""}
+          payerPhone={collecting.student.guardianPhone || ""}
+          payerEmail={collecting.student.guardianEmail || ""}
+          onClose={() => setCollecting(null)}
+          onSettled={() => {
+            showToast("success", "Payment confirmed by PayChangu and added to the ledger.");
+            fetchAll();
+          }}
+        />
       )}
 
       {/* Toast */}

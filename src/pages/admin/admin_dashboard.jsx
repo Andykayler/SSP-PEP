@@ -12,6 +12,8 @@ import { initials } from "./modules/helpers";
 import Overview from "./modules/Overview";
 import UserManagement from "./modules/UserManagement";
 import StudentManagement from "./modules/StudentManagement";
+import CampusManagement from "./modules/CampusManagement";
+import TransferApprovals from "../../components/campus/TransferApprovals";
 import SchoolSettings from "./modules/SchoolSettings";
 import Billing from "./modules/Billing";
 import Announcements from "./modules/Announcements";
@@ -160,6 +162,8 @@ export default function AdminDashboard() {
           <>
           {currentTab === "overview"      && <Overview userData={userData} schoolData={schoolData} schoolCode={schoolCode} setTab={setCurrentTab} />}
           {currentTab === "users"         && <UserManagement schoolCode={schoolCode} schoolName={schoolName} />}
+          {currentTab === "campuses"      && <CampusManagement schoolCode={schoolCode} schoolName={schoolName} actorId={authUser?.uid || ""} />}
+          {currentTab === "transfers"     && <TransferApprovals schoolCode={schoolCode} currentUser={{ id: authUser?.uid || "", name: displayName, role: "admin" }} canDecide />}
           {currentTab === "students"      && <StudentManagement schoolCode={schoolCode} schoolName={schoolName} />}
           {currentTab === "settings"      && <SchoolSettings schoolCode={schoolCode} schoolData={schoolData} onUpdate={setSchoolData} />}
           {currentTab === "billing"       && <Billing schoolData={schoolData} schoolCode={schoolCode} />}

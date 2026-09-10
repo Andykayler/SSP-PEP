@@ -14,6 +14,19 @@ class Student {
   final String className;
   final String schoolCode;
   final String schoolName;
+
+  /// The site of the school this child actually attends.
+  ///
+  /// A school may run several campuses under one school code, each with its
+  /// own roll, classes and registers. Empty on every record enrolled before
+  /// campuses existed, and on any single-campus school that has never thought
+  /// about it — so read "" as "the school's main campus", never as an error.
+  ///
+  /// A child does not move between campuses on request: that is an approval
+  /// the administrator or director makes. See docs/campuses-and-roles.md.
+  final String campusId;
+  final String campusName;
+
   final String status;
   final String guardianName;
   final String guardianPhone;
@@ -41,6 +54,8 @@ class Student {
     required this.className,
     required this.schoolCode,
     required this.schoolName,
+    this.campusId = '',
+    this.campusName = '',
     required this.status,
     required this.guardianName,
     required this.guardianPhone,
@@ -66,6 +81,8 @@ class Student {
       className: d['className'] ?? '',
       schoolCode: d['schoolCode'] ?? '',
       schoolName: d['schoolName'] ?? '',
+      campusId: d['campusId'] ?? '',
+      campusName: d['campusName'] ?? '',
       status: d['status'] ?? 'active',
       guardianName: d['guardianName'] ?? '',
       guardianPhone: d['guardianPhone'] ?? '',

@@ -2,6 +2,11 @@
     <!-- Android 13+ requires the user to grant notifications explicitly;
          FirebaseMessaging.requestPermission() raises the prompt. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Declared explicitly rather than relied on from a merged library
+         manifest: the app now talks to the Acalink API directly (payments),
+         and a release build that silently lost this would fail only at the
+         moment a parent tries to pay. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:label="acalink"
         android:name="${applicationName}"
@@ -50,6 +55,15 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Android 11 hides installed apps from one another unless they are
+             declared here. Without this, url_launcher cannot resolve a browser
+             for the PayChangu checkout and the payment sheet opens onto
+             nothing — a failure that only appears on API 30+ handsets, which
+             is most of them. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
         </intent>
     </queries>
 </manifest>

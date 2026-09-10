@@ -25,6 +25,12 @@ class _FeesScreenState extends State<FeesScreen> {
   bool _loading = true;
   String? _error;
 
+  /// Money the family has reported but the school has not confirmed. Shown
+  /// beside the balance rather than inside it — it has not reached the school,
+  /// so it cannot reduce what is owed, but a parent who reported it needs to
+  /// see that it did not vanish.
+  int _awaitingConfirmation = 0;
+
   int get _totalCharged => _lines.fold(0, (s, l) => s + l.charged);
   int get _totalPaid => _lines.fold(0, (s, l) => s + l.paid);
   int get _balance => _totalCharged - _totalPaid;
@@ -53,6 +59,7 @@ class _FeesScreenState extends State<FeesScreen> {
       setState(() {
         _lines = data.lines;
         _payments = data.payments;
+        _awaitingConfirmation = data.awaitingConfirmation;
         _loading = false;
       });
     } catch (e) {
@@ -80,8 +87,11 @@ class _FeesScreenState extends State<FeesScreen> {
       ),
     );
 
-    if (result != null && mounted) {
-      // Optimistic update; service owns the distribution logic.
+    if (result == null || !mounted) return;
+
+    if (result.verified) {
+      // Confirmed by the gateway, so the balance really has moved. Applied
+      // optimistically here; the service owns the distribution logic.
       setState(() {
         _payments.insert(0, result);
         _lines = _service.applyPayment(_lines, result.amount);
@@ -92,12 +102,33 @@ class _FeesScreenState extends State<FeesScreen> {
           behavior: SnackBarBehavior.floating,
           backgroundColor: context.colors.success,
           content: Text(
-            'Payment of ${formatCurrency(result.amount)} received · Ref ${result.reference}',
+            'Payment of ${formatCurrency(result.amount)} received'
+            '${result.receiptNo.isNotEmpty ? ' · Receipt ${result.receiptNo}' : ''}',
             style: const TextStyle(fontSize: 13),
           ),
         ),
       );
+      return;
     }
+
+    // Reported, not paid. The balance is deliberately left alone — moving it
+    // here is what used to let a family believe their fees were settled when
+    // the school had received nothing.
+    setState(() {
+      _payments.insert(0, result);
+      _awaitingConfirmation += result.amount;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: context.colors.primary,
+        content: Text(
+          '${formatCurrency(result.amount)} sent to the school — awaiting confirmation',
+          style: const TextStyle(fontSize: 13),
+        ),
+      ),
+    );
   }
 
   @override
@@ -132,6 +163,7 @@ class _FeesScreenState extends State<FeesScreen> {
                   totalPaid: _totalPaid,
                   balance: _balance,
                   percent: _percentPaid,
+                  awaitingConfirmation: _awaitingConfirmation,
                   onPay: _balance > 0 ? _openPaymentSheet : null,
                 ),
               ),
@@ -212,6 +244,7 @@ class _BalanceCard extends StatelessWidget {
   final int totalPaid;
   final int balance;
   final double percent;
+  final int awaitingConfirmation;
   final VoidCallback? onPay;
 
   const _BalanceCard({
@@ -220,6 +253,7 @@ class _BalanceCard extends StatelessWidget {
     required this.balance,
     required this.percent,
     required this.onPay,
+    this.awaitingConfirmation = 0,
   });
 
   @override
@@ -299,6 +333,31 @@ class _BalanceCard extends StatelessWidget {
             '${formatCurrency(totalPaid)} paid of ${formatCurrency(totalCharged)} · ${(percent * 100).round()}%',
             style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8)),
           ),
+          // Reported but unconfirmed money, named as such and kept out of the
+          // figures above. Hiding it would look like the report was lost;
+          // counting it would tell the family they owe less than they do.
+          if (awaitingConfirmation > 0) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.hourglass_top_rounded, size: 15, color: Colors.white.withValues(alpha: 0.85)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${formatCurrency(awaitingConfirmation)} awaiting the school\'s confirmation',
+                      style: TextStyle(fontSize: 11.5, height: 1.35, color: Colors.white.withValues(alpha: 0.9)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 18),
           SizedBox(
             width: double.infinity,
@@ -489,6 +548,11 @@ class _PaymentRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // A tick means the school has the money. A row the family reported and
+    // nobody has checked gets an hourglass and a muted amount — the same
+    // record, told truthfully.
+    final confirmed = payment.verified;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -497,9 +561,14 @@ class _PaymentRow extends StatelessWidget {
             width: 34,
             height: 34,
             decoration: BoxDecoration(
-                color: context.colors.successPale, borderRadius: BorderRadius.circular(10)),
+                color: confirmed ? context.colors.successPale : context.colors.warningPale,
+                borderRadius: BorderRadius.circular(10)),
             alignment: Alignment.center,
-            child: Icon(Icons.check_rounded, size: 16, color: context.colors.success),
+            child: Icon(
+              confirmed ? Icons.check_rounded : Icons.hourglass_top_rounded,
+              size: 16,
+              color: confirmed ? context.colors.success : context.colors.warning,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -510,14 +579,22 @@ class _PaymentRow extends StatelessWidget {
                     style: TextStyle(
                         fontSize: 13.5, fontWeight: FontWeight.w500, color: context.colors.textPrimary)),
                 const SizedBox(height: 2),
-                Text('${payment.date} · Ref ${payment.reference}',
-                    style: TextStyle(fontSize: 11, color: context.colors.textMuted)),
+                Text(
+                  confirmed
+                      ? '${payment.date}${payment.reference.isNotEmpty ? ' · Ref ${payment.reference}' : ''}'
+                      : '${payment.date} · awaiting the school\'s confirmation',
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: confirmed ? context.colors.textMuted : context.colors.warningDark),
+                ),
               ],
             ),
           ),
           Text(formatCurrency(payment.amount),
               style: TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w700, color: context.colors.success)),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: confirmed ? context.colors.success : context.colors.textMuted)),
         ],
       ),
     );

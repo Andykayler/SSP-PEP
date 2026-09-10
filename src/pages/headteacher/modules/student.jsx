@@ -1,7 +1,8 @@
 // modules/StudentManagement.jsx
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Search, Eye, Bell, BellRing, X, Check, RefreshCw, AlertCircle } from "lucide-react";
 import { db } from "../../../firebase";
+import useCampusScope from "../../../hooks/useCampusScope";
 import "./staff-management.css";
 import {
   collection,
@@ -231,8 +232,16 @@ function NotificationModal({ targets, schoolCode, senderName, onClose }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function StudentManagement({ schoolCode, senderName }) {
-  const [students, setStudents] = useState([]);
+export default function StudentManagement({ schoolCode, senderName, viewer }) {
+  // Campus scope. A head attached to one campus sees that campus's roll and no
+  // other; one attached to several gets a picker. Applied to `students` as
+  // soon as they load, so every count and every action below — including
+  // "notify all parents" — is already narrowed. Notifying the wrong campus's
+  // families is the mistake this prevents.
+  const { visible: visibleCampuses, multiCampus, campusFilter, setCampusFilter, scope } =
+    useCampusScope(schoolCode, viewer);
+
+  const [allStudents, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -260,6 +269,8 @@ export default function StudentManagement({ schoolCode, senderName }) {
   }, [schoolCode]);
 
   useEffect(() => { fetchStudents(); }, [fetchStudents]);
+
+  const students = useMemo(() => scope(allStudents), [scope, allStudents]);
 
   const getForm = (s) => s.className || s.form || "";
   const filtered = students.filter(s => {
@@ -317,6 +328,14 @@ export default function StudentManagement({ schoolCode, senderName }) {
             <Search className="search-icon" size={14} />
             <input type="text" placeholder="Search by name or student code…" className="search-input" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           </div>
+          {/* Only shown when this person actually has a choice to make — a
+              head attached to one campus never sees it. */}
+          {multiCampus && (
+            <select value={campusFilter} onChange={e => setCampusFilter(e.target.value)} className="field__select">
+              <option value="all">All my campuses</option>
+              {visibleCampuses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
           <select value={filterForm} onChange={e => setFilterForm(e.target.value)} className="field__select">
             <option value="All">All forms</option>
             {FORMS.map(f => <option key={f}>{f}</option>)}

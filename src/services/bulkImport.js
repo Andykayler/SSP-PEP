@@ -21,13 +21,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { db, auth } from "../firebase";
 import {
-  collection, doc, getDocs, query, where, writeBatch, setDoc, serverTimestamp,
+  collection, doc, writeBatch, setDoc, serverTimestamp,
 } from "firebase/firestore";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 
 import { normalisePhone } from "./phone";
 import { generatePassword, generateStudentCode } from "./credentials";
+import { lookupSiblingsByPhone } from "./studentLookup";
 import {
   resolveGuardianLink, notifyGuardianOfPendingLink, enrolmentSms,
   LINK_ACTIVE, LINK_PENDING,
@@ -315,16 +316,16 @@ export async function importStudents({
  * Firestore's `in` filter takes 30 values, so this chunks.
  */
 async function fetchSiblings(phones) {
+  // Server-side, for the same reason as guardianLink.siblingsForPhone: this
+  // query spans every school on the platform, and allowing it from the client
+  // meant allowing a blanket cross-school read of every child. The endpoint
+  // does its own chunking. See api/students/lookup.js.
   const byPhone = new Map(phones.map((p) => [p, []]));
-  for (let i = 0; i < phones.length; i += 30) {
-    const chunk = phones.slice(i, i + 30);
-    const snap = await getDocs(
-      query(collection(db, "students"), where("guardianPhone", "in", chunk))
-    );
-    snap.docs.forEach((d) => {
-      const s = { id: d.id, ...d.data() };
-      byPhone.get(s.guardianPhone)?.push(s);
-    });
+  if (phones.length === 0) return byPhone;
+
+  const found = await lookupSiblingsByPhone(phones);
+  for (const [phone, list] of Object.entries(found)) {
+    if (byPhone.has(phone)) byPhone.set(phone, list);
   }
   return byPhone;
 }

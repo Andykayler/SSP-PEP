@@ -73,6 +73,17 @@ class PaymentRecord {
   final String date;
   final String reference;
   final String receiptNo;
+
+  /// Whether anyone has actually seen this money.
+  ///
+  /// True for a payment the bursar entered, and for one PayChangu confirmed to
+  /// our servers. False for a payment the family reported themselves — which
+  /// is a message to the school, not a receipt, and must never be presented as
+  /// one. The two are stored in the same collection and separated by
+  /// `status`; conflating them on screen is how a parent comes to believe a
+  /// balance is settled when the school has received nothing.
+  final bool verified;
+
   const PaymentRecord({
     required this.id,
     required this.method,
@@ -80,6 +91,7 @@ class PaymentRecord {
     required this.date,
     required this.reference,
     this.receiptNo = '',
+    this.verified = true,
   });
 }
 
@@ -88,7 +100,18 @@ class PaymentRecord {
 class FeesData {
   final List<FeeLine> lines;
   final List<PaymentRecord> payments;
-  const FeesData({required this.lines, required this.payments});
+
+  /// Money the family has told the school about but which nobody has
+  /// confirmed. Reported separately from [balance] on purpose: it has not
+  /// reached the school, so it cannot reduce what is owed, but a parent who
+  /// reported it needs to see that it was not swallowed.
+  final int awaitingConfirmation;
+
+  const FeesData({
+    required this.lines,
+    required this.payments,
+    this.awaitingConfirmation = 0,
+  });
 
   int get totalCharged => lines.fold(0, (s, l) => s + l.charged);
   int get totalPaid => lines.fold(0, (s, l) => s + l.paid);
@@ -109,20 +132,22 @@ String _today() {
   return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 }
 
-/// Mirrors genReceiptNo() in Payments.jsx (`RCP-<base36 ms>-<3 digits>`)
-/// so receipts look the same whether issued from the bursar console or
-/// the app.
-String _genReceiptNo() {
-  final base36 = DateTime.now().millisecondsSinceEpoch.toRadixString(36).toUpperCase();
-  final suffix = 100 + DateTime.now().microsecond % 900;
-  return 'RCP-$base36-$suffix';
-}
+// Receipt numbers are no longer minted here. `RCP-…` means the school has
+// seen the money, and only two things can establish that: the bursar entering
+// it, or the PayChangu webhook confirming it to our servers (api/_lib/
+// settle.js, which mirrors the same format). An app that generates its own
+// receipt numbers is an app that can hand a family proof of a payment that
+// never happened.
 
 /// ─── Payment methods ──────────────────────────────────────────────────
-/// [firestoreValue] is what gets written to `payments.method` — it must
-/// match one of PAYMENT_METHODS in Payments.jsx so the bursar's method
-/// filter and badge coloring pick it up correctly. [label] is what the
-/// app displays, which can be more descriptive/localized.
+/// The ways a family might have paid the school WITHOUT going through the
+/// app's own checkout — a bank counter, cash at the office, a mobile-money
+/// transfer done in the Airtel or Mpamba app. Reporting one of these tells
+/// the bursar to look for it; it does not settle anything.
+///
+/// [firestoreValue] is what gets written to `payments.method` — it must match
+/// one of PAYMENT_METHODS in Payments.jsx so the bursar's method filter and
+/// badge colouring pick it up correctly. [label] is what the app displays.
 enum PayMethod { airtelMoney, tnmMpamba, bankTransfer, school }
 
 class PayMethodOption {
@@ -185,8 +210,23 @@ class FeesService {
       );
     }).toList();
 
-    final totalPaid = paySnap.docs
-        .fold<int>(0, (s, doc) => s + ((doc.data()['amount'] as num?)?.toInt() ?? 0));
+    // Only confirmed money reduces the balance.
+    //
+    // Previously this summed every row in `payments`, which meant a family
+    // could report a payment they had not made and watch what they owed drop.
+    // A row written by the bursar, or by the PayChangu webhook, has been seen
+    // by someone; a row the app wrote on the family's say-so has not. See the
+    // PAYMENT INTEGRITY note at the foot of firestore.rules.
+    var totalPaid = 0;
+    var awaiting = 0;
+    for (final doc in paySnap.docs) {
+      final amount = (doc.data()['amount'] as num?)?.toInt() ?? 0;
+      if (doc.data()['status'] == 'unverified') {
+        awaiting += amount;
+      } else {
+        totalPaid += amount;
+      }
+    }
 
     final payments = paySnap.docs.map((doc) {
       final data = doc.data();
@@ -197,10 +237,15 @@ class FeesService {
         date: data['paymentDate'] ?? _formatTimestamp(data['createdAt']),
         reference: data['referenceNo'] ?? '',
         receiptNo: data['receiptNo'] ?? '',
+        verified: data['status'] != 'unverified',
       );
     }).toList();
 
-    return FeesData(lines: applyPayment(lines, totalPaid), payments: payments);
+    return FeesData(
+      lines: applyPayment(lines, totalPaid),
+      payments: payments,
+      awaitingConfirmation: awaiting,
+    );
   }
 
   static String _formatTimestamp(dynamic timestamp) {
@@ -212,10 +257,21 @@ class FeesService {
     return "Just now";
   }
 
-  /// Writes a payment doc in exactly the shape Payments.jsx writes it, so
-  /// it shows up in the bursar's table, stats, and receipt flow with no
-  /// extra handling on their side.
-  Future<PaymentRecord> submitPayment({
+  /// Tells the school about a payment made somewhere else.
+  ///
+  /// This is NOT a payment, and the difference is the whole point. It used to
+  /// be called `submitPayment`, it minted a receipt number, and the app showed
+  /// the family "Payment Received" — for money nobody had checked had moved.
+  ///
+  /// What it is now: a message. A parent who paid over a bank counter, or
+  /// handed cash to the office, tells the school so the bursar can match it
+  /// against what actually arrived. It writes `status: 'unverified'`, issues
+  /// no receipt, and does not reduce the balance — [fetchStudentFees] counts
+  /// it under `awaitingConfirmation` instead.
+  ///
+  /// Anyone wanting to actually pay uses [PayChanguService], where the receipt
+  /// is written by our servers after the gateway confirms the money.
+  Future<PaymentRecord> reportOfflinePayment({
     required Student student,
     required PayMethod method,
     required int amount,
@@ -226,7 +282,10 @@ class FeesService {
   }) async {
     final ctx = _ctx(student);
     final option = payMethods.firstWhere((m) => m.method == method);
-    final receiptNo = _genReceiptNo();
+    // A reference the family can quote back, distinct in shape from the
+    // RCP- receipts the bursar and the gateway issue, so the two are never
+    // mistaken for one another in a conversation at the school office.
+    final reportRef = 'REP-${DateTime.now().millisecondsSinceEpoch.toRadixString(36).toUpperCase()}';
 
     await _firestore.collection('payments').add({
       'studentId': ctx['studentId'],
@@ -240,27 +299,29 @@ class FeesService {
       'term': term,
       'notes': notes.trim(),
       'paymentDate': _today(),
-      'receiptNo': receiptNo,
+      // No receiptNo. A receipt is the school's acknowledgement that money
+      // arrived, and nothing here establishes that. The bursar issues one when
+      // they match this against their own records.
+      'receiptNo': '',
+      'reportRef': reportRef,
       'recordedBy': recordedBy,
       'academicYear': _academicYear,
       'schoolCode': ctx['schoolCode'],
-      // A payment entered here is the parent's own claim — nothing has checked
-      // that the money arrived. These two fields are required by the Firestore
-      // rule for anonymous writes so the bursar's ledger can always tell a
-      // self-reported payment from one the bursar recorded. Do not drop them:
-      // the write is refused without them.
+      // Required by the Firestore rule for anonymous writes, so the bursar's
+      // ledger can always tell a self-reported payment from one the bursar
+      // recorded. Do not drop them: the write is refused without them.
       'source': 'parent_app',
       'status': 'unverified',
       'createdAt': FieldValue.serverTimestamp(),
     });
 
     return PaymentRecord(
-      id: receiptNo,
+      id: reportRef,
       method: option.firestoreValue,
       amount: amount,
       date: 'Just now',
       reference: referenceNo,
-      receiptNo: receiptNo,
+      verified: false,
     );
   }
 

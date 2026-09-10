@@ -18,6 +18,20 @@ service cloud.firestore {
     function isAdminOrHead() {
       return isAdmin() || isHeadTeacher();
     }
+    // The director owns the school as an institution: every campus, none of
+    // the day-to-day. Kept OUT of isAdminOrHead() deliberately — that helper
+    // grants write access to students, marks and registers, and a director who
+    // can quietly edit the records they later sign off on is an audit finding.
+    // Where a director genuinely needs to write, the rule says so explicitly.
+    function isDirector() {
+      return myData().role == "director";
+    }
+    // Who may approve a student moving between campuses: the two roles with
+    // sight of both sides of the move. A head teacher runs one campus, so they
+    // raise the request and someone else grants it.
+    function isCampusApprover() {
+      return isAdmin() || isDirector();
+    }
     function isFinance() {
       return isAdmin() || isBursar();
     }
@@ -137,9 +151,16 @@ service cloud.firestore {
                     isAdmin() &&
                     sameSchool(resource.data.schoolCode);
 
-      // Admin can delete any user — no school restriction
+      // An administrator deletes staff at their OWN school.
+      //
+      // This was previously unrestricted, with a comment saying so — an
+      // administrator at any school could delete any user account on the
+      // platform, including another school's head teacher. Nothing in the
+      // product needs that: User Management only ever lists, and only ever
+      // deletes, accounts from the signed-in administrator's own school.
       allow delete: if request.auth != null &&
-                    isAdmin();
+                    isAdmin() &&
+                    sameSchool(resource.data.schoolCode);
 
       // Head teacher limited update
       allow update: if request.auth != null &&
@@ -154,11 +175,24 @@ service cloud.firestore {
     // =============================================
    match /students/{studentId} {
   // Anonymous (parent app) branch moved first — same reason as /users above.
+  //
+  // This USED to end with `|| isAdminOrHead()`. Because a same-school admin
+  // already passes sameSchool(), that branch did nothing except grant every
+  // administrator and head teacher read access to every child at every OTHER
+  // school on the platform. It was there to serve two legitimate cross-school
+  // lookups — transfer-in by student code, and guardian linking by phone —
+  // and rules cannot tell those narrow lookups from a query for the whole
+  // platform, because a list is authorised from its provable equality
+  // predicates, not from its shape or its limit.
+  //
+  // Both now run server-side in api/students/lookup.js, which checks the
+  // caller's role and returns only the fields each flow needs. Nothing in the
+  // product reads another school's students from the client any more, so this
+  // rule can say what it always meant: your own school, or a guardian.
   allow read: if request.auth != null &&
               (
                 request.auth.token.firebase.sign_in_provider == 'anonymous' ||
-                sameSchool(resource.data.schoolCode) ||
-                isAdminOrHead()
+                sameSchool(resource.data.schoolCode)
               );
   allow create: if request.auth != null &&
                 isAdminOrHead() &&
@@ -170,6 +204,18 @@ service cloud.firestore {
   allow delete: if request.auth != null &&
                 isAdmin() &&
                 sameSchool(resource.data.schoolCode);
+
+  // The one write a director may make to a student record: completing an
+  // approved campus transfer. Narrowed to the fields that move — everything
+  // else about the child is untouchable from this role, so approving a
+  // transfer cannot be used as a way in to editing marks or guardians.
+  allow update: if request.auth != null &&
+                isDirector() &&
+                sameSchool(resource.data.schoolCode) &&
+                sameSchool(request.resource.data.schoolCode) &&
+                request.resource.data.diff(resource.data).affectedKeys()
+                  .hasOnly(['campusId', 'campusName', 'classId', 'className',
+                            'campusTransferredAt']);
 }
 
     // =============================================
@@ -202,8 +248,25 @@ service cloud.firestore {
                     isGuardianOfStudent(resource.data.studentId) ||
                     sameSchool(resource.data.schoolCode)
                   );
-      allow create, update, delete: if request.auth != null && isFinance() &&
-                                    sameSchool(resource.data.schoolCode || request.resource.data.schoolCode);
+      // These were one combined rule reading
+      //   sameSchool(resource.data.schoolCode || request.resource.data.schoolCode)
+      // which is broken in BOTH directions: on a create there is no `resource`,
+      // and on a delete there is no `request.resource`, so the expression
+      // errors and the write is denied. `||` does not rescue it — an error in
+      // either operand fails the whole evaluation, it does not fall through.
+      //
+      // The effect was that assigning a fee to a student (StudentFees.jsx
+      // batch-writes these) failed for everyone, always. Split so each verb
+      // reads the document that actually exists during it.
+      allow create: if request.auth != null && isFinance() &&
+                    sameSchool(request.resource.data.schoolCode);
+
+      allow update: if request.auth != null && isFinance() &&
+                    sameSchool(resource.data.schoolCode) &&
+                    sameSchool(request.resource.data.schoolCode);
+
+      allow delete: if request.auth != null && isFinance() &&
+                    sameSchool(resource.data.schoolCode);
     }
 
        // =============================================
@@ -964,6 +1027,95 @@ service cloud.firestore {
       allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // CAMPUSES
+    //
+    // A campus is a site of one school. The document is readable by every
+    // member of that school's staff — including staff attached to a different
+    // campus — because the list of campuses is not the sensitive thing. What a
+    // campus CONTAINS is, and that lives in students, marks and registers.
+    //
+    // See the CAMPUS SCOPING note at the foot of this file for why the
+    // per-campus boundary is enforced in the application rather than here.
+    //
+    // No delete: attendance, marks, fee assignments and payments all carry a
+    // campusId, and removing the document they point at turns years of records
+    // into rows labelled "Unknown campus". The product archives instead.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /campuses/{campusId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+      allow create: if isStaff() && isCampusApprover() &&
+                    sameSchool(request.resource.data.schoolCode);
+      allow update: if isStaff() && isCampusApprover() &&
+                    sameSchool(resource.data.schoolCode) &&
+                    sameSchool(request.resource.data.schoolCode);
+      allow delete: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CAMPUS TRANSFER REQUESTS
+    //
+    // Moving a child from one campus to another is a request, then a decision
+    // by someone with authority over both sides. The split is the point: a
+    // head teacher can ask, and cannot grant — otherwise a campus could walk
+    // its own roll across to flatter a number, and the receiving campus would
+    // find out when a child turned up.
+    //
+    // A request is created pending and can never be created already-approved,
+    // so the decision always exists as a separate act with a name and a date
+    // on it. Only the status fields may change afterwards: rewriting which
+    // student or which campus a decided request refers to would let an
+    // approval be recycled onto a different move.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /campus_transfer_requests/{requestId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+
+      allow create: if isStaff() &&
+                    sameSchool(request.resource.data.schoolCode) &&
+                    request.resource.data.status == 'pending' &&
+                    request.resource.data.studentId is string &&
+                    request.resource.data.toCampusId is string;
+
+      allow update: if isStaff() && isCampusApprover() &&
+                    sameSchool(resource.data.schoolCode) &&
+                    request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['status', 'decisionNote', 'decidedById',
+                                'decidedByName', 'decidedAt']) &&
+                    request.resource.data.status in ['approved', 'rejected'];
+
+      allow delete: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PAYMENT TRANSACTIONS AND SUBSCRIPTION RECEIPTS
+    //
+    // Both are written exclusively by the serverless functions under api/,
+    // which use the Admin SDK and bypass these rules entirely. Clients get
+    // read access and nothing else, and that is the whole security model for
+    // gateway payments: a browser cannot create a transaction, cannot mark one
+    // paid, and cannot invent a receipt, because the only path to those
+    // documents runs through code that has asked PayChangu what happened.
+    //
+    // This is the durable fix the PAYMENT INTEGRITY note below asks for — the
+    // third of the three options listed there. Payments taken this way land in
+    // /payments with source='paychangu' and status='verified'; the parent
+    // app's self-reported rows keep their 'unverified' marker, and the two are
+    // still distinguishable in the ledger.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /payment_transactions/{txRef} {
+      allow read: if (isStaff() && sameSchool(resource.data.schoolCode)) ||
+                     (isSignedIn() && resource.data.initiatedById == request.auth.uid);
+      allow write: if false;
+    }
+
+    match /subscription_payments/{paymentId} {
+      // What the school pays Acalink is a governance matter, not a staffroom
+      // one — the people who answer for it are the ones who can see it.
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode) &&
+                  (isAdmin() || isDirector());
+      allow write: if false;
+    }
+
   }
 }
 
@@ -1025,4 +1177,44 @@ service cloud.firestore {
 //      "confirm received" action that flips status to 'verified'.
 //   3. Take payment through a gateway and write the record server-side from
 //      its webhook, where the amount cannot be client-supplied.
+//
+// (3) NOW EXISTS. PayChangu payments are opened, verified and recorded by the
+// functions under api/ using the Admin SDK; see /payment_transactions above.
+// Those rows carry source='paychangu', status='verified' and a gatewayTxRef.
+//
+// The warning still stands for the parent app, which has not been moved onto
+// the gateway: rows with source='parent_app' remain self-reported claims. The
+// director's Fee Position screen excludes them from every collection figure
+// and says so on screen, which is (2) done for the one place the distinction
+// would otherwise silently mislead. The bursar's own ledger still renders
+// every row alike.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// CAMPUS SCOPING — why it is not enforced here
+//
+// A school may run several campuses. Students, staff, classes and fee records
+// all carry a campusId, and a member of staff is meant to see only the
+// campuses they are attached to (users/{uid}.campusIds, or allCampuses).
+//
+// That boundary is enforced in the application (src/services/campuses.js),
+// NOT in these rules, and the distinction is deliberate:
+//
+//   • The SCHOOL boundary is a security boundary. One school must never read
+//     another's children, and sameSchool() enforces that on every collection.
+//
+//   • The CAMPUS boundary, inside one school, is an operational one. Everyone
+//     on either side is staff of the same school, under the same head, subject
+//     to the same policies. What it prevents is a teacher scrolling a roll
+//     they are not responsible for — not an attacker reading data they have no
+//     right to.
+//
+// Enforcing it here would cost a users/{uid} read per row on every list query,
+// against a hard budget of ten document accesses per query — so a list of
+// twenty students would be refused outright. It would also break every list
+// the moment a campus was reassigned mid-session, in a way indistinguishable
+// from a permissions bug.
+//
+// The exception is a student MOVING between campuses, which is a real
+// authority question and IS enforced here: see /campus_transfer_requests and
+// the director branch on /students.
 // ─────────────────────────────────────────────────────────────────────────────

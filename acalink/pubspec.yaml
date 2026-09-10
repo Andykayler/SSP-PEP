@@ -43,6 +43,13 @@ dependencies:
   shared_preferences: ^2.5.5
   google_fonts: ^6.2.1
 
+  # Taking a payment. `http` talks to the Acalink API under /api/payments,
+  # which is the only thing that may decide money arrived; `url_launcher`
+  # hands the payer to PayChangu's hosted checkout in the device browser, so
+  # no card or mobile-money PIN is ever typed into this app.
+  http: ^1.2.2
+  url_launcher: ^6.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

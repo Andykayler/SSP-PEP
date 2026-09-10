@@ -19,6 +19,10 @@ import BulkImportModal from "../../../components/import/BulkImportModal";
 import {
   STUDENT_COLUMNS, STUDENT_SAMPLE, validateStudentRows, importStudents,
 } from "../../../services/bulkImport";
+import {
+  subscribeCampuses, requestCampusTransfer, campusName as campusLabel,
+} from "../../../services/campuses";
+import { lookupStudentByCode } from "../../../services/studentLookup";
 
 // Base URL of the Express backend (server.js). Update this when you deploy
 // (e.g. to your production API domain) — it's used for the transfer
@@ -42,7 +46,7 @@ export default function StudentManagement({ schoolCode, schoolName }) {
     firstName: "", lastName: "", dob: "", gender: "",
     nationalId: "", guardianName: "", guardianPhone: "",
     guardianEmail: "", guardianRelation: "",
-    district: "", village: "", classId: "",
+    district: "", village: "", classId: "", campusId: "",
   };
   const [regForm, setRegForm]                         = useState(EMPTY_REG);
   const [regErrors, setRegErrors]                     = useState({});
@@ -66,7 +70,46 @@ export default function StudentManagement({ schoolCode, schoolName }) {
   const [requestActionId, setRequestActionId]   = useState(null); // id of request currently being approved/rejected
   const [requestsError, setRequestsError]       = useState("");
 
+  // ── Campus state ──
+  const [campuses, setCampuses]                 = useState([]);
+  const [campusFilter, setCampusFilter]         = useState("all");
+  const [movingStudent, setMovingStudent]       = useState(null);
+  const [moveTo, setMoveTo]                     = useState("");
+  const [moveReason, setMoveReason]             = useState("");
+  const [moveError, setMoveError]               = useState("");
+  const [moveSuccess, setMoveSuccess]           = useState("");
+
   useEffect(() => { fetchStudents(); fetchClasses(); fetchTransferRequests(); }, []);
+  useEffect(() => subscribeCampuses(schoolCode, setCampuses), [schoolCode]);
+
+  const activeCampuses = campuses.filter(c => c.status !== "archived");
+  // The picker only earns its space once a school actually runs two sites.
+  // A single-campus school never sees any of this.
+  const multiCampus = activeCampuses.length > 1;
+  const primaryCampus = activeCampuses.find(c => c.isPrimary) || activeCampuses[0] || null;
+
+  // Enrol onto the main campus unless told otherwise, so the field is a
+  // correction rather than another mandatory question. Derived rather than
+  // written into the form on mount: the campus list arrives asynchronously,
+  // and an effect that back-fills the form would re-render every registration
+  // screen a beat after it painted.
+  const enrolCampusId = regForm.campusId || primaryCampus?.id || "";
+
+  async function submitCampusMove() {
+    setMoveError("");
+    const target = activeCampuses.find(c => c.id === moveTo);
+    const res = await requestCampusTransfer({
+      schoolCode,
+      student: movingStudent,
+      toCampusId: moveTo,
+      toCampusName: target?.name || "",
+      reason: moveReason,
+      requestedBy: { id: auth.currentUser?.uid || "", name: "Administrator", role: "admin" },
+    });
+    if (!res.ok) { setMoveError(res.error); return; }
+    setMovingStudent(null); setMoveTo(""); setMoveReason("");
+    setMoveSuccess("Transfer requested. It appears under Campus Transfers for a decision — the student stays where they are until then.");
+  }
 
   async function fetchStudents() {
     setLoading(true);
@@ -152,6 +195,11 @@ export default function StudentManagement({ schoolCode, schoolName }) {
         guardianRelation: regForm.guardianRelation.trim() || "Parent/Guardian",
         district: regForm.district, village: regForm.village.trim() || "",
         classId: regForm.classId, className: cls?.name || "",
+        // The campus the child actually attends. Written even for a
+        // single-campus school so nothing has to guess later, and so a school
+        // that adds a second site does not have to backfill a whole roll.
+        campusId: enrolCampusId,
+        campusName: campusLabel(campuses, enrolCampusId),
         schoolCode, schoolName, status: "active",
         parentPortalPassword: parentPassword,
         guardianLinkStatus: link.isNewGuardian ? LINK_ACTIVE : LINK_PENDING,
@@ -231,12 +279,14 @@ export default function StudentManagement({ schoolCode, schoolName }) {
     const code = transferCode.trim().toUpperCase();
     if (!code) { setTransferError("Enter a student code."); setTransferLoading(false); return; }
     try {
-      const q = query(collection(db, "students"), where("studentCode", "==", code), limit(1));
-      const snap = await getDocs(q);
-      if (snap.empty) {
+      // Server-side: this search spans every school, and permitting it from
+      // the client meant permitting a blanket cross-school read of every child
+      // on the platform. The endpoint returns only what a transfer needs.
+      // See api/students/lookup.js.
+      const st = await lookupStudentByCode(code);
+      if (!st) {
         setTransferError(`No student found with code ${code}.`);
       } else {
-        const st = { id: snap.docs[0].id, ...snap.docs[0].data() };
         if (st.schoolCode === schoolCode) {
           setTransferError("This student is already enrolled here.");
         } else {
@@ -361,7 +411,11 @@ export default function StudentManagement({ schoolCode, schoolName }) {
   const filtered = students.filter(s => {
     const ms = !search || s.fullName?.toLowerCase().includes(search.toLowerCase()) || s.studentCode?.toLowerCase().includes(search.toLowerCase());
     const mc = classFilter === "all" || s.classId === classFilter;
-    return ms && mc;
+    // A student enrolled before campuses existed has no campusId; they belong
+    // to the main campus, which is what every other screen assumes too.
+    const campusOf = s.campusId || primaryCampus?.id || "";
+    const mcamp = campusFilter === "all" || campusOf === campusFilter;
+    return ms && mc && mcamp;
   });
 
   const tabs = [
@@ -424,7 +478,17 @@ export default function StudentManagement({ schoolCode, schoolName }) {
               <option value="all">All Classes</option>
               {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
+            {multiCampus && (
+              <select value={campusFilter} onChange={e => setCampusFilter(e.target.value)} className="field__select" style={{ width: "auto", minWidth: 160 }}>
+                <option value="all">All Campuses</option>
+                {activeCampuses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            )}
           </div>
+
+          {moveSuccess && (
+            <div className="alert alert--success">{IC.check}<span>{moveSuccess}</span></div>
+          )}
 
           <div className="card">
             {loading ? (
@@ -439,7 +503,9 @@ export default function StudentManagement({ schoolCode, schoolName }) {
                 <table className="data-table data-table--stack">
                   <thead>
                     <tr>
-                      <th>Student</th><th>Code</th><th>Class</th><th>Guardian</th><th>Status</th>
+                      <th>Student</th><th>Code</th><th>Class</th>
+                      {multiCampus && <th>Campus</th>}
+                      <th>Guardian</th><th>Status</th>
                       <th style={{ textAlign: "right" }}>Actions</th>
                     </tr>
                   </thead>
@@ -457,6 +523,11 @@ export default function StudentManagement({ schoolCode, schoolName }) {
                         </td>
                         <td data-label="Code"><StudentCodeBadge code={s.studentCode} /></td>
                         <td style={{ fontSize: 13, color: "var(--text2)" }} data-label="Class">{s.className || "—"}</td>
+                        {multiCampus && (
+                          <td style={{ fontSize: 13, color: "var(--text2)" }} data-label="Campus">
+                            {campusLabel(campuses, s.campusId || primaryCampus?.id || "")}
+                          </td>
+                        )}
                         <td data-label="Guardian">
                           <div style={{ fontSize: 12, color: "var(--text2)" }}>{s.guardianName || "—"}</div>
                           <div style={{ fontSize: 11, color: "var(--text3)" }}>{s.guardianPhone || ""}</div>
@@ -480,6 +551,17 @@ export default function StudentManagement({ schoolCode, schoolName }) {
                         <td data-label="Actions">
                           <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
                             <ActionBtn onClick={() => setShowDetail(s)} icon={IC.eye} title="View profile" />
+                            {multiCampus && (
+                              <ActionBtn
+                                onClick={() => {
+                                  setMovingStudent(s); setMoveTo(""); setMoveReason("");
+                                  setMoveError(""); setMoveSuccess("");
+                                }}
+                                icon={IC.transfer}
+                                title="Request a move to another campus"
+                                hoverBg="rgba(251,191,36,0.12)"
+                              />
+                            )}
                             <ActionBtn onClick={() => setShowDelete(s)} icon={IC.trash} title="Remove" hoverBg="rgba(239,68,68,0.1)" />
                           </div>
                         </td>
@@ -624,6 +706,24 @@ export default function StudentManagement({ schoolCode, schoolName }) {
               <div style={{ marginBottom: 24 }}>
                 <span className="section-tag">Academic Placement</span>
                 <div style={{ marginTop: 12 }}>
+                  {multiCampus && (
+                    <>
+                      <Select
+                        label="Campus"
+                        required
+                        value={enrolCampusId}
+                        onChange={e => setRegForm(p => ({ ...p, campusId: e.target.value }))}
+                      >
+                        {activeCampuses.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}{c.isPrimary ? " (main)" : ""}</option>
+                        ))}
+                      </Select>
+                      <p style={{ fontSize: 11, color: "var(--text3)", margin: "-8px 0 12px" }}>
+                        Get this right now. Moving a student to another campus afterwards needs an
+                        approved transfer, and clears their class placement.
+                      </p>
+                    </>
+                  )}
                   <Select label="Assign to Class" required value={regForm.classId} onChange={e => setRegForm(p => ({...p, classId: e.target.value}))} error={regErrors.classId}>
                     <option value="">Select class…</option>
                     {classes.length === 0 && <option disabled>No classes — add in School Settings</option>}
@@ -953,6 +1053,51 @@ export default function StudentManagement({ schoolCode, schoolName }) {
           onClose={() => setShowBulk(false)}
           onDone={() => fetchStudents()}
         />
+      )}
+
+      {/* ── Request a move to another campus ──
+          A request, not a move. Nothing about the student changes here — the
+          decision belongs to whoever has sight of both campuses, and the
+          consequence (a cleared class placement) is stated before it is made
+          rather than discovered afterwards by the receiving campus. */}
+      {movingStudent && (
+        <Modal title="Move to another campus" onClose={() => setMovingStudent(null)} size="md">
+          <div className="space-y-4">
+            {moveError && <div className="alert alert--error">{IC.warning}<span>{moveError}</span></div>}
+
+            <div className="alert alert--info">
+              {IC.transfer}
+              <div>
+                <p style={{ fontWeight: 600, fontSize: 13, marginBottom: 3 }}>
+                  {movingStudent.fullName} stays on {campusLabel(campuses, movingStudent.campusId || primaryCampus?.id || "")} until this is approved.
+                </p>
+                <p style={{ fontSize: 12 }}>
+                  On approval their class placement is cleared, because class names repeat across
+                  campuses — the receiving campus places them.
+                </p>
+              </div>
+            </div>
+
+            <Select label="Move to" required value={moveTo} onChange={e => setMoveTo(e.target.value)}>
+              <option value="">Select campus…</option>
+              {activeCampuses
+                .filter(c => c.id !== (movingStudent.campusId || primaryCampus?.id))
+                .map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+
+            <Input
+              label="Reason"
+              value={moveReason}
+              onChange={e => setMoveReason(e.target.value)}
+              placeholder="Family has moved to Zomba"
+            />
+
+            <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <Btn variant="ghost" onClick={() => setMovingStudent(null)}>Cancel</Btn>
+              <Btn variant="accent" disabled={!moveTo} onClick={submitCampusMove}>Request transfer</Btn>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

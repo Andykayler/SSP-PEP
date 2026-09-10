@@ -8,6 +8,7 @@ import {
 } from "../../../services/pricing";
 import { IC } from "./icons";
 import { Btn } from "./ui";
+import PayChanguCheckout from "../../../components/payments/PayChanguCheckout";
 
 // ─── MODULE 4: Billing ────────────────────────────────────────────────────────
 // What a school pays is derived from its own enrolment, not from a plan someone
@@ -49,12 +50,14 @@ function useBilledEnrolment(schoolCode) {
   return state;
 }
 
-export default function Billing({ schoolData, schoolCode }) {
+export default function Billing({ schoolData, schoolCode, canPay = true }) {
   const status = schoolData?.subscription_status || "trial";
   const isTrial = status === "trial";
 
   const { loading, learners, boarders, error } = useBilledEnrolment(schoolCode);
   const [cadence, setCadence] = useState(schoolData?.billing_cadence || DEFAULT_CADENCE);
+  const [paying, setPaying] = useState(false);
+  const [paid, setPaid] = useState(null);
 
   const q = quote({ learners, boarders, cadence });
   const options = compareCadences({ learners, boarders });
@@ -92,15 +95,44 @@ export default function Billing({ schoolData, schoolCode }) {
               : `Billed ${q.cadence.label.toLowerCase()} at ${formatMWK(q.perInvoice)} per invoice.`}
           </p>
         </div>
-        <span style={{
-          fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1, padding: "4px 12px",
-          borderRadius: 8, fontWeight: 700,
-          background: isTrial ? "rgba(232,168,0,0.2)" : "rgba(34,197,94,0.2)",
-          color: isTrial ? "var(--gold-lt)" : "#4ade80",
-        }}>
-          {isTrial ? "Trial Active" : "Subscribed"}
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{
+            fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: 1, padding: "4px 12px",
+            borderRadius: 8, fontWeight: 700,
+            background: isTrial ? "rgba(232,168,0,0.2)" : "rgba(34,197,94,0.2)",
+            color: isTrial ? "var(--gold-lt)" : "#4ade80",
+          }}>
+            {isTrial ? "Trial Active" : "Subscribed"}
+          </span>
+          {/* Paying is offered wherever the invoice is shown, because the
+              moment an administrator has read the figure is the moment they
+              are willing to settle it. The amount is repriced server-side from
+              the roll when the checkout opens, so the button cannot commit the
+              school to a stale quote. */}
+          {canPay && learners > 0 && (
+            <Btn variant="gold" size="sm" onClick={() => setPaying(true)}>
+              {IC.billing} Pay {formatMWK(q.perInvoice)} now
+            </Btn>
+          )}
+        </div>
       </div>
+
+      {paid && (
+        <div className="alert alert--success">
+          {IC.check}
+          <span>
+            Payment of {formatMWK(paid.amount)} received{paid.receiptNo ? ` — receipt ${paid.receiptNo}` : ""}.
+            Your subscription is active. Refresh to see the updated status.
+          </span>
+        </div>
+      )}
+
+      {schoolData?.lastPaymentAt && !paid && (
+        <p style={{ fontSize: 12, color: "var(--text3)" }}>
+          Last payment: {formatMWK(schoolData.lastPaymentAmount)}
+          {schoolData.paidThroughLabel ? ` · ${schoolData.paidThroughLabel}` : ""}
+        </p>
+      )}
 
       {error && <div className="alert alert--error">{error}</div>}
 
@@ -308,6 +340,21 @@ export default function Billing({ schoolData, schoolCode }) {
           Rates are reviewed once a year, effective Term 1.
         </p>
       </div>
+
+      {paying && (
+        <PayChanguCheckout
+          purpose="subscription"
+          title="Pay your Acalink subscription"
+          subtitle={`${q.cadence.label} · ${learners.toLocaleString()} learners`}
+          context={{ cadence }}
+          defaultAmount={q.perInvoice}
+          amountEditable={false}
+          payerEmail={schoolData?.email || ""}
+          payerPhone={schoolData?.phone || ""}
+          onClose={() => setPaying(false)}
+          onSettled={(tx) => setPaid(tx)}
+        />
+      )}
     </div>
   );
 }

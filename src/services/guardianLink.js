@@ -32,10 +32,9 @@
 // is read as active, deliberately: they work today, and retro-flagging them
 // pending would demand a confirmation from every existing family at once.
 // ─────────────────────────────────────────────────────────────────────────────
-import { db } from "../firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
 import { normalisePhone } from "./phone";
 import { generatePassword } from "./credentials";
+import { lookupSiblingsByPhone } from "./studentLookup";
 import { pushNotification, parentRecipientId } from "./notifications";
 
 export const LINK_ACTIVE  = "active";
@@ -60,10 +59,12 @@ export function isLinkPending(student) {
 export async function siblingsForPhone(phone) {
   const normalised = normalisePhone(phone);
   if (!normalised) return [];
-  const snap = await getDocs(
-    query(collection(db, "students"), where("guardianPhone", "==", normalised))
-  );
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  // Asked of the server rather than queried directly. A client query on
+  // guardianPhone spans every school, which is the point of the feature — but
+  // permitting it in firestore.rules meant permitting a blanket cross-school
+  // read of every child on the platform. See api/students/lookup.js.
+  const byPhone = await lookupSiblingsByPhone([normalised]);
+  return byPhone[normalised] || [];
 }
 
 /**

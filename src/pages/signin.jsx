@@ -14,6 +14,7 @@ import "./signin.css";
 
 const ROLES = {
   admin:         { label: "Administrator",   redirectTo: "/admin"   },
+  director:      { label: "Director",        redirectTo: "/director" },
   head_teacher:  { label: "Head Teacher",    redirectTo: "/head"    },
   class_teacher: { label: "Class Teacher",   redirectTo: "/teacher" },
   bursar:        { label: "Bursar / Fees",   redirectTo: "/bursar"  },
@@ -408,7 +409,7 @@ export default function SignIn() {
       }
 
       const userData = userSnap.data();
-      const allowedRoles = ["admin", "head_teacher", "class_teacher", "bursar"];
+      const allowedRoles = ["admin", "director", "head_teacher", "class_teacher", "bursar"];
 
       if (!allowedRoles.includes(userData.role)) {
         await signOut(auth);

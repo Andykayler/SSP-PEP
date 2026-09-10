@@ -172,7 +172,8 @@ class _StudentSelectScreenState extends State<StudentSelectScreen> {
             final q = _query.toLowerCase();
             return s.fullName.toLowerCase().contains(q) ||
                 s.className.toLowerCase().contains(q) ||
-                s.schoolName.toLowerCase().contains(q);
+                s.schoolName.toLowerCase().contains(q) ||
+                s.campusName.toLowerCase().contains(q);
           }).toList();
 
     return Scaffold(
@@ -492,7 +493,13 @@ class _StudentCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${student.className} · ${student.schoolName}',
+                      // The campus is named only when the school records one,
+                      // which is only when it runs more than one site. A
+                      // guardian with children at the town and rural campuses
+                      // of the same school otherwise sees two identical cards.
+                      student.campusName.isEmpty
+                          ? '${student.className} · ${student.schoolName}'
+                          : '${student.className} · ${student.campusName}',
                       style: TextStyle(
                         fontFamily: context.colors.fontMono,
                         fontSize: 10,

@@ -1,5 +1,10 @@
 // ─── Constants ────────────────────────────────────────────────────────────────
 export const ROLES = [
+  // The director owns the school as an institution — every campus, none of the
+  // day-to-day. Listed first because that is where they sit above the head
+  // teachers, and because an administrator creating accounts for a group needs
+  // to find it without hunting.
+  { value: "director",      label: "Director",      badgeClass: "badge--green"  },
   { value: "head_teacher",  label: "Head Teacher",  badgeClass: "badge--purple" },
   { value: "class_teacher", label: "Class Teacher", badgeClass: "badge--blue"   },
   { value: "bursar",        label: "Bursar / Fees", badgeClass: "badge--amber"  },

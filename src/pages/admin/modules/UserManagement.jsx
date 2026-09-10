@@ -20,6 +20,81 @@ import {
   STAFF_COLUMNS, STAFF_SAMPLE, validateStaffRows, importStaff,
 } from "../../../services/bulkImport";
 import { downloadCsv } from "../../../services/csv";
+import { subscribeCampuses, describeScope, isMultiCampus } from "../../../services/campuses";
+import { subscribeSchoolSettings } from "../../../services/academicTerm";
+
+// Roles that are school-wide by their nature. A director oversees every
+// campus — that is what the job is — so offering to restrict one to a single
+// site would be offering to break it. Everyone else is scoped, and the default
+// is the narrowest thing that still lets them work.
+const SCHOOL_WIDE_ROLES = ["director"];
+
+// ─── Campus scope picker ─────────────────────────────────────────────────────
+// Two questions, not one: "all campuses" and "these campuses" are different
+// claims. Someone marked all-campuses keeps sight of a campus opened next
+// year; someone listed against three campus ids should not silently gain a
+// fourth. Collapsing them into a multi-select with everything ticked loses
+// that distinction the first time a school expands.
+function CampusScope({ campuses, allCampuses, campusIds, onChange, role }) {
+  const forced = SCHOOL_WIDE_ROLES.includes(role);
+  const active = campuses.filter((c) => c.status !== "archived");
+
+  if (active.length <= 1) return null;
+
+  return (
+    <div className="field">
+      <label className="field__label">Campus access</label>
+      <p style={{ fontSize: 11.5, color: "var(--text3)", marginBottom: 8 }}>
+        {forced
+          ? "A director sees every campus. That is the role."
+          : "They see students, classes and registers only for the campuses ticked here."}
+      </p>
+
+      <label className="checkbox-label" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <input
+          type="checkbox"
+          checked={forced || allCampuses}
+          disabled={forced}
+          onChange={(e) => onChange({ allCampuses: e.target.checked, campusIds: [] })}
+        />
+        <span>All campuses, including any added later</span>
+      </label>
+
+      {!forced && !allCampuses && (
+        <div className="space-y-2" style={{ marginTop: 8 }}>
+          {active.map((c) => {
+            const on = campusIds.includes(c.id);
+            return (
+              <label
+                key={c.id}
+                className={`checkbox-label${on ? " checkbox-label--selected" : ""}`}
+                style={{ display: "flex", gap: 8, alignItems: "center" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={on}
+                  onChange={() =>
+                    onChange({
+                      allCampuses: false,
+                      campusIds: on ? campusIds.filter((id) => id !== c.id) : [...campusIds, c.id],
+                    })
+                  }
+                />
+                <span>{c.name}{c.isPrimary ? " (main)" : ""}</span>
+              </label>
+            );
+          })}
+          {campusIds.length === 0 && (
+            <p style={{ fontSize: 11.5, color: "var(--text3)" }}>
+              Nobody assigned a campus falls back to the main one, so they can still work —
+              but pick deliberately if this school runs more than one site.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Create a user WITHOUT hijacking the admin's current session ─────────────
 // createUserWithEmailAndPassword on the primary `auth` instance signs the app
@@ -49,12 +124,18 @@ export default function UserManagement({ schoolCode, schoolName }) {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError]                 = useState("");
   const [successMsg, setSuccessMsg]       = useState("");
-  // form includes phone for SMS
-  const [form, setForm]       = useState({ name: "", email: "", role: "", phone: "" });
+  // form includes phone for SMS, and the campus scope this account works under
+  const [form, setForm]       = useState({ name: "", email: "", role: "", phone: "", allCampuses: false, campusIds: [] });
   const [formErrors, setFormErrors] = useState({});
   const [showBulk, setShowBulk]     = useState(false);
+  const [campuses, setCampuses]     = useState([]);
+  const [settings, setSettings]     = useState(null);
 
   useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => subscribeCampuses(schoolCode, setCampuses), [schoolCode]);
+  useEffect(() => subscribeSchoolSettings(schoolCode, setSettings), [schoolCode]);
+
+  const multiCampus = isMultiCampus(settings, campuses);
 
   async function fetchUsers() {
     setLoading(true);
@@ -92,6 +173,11 @@ export default function UserManagement({ schoolCode, schoolName }) {
         role: form.role,
         phone,
         schoolCode,
+        // A director is school-wide whatever the form said; everyone else gets
+        // exactly the campuses they were given. Both fields are always written
+        // so a later read never has to distinguish "false" from "never set".
+        allCampuses: SCHOOL_WIDE_ROLES.includes(form.role) || form.allCampuses,
+        campusIds: SCHOOL_WIDE_ROLES.includes(form.role) || form.allCampuses ? [] : form.campusIds,
         status: "active",
         mustChangePassword: true,
         createdAt: serverTimestamp(),
@@ -159,10 +245,13 @@ export default function UserManagement({ schoolCode, schoolName }) {
     e.preventDefault();
     setActionLoading(true); setError("");
     try {
+      const wide = SCHOOL_WIDE_ROLES.includes(form.role) || form.allCampuses;
       await updateDoc(doc(db, "users", showEdit.id), {
         name:  form.name.trim(),
         role:  form.role,
         phone: normalisePhone(form.phone),
+        allCampuses: wide,
+        campusIds: wide ? [] : form.campusIds,
       });
       setShowEdit(null); fetchUsers();
     } catch (err) { setError("Update failed: " + err.message); }
@@ -207,11 +296,14 @@ export default function UserManagement({ schoolCode, schoolName }) {
   }
 
   function openEdit(user) {
-    setForm({ name: user.name||"", email: user.email||"", role: user.role||"", phone: user.phone||"" });
+    setForm({
+      name: user.name||"", email: user.email||"", role: user.role||"", phone: user.phone||"",
+      allCampuses: Boolean(user.allCampuses), campusIds: user.campusIds || [],
+    });
     setFormErrors({}); setError(""); setShowEdit(user);
   }
   function openAdd() {
-    setForm({ name: "", email: "", role: "", phone: "" });
+    setForm({ name: "", email: "", role: "", phone: "", allCampuses: false, campusIds: [] });
     setFormErrors({}); setError(""); setShowAdd(true);
   }
 
@@ -271,7 +363,9 @@ export default function UserManagement({ schoolCode, schoolName }) {
             <table className="data-table data-table--stack">
               <thead>
                 <tr>
-                  <th>User</th><th>Role</th><th>Status</th><th>Added</th>
+                  <th>User</th><th>Role</th>
+                  {multiCampus && <th>Campus</th>}
+                  <th>Status</th><th>Added</th>
                   <th style={{ textAlign: "right" }}>Actions</th>
                 </tr>
               </thead>
@@ -289,6 +383,11 @@ export default function UserManagement({ schoolCode, schoolName }) {
                       </div>
                     </td>
                     <td data-label="Role"><RoleBadge role={u.role} /></td>
+                    {multiCampus && (
+                      <td data-label="Campus" style={{ fontSize: 12.5 }}>
+                        {describeScope(u, campuses)}
+                      </td>
+                    )}
                     <td data-label="Status"><StatusPill active={u.status !== "suspended"} /></td>
                     <td style={{ fontSize: 12, color: "var(--text3)" }} data-label="Added">{fmtDate(u.createdAt)}</td>
                     <td data-label="Actions">
@@ -336,6 +435,13 @@ export default function UserManagement({ schoolCode, schoolName }) {
                 {IC.sms} If provided, login credentials will also be sent via SMS.
               </p>
             </div>
+            <CampusScope
+              campuses={campuses}
+              role={form.role}
+              allCampuses={form.allCampuses}
+              campusIds={form.campusIds}
+              onChange={(patch) => setForm(p => ({ ...p, ...patch }))}
+            />
             <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 8 }}>
               <Btn type="button" variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Btn>
               <Btn type="submit" variant="gold" loading={actionLoading}>{IC.mail} Create &amp; Notify</Btn>
@@ -358,6 +464,13 @@ export default function UserManagement({ schoolCode, schoolName }) {
               <Input label="Phone Number" type="tel" value={form.phone} onChange={e => setForm(p => ({...p, phone: e.target.value}))} placeholder="+265 9xx xxx xxx" />
               <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 4, display: "flex", gap: 5, alignItems: "center" }}>{IC.sms} Used for future SMS notifications.</p>
             </div>
+            <CampusScope
+              campuses={campuses}
+              role={form.role}
+              allCampuses={form.allCampuses}
+              campusIds={form.campusIds}
+              onChange={(patch) => setForm(p => ({ ...p, ...patch }))}
+            />
             <p style={{ fontSize: 11, color: "var(--text3)" }}>Email and password changes must be done through Firebase Console.</p>
             <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 8 }}>
               <Btn type="button" variant="ghost" onClick={() => setShowEdit(null)}>Cancel</Btn>
