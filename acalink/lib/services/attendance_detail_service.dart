@@ -82,16 +82,20 @@ class AttendanceDetailService {
       final data = doc.data();
       final records = data['records'] as Map<String, dynamic>?;
       final mine = records?[student.id];
-      if (mine is! Map) continue;
-
-      final status = mine['status'] as String? ?? '';
+      // Same two on-disk shapes as AttendanceService.fetchRecentAttendance —
+      // a bare status string, or a map carrying status plus a time/remark.
+      // The plain-string shape used to be silently dropped here, which
+      // under-counted a child's history rather than crashing outright, but
+      // was still wrong for exactly the same registers.
+      if (mine == null || (mine is! String && mine is! Map)) continue;
+      final status = (mine is String ? mine : (mine as Map)['status'] as String?) ?? '';
       if (status.isEmpty) continue; // unmarked pupils are not a record
 
       days.add(AttendanceDay(
         date: data['date'] as String? ?? '',
         status: status,
-        time: mine['time'] as String? ?? '',
-        remark: mine['remark'] as String? ?? '',
+        time: mine is Map ? (mine['time'] as String? ?? '') : '',
+        remark: mine is Map ? (mine['remark'] as String? ?? '') : '',
         className: data['className'] as String? ?? student.className,
       ));
     }

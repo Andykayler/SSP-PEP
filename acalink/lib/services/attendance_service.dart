@@ -53,8 +53,13 @@ class AttendanceService {
     int marked = 0;
     for (final doc in docsByDate.take(_recentDaysLimit)) {
       final records = doc.data()['records'] as Map<String, dynamic>?;
-      final record = records?[student.id] as Map<String, dynamic>?;
-      final status = record?['status'] as String?;
+      final entry = records?[student.id];
+      // Registers have been written both as a bare status string and as a
+      // map carrying a status plus a time — mirrors the web side's
+      // termSummary.js, which documents the same two shapes. A hard cast to
+      // Map here crashed this whole fetch (and the dashboard load with it)
+      // for any register written the plain-string way.
+      final status = entry is String ? entry : (entry is Map ? entry['status'] as String? : null);
       if (status == null || status.isEmpty) continue;
       marked++;
       if (status == 'Present' || status == 'Late') present++;
