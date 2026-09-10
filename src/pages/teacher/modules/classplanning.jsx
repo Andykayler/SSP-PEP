@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { 
-  Plus, Calendar, Clock, BookOpen, Users, Edit2, Eye, 
-  Trash2, Download, CheckCircle, AlertCircle, Target, X, Save 
+import {
+  Plus, Calendar, Clock, BookOpen, Users, Edit2, Eye,
+  Trash2, Download, CheckCircle, AlertCircle, Target, X, Save,
+  Sparkles, Loader2
 } from "lucide-react";
+import { draftLessonPlan } from "../../../services/aiLessonPlan";
 
 // ========================
 // 1. LESSON PLAN CARD COMPONENT
@@ -102,17 +104,46 @@ function NewLessonPlanModal({ isOpen, onClose, onSave }) {
     period: "Period 2 (08:30 - 09:20)",
     topic: "",
     objectives: "",
-    resources: "Textbook, Graph paper, Scientific calculator",
-    assessment: "Class exercise + Homework questions",
+    activities: "",
+    resources: "",
+    assessment: "",
     week: "12",
     term: "Term 2",
     status: "planned"
   });
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(null);
 
   const classes = ["Form 3A", "Form 3B", "Form 4A", "Form 4B"];
   const subjects = ["Mathematics", "Physics", "Chemistry", "Biology", "English"];
 
   if (!isOpen) return null;
+
+  const handleGenerate = async () => {
+    setAiError(null);
+    setAiLoading(true);
+    const { plan, error } = await draftLessonPlan({
+      className: formData.className,
+      subject: formData.subject,
+      topic: formData.topic,
+      week: formData.week,
+      term: formData.term,
+    });
+    setAiLoading(false);
+    if (!plan) {
+      setAiError(error || "Could not draft a plan.");
+      return;
+    }
+    // Fills the form rather than replacing it outright — a teacher who has
+    // already typed resources or an assessment idea keeps it.
+    setFormData((prev) => ({
+      ...prev,
+      objectives: prev.objectives || plan.objectives,
+      activities: prev.activities || plan.activities,
+      resources: prev.resources || plan.resources,
+      assessment: prev.assessment || plan.assessment,
+    }));
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -184,25 +215,61 @@ function NewLessonPlanModal({ isOpen, onClose, onSave }) {
 
           <div>
             <label className="text-xs font-medium text-app-text/60 mb-1 block">TOPIC / CHAPTER</label>
-            <input
-              type="text"
-              placeholder="e.g. Solving Simultaneous Equations"
-              value={formData.topic}
-              onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
-              className="w-full px-4 py-3 border border-app-border rounded-2xl"
-              required
-            />
+            <div className="flex gap-3">
+              <input
+                type="text"
+                placeholder="e.g. Solving Simultaneous Equations"
+                value={formData.topic}
+                onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
+                className="flex-1 px-4 py-3 border border-app-border rounded-2xl"
+                required
+              />
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={aiLoading || !formData.topic.trim()}
+                title="Draft objectives, activities, resources and assessment from the topic"
+                className="shrink-0 flex items-center gap-2 px-4 py-3 border border-app-border rounded-2xl text-sm font-medium hover:bg-app-bg disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {aiLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Sparkles className="w-4 h-4" />
+                )}
+                {aiLoading ? "Drafting…" : "Generate with AI"}
+              </button>
+            </div>
+            {aiError && (
+              <p className="text-xs text-red-600 mt-2">{aiError}</p>
+            )}
+            {!aiError && (
+              <p className="text-xs text-app-text/50 mt-2">
+                Drafts objectives, activities, resources and assessment for a Malawian classroom
+                (MANEB syllabus, chalkboard-and-textbook resources). Review and edit before saving.
+              </p>
+            )}
           </div>
 
           <div>
             <label className="text-xs font-medium text-app-text/60 mb-1 block">LEARNING OBJECTIVES</label>
             <textarea
               rows={4}
-              placeholder="Students should be able to..."
+              placeholder="Learners will be able to..."
               value={formData.objectives}
               onChange={(e) => setFormData({ ...formData, objectives: e.target.value })}
               className="w-full px-4 py-3 border border-app-border rounded-3xl resize-y min-h-[100px]"
               required
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-app-text/60 mb-1 block">LESSON ACTIVITIES</label>
+            <textarea
+              rows={4}
+              placeholder="Introduction, development, conclusion..."
+              value={formData.activities}
+              onChange={(e) => setFormData({ ...formData, activities: e.target.value })}
+              className="w-full px-4 py-3 border border-app-border rounded-3xl resize-y min-h-[100px]"
             />
           </div>
 
@@ -314,6 +381,15 @@ function ViewLessonPlanModal({ plan, onClose }) {
               {plan.objectives}
             </div>
           </div>
+
+          {plan.activities && (
+            <div>
+              <div className="text-xs text-app-text/60 mb-2">LESSON ACTIVITIES</div>
+              <div className="bg-app-bg p-5 rounded-3xl text-[15px] leading-relaxed">
+                {plan.activities}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-8">
             <div>
