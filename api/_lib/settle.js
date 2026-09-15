@@ -65,14 +65,23 @@ export async function settleTransaction(txRef) {
 
   if (!verified.paid) {
     const status = verified.failed ? "failed" : "pending";
-    if (tx.status !== status) {
+    const changed = tx.status !== status;
+    if (changed) {
       await txDocRef.update({
         status,
         gatewayStatus: verified.status,
         checkedAt: FieldValue.serverTimestamp(),
       });
     }
-    return { status, alreadySettled: false };
+    // channel/payerPhone/studentName/amount let a caller (the PayChangu
+    // webhook) notify a WhatsApp-initiated payment's own number on failure,
+    // without a second Firestore read — but only worth acting on when this
+    // call is the one that just discovered the failure.
+    return {
+      status, alreadySettled: false, changed,
+      channel: tx.channel || "", payerPhone: tx.payerPhone || "",
+      studentName: tx.studentName || "", amount: tx.amount || 0,
+    };
   }
 
   // Paid — but for how much? The amount we quoted is what the record must say.
@@ -119,7 +128,12 @@ export async function settleTransaction(txRef) {
 
   await txDocRef.update(written.txPatch || {});
 
-  return { status: "success", alreadySettled: false, ...written.result };
+  return {
+    status: "success", alreadySettled: false, changed: true,
+    channel: tx.channel || "", payerPhone: tx.payerPhone || "",
+    studentName: tx.studentName || "", amount: tx.amount || 0,
+    ...written.result,
+  };
 }
 
 /**

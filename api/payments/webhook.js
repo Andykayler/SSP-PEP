@@ -22,6 +22,35 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { verifyWebhookSignature } from "../_lib/paychangu.js";
 import { settleTransaction } from "../_lib/settle.js";
+import { sendWhatsAppText, isConfigured as waConfigured } from "../_lib/waapi.js";
+
+/**
+ * Tells the parent what happened, only for a transaction the WhatsApp bot
+ * itself started (`channel: "whatsapp"`) and only on the call that just
+ * changed its status — a retried webhook must never re-send the message.
+ * Never allowed to affect the settlement result: a WhatsApp outage is not a
+ * reason to fail a webhook whose money question is already answered.
+ */
+async function notifyWhatsApp(result) {
+  if (!waConfigured() || result.channel !== "whatsapp" || !result.payerPhone || !result.changed) return;
+
+  const amount = Number(result.amount || 0).toLocaleString("en-MW", { maximumFractionDigits: 0 });
+  const name = result.studentName || "your child";
+
+  try {
+    if (result.status === "success") {
+      const receipt = result.receiptNo ? ` Receipt: ${result.receiptNo}.` : "";
+      await sendWhatsAppText(result.payerPhone,
+        `Payment received — thank you! MK ${amount} for ${name}'s school fees has been confirmed.${receipt}`);
+    } else if (result.status === "failed") {
+      await sendWhatsAppText(result.payerPhone,
+        `Your payment of MK ${amount} for ${name}'s school fees did not go through. `
+        + `Reply "Make Payment" to try again.`);
+    }
+  } catch (err) {
+    console.error("[payments] could not send WhatsApp notification:", err);
+  }
+}
 
 /**
  * The raw request body, if the runtime left the stream unread.
@@ -81,6 +110,7 @@ export default async function handler(req, res) {
   try {
     const result = await settleTransaction(String(txRef));
     console.log("[payments] webhook settled", txRef, result.status, result.alreadySettled ? "(already)" : "");
+    await notifyWhatsApp(result);
   } catch (err) {
     // The transaction stays pending and the status poll retries. Still a 200:
     // a gateway retry would hit the same failing dependency.

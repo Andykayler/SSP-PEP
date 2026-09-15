@@ -1,0 +1,21 @@
+{
+  "name": "acalink-demo",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Competition demo video pipeline for Acalink. Standalone workspace — never imported by, or shipped with, the app in src/ or acalink/.",
+  "type": "module",
+  "scripts": {
+    "seed": "node seed/seed.js",
+    "unseed": "node seed/unseed.js",
+    "scene": "node scenes/run-scene.js",
+    "scenes": "node scenes/run-scene.js all",
+    "titles": "node titles/render-titles.js",
+    "stitch": "node stitch.js",
+    "all": "npm run titles && npm run scenes && npm run stitch"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "dotenv": "^16.4.5",
+    "firebase-admin": "^13.0.0"
+  }
+}

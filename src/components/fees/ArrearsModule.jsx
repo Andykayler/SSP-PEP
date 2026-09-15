@@ -11,12 +11,14 @@ import { db } from "../../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import {
   Wallet, Send, ShieldCheck, ShieldAlert, CalendarClock, RefreshCw, Search,
+  MessageCircle,
 } from "lucide-react";
 import {
   buildArrears, AGE_BUCKETS, stageFor, sendReminders, fetchClearances,
   setClearance, clearClearance, CLEARANCE_STATUS, fetchPlans, savePlan,
   planBehind, fetchReminders,
 } from "../../services/feeClearance";
+import { sendWhatsAppReminders } from "../../services/whatsappReminders";
 import { subscribeSchoolSettings } from "../../services/academicTerm";
 import {
   Modal, Btn, IconBtn, Input, Textarea, Select, Pill, EmptyState, StatGrid,
@@ -35,6 +37,7 @@ export default function ArrearsModule({ schoolCode, currentUser, canDecide = fal
   const [bucket, setBucket] = useState("all");
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
+  const [waBusy, setWaBusy] = useState(false);
   const [notice, setNotice] = useState(null);
   const [decision, setDecision] = useState(null);   // { student, status, reason }
   const [planFor, setPlanFor] = useState(null);     // { student, instalments }
@@ -136,6 +139,39 @@ export default function ArrearsModule({ schoolCode, currentUser, canDecide = fal
     if (res.ok) load();
   };
 
+  /**
+   * The same escalation wording as `remind` above, sent over WhatsApp instead
+   * — and, unlike the in-app channel, ending with an invitation to pay right
+   * there in the chat (see docs/whatsapp-waapi.md). Capped server-side per
+   * call to keep the connected WhatsApp number from looking like it is
+   * blasting messages; `remaining` tells the bursar to click again.
+   */
+  const remindWhatsApp = async () => {
+    const targets = visible.filter((r) => r.guardianPhone);
+    if (targets.length === 0) {
+      setNotice({ tone: "warning", text: "None of these families has a phone number on record." });
+      return;
+    }
+    if (!window.confirm(
+      `Send ${targets.length} WhatsApp reminder${targets.length === 1 ? "" : "s"}?\n\n`
+      + "Each family gets the wording their arrears warrant, with an invitation to pay by replying "
+      + "\"Make Payment\".")) return;
+
+    setWaBusy(true);
+    const res = await sendWhatsAppReminders(targets.map((r) => r.id));
+    setWaBusy(false);
+
+    if (!res.ok) { setNotice({ tone: "danger", text: res.error }); return; }
+    const more = res.remaining
+      ? ` ${res.remaining} more ${res.remaining === 1 ? "is" : "are"} still due — click again to continue.`
+      : "";
+    setNotice({
+      tone: res.failed ? "warning" : "success",
+      text: `${res.sent} WhatsApp reminder${res.sent === 1 ? "" : "s"} sent`
+        + (res.failed ? `, ${res.failed} failed` : "") + `.${more}`,
+    });
+  };
+
   const submitDecision = async () => {
     setBusy(true);
     const res = decision.status === "remove"
@@ -186,6 +222,10 @@ export default function ArrearsModule({ schoolCode, currentUser, canDecide = fal
           <Btn key="s" variant="accent" icon={<Send size={15} />} loading={busy}
             onClick={remind} disabled={visible.length === 0}>
             Send reminders ({visible.length})
+          </Btn>,
+          <Btn key="wa" variant="secondary" icon={<MessageCircle size={15} />} loading={waBusy}
+            onClick={remindWhatsApp} disabled={visible.length === 0}>
+            WhatsApp ({visible.length})
           </Btn>,
         ]}
       />

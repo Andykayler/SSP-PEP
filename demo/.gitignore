@@ -1,0 +1,5 @@
+# Recordings and stitched output are build artifacts, not source — regenerate
+# with `npm run all`. Keep the repo free of multi-hundred-MB video blobs.
+output/
+node_modules/
+*.log
