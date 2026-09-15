@@ -65,7 +65,13 @@ async function authenticate(req) {
     return { error: "Your session has expired. Sign in again." };
   }
 
-  const userSnap = await adminDb.collection("users").doc(decoded.uid).get();
+  let userSnap;
+  try {
+    userSnap = await adminDb.collection("users").doc(decoded.uid).get();
+  } catch (err) {
+    console.error("[whatsapp] could not read staff profile:", err);
+    return { error: "Could not verify your account. Please try again." };
+  }
   if (!userSnap.exists) return { error: "No staff profile is attached to this account." };
   const user = userSnap.data();
   if (!FINANCE_ROLES.includes(user.role)) {
