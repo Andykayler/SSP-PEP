@@ -11,12 +11,14 @@
 // PHONE VALIDATION (the point of this whole file)
 //
 // A parent never types a phone number anywhere in this flow — the number is
-// whichever WhatsApp account sent the message, exactly as WaAPI reports it.
-// That is matched against `students.guardianPhone`, and a payment is only
-// ever opened for a student whose guardian number equals the sender's. There
-// is no form field to spoof, which is the strongest version of the "does the
-// submitted number match our records" check the spec asks for — there is
-// simply nothing submitted to disagree with the record.
+// whichever WhatsApp account sent the message, exactly as WaAPI reports it
+// (resolved from a privacy-preserving "@lid" id where needed — see
+// resolveLid() in api/_lib/waapi.js). That is matched against
+// `students.guardianPhone`, and a payment is only ever opened for a student
+// whose guardian number equals the sender's. There is no form field to spoof,
+// which is the strongest version of the "does the submitted number match our
+// records" check the spec asks for — there is simply nothing submitted to
+// disagree with the record.
 //
 // Every trigger — matched or not — is logged to `wa_payment_attempts` so the
 // school can review who has been asking to pay and from what number, the same
@@ -36,7 +38,9 @@
 // bot conversation would mean the parent gets asked the same question twice.
 // ─────────────────────────────────────────────────────────────────────────────
 import { adminDb, FieldValue } from "../_lib/firebaseAdmin.js";
-import { sendWhatsAppText, phoneFromChatId, isConfigured as waConfigured } from "../_lib/waapi.js";
+import {
+  sendWhatsAppToChatId, phoneFromChatId, resolveLid, isConfigured as waConfigured,
+} from "../_lib/waapi.js";
 import { findStudentsByGuardianPhone, computeStudentBalance } from "../_lib/feeBalance.js";
 import { getSession, setSession, clearSession } from "../_lib/waSession.js";
 import { openWhatsAppFeeCheckout } from "../_lib/waFeeCheckout.js";
@@ -78,17 +82,24 @@ function tokenMatches(given, expected) {
   return diff === 0;
 }
 
-async function reply(phone, text) {
+/**
+ * Always replies to the raw chat id the message arrived on (lid or c.us) —
+ * never to a phone number reconstructed as "<number>@c.us". For an
+ * @lid-addressed sender those are not the same conversation; see
+ * sendWhatsAppToChatId() in api/_lib/waapi.js.
+ */
+async function reply(chatId, text) {
   try {
-    await sendWhatsAppText(phone, text);
+    await sendWhatsAppToChatId(chatId, text);
   } catch (err) {
-    console.error("[whatsapp] could not send reply to", phone, err);
+    console.error("[whatsapp] could not send reply to", chatId, err);
   }
 }
 
-async function logAttempt({ senderPhone, matchedStudentIds, outcome }) {
+async function logAttempt({ chatId, senderPhone, matchedStudentIds, outcome }) {
   try {
     await adminDb.collection(ATTEMPTS).add({
+      chatId,
       senderPhone,
       matchedStudentIds: matchedStudentIds || [],
       outcome,
@@ -120,19 +131,28 @@ async function stillOwnsStudent(senderPhone, student) {
 }
 
 // ─── The conversation ────────────────────────────────────────────────────────
+//
+// Every step is keyed on `chatId` — the raw WhatsApp identity the message
+// arrived on (lid or c.us) — since that is what stays constant for a reply
+// and for the session across a multi-turn conversation. `phone`, the number
+// resolved once at the top of handler() (see resolveLid() in api/_lib/waapi.js),
+// is threaded alongside it purely for matching against `students.guardianPhone`
+// and is cached in the session so later turns never need to re-resolve it.
 
-async function startPaymentFlow(senderPhone) {
-  const students = await findStudentsByGuardianPhone(senderPhone);
+async function startPaymentFlow(chatId, phone) {
+  const students = await findStudentsByGuardianPhone(phone);
 
   if (students.length === 0) {
-    await logAttempt({ senderPhone, matchedStudentIds: [], outcome: "no_student_for_number" });
-    await reply(senderPhone,
+    await logAttempt({ chatId, senderPhone: phone, matchedStudentIds: [], outcome: "no_student_for_number" });
+    await reply(chatId,
       "This number isn't registered as a parent/guardian contact for any student on Acalink. "
       + "Please contact your school's office to update the number on file.");
     return;
   }
 
-  await logAttempt({ senderPhone, matchedStudentIds: students.map((s) => s.id), outcome: "matched" });
+  await logAttempt({
+    chatId, senderPhone: phone, matchedStudentIds: students.map((s) => s.id), outcome: "matched",
+  });
 
   const withBalance = [];
   for (const s of students) {
@@ -142,14 +162,14 @@ async function startPaymentFlow(senderPhone) {
 
   if (withBalance.length === 0) {
     const names = students.map((s) => s.fullName || "your child").join(", ");
-    await reply(senderPhone, `Good news — there's no outstanding balance for ${names}.`);
+    await reply(chatId, `Good news — there's no outstanding balance for ${names}.`);
     return;
   }
 
   if (withBalance.length === 1) {
     const { student, balance } = withBalance[0];
-    await setSession(senderPhone, { awaiting: "amount", studentId: student.id, balance: balance.balance });
-    await reply(senderPhone, askAmountText(student, balance));
+    await setSession(chatId, { phone, awaiting: "amount", studentId: student.id, balance: balance.balance });
+    await reply(chatId, askAmountText(student, balance));
     return;
   }
 
@@ -157,111 +177,117 @@ async function startPaymentFlow(senderPhone) {
     index: i + 1, studentId: student.id, balance: balance.balance,
     name: student.fullName || `Student ${i + 1}`,
   }));
-  await setSession(senderPhone, { awaiting: "select", options });
+  await setSession(chatId, { phone, awaiting: "select", options });
   const lines = options.map((o) => `${o.index}) ${o.name} — MK ${fmt(o.balance)} owing`);
-  await reply(senderPhone,
+  await reply(chatId,
     `You have more than one child with an outstanding balance. Reply with a number:\n\n${lines.join("\n")}`);
 }
 
-async function handleSelect(senderPhone, text, session) {
+async function handleSelect(chatId, text, session) {
   const n = parseInt(String(text).trim(), 10);
   const chosen = (session.options || []).find((o) => o.index === n);
   if (!chosen) {
-    await reply(senderPhone, "Please reply with just the number next to your child's name.");
+    await reply(chatId, "Please reply with just the number next to your child's name.");
     return;
   }
   const student = await loadStudent(chosen.studentId);
   if (!student) {
-    await clearSession(senderPhone);
-    await reply(senderPhone, "Sorry, that record could not be found. Please try again.");
+    await clearSession(chatId);
+    await reply(chatId, "Sorry, that record could not be found. Please try again.");
     return;
   }
-  await setSession(senderPhone, { awaiting: "amount", studentId: student.id, balance: chosen.balance });
-  await reply(senderPhone, askAmountText(student, { balance: chosen.balance }));
+  await setSession(chatId, {
+    phone: session.phone, awaiting: "amount", studentId: student.id, balance: chosen.balance,
+  });
+  await reply(chatId, askAmountText(student, { balance: chosen.balance }));
 }
 
-async function handleAmount(senderPhone, text, session) {
+async function handleAmount(chatId, text, session) {
   const amount = YES_RE.test(text) ? session.balance : parseAmount(text);
 
   if (!amount || amount <= 0) {
-    await reply(senderPhone,
+    await reply(chatId,
       "Sorry, I didn't understand that. Reply with a number (e.g. 20000) or YES to pay the full balance.");
     return;
   }
   if (amount > MAX_AMOUNT) {
-    await reply(senderPhone,
+    await reply(chatId,
       "That amount is too large for a single WhatsApp payment — please use the Acalink app or contact the school office.");
     return;
   }
 
   const student = await loadStudent(session.studentId);
   if (!student) {
-    await clearSession(senderPhone);
-    await reply(senderPhone, "Sorry, that record could not be found.");
+    await clearSession(chatId);
+    await reply(chatId, "Sorry, that record could not be found.");
     return;
   }
-  if (!(await stillOwnsStudent(senderPhone, student))) {
-    await clearSession(senderPhone);
-    await logAttempt({ senderPhone, matchedStudentIds: [student.id], outcome: "mismatch_at_amount" });
-    await reply(senderPhone, "This number is not registered to this student. Please contact the school office.");
+  if (!(await stillOwnsStudent(session.phone, student))) {
+    await clearSession(chatId);
+    await logAttempt({
+      chatId, senderPhone: session.phone, matchedStudentIds: [student.id], outcome: "mismatch_at_amount",
+    });
+    await reply(chatId, "This number is not registered to this student. Please contact the school office.");
     return;
   }
 
-  await setSession(senderPhone, { awaiting: "confirm", studentId: student.id, amount });
-  await reply(senderPhone,
+  await setSession(chatId, { phone: session.phone, awaiting: "confirm", studentId: student.id, amount });
+  await reply(chatId,
     `Confirm: pay MK ${fmt(amount)} for ${student.fullName || "your child"}'s school fees? `
     + `Reply YES to confirm or CANCEL to stop.`);
 }
 
-async function handleConfirm(senderPhone, text, session) {
+async function handleConfirm(chatId, text, session) {
   if (!YES_RE.test(text)) {
-    await reply(senderPhone, "Reply YES to confirm, or CANCEL to stop.");
+    await reply(chatId, "Reply YES to confirm, or CANCEL to stop.");
     return;
   }
 
   const student = await loadStudent(session.studentId);
   if (!student) {
-    await clearSession(senderPhone);
-    await reply(senderPhone, "Sorry, that record could not be found.");
+    await clearSession(chatId);
+    await reply(chatId, "Sorry, that record could not be found.");
     return;
   }
-  if (!(await stillOwnsStudent(senderPhone, student))) {
-    await clearSession(senderPhone);
-    await logAttempt({ senderPhone, matchedStudentIds: [student.id], outcome: "mismatch_at_confirm" });
-    await reply(senderPhone, "This number is not registered to this student. Please contact the school office.");
+  if (!(await stillOwnsStudent(session.phone, student))) {
+    await clearSession(chatId);
+    await logAttempt({
+      chatId, senderPhone: session.phone, matchedStudentIds: [student.id], outcome: "mismatch_at_confirm",
+    });
+    await reply(chatId, "This number is not registered to this student. Please contact the school office.");
     return;
   }
 
-  await clearSession(senderPhone);
+  await clearSession(chatId);
   try {
     const { checkoutUrl, amount } = await openWhatsAppFeeCheckout({
-      student, amount: session.amount, payerPhone: senderPhone,
+      student, amount: session.amount, payerPhone: session.phone,
     });
-    await reply(senderPhone,
+    await reply(chatId,
       `Tap this secure link to pay MK ${fmt(amount)}:\n${checkoutUrl}\n\nYou'll get a message here once it's confirmed.`);
   } catch (err) {
     console.error("[whatsapp] could not open checkout:", err);
-    await reply(senderPhone, "Sorry, we couldn't start that payment right now. Please try again shortly or use the Acalink app.");
+    await reply(chatId, "Sorry, we couldn't start that payment right now. Please try again shortly or use the Acalink app.");
   }
 }
 
-async function route(senderPhone, text) {
+async function route(chatId, phone, text) {
   if (NO_RE.test(text)) {
-    const had = await getSession(senderPhone);
+    const had = await getSession(chatId);
     if (had) {
-      await clearSession(senderPhone);
-      await reply(senderPhone, "Okay, cancelled.");
+      await clearSession(chatId);
+      await reply(chatId, "Okay, cancelled.");
     }
     return;
   }
 
-  const session = await getSession(senderPhone);
+  const session = await getSession(chatId);
 
-  if (session?.awaiting === "select") return handleSelect(senderPhone, text, session);
-  if (session?.awaiting === "amount") return handleAmount(senderPhone, text, session);
-  if (session?.awaiting === "confirm") return handleConfirm(senderPhone, text, session);
+  if (session?.awaiting === "select") return handleSelect(chatId, text, session);
+  if (session?.awaiting === "amount") return handleAmount(chatId, text, session);
+  if (session?.awaiting === "confirm") return handleConfirm(chatId, text, session);
 
-  if (TRIGGER_RE.test(text)) return startPaymentFlow(senderPhone);
+  if (TRIGGER_RE.test(text)) return startPaymentFlow(chatId, phone);
 
   // No active conversation and no trigger phrase: stay silent. This is a
   // payment bot, not a general assistant — replying to every stray message
@@ -294,12 +320,20 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true });
   }
 
-  const senderPhone = normalisePhone(phoneFromChatId(message.from));
+  const chatId = String(message.from || "");
   const text = String(message.body || "").trim();
-  if (!senderPhone || !text) return res.status(200).json({ ok: true });
+  if (!chatId || !text) return res.status(200).json({ ok: true });
 
   try {
-    await route(senderPhone, text);
+    // A privacy-preserving "@lid" id hides the real number until asked of
+    // WhatsApp — see resolveLid() in api/_lib/waapi.js. Without a real number
+    // there is nothing to match against `guardianPhone`, so the message is
+    // acknowledged and dropped rather than crashing the webhook.
+    const resolved = await resolveLid(chatId);
+    const phone = normalisePhone(phoneFromChatId(resolved));
+    if (!phone) return res.status(200).json({ ok: true });
+
+    await route(chatId, phone, text);
   } catch (err) {
     console.error("[whatsapp] webhook handling failed:", err);
   }

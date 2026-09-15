@@ -1,0 +1,9 @@
+# Not part of this deployment — excluded so a local `vercel deploy` doesn't
+# try to upload their build artifacts (acalink/build/ alone has files over
+# 300MB, well past Vercel's 100MB per-file limit). The GitHub-integrated
+# deploy never hit this because it clones fresh from git, which already
+# excludes these via their own nested .gitignore files; this file makes the
+# CLI path behave the same way.
+acalink
+functions
+demo

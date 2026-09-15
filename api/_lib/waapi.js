@@ -46,28 +46,17 @@ export function phoneFromChatId(chatId) {
   return digits ? `+${digits}` : "";
 }
 
-/**
- * Sends a plain-text WhatsApp message.
- *
- * Never throws into a webhook handler's critical path — every caller wraps
- * this in a try/catch, because a message that fails to send should never take
- * down settlement of a payment that already happened.
- */
-export async function sendWhatsAppText(phone, message) {
+async function call(path, body) {
   if (!isConfigured()) throw new Error("WhatsApp not configured — missing WAAPI_API_TOKEN or WAAPI_INSTANCE_ID.");
 
   const instanceId = process.env.WAAPI_INSTANCE_ID;
-  const res = await fetch(`${API_BASE}/instances/${encodeURIComponent(instanceId)}/client/action/send-message`, {
+  const res = await fetch(`${API_BASE}/instances/${encodeURIComponent(instanceId)}${path}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${process.env.WAAPI_API_TOKEN}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      chatId: chatIdFromPhone(phone),
-      message: String(message || ""),
-      previewLink: false,
-    }),
+    body: JSON.stringify(body),
   });
 
   const text = await res.text();
@@ -79,7 +68,7 @@ export async function sendWhatsAppText(phone, message) {
   }
 
   if (!res.ok) {
-    const msg = data?.message || data?.error || `WaAPI send-message failed (${res.status}).`;
+    const msg = data?.message || data?.error || `WaAPI request to ${path} failed (${res.status}).`;
     const err = new Error(msg);
     err.status = res.status;
     err.payload = data;
@@ -87,4 +76,59 @@ export async function sendWhatsAppText(phone, message) {
   }
 
   return data;
+}
+
+/**
+ * Sends a plain-text WhatsApp message to a raw WaAPI chat id (whatever
+ * shape it came in as — "<digits>@c.us" or a privacy-preserving "@lid").
+ *
+ * This is the one to use when replying to an inbound message: WhatsApp
+ * routes a reply by the identity the conversation is actually running on,
+ * which for an @lid-addressed sender is NOT the same as reconstructing
+ * "<their phone>@c.us" — that id resolves to their real number, but
+ * messaging it directly is not the same conversation their privacy setting
+ * put them in. See resolveLid() for why a real phone number is still needed,
+ * just for matching against our own records, not for addressing them.
+ *
+ * Never throws into a webhook handler's critical path — every caller wraps
+ * this in a try/catch, because a message that fails to send should never take
+ * down settlement of a payment that already happened.
+ */
+export async function sendWhatsAppToChatId(chatId, message) {
+  return call("/client/action/send-message", {
+    chatId,
+    message: String(message || ""),
+    previewLink: false,
+  });
+}
+
+/**
+ * Sends a plain-text WhatsApp message to a phone number we already hold on
+ * file (e.g. a guardian's `guardianPhone`), for a conversation we are
+ * starting rather than replying within — a bulk reminder, a payment
+ * confirmation. There is no @lid to preserve here: we were never handed one.
+ */
+export async function sendWhatsAppText(phone, message) {
+  return sendWhatsAppToChatId(chatIdFromPhone(phone), message);
+}
+
+/**
+ * Resolves a WaAPI "@lid" chat id to the real phone number behind it, as
+ * "<digits>@c.us". Returns the input unchanged if it is not a lid — most
+ * senders still show up as a plain phone-based id.
+ *
+ * WhatsApp's "Linked ID" addressing hides a sender's real number behind an
+ * opaque, unguessable identifier; there is no way to derive a phone number
+ * from one by parsing it; it has to be asked of WhatsApp. This is what makes
+ * the phone-number match against `students.guardianPhone` possible at all
+ * for an @lid sender — see api/whatsapp/webhook.js.
+ */
+export async function resolveLid(chatId) {
+  if (!String(chatId || "").endsWith("@lid")) return chatId;
+
+  const data = await call("/client/action/get-lid", { contactIds: [chatId] });
+  const contacts = data?.data?.data?.contacts || data?.data?.contacts || data?.contacts || [];
+  const pn = contacts[0]?.pn;
+  if (!pn) throw new Error(`WaAPI could not resolve a phone number for ${chatId}.`);
+  return pn;
 }
