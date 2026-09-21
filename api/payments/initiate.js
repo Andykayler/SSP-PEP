@@ -27,6 +27,7 @@ import { adminAuth, adminDb, FieldValue } from "../_lib/firebaseAdmin.js";
 import { createCheckout, makeTxRef, isConfigured, CURRENCY } from "../_lib/paychangu.js";
 import { TX_COLLECTION } from "../_lib/settle.js";
 import { quote } from "../../src/services/pricing.js";
+import { calculateTransactionFee } from "../../src/services/transactionFeeCore.js";
 
 const FINANCE_ROLES = ["admin", "bursar"];
 const SUBSCRIPTION_ROLES = ["admin", "director"];
@@ -43,7 +44,14 @@ function readBody(req) {
 
 /** The public origin, used to build the URLs PayChangu sends the payer back to. */
 function originOf(req) {
-  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+  if (process.env.APP_URL) {
+    // A scheme-less value (e.g. "ssp-pep.vercel.app", missing "https://")
+    // builds a callback/return URL PayChangu's validator rejects outright —
+    // this once slipped through Vercel's env var UI unnoticed.
+    const url = process.env.APP_URL;
+    const withScheme = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+    return withScheme.replace(/\/$/, "");
+  }
   const host = req.headers["x-forwarded-host"] || req.headers.host;
   const proto = req.headers["x-forwarded-proto"] || "https";
   return `${proto}://${host}`;
@@ -115,7 +123,7 @@ export default async function handler(req, res) {
 
     const { checkoutUrl } = await createCheckout({
       txRef,
-      amount: prepared.record.amount,
+      amount: prepared.record.chargeAmount || prepared.record.amount,
       email: prepared.payer.email,
       firstName: prepared.payer.firstName,
       lastName: prepared.payer.lastName,
@@ -132,6 +140,10 @@ export default async function handler(req, res) {
       txRef,
       checkoutUrl,
       amount: prepared.record.amount,
+      // Present only for a school_fee payment — a subscription has no
+      // pass-through processing surcharge (see transactionFeeCore.js).
+      fee: prepared.record.transactionFee,
+      chargeAmount: prepared.record.chargeAmount,
       currency: CURRENCY,
     });
   } catch (err) {
@@ -176,6 +188,11 @@ async function prepareFee({ body, auth }) {
   const payerName = String(body.payerName || student.guardianName || "").trim();
   const [firstName, ...rest] = payerName.split(/\s+/).filter(Boolean);
 
+  // The family pays the processing surcharge on top; the school is always
+  // credited with the full balance they chose to pay — see
+  // src/services/transactionFeeCore.js.
+  const { fee, total, acalinkFee, paychanguFee } = calculateTransactionFee(amount);
+
   return {
     initiatedByName: auth.isAnonymous ? (payerName || "Guardian") : (auth.user?.name || "Staff"),
     payer: {
@@ -198,6 +215,10 @@ async function prepareFee({ body, auth }) {
       academicYear: String(body.academicYear || ""),
       note: String(body.note || "").slice(0, 300),
       amount,
+      chargeAmount: total,
+      transactionFee: fee,
+      acalinkFee,
+      paychanguFee,
       payerPhone: String(body.payerPhone || student.guardianPhone || ""),
     },
   };

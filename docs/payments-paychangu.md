@@ -14,6 +14,64 @@ The subscription amount is never taken from the browser. It is recalculated in
 Billing page renders from — because settling it marks the school as a paying
 customer, and a client-set price would let a school subscribe for one kwacha.
 
+## The transaction fee (school fees only)
+
+A family paying a fee balance pays a 3.5% processing surcharge on top —
+`src/services/transactionFeeCore.js`, the one place this is calculated, used
+by every channel (portal, parent app, WhatsApp bot) so the total is never
+different depending on how a family paid. Of that 3.5%: ~3% is PayChangu's
+own processing cost, 0.5% is Acalink's own share.
+
+**The school is always credited with the full balance the family chose to
+pay — never less.** The fee comes entirely out of the family's side:
+
+| Field | What it is |
+|---|---|
+| `amount` | The balance the family chose to pay — what the student's account is credited with |
+| `chargeAmount` | `amount` + fee — what PayChangu is actually asked to charge, and what it verifies |
+| `transactionFee` | `chargeAmount − amount` |
+| `acalinkFee` / `paychanguFee` | How that fee splits — informational only; nothing pays either party automatically, since there is no split-payment feature in use |
+
+`api/_lib/settle.js`'s underpayment check compares what PayChangu actually
+verified against `chargeAmount`, not `amount` — the family paid the fee too,
+so that is the real number PayChangu confirms.
+
+This surcharge does not apply to a school paying its own Acalink subscription
+— that is direct billing, not a payment being passed through a processor on
+someone else's behalf.
+
+## Getting the money to the school
+
+Every fee payment lands in Acalink's own PayChangu balance first — schools
+don't have their own PayChangu accounts. So that a school actually receives
+its share, `api/_lib/settle.js` pushes it straight back out via PayChangu's
+**payout** API (`initiateMobileMoneyPayout()` in `api/_lib/paychangu.js`) the
+moment a fee payment settles — the school needs no PayChangu account of its
+own, just a mobile money number, which it registers once under **Admin →
+School Settings → Fee Payout Destination** (`payoutMobile` / `payoutOperator`
+on the school's Firestore doc).
+
+This runs *inside* the same request that settles the payment — awaited, not
+fired-and-forgotten — because a serverless function can stop the instant its
+response is sent, so the payout has to actually happen within that window to
+happen at all. That's also what makes it feel instant rather than caught by
+some later reconciliation sweep.
+
+Acalink absorbs PayChangu's own payout fee — the school is always sent the
+full amount it was credited with. A payout failure never unsettles the
+payment itself (the family already paid; a stuck payout is Acalink's own
+problem to retry) — it's recorded as `payoutStatus` on the `payments` row
+(`sent`, `failed`, `pending`, or `not_configured` if the school hasn't set a
+payout number yet), so it's visible rather than silently lost.
+
+**Not built:** a retry mechanism for a `payoutStatus: "failed"` row, and bank
+transfer as a payout option (mobile money only, for now — see
+`docs/whatsapp-waapi.md`'s network options for the same Airtel/TNM split).
+**Also not built:** PayChangu Connect, the alternative where each school
+holds its own PayChangu account and funds split automatically without
+Acalink's account ever holding the school's share — considered, but ruled out
+since it would require every school to create a PayChangu account first.
+
 ## The rule the whole design rests on
 
 **The browser never tells us what was paid.**

@@ -58,6 +58,14 @@ export function makeTxRef(purpose) {
   return `ACL-${tag}-${stamp}-${salt}`;
 }
 
+/** "field: message" per validation error, joined — never "[object Object]". */
+function flattenPayChanguMessage(message) {
+  if (!message || typeof message === "string") return message || "";
+  return Object.entries(message)
+    .map(([field, errs]) => `${field}: ${Array.isArray(errs) ? errs.join(", ") : errs}`)
+    .join("; ");
+}
+
 async function call(path, { method = "GET", body } = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
     method,
@@ -80,7 +88,12 @@ async function call(path, { method = "GET", body } = {}) {
   }
 
   if (!res.ok) {
-    const message = data?.message || data?.error || `PayChangu request failed (${res.status}).`;
+    // Validation failures come back as { field: ["message", ...] }, not a
+    // string — flattening it here means every caller's error actually says
+    // what was wrong, instead of the Error constructor stringifying an
+    // object into the useless literal "[object Object]".
+    const message = flattenPayChanguMessage(data?.message) || data?.error
+      || `PayChangu request failed (${res.status}).`;
     const err = new Error(message);
     err.status = res.status;
     err.payload = data;
@@ -171,6 +184,133 @@ export async function verifyTransaction(txRef) {
       "",
     payerEmail: t?.email || t?.customer?.email || "",
     raw: t,
+  };
+}
+
+// ─── Direct mobile money charge ─────────────────────────────────────────────
+//
+// The alternative to the hosted checkout above: instead of a link the payer
+// opens in a browser, PayChangu pushes a PIN prompt straight to their phone
+// on Airtel Money or TNM Mpamba. Used by the WhatsApp bot (api/whatsapp/
+// webhook.js) so paying never leaves the chat. Two things make this a
+// different integration, not just a different endpoint:
+//
+//   1. It needs to know WHICH network the number is on — PayChangu does not
+//      infer it — so the operator's ref_id has to be looked up first.
+//   2. There is no callback_url. PayChangu never calls us back for a direct
+//      charge; the only way to know what happened is to ask, via
+//      verifyDirectCharge(), which is why the WhatsApp bot polls it rather
+//      than waiting on a webhook the way api/payments/webhook.js does.
+
+let operatorsCache = null;
+
+async function listMobileMoneyOperators() {
+  if (!operatorsCache) {
+    const data = await call("/mobile-money");
+    operatorsCache = data?.data || [];
+  }
+  return operatorsCache;
+}
+
+/** The ref_id PayChangu wants for a network, from its short_code ("airtel", "tnm"). */
+export async function mobileMoneyOperatorRef(shortCode) {
+  const ops = await listMobileMoneyOperators();
+  const op = ops.find((o) => String(o.short_code || "").toLowerCase() === String(shortCode).toLowerCase());
+  if (!op) throw new Error(`PayChangu does not list a "${shortCode}" mobile money operator.`);
+  return op.ref_id;
+}
+
+/**
+ * Pushes a payment prompt to the payer's phone. `chargeId` plays the same
+ * role `txRef` does for the hosted checkout — unique, ours, used to verify
+ * and to settle idempotently.
+ */
+export async function initiateMobileMoneyCharge({
+  chargeId, mobile, operatorRefId, amount, email, firstName, lastName,
+}) {
+  const data = await call("/mobile-money/payments/initialize", {
+    method: "POST",
+    body: {
+      mobile,
+      mobile_money_operator_ref_id: operatorRefId,
+      amount: String(amount),
+      charge_id: chargeId,
+      email: email || undefined,
+      first_name: firstName || undefined,
+      last_name: lastName || undefined,
+    },
+  });
+
+  const d = data?.data || {};
+  return {
+    chargeId: d.charge_id || chargeId,
+    refId: d.ref_id || "",
+    transId: d.trans_id || "",
+    status: String(d.status || "").toLowerCase(),
+    operator: d.mobile_money?.name || "",
+    raw: d,
+  };
+}
+
+/**
+ * Asks PayChangu what happened to a direct charge. Same normalised shape as
+ * verifyTransaction() so api/_lib/settle.js can settle either kind of
+ * transaction through one idempotent path.
+ */
+export async function verifyDirectCharge(chargeId) {
+  const data = await call(`/mobile-money/payments/${encodeURIComponent(chargeId)}/verify`);
+  const d = data?.data || {};
+  const rawStatus = String(d.status || "").toLowerCase();
+
+  return {
+    found: Boolean(d && d.charge_id),
+    paid: rawStatus === "success" || rawStatus === "successful",
+    failed: rawStatus === "failed" || rawStatus === "cancelled",
+    status: rawStatus || "unknown",
+    amount: Number(d.amount ?? 0),
+    currency: d.currency || CURRENCY,
+    txRef: chargeId,
+    gatewayRef: d.ref_id || "",
+    channel: "mobile_money",
+    operator: d.mobile_money?.name || "",
+    payerEmail: "",
+    raw: d,
+  };
+}
+
+/**
+ * Pushes money OUT of Acalink's own PayChangu balance to a school's mobile
+ * money number — the other direction from initiateMobileMoneyCharge() above.
+ * Used by api/_lib/settle.js immediately after a fee payment settles, so a
+ * school receives its share within moments of a family paying rather than on
+ * some later manual reconciliation. The school needs no PayChangu account of
+ * its own; this is an ordinary mobile money transfer to a number they
+ * already have (see schools.payoutMobile / payoutOperator, set on the
+ * School Settings page).
+ */
+export async function initiateMobileMoneyPayout({
+  chargeId, mobile, operatorRefId, amount, email, firstName, lastName,
+}) {
+  const data = await call("/mobile-money/payouts/initialize", {
+    method: "POST",
+    body: {
+      mobile,
+      mobile_money_operator_ref_id: operatorRefId,
+      amount: String(amount),
+      charge_id: chargeId,
+      email: email || undefined,
+      first_name: firstName || undefined,
+      last_name: lastName || undefined,
+    },
+  });
+
+  const d = data?.data || {};
+  return {
+    chargeId: d.charge_id || chargeId,
+    status: String(d.status || "").toLowerCase(),
+    operator: d.mobile_money?.name || "",
+    payoutCharge: Number(d.transaction_charges?.amount ?? 0),
+    raw: d,
   };
 }
 

@@ -79,37 +79,22 @@ async function call(path, body) {
 }
 
 /**
- * Sends a plain-text WhatsApp message to a raw WaAPI chat id (whatever
- * shape it came in as — "<digits>@c.us" or a privacy-preserving "@lid").
- *
- * This is the one to use when replying to an inbound message: WhatsApp
- * routes a reply by the identity the conversation is actually running on,
- * which for an @lid-addressed sender is NOT the same as reconstructing
- * "<their phone>@c.us" — that id resolves to their real number, but
- * messaging it directly is not the same conversation their privacy setting
- * put them in. See resolveLid() for why a real phone number is still needed,
- * just for matching against our own records, not for addressing them.
+ * Sends a plain-text WhatsApp message to a phone number — a guardian's
+ * `guardianPhone`, or one resolved from an inbound @lid id via resolveLid().
+ * Always addressed as "<digits>@c.us"; WaAPI treats that as the canonical
+ * identity for a conversation regardless of how an inbound message identified
+ * the sender.
  *
  * Never throws into a webhook handler's critical path — every caller wraps
  * this in a try/catch, because a message that fails to send should never take
  * down settlement of a payment that already happened.
  */
-export async function sendWhatsAppToChatId(chatId, message) {
+export async function sendWhatsAppText(phone, message) {
   return call("/client/action/send-message", {
-    chatId,
+    chatId: chatIdFromPhone(phone),
     message: String(message || ""),
     previewLink: false,
   });
-}
-
-/**
- * Sends a plain-text WhatsApp message to a phone number we already hold on
- * file (e.g. a guardian's `guardianPhone`), for a conversation we are
- * starting rather than replying within — a bulk reminder, a payment
- * confirmation. There is no @lid to preserve here: we were never handed one.
- */
-export async function sendWhatsAppText(phone, message) {
-  return sendWhatsAppToChatId(chatIdFromPhone(phone), message);
 }
 
 /**

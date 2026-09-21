@@ -1,9 +1,12 @@
 # Taking payments over WhatsApp
 
 A parent messages the school's WhatsApp number, says they want to pay, and the
-bot walks them to a PayChangu checkout link — reusing the exact same gateway
-pipeline described in [`payments-paychangu.md`](./payments-paychangu.md)
-rather than a second, unverified payment path.
+bot pushes a PayChangu mobile-money PIN prompt straight to their phone — no
+link, nothing to leave the chat for. This is a *different* PayChangu
+integration from the hosted checkout in
+[`payments-paychangu.md`](./payments-paychangu.md) (the bursar's "Collect
+Online" and the parent app both still use that one) — see "Two different
+PayChangu integrations" below for why.
 
 ## Why there's no "Flow" here
 
@@ -24,10 +27,12 @@ that would be replaced; nothing else in this document's pipeline changes.
 api/_lib/waapi.js              the gateway: send a message, address a chat, no signing
 api/_lib/feeBalance.js         "what does this student owe" — same rule as the bursar's Arrears screen
 api/_lib/waSession.js          the bot's one-question-at-a-time conversation state (Firestore)
-api/_lib/waFeeCheckout.js      opens a PayChangu checkout for a WhatsApp-agreed amount
-api/whatsapp/webhook.js        POST — every inbound WhatsApp message lands here
+api/_lib/waFeeCheckout.js      pushes a direct PayChangu mobile-money charge for a WhatsApp-agreed amount
+api/_lib/paychangu.js          now also wraps PayChangu's direct-charge endpoints (see below)
+api/_lib/settle.js             settles either kind of transaction through one idempotent path
+api/whatsapp/webhook.js        POST — every inbound WhatsApp message lands here; also polls a direct charge
 api/whatsapp/send-reminders.js POST — the bursar's "send WhatsApp reminders now" button
-api/payments/webhook.js        unchanged pipeline; now also messages the parent on success/failure
+api/payments/webhook.js        the hosted-checkout pipeline (portal/parent app); untouched by the above
 src/services/academicTermCore.js   pure term parsing, shared by browser and serverless code
 src/services/feeAllocationCore.js  pure balance allocation, shared the same way
 src/services/feeReminderCore.js    pure reminder wording (3 escalation stages), shared the same way
@@ -35,12 +40,40 @@ src/services/whatsappReminders.js  browser half of the "Send WhatsApp reminders"
 src/components/fees/ArrearsModule.jsx  where that button lives, next to the existing "Send reminders"
 ```
 
+## Two different PayChangu integrations
+
+`api/_lib/paychangu.js` now wraps two distinct PayChangu products, because
+they're built for different situations:
+
+| | Hosted checkout (`createCheckout`/`verifyTransaction`) | Direct mobile-money charge (`initiateMobileMoneyCharge`/`verifyDirectCharge`) |
+|---|---|---|
+| Used by | Bursar "Collect Online", parent app | WhatsApp bot only |
+| Payer experience | Opens a link in a browser | PIN prompt pushed straight to their phone |
+| Needs to know the network? | No — PayChangu's checkout page handles it | Yes — `mobileMoneyOperatorRef()` looks up Airtel/TNM's ref_id first |
+| How we learn the result | PayChangu calls `callback_url` (`api/payments/webhook.js`) | **No callback at all** — we have to ask, via `verifyDirectCharge()` |
+
+That last row is why the WhatsApp bot's `pollAndReport()` exists:
+`api/payments/webhook.js` will never be invoked for a direct charge, so
+`api/whatsapp/webhook.js` polls PayChangu itself for up to ~40 seconds after
+initiating one, and a parent can reply **"CHECK"** any time afterward to ask
+again — both paths call `settleTransaction()` (`api/_lib/settle.js`), which
+picks the right verification endpoint via each transaction's `chargeMethod`
+field and settles it exactly once either way.
+
 `feeAllocationCore.js` and `academicTermCore.js` are extractions of logic that
 already existed in `src/services/feeClearance.js` and
 `src/services/academicTerm.js` — nothing about how a balance is calculated
 changed; it was split out so `api/_lib/feeBalance.js` (running in a serverless
 function, Admin SDK) can compute it identically to the bursar's own Arrears
 screen instead of re-implementing it.
+
+## The transaction fee
+
+Every WhatsApp payment carries the same 3.5% processing surcharge as every
+other channel — see "The transaction fee" in `payments-paychangu.md` for the
+full breakdown. The confirm step shows the family the fee and total before
+anything is charged; the amount credited to the student's balance is always
+the fee-free figure they agreed to pay.
 
 ## The phone number check
 
@@ -112,11 +145,27 @@ Bot:    looks up guardianPhone == sender's number
           → one student owing:     asks for an amount, or "YES" for the full balance
           → several children owing: numbered list, parent replies with a number
 Parent: "20000"  (or "YES")
-Bot:    "Confirm: pay MK 20,000 for <name>'s school fees? Reply YES to confirm or CANCEL to stop."
+Bot:    "Confirm: pay MK 20,000 for <name>'s school fees?
+         Fees: MK 20,000
+         Transaction fee: MK 700
+         Total to pay: MK 20,700
+         Reply YES to confirm or CANCEL to stop."
 Parent: "YES"
-Bot:    opens a PayChangu checkout, sends the link
-        [parent pays in their browser]
-Bot:    "Payment received — thank you!" (sent from api/payments/webhook.js, once PayChangu confirms)
+Bot:    "How would you like to pay?\n\n1) Airtel Money\n2) TNM Mpamba\n3) Card or bank transfer"
+Parent: "1"
+Bot:    initiates a direct PayChangu charge, replies "Sending a request... enter your PIN"
+        [parent approves the prompt on their phone]
+Bot:    "Payment received — thank you!" (from pollAndReport() in api/whatsapp/webhook.js,
+        having asked PayChangu itself — there is no callback for this kind of charge)
+Parent: "CHECK"  (if the poll window closed before an answer came back)
+Bot:    re-checks the same way and reports the outcome
+
+  — or, having replied "3" instead —
+
+Bot:    "Tap this secure link to pay MK 20,000: <checkout link>"
+        [parent pays by card/bank in their browser]
+Bot:    "Payment received — thank you!" (sent from api/payments/webhook.js, same as the
+        portal's hosted checkout — a card number is never something this bot collects itself)
 ```
 
 State between messages lives in `wa_sessions/{phone}` and expires after 10
@@ -158,10 +207,12 @@ Plus everything `payments-paychangu.md` already lists (`PAYCHANGU_SECRET_KEY`,
 1. Use a `sec-test-…` PayChangu key first (see `payments-paychangu.md`).
 2. From the WhatsApp number of an account that matches a student's
    `guardianPhone`, message the connected number: "make payment".
-3. Follow the prompts to a checkout link; pay it.
+3. Follow the prompts through amount, confirm, and network — approve the PIN
+   prompt on the payer's phone.
 4. Confirm a `payments` row appears with `source: 'paychangu'`, `status:
    'verified'`, and `note: 'Paid via WhatsApp'` — and that a "Payment
-   received" message arrives back in the chat.
+   received" message arrives back in the chat within the poll window. If it
+   doesn't, reply "CHECK" and confirm that resolves it instead.
 5. Message from a number that is *not* on any student's record and confirm
    you get the "not registered" reply, and that a `wa_payment_attempts` row
    was written with `outcome: 'no_student_for_number'`.

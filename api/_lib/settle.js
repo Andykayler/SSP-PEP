@@ -16,9 +16,23 @@
 // serverless instances.
 // ─────────────────────────────────────────────────────────────────────────────
 import { adminDb, FieldValue } from "./firebaseAdmin.js";
-import { verifyTransaction } from "./paychangu.js";
+import {
+  verifyTransaction, verifyDirectCharge, mobileMoneyOperatorRef, initiateMobileMoneyPayout,
+} from "./paychangu.js";
 
 export const TX_COLLECTION = "payment_transactions";
+
+/**
+ * A direct mobile-money charge (api/_lib/waFeeCheckout.js, the WhatsApp bot)
+ * is verified through a different PayChangu endpoint than a hosted checkout,
+ * because it is a different kind of transaction: no callback_url, no
+ * `tx_ref` — see the comment on the direct-charge functions in paychangu.js.
+ * Both return the same normalised shape, so everything below this line
+ * treats them identically.
+ */
+function verifierFor(tx) {
+  return tx.chargeMethod === "direct" ? verifyDirectCharge : verifyTransaction;
+}
 
 /** A receipt number in the same shape the bursar module already issues. */
 function receiptNo() {
@@ -61,7 +75,7 @@ export async function settleTransaction(txRef) {
     return { status: "success", alreadySettled: true, paymentId: tx.paymentId || null };
   }
 
-  const verified = await verifyTransaction(txRef);
+  const verified = await verifierFor(tx)(txRef);
 
   if (!verified.paid) {
     const status = verified.failed ? "failed" : "pending";
@@ -84,10 +98,11 @@ export async function settleTransaction(txRef) {
     };
   }
 
-  // Paid — but for how much? The amount we quoted is what the record must say.
-  // A gateway that settles less than we asked for (a partial capture, a
-  // currency mix-up) is a discrepancy for a human, not a receipt to issue.
-  const expected = Number(tx.amount || 0);
+  // Paid — but for how much? Checked against chargeAmount when the family
+  // paid a processing surcharge on top (src/services/transactionFeeCore.js) —
+  // that is what PayChangu actually charged and verifies, not the smaller
+  // balance amount the student's account gets credited with below.
+  const expected = Number(tx.chargeAmount || tx.amount || 0);
   if (expected > 0 && verified.amount > 0 && Math.round(verified.amount) < Math.round(expected)) {
     await txDocRef.update({
       status: "underpaid",
@@ -144,6 +159,58 @@ export async function settleTransaction(txRef) {
  * by the gateway before the row exists, so the bursar's totals can be trusted
  * without a second confirmation step.
  */
+/**
+ * PayChangu's payout API wants the bare 9-digit local number, same as its
+ * charge API — see the identical comment in api/_lib/waFeeCheckout.js.
+ */
+function localMobileNumber(phone) {
+  return String(phone || "").replace(/^\+265/, "");
+}
+
+/**
+ * Pushes the school's share out to their own mobile money number the moment
+ * their fee payment settles — see "Fee Payout Destination" on School
+ * Settings, and initiateMobileMoneyPayout() in api/_lib/paychangu.js for why
+ * this needs no PayChangu account on the school's side.
+ *
+ * Never allowed to fail the payment it is attached to: the family's payment
+ * is already confirmed and credited by the time this runs, and a payout
+ * hiccup is Acalink's problem to retry, not a reason to make a settled
+ * payment look unsettled. `payoutStatus` on the payments doc is what makes a
+ * stuck payout visible for that retry rather than silently lost.
+ */
+async function payoutToSchool(tx, paymentRef) {
+  try {
+    const schoolSnap = await adminDb.collection("schools").doc(tx.schoolCode).get();
+    const school = schoolSnap.exists ? schoolSnap.data() : {};
+
+    if (!school.payoutMobile || !school.payoutOperator) {
+      await paymentRef.update({ payoutStatus: "not_configured" });
+      return;
+    }
+
+    const operatorRefId = await mobileMoneyOperatorRef(school.payoutOperator);
+    const payoutId = `PYT-${tx.txRef}`;
+    const payout = await initiateMobileMoneyPayout({
+      chargeId: payoutId,
+      mobile: localMobileNumber(school.payoutMobile),
+      operatorRefId,
+      // Acalink absorbs PayChangu's own payout fee — the school is always
+      // sent the full fee amount it was credited with, never less.
+      amount: Math.round(Number(tx.amount || 0)),
+      firstName: school.name || tx.schoolCode,
+    });
+
+    await paymentRef.update({
+      payoutStatus: payout.status === "success" ? "sent" : payout.status || "pending",
+      payoutChargeId: payoutId,
+    });
+  } catch (err) {
+    console.error("[settle] payout to school failed for", tx.txRef, err);
+    await paymentRef.update({ payoutStatus: "failed", payoutError: err.message }).catch(() => {});
+  }
+}
+
 async function recordFeePayment(tx, verified) {
   const receipt = receiptNo();
   const ref = await adminDb.collection("payments").add({
@@ -155,6 +222,13 @@ async function recordFeePayment(tx, verified) {
     campusId: tx.campusId || "",
     campusName: tx.campusName || "",
     amount: Math.round(Number(tx.amount || 0)),
+    // Present when the family paid the processing surcharge on top
+    // (src/services/transactionFeeCore.js) — informational, never subtracted
+    // from `amount` above, which is always the full balance credited.
+    chargeAmount: tx.chargeAmount || null,
+    transactionFee: tx.transactionFee || 0,
+    acalinkFee: tx.acalinkFee || 0,
+    paychanguFee: tx.paychanguFee || 0,
     method: methodLabel(verified),
     referenceNo: verified.gatewayRef || tx.txRef,
     term: tx.term || "",
@@ -171,6 +245,12 @@ async function recordFeePayment(tx, verified) {
     sponsorName: "",
     createdAt: FieldValue.serverTimestamp(),
   });
+
+  // Awaited, not fired-and-forgotten: a serverless function can stop running
+  // the instant its response is sent, so the payout has to actually happen
+  // within this same invocation to happen at all — which is also what makes
+  // it feel instant to the school rather than caught by some later sweep.
+  await payoutToSchool(tx, ref);
 
   return {
     txPatch: { paymentId: ref.id, receiptNo: receipt },

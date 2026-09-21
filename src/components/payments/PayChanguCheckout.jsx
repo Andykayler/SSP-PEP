@@ -25,6 +25,7 @@ import { CreditCard, Smartphone, CheckCircle2, XCircle, ExternalLink, Clock } fr
 import { Modal, Btn, Input, Notice, Spinner } from "../ui/ModuleKit";
 import { money } from "../ui/format";
 import { startCheckout, watchTransaction, openCheckout, CHECKOUT_METHODS } from "../../services/paychangu";
+import { calculateTransactionFee } from "../../services/transactionFeeCore";
 import "../../pages/burser/modules/staff-management.css";
 
 export default function PayChanguCheckout({
@@ -61,6 +62,9 @@ export default function PayChanguCheckout({
   useEffect(() => () => stopWatching.current?.(), []);
 
   const payable = amountEditable ? Math.round(Number(amount) || 0) : Math.round(defaultAmount || 0);
+  // The subscription is Acalink billing the school directly, not a payment
+  // passed through the processor on someone else's behalf — no surcharge.
+  const fee = purpose === "subscription" ? null : calculateTransactionFee(payable);
 
   async function begin() {
     if (amountEditable && payable <= 0) { setError("Enter an amount to pay."); return; }
@@ -117,6 +121,11 @@ export default function PayChanguCheckout({
           <CheckCircle2 size={44} style={{ color: "var(--success, #22c55e)", margin: "0 auto" }} />
           <div>
             <p style={{ fontWeight: 700, fontSize: 18 }}>{money(tx?.amount ?? payable)}</p>
+            {tx?.fee > 0 && (
+              <p className="text-muted" style={{ fontSize: 12 }}>
+                + {money(tx.fee)} transaction fee = {money(tx.chargeAmount)} charged
+              </p>
+            )}
             <p className="text-muted" style={{ fontSize: 13 }}>
               confirmed by PayChangu{tx?.receiptNo ? ` · receipt ${tx.receiptNo}` : ""}
             </p>
@@ -157,6 +166,11 @@ export default function PayChanguCheckout({
           <div style={{ textAlign: "center" }}>
             <Clock size={40} style={{ color: "var(--primary)", margin: "0 auto 10px" }} />
             <p style={{ fontWeight: 700, fontSize: 18 }}>{money(tx?.amount ?? payable)}</p>
+            {tx?.fee > 0 && (
+              <p className="text-muted" style={{ fontSize: 12 }}>
+                + {money(tx.fee)} transaction fee = {money(tx.chargeAmount)} charged
+              </p>
+            )}
             <p className="text-muted" style={{ fontSize: 12.5, fontFamily: "var(--font-mono)" }}>
               {tx?.txRef}
             </p>
@@ -227,6 +241,16 @@ export default function PayChanguCheckout({
               Recalculated from your roll when the checkout opens, so this cannot drift from
               your invoice.
             </p>
+          </div>
+        )}
+
+        {fee && payable > 0 && (
+          <div className="card p-4" style={{ fontSize: 12.5 }}>
+            <div className="flex justify-between"><span className="text-muted">Fees</span><span>{money(fee.amount)}</span></div>
+            <div className="flex justify-between"><span className="text-muted">Transaction fee</span><span>{money(fee.fee)}</span></div>
+            <div className="flex justify-between" style={{ fontWeight: 700, marginTop: 4 }}>
+              <span>Total to pay</span><span>{money(fee.total)}</span>
+            </div>
           </div>
         )}
 

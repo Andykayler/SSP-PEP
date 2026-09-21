@@ -1,35 +1,76 @@
 // api/_lib/waFeeCheckout.js
 // ─────────────────────────────────────────────────────────────────────────────
-// Opens a PayChangu checkout for a fee payment the WhatsApp bot has agreed
-// with a parent. Mirrors the "school_fee" path in api/payments/initiate.js —
-// same collections, same idempotent-write-before-checkout ordering, same
-// "the browser never tells us what was paid" rule — kept as its own small
-// function rather than a shared one because the trust boundary is different:
-// initiate.js authenticates a Firebase ID token (staff, or an anonymous
-// guardian session naming a student); this path authenticates by the
-// WhatsApp sender's own number already having been matched to the student's
-// guardianPhone (see api/whatsapp/webhook.js). Neither should be made to
-// depend on the other's auth story changing safely.
+// Turns a payment the WhatsApp bot has agreed with a parent (student, amount)
+// into money moving, one of two ways depending on how they want to pay.
+// Mirrors the "school_fee" path in api/payments/initiate.js — same
+// collections, same idempotent-write-before-charging ordering, same "the
+// browser never tells us what was paid" rule — kept as its own module
+// because the trust boundary is different: initiate.js authenticates a
+// Firebase ID token; this path authenticates by the WhatsApp sender's own
+// number already having been matched to the student's guardianPhone (see
+// api/whatsapp/webhook.js).
 //
-// Every transaction written here carries channel: "whatsapp" and the phone
-// the message came from, which is what lets api/payments/webhook.js send a
-// WhatsApp confirmation back to the right number once PayChangu confirms it.
+//   openWhatsAppDirectCharge()  Airtel Money / TNM Mpamba — a PIN prompt
+//                               pushed straight to the phone, nothing to
+//                               leave the chat for. Cards cannot work this
+//                               way: PayChangu has no server-side "charge
+//                               this card number" endpoint, and this product
+//                               never collects card details itself (see
+//                               api/_lib/paychangu.js) — a card number typed
+//                               into a WhatsApp message would be a PCI
+//                               nightmare regardless.
+//   openWhatsAppFeeCheckout()   Card or bank transfer — a PayChangu hosted
+//                               checkout link, same one the bursar's
+//                               "Collect Online" uses. This is the one case
+//                               the WhatsApp bot still hands off to a
+//                               browser, because a card number has to be
+//                               typed somewhere PCI-compliant, and this
+//                               product deliberately never builds that page
+//                               itself.
+//
+// Both write channel: "whatsapp" so api/payments/webhook.js can message the
+// parent back on the hosted-checkout path; the direct-charge path additionally
+// carries chargeMethod: "direct", which tells api/_lib/settle.js to verify it
+// through PayChangu's direct-charge endpoint instead — a direct charge has no
+// callback_url, so api/whatsapp/webhook.js polls it itself rather than
+// waiting on a webhook.
 // ─────────────────────────────────────────────────────────────────────────────
 import { adminDb, FieldValue } from "./firebaseAdmin.js";
-import { createCheckout, makeTxRef, CURRENCY } from "./paychangu.js";
+import {
+  createCheckout, makeTxRef, CURRENCY, mobileMoneyOperatorRef, initiateMobileMoneyCharge,
+} from "./paychangu.js";
 import { TX_COLLECTION } from "./settle.js";
+import { calculateTransactionFee } from "../../src/services/transactionFeeCore.js";
+
+/**
+ * PayChangu's direct-charge API wants the bare 9-digit local number
+ * ("888606204"), not the "+265888606204" form normalisePhone() produces
+ * everywhere else in the product — it rejects anything else outright.
+ */
+function localMobileNumber(phone) {
+  return String(phone || "").replace(/^\+265/, "");
+}
 
 function origin() {
   const url = process.env.APP_URL;
   if (!url) throw new Error("APP_URL is not set — needed to build the PayChangu callback/return URLs.");
-  return url.replace(/\/$/, "");
+  // A scheme-less value (e.g. "ssp-pep.vercel.app", missing "https://") builds
+  // a callback/return URL PayChangu's validator rejects outright — this once
+  // slipped through Vercel's env var UI unnoticed, so it is corrected rather
+  // than trusted here.
+  const withScheme = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  return withScheme.replace(/\/$/, "");
 }
 
-export async function openWhatsAppFeeCheckout({ student, amount, payerPhone }) {
-  const txRef = makeTxRef("school_fee");
-  const base = origin();
-
-  const record = {
+/**
+ * The family pays the processing surcharge on top; the school is always
+ * credited with the full balance they chose to pay (`amount`, unaffected) —
+ * see src/services/transactionFeeCore.js. `chargeAmount` is what PayChangu is
+ * actually asked to charge.
+ */
+function baseRecord(student, amount, payerPhone) {
+  const { fee, total, acalinkFee, paychanguFee } = calculateTransactionFee(amount);
+  return {
     schoolCode: student.schoolCode,
     studentId: student.id,
     studentName: student.fullName || "",
@@ -42,13 +83,61 @@ export async function openWhatsAppFeeCheckout({ student, amount, payerPhone }) {
     academicYear: "",
     note: "Paid via WhatsApp",
     amount: Math.round(Number(amount)),
+    chargeAmount: total,
+    transactionFee: fee,
+    acalinkFee,
+    paychanguFee,
     payerPhone,
     channel: "whatsapp",
   };
+}
 
-  // Written before the checkout is opened, same as initiate.js: if PayChangu
-  // is reached and the response is lost, the webhook still finds a record to
-  // settle against.
+export async function openWhatsAppDirectCharge({ student, amount, payerPhone, network }) {
+  const txRef = makeTxRef("school_fee");
+  const operatorRefId = await mobileMoneyOperatorRef(network);
+  const record = { ...baseRecord(student, amount, payerPhone), chargeMethod: "direct", network };
+
+  // Written before the charge is initiated, same as initiate.js: if
+  // PayChangu is reached and the response is lost, the next CHECK or poll
+  // still finds a record to settle against.
+  await adminDb.collection(TX_COLLECTION).doc(txRef).set({
+    txRef,
+    purpose: "school_fee",
+    status: "pending",
+    currency: CURRENCY,
+    initiatedById: "whatsapp-bot",
+    initiatedByName: student.guardianName || "Guardian (WhatsApp)",
+    createdAt: FieldValue.serverTimestamp(),
+    ...record,
+  });
+
+  const charge = await initiateMobileMoneyCharge({
+    chargeId: txRef,
+    mobile: localMobileNumber(payerPhone),
+    operatorRefId,
+    amount: record.chargeAmount,
+    email: student.guardianEmail || "",
+    firstName: (student.guardianName || "Guardian").split(/\s+/)[0],
+    lastName: (student.guardianName || "").split(/\s+/).slice(1).join(" ") || student.lastName || "",
+  });
+
+  await adminDb.collection(TX_COLLECTION).doc(txRef).update({
+    gatewayRefId: charge.refId || "",
+    gatewayTransId: charge.transId || "",
+    gatewayInitialStatus: charge.status || "",
+  });
+
+  return {
+    txRef, amount: record.amount, fee: record.transactionFee, chargeAmount: record.chargeAmount,
+    operatorName: charge.operator,
+  };
+}
+
+export async function openWhatsAppFeeCheckout({ student, amount, payerPhone }) {
+  const txRef = makeTxRef("school_fee");
+  const base = origin();
+  const record = baseRecord(student, amount, payerPhone);
+
   await adminDb.collection(TX_COLLECTION).doc(txRef).set({
     txRef,
     purpose: "school_fee",
@@ -62,7 +151,7 @@ export async function openWhatsAppFeeCheckout({ student, amount, payerPhone }) {
 
   const { checkoutUrl } = await createCheckout({
     txRef,
-    amount: record.amount,
+    amount: record.chargeAmount,
     email: student.guardianEmail || "",
     firstName: (student.guardianName || "Guardian").split(/\s+/)[0],
     lastName: (student.guardianName || "").split(/\s+/).slice(1).join(" ") || student.lastName || "",
@@ -75,5 +164,7 @@ export async function openWhatsAppFeeCheckout({ student, amount, payerPhone }) {
 
   await adminDb.collection(TX_COLLECTION).doc(txRef).update({ checkoutUrl });
 
-  return { txRef, checkoutUrl, amount: record.amount };
+  return {
+    txRef, checkoutUrl, amount: record.amount, fee: record.transactionFee, chargeAmount: record.chargeAmount,
+  };
 }
