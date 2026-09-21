@@ -1,0 +1,492 @@
+/* Shell and form controls for sign-in and registration.
+   Colour tokens (--lp-*) are defined for `.lp-auth` in pages/landing.css, so
+   these pages follow the same light/dark theme as the landing page. Every rule
+   is scoped under `.lp-auth`; nothing here reaches the dashboards. */
+
+.lp-auth {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Graph-paper backdrop, fading out toward the edges. Fixed, so it stays put
+   while the form scrolls on a short screen. */
+.la-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--lp-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--lp-grid) 1px, transparent 1px);
+  background-size: 30px 30px;
+  -webkit-mask-image: radial-gradient(ellipse 75% 85% at 50% 40%, #000 20%, transparent 80%);
+  mask-image: radial-gradient(ellipse 75% 85% at 50% 40%, #000 20%, transparent 80%);
+}
+
+/* ── Top bar ── */
+.la-top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  flex-shrink: 0;
+  background: var(--lp-nav-bg);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.la-top__inner {
+  width: min(1180px, calc(100% - 40px));
+  height: 68px;
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.la-top__right { display: flex; align-items: center; gap: 8px; }
+.la-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--lp-ink-2);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.la-back:hover { color: var(--lp-ink); background: var(--lp-bg-alt); }
+
+/* ── Stage ── */
+.la-stage {
+  position: relative;
+  flex: 1 0 auto;
+  width: min(1180px, calc(100% - 40px));
+  margin-inline: auto;
+  padding: 36px 0 56px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 480px);
+  gap: 72px;
+  align-items: center;
+}
+.la-stage--solo { grid-template-columns: minmax(0, 480px); justify-content: center; }
+.la-main { min-width: 0; }
+
+.la-side--sticky { position: sticky; top: 100px; align-self: start; }
+
+.la-side__title {
+  margin: 12px 0 16px;
+  font-family: var(--lp-display);
+  font-size: clamp(2.2rem, 4.4vw, 3.4rem);
+  font-weight: 700;
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  color: var(--lp-ink);
+}
+.la-side__lead { max-width: 44ch; margin-bottom: 30px; font-size: 1.08rem; color: var(--lp-ink-2); }
+
+/* A paper sheet, the same object as the ones on the landing page. */
+.la-sheet {
+  position: relative;
+  max-width: 340px;
+  padding: 14px 18px 18px 46px;
+  border-radius: 6px;
+  background-color: var(--sheet);
+  background-image: repeating-linear-gradient(to bottom, transparent 0 25px, var(--sheet-line) 25px 26px);
+  background-position: 0 50px;
+  color: var(--sheet-ink);
+  transform: rotate(-1.6deg);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05), 0 22px 44px -14px rgba(10, 15, 40, 0.4);
+}
+.la-sheet::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 34px;
+  width: 1px;
+  background: rgba(207, 64, 41, 0.5);
+}
+.la-sheet__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+  border-bottom: 2px solid var(--sheet-ink);
+}
+.la-sheet__head strong { font-family: var(--lp-display); font-size: 1.05rem; }
+.la-sheet__head span { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.65; }
+.la-todo { list-style: none; }
+.la-todo li { display: flex; align-items: center; gap: 10px; height: 26px; font-size: 14px; font-weight: 500; }
+.la-todo__box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 17px;
+  height: 17px;
+  border: 1.5px solid #4a5470;
+  border-radius: 4px;
+}
+.la-todo li.is-done { opacity: 0.55; text-decoration: line-through; text-decoration-color: rgba(27, 36, 64, 0.5); }
+.la-todo li.is-done .la-todo__box { border-color: #1e8a5a; color: #1e8a5a; }
+.la-sheet .lp-pen { margin-top: 8px; color: #cf4029; }
+
+/* ── Card ── */
+.la-card {
+  padding: 36px 34px 30px;
+  border: 1px solid var(--lp-line);
+  border-radius: 22px;
+  background: var(--lp-card);
+  box-shadow: var(--lp-shadow);
+  animation: la-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes la-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: none; }
+}
+.la-card .form-heading,
+.la-card .change-pw-title {
+  margin: 10px 0 8px;
+  font-family: var(--lp-display);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  color: var(--lp-ink);
+}
+.la-card .form-hint,
+.la-card .change-pw-desc { margin-bottom: 26px; font-size: 14px; line-height: 1.6; color: var(--lp-ink-2); }
+.la-card .change-pw-desc strong { color: var(--lp-ink); font-weight: 600; }
+
+/* ── Footer ── */
+.la-foot {
+  position: relative;
+  flex-shrink: 0;
+  width: min(1180px, calc(100% - 40px));
+  margin-inline: auto;
+  padding: 18px 0 26px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 20px;
+  border-top: 1px solid var(--lp-line);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--lp-ink-2);
+}
+.la-foot a { color: var(--lp-accent); font-weight: 600; }
+.la-foot a:hover { text-decoration: underline; }
+
+/* ── Alerts ── */
+.lp-auth .auth-error,
+.lp-auth .reg-submit-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--lp-red) 35%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--lp-red) 10%, transparent);
+  color: var(--lp-red);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.lp-auth .auth-error-icon { flex-shrink: 0; margin-top: 2px; }
+.lp-auth .auth-error-msg { margin: 0; color: inherit; font-size: 13px; }
+
+/* ── Fields (sign-in) ── */
+.lp-auth .field-group { margin-bottom: 18px; }
+.lp-auth .field-label,
+.lp-auth .reg-label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lp-ink);
+}
+.lp-auth .reg-label__req { color: var(--lp-red); margin-left: 2px; }
+.lp-auth .field-wrap { position: relative; }
+.lp-auth .field-icon {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  translate: 0 -50%;
+  display: inline-flex;
+  color: var(--lp-ink-2);
+  pointer-events: none;
+}
+.lp-auth .field-input,
+.lp-auth .reg-input {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--lp-line-strong);
+  border-radius: 12px;
+  background: var(--lp-bg);
+  color: var(--lp-ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.lp-auth .field-input { padding-left: 42px; }
+.lp-auth select.reg-input { appearance: auto; cursor: pointer; }
+.lp-auth textarea.reg-input { resize: vertical; min-height: 84px; line-height: 1.5; }
+.lp-auth .field-input::placeholder,
+.lp-auth .reg-input::placeholder { color: var(--lp-ink-2); opacity: 0.6; }
+.lp-auth .field-input:focus,
+.lp-auth .reg-input:focus {
+  outline: none;
+  border-color: var(--lp-btn);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--lp-btn) 22%, transparent);
+}
+.lp-auth .field-input.is-error,
+.lp-auth .reg-input--error { border-color: var(--lp-red); }
+.lp-auth .field-input.is-valid { border-color: var(--lp-green); }
+.lp-auth .reg-input--readonly {
+  display: flex;
+  align-items: center;
+  border-style: dashed;
+  background: var(--lp-bg-alt);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--lp-ink-2);
+}
+.lp-auth .field-input-right {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  translate: 0 -50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--lp-ink-2);
+  cursor: pointer;
+}
+.lp-auth .field-input-right:hover { color: var(--lp-ink); background: var(--lp-bg-alt); }
+.lp-auth .field-error,
+.lp-auth .reg-error-msg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--lp-red);
+}
+.lp-auth .row-between { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+.lp-auth .forgot-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lp-accent);
+  cursor: pointer;
+}
+.lp-auth .forgot-btn:hover { text-decoration: underline; }
+
+/* ── Buttons ── */
+.lp-auth .submit-btn,
+.lp-auth .reg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 50px;
+  margin-top: 8px;
+  padding: 0 22px;
+  border: 1.5px solid transparent;
+  border-radius: 12px;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, opacity 0.15s ease;
+}
+.lp-auth .submit-btn,
+.lp-auth .reg-btn--primary {
+  background: var(--lp-btn);
+  color: #fff;
+  box-shadow: 0 6px 18px -6px var(--lp-btn);
+}
+.lp-auth .submit-btn:hover:not(:disabled),
+.lp-auth .reg-btn--primary:hover:not(:disabled) { background: var(--lp-btn-hover); transform: translateY(-1px); }
+.lp-auth .submit-btn:active:not(:disabled),
+.lp-auth .reg-btn:active:not(:disabled) { transform: none; }
+.lp-auth .submit-btn:disabled,
+.lp-auth .reg-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.lp-auth .reg-btn--ghost { background: transparent; color: var(--lp-ink); border-color: var(--lp-line-strong); }
+.lp-auth .reg-btn--ghost:hover { border-color: var(--lp-ink); }
+.lp-auth .spinner { animation: la-spin 0.75s linear infinite; }
+@keyframes la-spin { to { transform: rotate(360deg); } }
+
+.lp-auth .security-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 20px 0 0;
+  font-size: 12px;
+  color: var(--lp-ink-2);
+}
+
+/* ── Set-password screen ── */
+.lp-auth .change-pw-tag {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lp-accent);
+}
+.lp-auth .change-pw-title em { font-style: normal; color: var(--lp-accent); }
+.lp-auth .pw-warning {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border: 1px solid rgba(242, 183, 5, 0.5);
+  border-radius: 12px;
+  background: rgba(242, 183, 5, 0.14);
+}
+.lp-auth .pw-warning-icon { flex-shrink: 0; margin-top: 2px; color: var(--lp-ink); }
+.lp-auth .pw-warning-text { margin: 0; font-size: 13px; line-height: 1.5; color: var(--lp-ink); }
+.lp-auth .strength-bar-wrap { display: flex; gap: 4px; margin-top: 8px; }
+.lp-auth .strength-seg { flex: 1; height: 4px; border-radius: 2px; background: var(--lp-line); transition: background 0.2s ease; }
+.lp-auth .strength-seg.active-weak { background: #dc2626; }
+.lp-auth .strength-seg.active-fair { background: #e8a800; }
+.lp-auth .strength-seg.active-good { background: #22a05a; }
+.lp-auth .strength-seg.active-strong { background: var(--lp-green); }
+.lp-auth .strength-label { margin: 6px 0 0; font-family: var(--font-mono); font-size: 11px; color: var(--lp-ink-2); }
+.lp-auth .pw-rules { display: flex; flex-direction: column; gap: 6px; margin: 14px 0 4px; }
+.lp-auth .pw-rule { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--lp-ink-2); }
+.lp-auth .pw-rule-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--lp-line-strong); }
+.lp-auth .pw-rule.met { color: var(--lp-green); }
+.lp-auth .pw-rule.met .pw-rule-dot { background: var(--lp-green); }
+
+/* ── Forgot-password dialog (own class names: signin.css keeps the old
+      `.modal-*` rules because the dashboards share those names) ── */
+.la-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(10, 16, 32, 0.55);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.la-modal {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  padding: 32px 30px 28px;
+  border: 1px solid var(--lp-line);
+  border-radius: 22px;
+  background: var(--lp-card);
+  box-shadow: var(--lp-shadow);
+  animation: la-rise 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.la-modal__close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 10px;
+  background: none;
+  color: var(--lp-ink-2);
+  font-size: 14px;
+  cursor: pointer;
+}
+.la-modal__close:hover { color: var(--lp-ink); background: var(--lp-bg-alt); }
+.la-modal__title { margin: 8px 0 10px; font-family: var(--lp-display); font-size: 1.6rem; font-weight: 700; color: var(--lp-ink); }
+.la-modal__desc { margin-bottom: 20px; font-size: 14px; line-height: 1.6; color: var(--lp-ink-2); }
+.la-modal__error { margin: 0 0 14px; font-size: 13px; color: var(--lp-red); }
+.la-modal__done { text-align: center; }
+.la-modal__done .success-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--lp-green) 16%, transparent);
+  color: var(--lp-green);
+}
+.la-modal__done strong { display: block; margin-bottom: 6px; font-family: var(--lp-display); font-size: 1.25rem; color: var(--lp-ink); }
+.la-modal__done p { margin-bottom: 20px; font-size: 14px; color: var(--lp-ink-2); }
+.la-modal__done .highlight { color: var(--lp-accent); font-weight: 600; }
+
+/* ── Registration ── */
+.lp-auth .reg-fields { display: flex; flex-direction: column; gap: 18px; }
+.lp-auth .reg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.lp-auth .reg-field { min-width: 0; }
+.lp-auth .reg-terms { display: flex; align-items: flex-start; gap: 12px; margin-top: 22px; }
+.lp-auth .reg-terms__checkbox { flex-shrink: 0; width: 18px; height: 18px; margin-top: 2px; accent-color: var(--lp-btn); cursor: pointer; }
+.lp-auth .reg-terms__text { font-size: 13px; line-height: 1.55; color: var(--lp-ink-2); }
+.lp-auth .reg-terms__link { color: var(--lp-accent); font-weight: 600; }
+.lp-auth .reg-card__footer { padding-top: 8px; }
+
+.la-done { text-align: center; }
+.la-done__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  margin-bottom: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--lp-green) 16%, transparent);
+  color: var(--lp-green);
+}
+.la-done h1 { margin: 8px 0 4px; font-family: var(--lp-display); font-size: 1.9rem; font-weight: 700; color: var(--lp-ink); }
+.la-done__school { margin-bottom: 22px; font-size: 1.05rem; color: var(--lp-ink-2); }
+/* The school code, presented like the ID badge it effectively is. */
+.la-done__code {
+  margin: 0 auto 6px;
+  padding: 16px 18px;
+  border: 2px dashed var(--lp-line-strong);
+  border-radius: 14px;
+  background: var(--lp-bg);
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--lp-ink);
+  word-break: break-all;
+}
+.la-done__label { margin-bottom: 20px; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--lp-ink-2); }
+.la-done__body { margin-bottom: 22px; font-size: 14px; line-height: 1.6; color: var(--lp-ink-2); }
+.la-done__actions { display: flex; flex-direction: column; gap: 10px; }
+.la-done__actions .reg-btn { margin-top: 0; text-decoration: none; }
+
+/* ── Responsive ── */
+@media (max-width: 960px) {
+  .la-stage { grid-template-columns: minmax(0, 480px); justify-content: center; gap: 0; padding-top: 24px; }
+  .la-side { display: none; }
+}
+@media (max-width: 560px) {
+  .la-back { display: none; }
+  .la-card { padding: 28px 22px 24px; }
+  .lp-auth .reg-row { grid-template-columns: 1fr; }
+  .la-foot { justify-content: center; text-align: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .la-card, .la-modal { animation: none; }
+  .lp-auth .submit-btn:hover, .lp-auth .reg-btn:hover { transform: none; }
+}

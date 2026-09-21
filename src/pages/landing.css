@@ -29,7 +29,10 @@ a { text-decoration: none; color: inherit; }
 
 /* ── Tokens. Light is "paper", dark is "night desk". The sheets in the hero
       stay paper-coloured in both, so they read as objects on a surface. ── */
-.lp {
+/* `.lp-auth` is the sign-in / registration shell (components/auth): same tokens,
+   same fixed scroll box, so the pages a visitor lands on next look like this one. */
+.lp,
+.lp-auth {
   --lp-bg: #faf6ec;
   --lp-bg-alt: #f2ead8;
   --lp-card: #fffdf8;
@@ -63,7 +66,8 @@ a { text-decoration: none; color: inherit; }
   -webkit-overflow-scrolling: touch;
 }
 
-[data-theme="dark"] .lp {
+[data-theme="dark"] .lp,
+[data-theme="dark"] .lp-auth {
   --lp-bg: #0d1427;
   --lp-bg-alt: #111b33;
   --lp-card: #15203b;
@@ -81,7 +85,8 @@ a { text-decoration: none; color: inherit; }
   --lp-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 14px 32px -16px rgba(0, 0, 0, 0.6);
 }
 
-.lp :focus-visible { outline: 2px solid var(--lp-btn); outline-offset: 3px; }
+.lp :focus-visible,
+.lp-auth :focus-visible { outline: 2px solid var(--lp-btn); outline-offset: 3px; }
 
 .lp-wrap { width: min(1180px, calc(100% - 40px)); margin-inline: auto; }
 

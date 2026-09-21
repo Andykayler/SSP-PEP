@@ -8,8 +8,8 @@ import {
   updatePassword,
 } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import Header from "../components/header";
-import { getInitialTheme, applyTheme, toggleTheme as flipTheme } from "../utils/theme";
+import { Check } from "lucide-react";
+import AuthLayout from "../components/auth/AuthLayout";
 import "./signin.css";
 
 const ROLES = {
@@ -20,32 +20,6 @@ const ROLES = {
   bursar:        { label: "Bursar / Fees",   redirectTo: "/bursar"  },
   librarian:     { label: "Librarian",       redirectTo: "/library" },
 };
-
-// ─── Theme toggle ─────────────────────────────────────────────────────────────
-const IconSun = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} width={18} height={18} aria-hidden="true">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 7a5 5 0 100 10A5 5 0 0012 7z" />
-  </svg>
-);
-const IconMoon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} width={18} height={18} aria-hidden="true">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z" />
-  </svg>
-);
-
-function ThemeToggle({ theme, onToggle }) {
-  return (
-    <button
-      type="button"
-      className="signin-theme-toggle"
-      onClick={onToggle}
-      title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-      aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-    >
-      {theme === "dark" ? <IconSun /> : <IconMoon />}
-    </button>
-  );
-}
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 const IconMail = () => (
@@ -95,17 +69,6 @@ const Spinner = () => (
   </svg>
 );
 
-// ─── Background ───────────────────────────────────────────────────────────────
-const Background = () => (
-  <div className="bg-canvas">
-    <div className="bg-wash" />
-    <div className="bg-wash-2" />
-    <div className="bg-grain" />
-    <div className="bg-grid" />
-    <div className="bg-hatching" />
-  </div>
-);
-
 // ─── Password strength helpers ────────────────────────────────────────────────
 function getStrength(pw) {
   let score = 0;
@@ -141,38 +104,34 @@ const ForgotPasswordModal = ({ onClose }) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal-card">
-        <button className="modal-close" onClick={onClose}>✕</button>
-        <div className="modal-header">
-          <p className="modal-tag">Account Recovery</p>
-          <h3 className="modal-title">Reset Password</h3>
-        </div>
-        <div className="modal-body">
-          {sent ? (
-            <div className="modal-success-text">
-              <div className="success-circle"><IconCheck size={26} /></div>
-              <p className="modal-success-title">Reset link sent</p>
-              <p className="modal-success-sub">Check your inbox at <span className="highlight">{email}</span></p>
-              <button className="submit-btn" onClick={onClose} style={{ marginTop: 0 }}>Back to Sign In</button>
-            </div>
-          ) : (
-            <form onSubmit={handleSend}>
-              <p className="modal-desc">Enter the email address for your account and we'll send a password reset link.</p>
-              {err && <p className="modal-inline-error">{err}</p>}
-              <div className="field-group">
-                <label className="field-label">Email Address</label>
-                <div className="field-wrap">
-                  <span className="field-icon"><IconMail /></span>
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.mw" className="field-input" required style={{ paddingRight: 14 }} />
-                </div>
+    <div className="la-modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="la-modal" role="dialog" aria-modal="true" aria-label="Reset password">
+        <button type="button" className="la-modal__close" onClick={onClose} aria-label="Close">✕</button>
+        <p className="lp-eyebrow">Account recovery</p>
+        <h3 className="la-modal__title">Reset your password</h3>
+        {sent ? (
+          <div className="la-modal__done">
+            <div className="success-circle"><IconCheck size={26} /></div>
+            <strong>Reset link sent</strong>
+            <p>Check your inbox at <span className="highlight">{email}</span></p>
+            <button type="button" className="submit-btn" onClick={onClose} style={{ marginTop: 0 }}>Back to sign in</button>
+          </div>
+        ) : (
+          <form onSubmit={handleSend}>
+            <p className="la-modal__desc">Enter the email address for your account and we'll send a password reset link.</p>
+            {err && <p className="la-modal__error">{err}</p>}
+            <div className="field-group">
+              <label className="field-label">Email Address</label>
+              <div className="field-wrap">
+                <span className="field-icon"><IconMail /></span>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.mw" className="field-input" required />
               </div>
-              <button type="submit" className="submit-btn" disabled={loading || !email} style={{ marginTop: 8 }}>
-                {loading ? <><Spinner /> Sending…</> : "Send Reset Link"}
-              </button>
-            </form>
-          )}
-        </div>
+            </div>
+            <button type="submit" className="submit-btn" disabled={loading || !email} style={{ marginTop: 8 }}>
+              {loading ? <><Spinner /> Sending…</> : "Send reset link"}
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );
@@ -234,20 +193,10 @@ const ForceChangePassword = ({ firebaseUser, redirectTo, userDisplayName }) => {
   };
 
   return (
-    <div className="change-pw-screen">
-      <div className="change-pw-wrap">
-        <div className="form-badge">
-          <div className="badge-line" />
-          <span className="badge-label">Acalink</span>
-        </div>
+    <div className="la-card">
+            <p className="change-pw-tag">Security required</p>
+            <h1 className="change-pw-title">Set your password</h1>
 
-        <div className="change-pw-card">
-          <div className="change-pw-header">
-            <p className="change-pw-tag">Security Required</p>
-            <h2 className="change-pw-title">Set Your <em>Password</em></h2>
-          </div>
-
-          <div className="change-pw-body">
             <div className="pw-warning">
               <span className="pw-warning-icon"><IconWarn /></span>
               <p className="pw-warning-text">
@@ -343,12 +292,23 @@ const ForceChangePassword = ({ firebaseUser, redirectTo, userDisplayName }) => {
             <p className="security-note" style={{ marginTop: 16 }}>
               <IconShield /> Your password is encrypted and never stored in plain text
             </p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
+
+// ─── Side panel ─────────────────────────────────────────────────────────────────
+// Decorative: a teacher's to-do sheet, the same paper object as on the landing page.
+const TodaySheet = () => (
+  <div className="la-sheet" aria-hidden="true">
+    <div className="la-sheet__head"><strong>Today</strong><span>Form 3A</span></div>
+    <ul className="la-todo">
+      <li className="is-done"><span className="la-todo__box"><Check size={12} strokeWidth={3} /></span>Register taken</li>
+      <li className="is-done"><span className="la-todo__box"><Check size={12} strokeWidth={3} /></span>Lesson plan for P3</li>
+      <li><span className="la-todo__box" />Enter Biology test marks</li>
+    </ul>
+    <p className="lp-pen">Nearly there!</p>
+  </div>
+);
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function SignIn() {
@@ -359,7 +319,6 @@ export default function SignIn() {
   const [loading, setLoading]     = useState(false);
   const [authError, setAuthError] = useState("");
   const [showForgot, setShowForgot] = useState(false);
-  const [theme, setTheme]         = useState(getInitialTheme);
 
   // Force-change password state
   const [mustChangePw, setMustChangePw]     = useState(false);
@@ -369,9 +328,6 @@ export default function SignIn() {
 
   const emailRef = useRef(null);
   useEffect(() => { emailRef.current?.focus(); }, []);
-  useEffect(() => { applyTheme(theme); }, [theme]);
-
-  const handleToggleTheme = () => setTheme((t) => flipTheme(t));
 
   const emailError =
     touched.email && (!email.trim()
@@ -451,38 +407,33 @@ export default function SignIn() {
   // ── Show force-change screen ──
   if (mustChangePw && fbUser) {
     return (
-      <div className="signin-root">
-        <ThemeToggle theme={theme} onToggle={handleToggleTheme} />
-        <Background />
+      <AuthLayout>
         <ForceChangePassword
           firebaseUser={fbUser}
           redirectTo={redirectTo}
           userDisplayName={userDisplayName}
         />
-      </div>
+      </AuthLayout>
     );
   }
 
   return (
-    <>
-      <Header />
+    <AuthLayout
+      eyebrow="Staff portal"
+      title="Welcome back to the staff room."
+      lead="Sign in to take today's register, enter marks, or see how the school is doing."
+      sheet={<TodaySheet />}
+      switchText="New school?"
+      switchLabel="Register your school"
+      switchTo="/register"
+    >
       {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
 
-      <div className="signin-root">
-        <ThemeToggle theme={theme} onToggle={handleToggleTheme} />
-        <Background />
+      <div className="la-card">
+        <h1 className="form-heading">Staff sign in</h1>
+        <p className="form-hint">Authorised personnel only. You'll be directed to your dashboard on sign in.</p>
 
-        <main className="signin-main">
-          <div className="form-wrap">
-            <div className="form-badge">
-              <div className="badge-line" />
-              <span className="badge-label">Acalink</span>
-            </div>
-
-            <h1 className="form-heading">Staff<br /><em>Portal</em></h1>
-            <p className="form-hint">Authorised personnel only. You'll be directed to your dashboard on sign in.</p>
-
-            {authError && (
+        {authError && (
               <div className="auth-error">
                 <span className="auth-error-icon"><IconWarn /></span>
                 <p className="auth-error-msg">{authError}</p>
@@ -539,18 +490,7 @@ export default function SignIn() {
             <p className="security-note">
               <IconShield /> 256-bit SSL encrypted · Authorised staff only
             </p>
-          </div>
-        </main>
-
-        <footer className="signin-footer">
-          <p className="footer-copy">© {new Date().getFullYear()} Acalink</p>
-          <div className="footer-links">
-            {["Contact", "Privacy Policy", "Help"].map(link => (
-              <a key={link} href="#" className="footer-link">{link}</a>
-            ))}
-          </div>
-        </footer>
       </div>
-    </>
+    </AuthLayout>
   );
 }

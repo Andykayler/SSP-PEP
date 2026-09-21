@@ -2,7 +2,9 @@ import { useState } from "react";
 import { db, auth } from "../firebase";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import "./registration.css";
+import { Link } from "react-router-dom";
+import { Check } from "lucide-react";
+import AuthLayout from "../components/auth/AuthLayout";
 
 const DISTRICTS = [
   "Blantyre", "Lilongwe", "Mzuzu", "Zomba", "Kasungu", "Mangochi",
@@ -47,6 +49,20 @@ function validate(form) {
     e.terms = "You must accept the terms to proceed.";
   return e;
 }
+
+// Decorative: the first three things a new school does, on the same paper object
+// used across the landing and sign-in pages.
+const StartSheet = () => (
+  <div className="la-sheet" aria-hidden="true">
+    <div className="la-sheet__head"><strong>Getting started</strong><span>Term 1</span></div>
+    <ul className="la-todo">
+      <li className="is-done"><span className="la-todo__box"><Check size={12} strokeWidth={3} /></span>Register your school</li>
+      <li><span className="la-todo__box" />Add classes and staff</li>
+      <li><span className="la-todo__box" />Take the first register</li>
+    </ul>
+    <p className="lp-pen">30 days free!</p>
+  </div>
+);
 
 export default function SchoolRegistration() {
   const [form, setForm] = useState(EMPTY);
@@ -148,44 +164,43 @@ export default function SchoolRegistration() {
   // Success Screen
   if (success && successData) {
     return (
-      <div className="reg-page">
-        <div className="reg-success">
-          <div className="reg-success__icon">🎉</div>
-          <div className="reg-success__tag">REGISTRATION SUCCESSFUL</div>
-          <h2 className="reg-success__title">School Account Created</h2>
-          <p className="reg-success__school">{successData.name}</p>
+      <AuthLayout>
+        <div className="la-card la-done">
+          <span className="la-done__icon"><Check size={30} strokeWidth={2.5} /></span>
+          <p className="lp-eyebrow">Registration successful</p>
+          <h1>School account created</h1>
+          <p className="la-done__school">{successData.name}</p>
 
-          <div className="reg-success__code-wrap">
-            <div className="reg-success__code">{successData.code}</div>
-          </div>
-          <div className="reg-success__code-label">Your School Code</div>
+          <div className="la-done__code">{successData.code}</div>
+          <div className="la-done__label">Your school code</div>
 
-          <p className="reg-success__body">
-            Your account has been created successfully. You can now log in with your email and password.
+          <p className="la-done__body">
+            Your account has been created. You can now sign in with your email and password.
           </p>
 
-          <button onClick={reset} className="reg-btn reg-btn--primary">
-            Register Another School
-          </button>
+          <div className="la-done__actions">
+            <Link to="/signin" className="reg-btn reg-btn--primary">Sign in</Link>
+            <button type="button" onClick={reset} className="reg-btn reg-btn--ghost">Register another school</button>
+          </div>
         </div>
-      </div>
+      </AuthLayout>
     );
   }
 
   return (
-    <div className="reg-page">
-      <div className="reg-page__glow" />
-      <div className="reg-page__glow reg-page__glow--teal" />
-
-      <div className="reg-card">
-        {/* Header */}
-        <div className="reg-card__header">
-          <div className="reg-card__logo">
-            <div className="reg-card__logo-mark">E</div>
-            EduForge
-          </div>
-          <div className="reg-card__badge">School Registration</div>
-        </div>
+    <AuthLayout
+      eyebrow="School registration"
+      title="Set your school up in an afternoon."
+      lead="Register the school, add your classes and staff, and take your first register this week. Every plan starts with a 30-day free trial."
+      sheet={<StartSheet />}
+      stickySide
+      switchText="Already registered?"
+      switchLabel="Sign in"
+      switchTo="/signin"
+    >
+      <div className="la-card">
+        <h1 className="form-heading">Register your school</h1>
+        <p className="form-hint">Tell us about the school. Its code is generated from your district.</p>
 
         <form onSubmit={handleSubmit} noValidate className="reg-card__body">
           {submitError && (
@@ -329,6 +344,6 @@ export default function SchoolRegistration() {
           </div>
         </form>
       </div>
-    </div>
+    </AuthLayout>
   );
 }

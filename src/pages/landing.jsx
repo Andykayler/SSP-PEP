@@ -13,11 +13,9 @@ import {
   Users, Building2, GraduationCap, UserCheck, Bell, Pencil,
 } from "lucide-react";
 import { BANDS, MIN_PLATFORM_PER_TERM, CADENCES, TERMS_PER_YEAR } from "../services/pricing";
+import { BRAND } from "../components/brand";
 import "./landing.css";
 
-// The product name shown on this page. The sign-in page, dashboards and page
-// title all say Acalink; keep this in step with them.
-const BRAND = "Acalink";
 
 /* ─── helpers ───────────────────────────────────────── */
 
