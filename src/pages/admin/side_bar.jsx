@@ -212,7 +212,7 @@ export default function HeadTeacherSidebar({
         </div>
 
         {/* ── Navigation ── */}
-        <nav style={{ flex: 1, padding: "20px 16px", overflowY: "auto" }}>
+        <nav data-tour="sidebar-nav" style={{ flex: 1, padding: "20px 16px", overflowY: "auto" }}>
           <span style={{
             fontFamily: "var(--font-mono)",
             fontSize: "0.65rem",
@@ -230,6 +230,7 @@ export default function HeadTeacherSidebar({
               return (
                 <li key={item.id}>
                   <button
+                    data-tour={`nav-${item.id}`}
                     onClick={() => { onTabChange(item.id); onClose?.(); }}
                     className={`sb-nav-btn${active ? " sb-nav-btn--active" : ""}`}
                     style={{

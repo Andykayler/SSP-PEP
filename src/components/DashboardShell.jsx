@@ -3,6 +3,8 @@ import Sidebar from "../pages/admin/side_bar";
 import { getInitialTheme, toggleTheme as flipTheme } from "../utils/theme";
 import NotificationProvider from "./notifications/NotificationProvider";
 import { NotificationBell, NotificationToasts } from "./notifications/NotificationBell";
+import GuidedTour, { TourHelpButton } from "./tour/GuidedTour";
+import { buildTourSteps, hasSeenTour } from "./tour/tourSteps";
 
 const THEME_ICONS = {
   sun: (
@@ -54,10 +56,15 @@ export default function DashboardShell({
   // switches tabs; a portal that can deep-link into a record (opening one
   // conversation, say) supplies its own.
   onNotificationNavigate,
+  // Which dashboard this is ("teacher", "head", "bursar", "director"). Picks
+  // the wording the guided tour uses for each module.
+  tourRole = "",
   children,
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [theme, setTheme] = useState(getInitialTheme);
+  const [tourOpen, setTourOpen] = useState(false);
+  const [tourSeen, setTourSeen] = useState(() => hasSeenTour(tourRole));
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -119,6 +126,14 @@ export default function DashboardShell({
     if (tab && navItems.some((item) => item.id === tab)) onTabChange(tab);
   }, [navItems, onTabChange, onNotificationNavigate]);
 
+  const tourSteps = buildTourSteps({
+    role: tourRole,
+    navItems,
+    userName,
+    roleLabel,
+    hasBell: Boolean(notificationRecipientId),
+  });
+
   return (
     <NotificationProvider
       recipientId={notificationRecipientId}
@@ -170,10 +185,17 @@ export default function DashboardShell({
               <span className="topbar__status-text">Online</span>
             </div>
 
-            {notificationRecipientId && <NotificationBell />}
+            {notificationRecipientId && (
+              <span data-tour="notifications" style={{ display: "inline-flex" }}>
+                <NotificationBell />
+              </span>
+            )}
+
+            <TourHelpButton onClick={() => setTourOpen(true)} seen={tourSeen} />
 
             <button
               type="button"
+              data-tour="theme"
               onClick={handleToggleTheme}
               title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
               className="theme-toggle-btn"
@@ -201,6 +223,16 @@ export default function DashboardShell({
       </div>
 
       <NotificationToasts />
+
+      <GuidedTour
+        open={tourOpen}
+        steps={tourSteps}
+        role={tourRole}
+        startTab={currentTab}
+        onTabChange={onTabChange}
+        setSidebarOpen={setSidebarOpen}
+        onClose={() => { setTourOpen(false); setTourSeen(true); }}
+      />
     </div>
     </NotificationProvider>
   );

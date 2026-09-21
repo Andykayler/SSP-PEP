@@ -1,0 +1,278 @@
+/* Guided tour. Everything is `tour-` prefixed and rendered outside
+   .dashboard-shell, so the shell's blanket button/heading restyling
+   (polish.css) never reaches it. Colours are the shared design tokens, which
+   means light and dark themes work without any tour-specific handling. */
+
+.tour-root {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  font-family: var(--font-body);
+  color: var(--text-primary);
+}
+
+.tour-block {
+  position: fixed;
+  inset: 0;
+}
+
+/* Used when a step has nothing to point at (welcome / done). */
+.tour-dim {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 8, 18, 0.72);
+  animation: tour-fade 0.25s ease both;
+}
+
+/* The spotlight. The dimming is its own giant box-shadow, so the hole in the
+   overlay is exactly the element's box and glides with it between steps. */
+.tour-spot {
+  position: fixed;
+  border-radius: 14px;
+  border: 2px solid var(--primary-light);
+  box-shadow: 0 0 0 100vmax rgba(5, 8, 18, 0.72);
+  cursor: pointer;
+  transition: left 0.32s cubic-bezier(0.4, 0, 0.2, 1), top 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+              width 0.32s cubic-bezier(0.4, 0, 0.2, 1), height 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.tour-spot::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 18px;
+  border: 2px solid var(--primary-light);
+  opacity: 0;
+  animation: tour-ring 1.6s ease-out infinite;
+  pointer-events: none;
+}
+
+/* ── Card ── */
+.tour-card {
+  position: fixed;
+  box-sizing: border-box;
+  max-width: calc(100vw - 24px);
+  background: var(--modal-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+  box-shadow: var(--shadow-lg);
+  overflow: visible;
+  transition: left 0.32s cubic-bezier(0.4, 0, 0.2, 1), top 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Arrow pointing back at the spotlight. */
+.tour-card::before {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: var(--modal-bg);
+  transform: rotate(45deg);
+  display: none;
+}
+.tour-card[data-side="right"]::before {
+  display: block;
+  left: -8px;
+  top: calc(var(--tour-arrow) - 7px);
+  border-left: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+}
+.tour-card[data-side="left"]::before {
+  display: block;
+  right: -8px;
+  top: calc(var(--tour-arrow) - 7px);
+  border-right: 1px solid var(--border-strong);
+  border-top: 1px solid var(--border-strong);
+}
+.tour-card[data-side="below"]::before {
+  display: block;
+  top: -8px;
+  left: calc(var(--tour-arrow) - 7px);
+  border-left: 1px solid var(--border-strong);
+  border-top: 1px solid var(--border-strong);
+}
+.tour-card[data-side="above"]::before {
+  display: block;
+  bottom: -8px;
+  left: calc(var(--tour-arrow) - 7px);
+  border-right: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.tour-progress {
+  height: 4px;
+  background: var(--primary-pale);
+  border-radius: 18px 18px 0 0;
+  overflow: hidden;
+}
+.tour-progress__bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  border-radius: 0 4px 4px 0;
+  transition: width 0.32s ease;
+}
+
+.tour-card__inner {
+  padding: 16px 20px 6px;
+  animation: tour-in 0.28s ease both;
+}
+
+.tour-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.tour-card__count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.tour-card__title {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+  color: var(--text-primary);
+}
+.tour-card__body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.tour-card__note {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  opacity: 0.85;
+}
+
+/* The "press this" line: what makes it read like a game prompt. */
+.tour-press {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--primary-pale);
+  border: 1px solid var(--border-color);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+.tour-press__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  margin-top: 2px;
+  color: var(--primary-light);
+}
+.tour-key {
+  display: inline-block;
+  padding: 1px 8px;
+  margin: 0 1px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  background: var(--card-bg);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.tour-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px 18px;
+}
+
+.tour-btn,
+.tour-link {
+  font-family: inherit;
+  cursor: pointer;
+}
+.tour-btn {
+  min-height: 40px;
+  padding: 0 20px;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+}
+.tour-btn:hover:not(:disabled) { background: var(--primary-pale); }
+.tour-btn:active:not(:disabled) { transform: scale(0.97); }
+.tour-btn:disabled { opacity: 0.4; cursor: default; }
+.tour-btn--primary {
+  border-color: transparent;
+  background: var(--primary);
+  color: #fff;
+  box-shadow: var(--shadow-accent);
+}
+.tour-btn--primary:hover:not(:disabled) { background: var(--primary-light); }
+.tour-btn:focus-visible,
+.tour-link:focus-visible {
+  outline: 2px solid var(--primary-light);
+  outline-offset: 2px;
+}
+
+.tour-link {
+  border: none;
+  background: none;
+  padding: 2px 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.tour-link:hover { color: var(--text-primary); }
+
+/* ── Help button in the top bar ── */
+.tour-help-btn { position: relative; }
+.tour-help-btn--new::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  border: 2px solid var(--primary-light);
+  opacity: 0;
+  animation: tour-ring 1.8s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes tour-ring {
+  0%   { opacity: 0.85; transform: scale(0.94); }
+  100% { opacity: 0;    transform: scale(1.12); }
+}
+@keyframes tour-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes tour-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@media (max-width: 639px) {
+  .tour-card__inner { padding: 14px 16px 4px; }
+  .tour-card__actions { padding: 12px 16px 16px; }
+  .tour-card__actions .tour-btn { flex: 1; }
+  .tour-card__title { font-size: 1.3rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-spot, .tour-card, .tour-progress__bar { transition: none; }
+  .tour-spot::after, .tour-help-btn--new::after { animation: none; }
+  .tour-card__inner, .tour-dim { animation: none; }
+}

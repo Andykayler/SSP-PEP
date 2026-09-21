@@ -442,6 +442,7 @@ export default function TeacherDashboard() {
       title={currentTab === "overview" ? "Teacher Dashboard" : currentNavItem?.label}
       subtitle={`${displayRole} · ${CURRENT_TERM} Academic Year`}
       roleLabel={displayRole}
+      tourRole="teacher"
       userName={displayName}
       schoolName={profile?.schoolName || ""}
       schoolCode={schoolCode || ""}

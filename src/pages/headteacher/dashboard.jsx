@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { auth, db } from "../../firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { signOut, onAuthStateChanged } from "firebase/auth";
-import { Users, Calendar, Award, AlertTriangle, Bell, Home, FileText, UserCheck, ClipboardCheck, MessageSquare, CalendarDays, GraduationCap, Wallet, BedDouble, Package, UserPlus } from "lucide-react";
+import { Users, Calendar, Award, AlertTriangle, Bell, Home, FileText, UserCheck, ClipboardCheck, MessageSquare, CalendarDays, GraduationCap, Wallet, BedDouble, Package, UserPlus, BookOpen } from "lucide-react";
 
 import DashboardShell from "../../components/DashboardShell";
 import TermCard from "../../components/TermCard";
@@ -10,6 +10,7 @@ import MessagesModule from "../../components/messaging/MessagesModule";
 import StudentManagement from "./modules/student";
 import ClassAndStreamModule from "./modules/ClassModule";
 import TimetableModule from "./modules/TimetableModule";
+import LessonPlansModule from "./modules/classplanning";
 import ClassSessionsModule from "./modules/ClassSessionsModule";
 import AttendanceOverview from "./modules/AttendanceModule";
 import DisciplineOverview from "./modules/DisciplineModule";
@@ -130,6 +131,7 @@ export default function HeadTeacherDashboard() {
     { id: "classes", label: "Classes & Streams", icon: <Users className="w-5 h-5" />, component: <ClassAndStreamModule schoolCode={schoolCode} currentUser={currentUser} /> },
     { id: "messages", label: "Parent Messages", icon: <MessageSquare className="w-5 h-5" />, component: <MessagesModule key={pendingConversationId || "inbox"} schoolCode={schoolCode} currentUser={currentUser} initialConversationId={pendingConversationId} /> },
     { id: "timetable", label: "Timetable", icon: <Calendar className="w-5 h-5" />, component: <TimetableModule schoolCode={schoolCode} /> },
+    { id: "lessonplans", label: "Lesson Plans", icon: <BookOpen className="w-5 h-5" />, component: <LessonPlansModule schoolCode={schoolCode} /> },
     { id: "classmonitor", label: "Class Monitor", icon: <ClipboardCheck className="w-5 h-5" />, component: <ClassSessionsModule schoolCode={schoolCode} /> },
     { id: "attendance", label: "Attendance Overview", icon: <UserCheck className="w-5 h-5" />, component: <AttendanceOverview schoolCode={schoolCode} /> },
     { id: "performance", label: "Performance Analytics", icon: <Award className="w-5 h-5" />, component: <PerformanceAnalytics schoolCode={schoolCode} /> },
@@ -188,6 +190,7 @@ export default function HeadTeacherDashboard() {
       title={displayTitle}
       subtitle={`Head Teacher · ${schoolName}${schoolDistrict ? ` · ${schoolDistrict}` : ""}`}
       roleLabel="Head Teacher"
+      tourRole="head"
       userName={displayName}
       schoolName={schoolName}
       schoolDistrict={schoolDistrict}

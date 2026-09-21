@@ -167,6 +167,7 @@ export default function BursarDashboard() {
       title={currentNavItem?.label || "Bursar Dashboard"}
       subtitle={`Finance Management · ${schoolName}`}
       roleLabel="Bursar"
+      tourRole="bursar"
       userName={displayName}
       schoolName={schoolName}
       schoolCode={schoolCode}

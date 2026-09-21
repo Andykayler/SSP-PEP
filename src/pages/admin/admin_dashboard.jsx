@@ -6,6 +6,8 @@ import { signOut, onAuthStateChanged } from "firebase/auth";
 import Sidebar, { NAV_ITEMS } from "./side_bar";
 import { getInitialTheme, applyTheme, toggleTheme as flipTheme } from "../../utils/theme";
 import "./admin_dashboard.css";
+import GuidedTour, { TourHelpButton } from "../../components/tour/GuidedTour";
+import { buildTourSteps, hasSeenTour } from "../../components/tour/tourSteps";
 
 import { IC } from "./modules/icons";
 import { initials } from "./modules/helpers";
@@ -26,6 +28,8 @@ import { isSetUp } from "../../services/schoolProfile";
 export default function AdminDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentTab, setCurrentTab]   = useState("overview");
+  const [tourOpen,   setTourOpen]     = useState(false);
+  const [tourSeen,   setTourSeen]     = useState(() => hasSeenTour("admin"));
   const [authUser,   setAuthUser]     = useState(null);
   const [userData,   setUserData]     = useState(null);
   const [schoolData, setSchoolData]   = useState(null);
@@ -136,7 +140,8 @@ export default function AdminDashboard() {
               <span className="topbar__status-dot" />
               <span className="topbar__status-text">Online</span>
             </div>
-            <button onClick={handleToggleTheme} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} className="theme-toggle-btn">
+            <TourHelpButton onClick={() => setTourOpen(true)} seen={tourSeen} />
+            <button data-tour="theme" onClick={handleToggleTheme} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} className="theme-toggle-btn">
               {theme === "dark" ? IC.sun : IC.moon}
             </button>
             <div style={{ textAlign: "right" }}>
@@ -178,6 +183,16 @@ export default function AdminDashboard() {
           <span>v1.4.1</span>
         </footer>
       </div>
+
+      <GuidedTour
+        open={tourOpen}
+        steps={buildTourSteps({ role: "admin", navItems: NAV_ITEMS, userName: displayName, roleLabel: "System Admin" })}
+        role="admin"
+        startTab={currentTab}
+        onTabChange={setCurrentTab}
+        setSidebarOpen={setSidebarOpen}
+        onClose={() => { setTourOpen(false); setTourSeen(true); }}
+      />
     </div>
   );
 }

@@ -196,6 +196,7 @@ export default function DirectorDashboard() {
       title={currentTab === "overview" ? "School Overview" : currentNavItem?.label}
       subtitle={`Director · ${schoolName}${schoolDistrict ? ` · ${schoolDistrict}` : ""}`}
       roleLabel="Director"
+      tourRole="director"
       userName={displayName}
       schoolName={schoolName}
       schoolDistrict={schoolDistrict}
