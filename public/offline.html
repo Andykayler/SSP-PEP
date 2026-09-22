@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Acalink — offline</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+    font-family: -apple-system, BlinkMacSystemFont, 'DM Sans', Segoe UI, sans-serif;
+    background: #0d1427; color: #f4f1e8; text-align: center;
+  }
+  .card { max-width: 340px; }
+  .mark {
+    width: 56px; height: 56px; margin: 0 auto 18px; border-radius: 14px;
+    background: linear-gradient(135deg, #4f6ef7, #3b56d9);
+    display: flex; align-items: center; justify-content: center; font-size: 26px;
+  }
+  h1 { font-size: 1.2rem; margin: 0 0 8px; }
+  p { font-size: 14px; line-height: 1.6; color: rgba(244,241,232,0.75); margin: 0 0 18px; }
+  button {
+    min-height: 44px; padding: 0 22px; border: none; border-radius: 12px;
+    background: #4f6ef7; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="mark">🎓</div>
+    <h1>No connection right now</h1>
+    <p>
+      Acalink couldn't load this page because you're offline. Anything you already had open —
+      taking a register, entering marks — is saved on this device and will sync the moment you're
+      back online.
+    </p>
+    <button onclick="location.reload()">Try again</button>
+  </div>
+</body>
+</html>

@@ -7,6 +7,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import {
   Users, BookOpen, Calendar, Award, TrendingUp, AlertTriangle,
   Home, FileText, CheckCircle, Clock, MessageSquare, MessagesSquare,
+  CalendarOff, HeartPulse,
 } from "lucide-react";
 
 import DashboardShell from "../../components/DashboardShell";
@@ -19,6 +20,8 @@ import AttendanceModule from "./modules/AttendanceModule";
 import DisciplineModule from "./modules/DisciplineModule";
 import PerformanceModule from "./modules/PerformanceModule";
 import HomeworkModule from "./modules/homework";
+import LeaveModule from "../../components/leave/LeaveModule";
+import HealthModule from "../../components/health/HealthModule";
 import "../admin/admin_dashboard.css";
 
 // Keep this in sync with the term shown in PerformanceModule's TERMS list
@@ -338,6 +341,8 @@ export default function TeacherDashboard() {
     { id: "Homework", label: "Homework", icon: <FileText className="w-5 h-5" />, component: <HomeworkModule {...moduleProps} /> },
     { id: "classes", label: "Class Activity", icon: <MessagesSquare className="w-5 h-5" />, component: <ClassActivityPage schoolCode={schoolCode} currentUser={currentUser} restrictToAssigned /> },
     { id: "messages", label: "Parent Messages", icon: <MessageSquare className="w-5 h-5" />, component: <MessagesModule schoolCode={schoolCode} currentUser={currentUser} /> },
+    { id: "leave", label: "Leave", icon: <CalendarOff className="w-5 h-5" />, component: <LeaveModule schoolCode={schoolCode} currentUser={currentUser} mode="teacher" /> },
+    { id: "health", label: "Health", icon: <HeartPulse className="w-5 h-5" />, component: <HealthModule schoolCode={schoolCode} currentUser={currentUser} mode="staff" /> },
   ];
 
   const currentNavItem = navItems.find((item) => item.id === currentTab);

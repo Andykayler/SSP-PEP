@@ -8,6 +8,12 @@ import { getInitialTheme, applyTheme, toggleTheme as flipTheme } from "../../uti
 import "./admin_dashboard.css";
 import GuidedTour, { TourHelpButton } from "../../components/tour/GuidedTour";
 import { buildTourSteps, hasSeenTour } from "../../components/tour/tourSteps";
+import AccountPanel from "../../components/account/AccountPanel";
+import useOnlineStatus from "../../hooks/useOnlineStatus";
+import { onUpdateAvailable, applyUpdate } from "../../services/pwa";
+import useSchoolAccess from "../../components/subscription/useSchoolAccess";
+import AccessBlocked from "../../components/subscription/AccessBlocked";
+import SubscriptionBanner from "../../components/subscription/SubscriptionBanner";
 
 import { IC } from "./modules/icons";
 import { initials } from "./modules/helpers";
@@ -20,6 +26,7 @@ import SchoolSettings from "./modules/SchoolSettings";
 import Billing from "./modules/Billing";
 import Announcements from "./modules/Announcements";
 import AuditLog from "./modules/AuditLog";
+import DataBackup from "./modules/DataBackup";
 import SchoolSetupGate from "../../components/setup/SchoolSetupGate";
 import { subscribeSchoolSettings } from "../../services/academicTerm";
 import { isSetUp } from "../../services/schoolProfile";
@@ -29,6 +36,10 @@ export default function AdminDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentTab, setCurrentTab]   = useState("overview");
   const [tourOpen,   setTourOpen]     = useState(false);
+  const [accountOpen, setAccountOpen]  = useState(false);
+  const online = useOnlineStatus();
+  const [updateReady, setUpdateReady] = useState(false);
+  useEffect(() => { onUpdateAvailable(() => setUpdateReady(true)); }, []);
   const [tourSeen,   setTourSeen]     = useState(() => hasSeenTour("admin"));
   const [authUser,   setAuthUser]     = useState(null);
   const [userData,   setUserData]     = useState(null);
@@ -90,6 +101,18 @@ export default function AdminDashboard() {
   const schoolCode     = userData?.schoolCode || "";
   const currentNavItem = NAV_ITEMS.find(i => i.id === currentTab);
 
+  // Whether this school may use the platform right now (approval, trial,
+  // subscription). A lapsed school's administrator keeps Billing, and only
+  // Billing, so they can pay their way back in.
+  const { school: accessSchool, access } = useSchoolAccess(schoolCode);
+  const lockedToBilling = access.restricted;
+  const navItems = lockedToBilling ? NAV_ITEMS.filter(i => i.id === "billing") : NAV_ITEMS;
+  useEffect(() => {
+    if (!lockedToBilling || currentTab === "billing") return undefined;
+    const id = setTimeout(() => setCurrentTab("billing"), 0);
+    return () => clearTimeout(id);
+  }, [lockedToBilling, currentTab]);
+
   if (loading) return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ textAlign: "center" }}>
@@ -109,6 +132,10 @@ export default function AdminDashboard() {
     </div>
   );
 
+  if (access.blocked) {
+    return <AccessBlocked access={access} school={accessSchool} onSignOut={handleSignOut} />;
+  }
+
   return (
     <div className="dashboard-shell">
       <Sidebar
@@ -117,7 +144,7 @@ export default function AdminDashboard() {
         currentTab={currentTab}
         onTabChange={(tab) => { setCurrentTab(tab); setSidebarOpen(false); }}
         schoolName={schoolName}
-        navItems={NAV_ITEMS}
+        navItems={navItems}
         schoolDistrict={schoolDistrict}
         schoolCode={schoolCode}
         notificationRecipientId={authUser?.uid || ""}
@@ -136,9 +163,14 @@ export default function AdminDashboard() {
             </div>
           </div>
           <div className="topbar__right">
-            <div className="topbar__status">
-              <span className="topbar__status-dot" />
-              <span className="topbar__status-text">Online</span>
+            {updateReady && (
+              <button type="button" onClick={applyUpdate} className="topbar__status" style={{ cursor: "pointer" }} title="A new version of Acalink is ready">
+                <span className="topbar__status-text">Update ready — tap to reload</span>
+              </button>
+            )}
+            <div className="topbar__status" title={online ? undefined : "No connection. Your work is saved here and will sync when you're back online."}>
+              <span className="topbar__status-dot" style={online ? undefined : { background: "var(--warning-light)" }} />
+              <span className="topbar__status-text">{online ? "Online" : "Offline"}</span>
             </div>
             <TourHelpButton onClick={() => setTourOpen(true)} seen={tourSeen} />
             <button data-tour="theme" onClick={handleToggleTheme} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} className="theme-toggle-btn">
@@ -148,11 +180,21 @@ export default function AdminDashboard() {
               <div className="topbar-user-name">{displayName}</div>
               <div className="topbar__user-role">System Admin</div>
             </div>
-            <div className="topbar__avatar">{initials(displayName) || "??"}</div>
+            <div
+              className="topbar__avatar"
+              role="button"
+              tabIndex={0}
+              title="Your account: WhatsApp alerts and two-step sign-in"
+              aria-label="Your account"
+              style={{ cursor: "pointer" }}
+              onClick={() => setAccountOpen(true)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setAccountOpen(true); } }}
+            >{initials(displayName) || "??"}</div>
           </div>
         </header>
 
         <main className="page-content">
+          <SubscriptionBanner access={access} canPay onSubscribe={() => setCurrentTab("billing")} />
           {/* Until the school has said whether it boards and which term is
               running, the modules below would be configured against nothing —
               so setup comes first rather than as a prompt to dismiss. */}
@@ -174,6 +216,7 @@ export default function AdminDashboard() {
           {currentTab === "billing"       && <Billing schoolData={schoolData} schoolCode={schoolCode} />}
           {currentTab === "announcements" && <Announcements schoolCode={schoolCode} userName={displayName} />}
           {currentTab === "audit"         && <AuditLog schoolCode={schoolCode} />}
+          {currentTab === "backup"        && <DataBackup schoolCode={schoolCode} schoolName={schoolName} actorName={displayName} />}
           </>
           )}
         </main>
@@ -184,9 +227,11 @@ export default function AdminDashboard() {
         </footer>
       </div>
 
+      <AccountPanel open={accountOpen} onClose={() => setAccountOpen(false)} name={displayName} roleLabel="System Admin" />
+
       <GuidedTour
         open={tourOpen}
-        steps={buildTourSteps({ role: "admin", navItems: NAV_ITEMS, userName: displayName, roleLabel: "System Admin" })}
+        steps={buildTourSteps({ role: "admin", navItems, userName: displayName, roleLabel: "System Admin" })}
         role="admin"
         startTab={currentTab}
         onTabChange={setCurrentTab}

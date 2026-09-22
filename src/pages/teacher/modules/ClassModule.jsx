@@ -169,6 +169,18 @@ function PeriodTile({ periodNumber, statusKey }) {
   );
 }
 
+// ─── head-teacher review state ───────────────────────────────────────────────
+function ReviewPill({ plan }) {
+  const s = plan.reviewStatus || "pending";
+  const map = {
+    pending: { label: "Awaiting review", pill: { background: "var(--surface)", color: "var(--text-muted)", border: "1px solid var(--border-color)" } },
+    approved: { label: "Approved", pill: { background: "var(--success-pale)", color: "var(--success-light)", border: "1px solid rgba(34,197,94,0.22)" } },
+    changes: { label: "Changes requested", pill: { background: "var(--danger-pale)", color: "var(--danger-light)", border: "1px solid rgba(239,68,68,0.2)" } },
+  };
+  const cfg = map[s] || map.pending;
+  return <span className="status-pill" style={cfg.pill}>{cfg.label}</span>;
+}
+
 // ─── plan row (cc-row pattern, same one used for "Today's Schedule" on the
 // Overview dashboard) ──────────────────────────────────────────────────────
 function PlanRow({ plan, onView, onEdit, onDelete }) {
@@ -187,6 +199,7 @@ function PlanRow({ plan, onView, onEdit, onDelete }) {
             <span className="status-pill__dot" />
             {cfg.label}
           </span>
+          <ReviewPill plan={plan} />
         </div>
 
         <div className="cc-row__name" style={{ fontSize: 14, whiteSpace: "normal", fontFamily: "var(--font-display)", letterSpacing: "0.3px" }}>
@@ -196,6 +209,18 @@ function PlanRow({ plan, onView, onEdit, onDelete }) {
         {plan.objectives && (
           <p className="cc-row__meta" style={{ whiteSpace: "normal", marginTop: 4, lineHeight: 1.55, maxWidth: 560 }}>
             {plan.objectives}
+          </p>
+        )}
+
+        {plan.reviewStatus === "changes" && (
+          <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: "var(--radius-md)", background: "var(--danger-pale)", color: "var(--danger-light)", fontSize: 12.5, maxWidth: 560 }}>
+            <strong>{plan.reviewedByName || "Your head teacher"} asked for changes:</strong> {plan.review}
+            <div style={{ opacity: 0.85, marginTop: 2 }}>Edit the plan and save it to send it back for review.</div>
+          </div>
+        )}
+        {plan.reviewStatus === "approved" && plan.review && (
+          <p className="cc-row__meta" style={{ whiteSpace: "normal", marginTop: 6, color: "var(--success-light)" }}>
+            {plan.reviewedByName || "Head teacher"}: {plan.review}
           </p>
         )}
 
@@ -309,6 +334,11 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
 
   const savePlan = async (formData, existingId = null) => {
     const payload = { ...formData, teacherId: userId, schoolCode, updatedAt: serverTimestamp() };
+    // A plan the head teacher asked changes on goes back into the review queue
+    // when the teacher saves it again. Other edits (marking it completed, say)
+    // do not reopen a review that already happened.
+    const before = existingId ? plans.find((p) => p.id === existingId) : null;
+    if (before?.reviewStatus === "changes") payload.reviewStatus = "pending";
     if (existingId) {
       await updateDoc(doc(db, "lesson_plans", existingId), payload);
       setPlans((prev) =>
@@ -326,6 +356,7 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
       showToast("Lesson plan updated.");
     } else {
       payload.createdAt = serverTimestamp();
+      payload.reviewStatus = "pending";
       const ref = await addDoc(collection(db, "lesson_plans"), payload);
       setPlans((prev) => [{ id: ref.id, ...payload }, ...prev]);
       showToast("Lesson plan created.");

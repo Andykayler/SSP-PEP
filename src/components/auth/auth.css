@@ -68,6 +68,7 @@
   align-items: center;
 }
 .la-stage--solo { grid-template-columns: minmax(0, 480px); justify-content: center; }
+.la-stage--wide { grid-template-columns: minmax(0, 780px); }
 .la-main { min-width: 0; }
 
 .la-side--sticky { position: sticky; top: 100px; align-self: start; }
@@ -475,12 +476,28 @@
 .la-done__actions { display: flex; flex-direction: column; gap: 10px; }
 .la-done__actions .reg-btn { margin-top: 0; text-decoration: none; }
 
+/* ── Legal pages ── */
+.la-legal { padding: 40px 40px 34px; }
+.la-legal section { margin-top: 26px; }
+.la-legal h2 { margin: 0 0 8px; font-family: var(--lp-display); font-size: 1.2rem; font-weight: 600; color: var(--lp-ink); }
+.la-legal p { margin: 0 0 10px; font-size: 14.5px; line-height: 1.7; color: var(--lp-ink-2); }
+.la-legal__draft { margin: 0 0 18px; padding: 10px 14px; border-radius: 10px; background: rgba(242, 183, 5, 0.16); border: 1px solid rgba(242, 183, 5, 0.5); color: var(--lp-ink) !important; font-size: 13px !important; }
+.la-legal__more { margin-top: 30px !important; padding-top: 18px; border-top: 1px solid var(--lp-line); }
+.la-legal__more a { color: var(--lp-accent); font-weight: 600; }
+
+/* ── Static step list (approval screen) ── */
+.la-todo--steps { max-width: 260px; margin: 22px auto 8px; text-align: left; }
+.la-todo--steps li { color: var(--lp-ink); }
+.la-todo--steps .la-todo__box { border-color: var(--lp-line-strong); }
+.la-todo--steps li.is-done { opacity: 1; text-decoration: none; }
+
 /* ── Responsive ── */
 @media (max-width: 960px) {
   .la-stage { grid-template-columns: minmax(0, 480px); justify-content: center; gap: 0; padding-top: 24px; }
   .la-side { display: none; }
 }
 @media (max-width: 560px) {
+  .la-legal { padding: 28px 22px 26px; }
   .la-back { display: none; }
   .la-card { padding: 28px 22px 24px; }
   .lp-auth .reg-row { grid-template-columns: 1fr; }

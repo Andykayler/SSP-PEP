@@ -67,7 +67,27 @@ export const CATEGORY_META = {
   thread:       { label: "Activity",     tone: "neutral", tab: "classes" },
   staff:        { label: "Staff",        tone: "neutral", tab: "staff" },
   system:       { label: "System",       tone: "neutral", tab: "overview" },
+  // Staff-facing workflow alerts. These are the ones worth a WhatsApp to a
+  // teacher's phone even when it is not marked urgent: something is waiting
+  // on them, or a decision was made about them.
+  leave:        { label: "Leave",        tone: "info",    tab: "leave" },
+  review:       { label: "Lesson plan",  tone: "info",    tab: "myclasses" },
+  cover:        { label: "Cover",        tone: "warning", tab: "leave" },
+  exam:         { label: "Exams",        tone: "warning", tab: "exams" },
+  health:       { label: "Health",       tone: "danger",  tab: "health" },
+  transport:    { label: "Transport",    tone: "warning", tab: "transport" },
+  library:      { label: "Library",      tone: "info",    tab: "library" },
+  risk:         { label: "At risk",      tone: "danger",  tab: "atrisk" },
+  security:     { label: "Security",     tone: "danger",  tab: "overview" },
 };
+
+/**
+ * Categories that reach a member of staff on WhatsApp whatever their priority,
+ * because each one means someone is waiting on them. Everything else reaches
+ * staff on WhatsApp only when it is high or urgent, so a teacher's phone is not
+ * a mirror of the bell icon. Mirrored in functions/index.js.
+ */
+export const STAFF_WHATSAPP_CATEGORIES = ["leave", "review", "cover", "exam", "health", "risk", "security"];
 
 export function categoryMeta(category) {
   return CATEGORY_META[category] || CATEGORY_META.system;
@@ -100,6 +120,13 @@ function buildDoc(n) {
     entityId:      n.entityId || "",
     studentId:     n.studentId || "",            // parents filter on this
     studentName:   n.studentName || "",
+    // Chichewa wording, when the caller has it. The delivery function picks
+    // between the two by the guardian's language (`lang`) and the school's
+    // default, so the in-app text stays as written and only the WhatsApp/SMS
+    // copy switches.
+    titleNy:       n.titleNy || "",
+    bodyNy:        n.bodyNy || "",
+    lang:          n.lang || "",
     read:          false,
     createdAt:     serverTimestamp(),
     createdAtMs:   Date.now(),                   // client fallback for sorting
@@ -198,6 +225,9 @@ export async function notifyGuardians({ students, ...payload }) {
       studentName: s.fullName || `${s.firstName || ""} ${s.lastName || ""}`.trim(),
       body: typeof payload.body === "function" ? payload.body(s) : payload.body,
       title: typeof payload.title === "function" ? payload.title(s) : payload.title,
+      bodyNy: typeof payload.bodyNy === "function" ? payload.bodyNy(s) : payload.bodyNy,
+      titleNy: typeof payload.titleNy === "function" ? payload.titleNy(s) : payload.titleNy,
+      lang: s.guardianLanguage || "",
     });
   });
   return pushNotifications(targets);

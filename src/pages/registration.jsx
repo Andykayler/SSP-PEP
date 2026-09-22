@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { db, auth } from "../firebase";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
+import { normalisePhone } from "../services/phone";
+import { LEGAL_VERSION } from "../services/legal";
 import { Link } from "react-router-dom";
 import { Check } from "lucide-react";
 import AuthLayout from "../components/auth/AuthLayout";
@@ -123,6 +125,8 @@ export default function SchoolRegistration() {
         subscription_status: "trial",
         role: "admin",
         status: "pending",
+        termsAcceptedAt: serverTimestamp(),
+        termsVersion: LEGAL_VERSION,
         createdAt: serverTimestamp(),
         authUid: uid,
       };
@@ -135,10 +139,23 @@ export default function SchoolRegistration() {
         role: "admin",
         schoolCode: code,
         district: form.district,
+        // The founder's own number, so alerts can reach them on WhatsApp once
+        // they turn that on in their account settings.
+        phone: normalisePhone(form.phone),
         createdAt: serverTimestamp(),
       });
 
-      setSuccessData({ name: form.schoolName.trim(), code });
+      // A typo'd email would otherwise create an account nobody can recover.
+      // Failing to send must not fail the registration that already succeeded.
+      let verificationSent = false;
+      try {
+        await sendEmailVerification(userCredential.user);
+        verificationSent = true;
+      } catch (mailErr) {
+        console.warn("[registration] verification email not sent:", mailErr);
+      }
+
+      setSuccessData({ name: form.schoolName.trim(), code, email: form.email.trim(), verificationSent });
       setSuccess(true);
     } catch (err) {
       let message = "Registration failed. Please try again.";
@@ -175,7 +192,9 @@ export default function SchoolRegistration() {
           <div className="la-done__label">Your school code</div>
 
           <p className="la-done__body">
-            Your account has been created. You can now sign in with your email and password.
+            Your school is registered and waiting for approval. We review every new school, and you will get a
+            WhatsApp message on the number you gave as soon as it is approved.
+            {successData.verificationSent && <> We also emailed <strong>{successData.email}</strong>. Please open the link in it to confirm your address.</>}
           </p>
 
           <div className="la-done__actions">
@@ -324,8 +343,8 @@ export default function SchoolRegistration() {
             />
             <span className="reg-terms__text">
               I confirm this information is accurate and I agree to the{" "}
-              <span className="reg-terms__link">Terms of Service</span> and{" "}
-              <span className="reg-terms__link">Privacy Policy</span>.
+              <Link to="/terms" target="_blank" className="reg-terms__link">Terms of Service</Link> and{" "}
+              <Link to="/privacy" target="_blank" className="reg-terms__link">Privacy Policy</Link>.
             </span>
           </div>
 

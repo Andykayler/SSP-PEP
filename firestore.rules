@@ -35,6 +35,15 @@ service cloud.firestore {
     function isFinance() {
       return isAdmin() || isBursar();
     }
+    // Whoever runs Acalink itself. Not tied to any school (schoolCode is empty),
+    // so it can never be reached through sameSchool(): the platform owner's
+    // powers are listed explicitly, collection by collection, below.
+    function isPlatformOwner() {
+      return isSignedIn() && myData().role == "superadmin";
+    }
+    function isLibrarian() {
+      return myData().role == "librarian";
+    }
     function sameSchool(schoolCode) {
       return myData().schoolCode == schoolCode;
     }
@@ -115,11 +124,41 @@ service cloud.firestore {
     // =============================================
     match /schools/{schoolCode} {
       allow read: if true;
+
+      // A new school always starts pending and on trial. This USED to accept
+      // whatever the client sent, so a registrant could create their school as
+      // status "active" and skip approval altogether.
       allow create: if request.auth != null &&
-                    request.resource.data.authUid == request.auth.uid;
+                    request.resource.data.authUid == request.auth.uid &&
+                    request.resource.data.status == 'pending' &&
+                    request.resource.data.subscription_status == 'trial' &&
+                    !('trialEndsAt' in request.resource.data) &&
+                    !('approvedAt' in request.resource.data);
+
+      // The founder edits their school profile, but never the fields that
+      // decide whether the school may use the platform or has paid for it.
+      // Those are set by the platform owner (below) or by the payment
+      // settlement, which runs on the Admin SDK and bypasses rules.
       allow update: if request.auth != null &&
-                    request.auth.uid == resource.data.authUid;
+                    request.auth.uid == resource.data.authUid &&
+                    !request.resource.data.diff(resource.data).affectedKeys()
+                      .hasAny(['status', 'subscription_status', 'trialEndsAt',
+                               'approvedAt', 'approvedBy', 'rejectedReason',
+                               'suspendedReason', 'paidThrough', 'paidThroughLabel',
+                               'lastPaymentAt', 'lastPaymentAmount', 'billing_cadence',
+                               'authUid', 'code', 'legacyGrandfathered']);
+
+      // The platform owner decides on approval, suspension and trial length.
+      allow update: if isPlatformOwner();
       allow delete: if false;
+    }
+
+    // =============================================
+    // PLATFORM (Acalink's own back office)
+    // =============================================
+    match /platform_audit/{entryId} {
+      allow read, create: if isPlatformOwner();
+      allow update, delete: if false;
     }
 
     // =============================================
@@ -138,13 +177,36 @@ service cloud.firestore {
                     sameSchool(resource.data.schoolCode)
                   );
 
-      allow create: if request.auth != null;
+      // This USED to be `if request.auth != null` — any signed-in account,
+      // including an anonymous parent session, could write itself a users
+      // document with role "admin" and any school's code. Two paths remain, and
+      // they are exactly what the product does:
+      //
+      //   1. A founder registering: they create their own profile, as admin,
+      //      for a school document they themselves just created.
+      //   2. An administrator adding staff at their own school. The document id
+      //      is the new person's uid, so it is not the admin's own.
+      allow create: if request.auth != null &&
+                    request.auth.uid == userId &&
+                    request.resource.data.role == 'admin' &&
+                    exists(/databases/$(database)/documents/schools/$(request.resource.data.schoolCode)) &&
+                    get(/databases/$(database)/documents/schools/$(request.resource.data.schoolCode)).data.authUid == request.auth.uid;
+
+      allow create: if request.auth != null &&
+                    isAdmin() &&
+                    sameSchool(request.resource.data.schoolCode) &&
+                    request.resource.data.role in ['director', 'head_teacher', 'class_teacher', 'bursar', 'librarian'];
 
       // Owner can update only safe fields
       allow update: if request.auth != null &&
                     request.auth.uid == userId &&
                     request.resource.data.diff(resource.data).affectedKeys()
-                      .hasOnly(['mustChangePassword', 'lastPasswordChange', 'updatedAt']);
+                      .hasOnly(['mustChangePassword', 'lastPasswordChange', 'updatedAt',
+                                'whatsappAlerts', 'notifyPrefs']);
+      // `phone` and `twoFactor` are deliberately NOT here: they change only
+      // through api/auth/otp.js, after a code proves the person holds the phone.
+      // If a hijacked session could write them directly it could switch off
+      // two-step sign-in, or point the codes at someone else's number.
 
       // Admin full control within same school
       allow update: if request.auth != null &&
@@ -293,6 +355,18 @@ service cloud.firestore {
                        : (request.auth != null &&
                           isFinance() &&
                           sameSchool(request.resource.data.schoolCode));
+      // The bursar confirms or rejects a claim a parent typed into the app —
+      // and ONLY that: the fields of the decision, on a payment that came from
+      // the parent app. Everything else about a payment stays admin-only, so a
+      // bursar cannot quietly edit an amount after the fact.
+      allow update: if request.auth != null && isFinance() &&
+                    sameSchool(resource.data.schoolCode) &&
+                    resource.data.source == 'parent_app' &&
+                    resource.data.status == 'unverified' &&
+                    request.resource.data.status in ['verified', 'rejected'] &&
+                    request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['status', 'verifiedBy', 'verifiedAt', 'rejectReason']);
+
       allow update, delete: if request.auth != null && isAdmin() &&
                             sameSchool(resource.data.schoolCode);
     }
@@ -366,8 +440,26 @@ service cloud.firestore {
     // LESSON PLANS
     // =============================================
     match /lesson_plans/{planId} {
-      allow read, update, delete: if request.auth != null &&
-                                  resource.data.teacherId == request.auth.uid;
+      allow read, delete: if request.auth != null &&
+                          resource.data.teacherId == request.auth.uid;
+
+      // The author edits the plan but cannot mark it approved. The one review
+      // field they may touch is putting it back to "pending" (resubmitting
+      // after changes were asked for).
+      allow update: if request.auth != null &&
+                    resource.data.teacherId == request.auth.uid &&
+                    !request.resource.data.diff(resource.data).affectedKeys()
+                      .hasAny(['review', 'reviewedAt', 'reviewedBy', 'reviewedByName']) &&
+                    (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['reviewStatus']) ||
+                     request.resource.data.reviewStatus == 'pending');
+
+      // The head teacher reviews: approve, or ask for changes with a comment.
+      // Only the review fields, so a reviewer cannot rewrite the teacher's plan.
+      allow update: if request.auth != null &&
+                    isAdminOrHead() &&
+                    sameSchool(resource.data.schoolCode) &&
+                    request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['review', 'reviewStatus', 'reviewedAt', 'reviewedBy', 'reviewedByName']);
 
       allow create: if request.auth != null &&
                     request.resource.data.teacherId == request.auth.uid;
@@ -863,6 +955,134 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // STAFF LEAVE
+    //
+    // A teacher asks, the head teacher decides. The teacher may withdraw a
+    // request only while it is still pending; nobody but leadership can turn it
+    // into an approval. Reads follow the query each screen makes: a teacher
+    // filters by their own staffId, the head teacher by schoolCode.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /leave_requests/{requestId} {
+      allow read: if isStaff() && (
+                    resource.data.staffId == request.auth.uid ||
+                    (isAdminOrHead() && sameSchool(resource.data.schoolCode)));
+
+      allow create: if isStaff() &&
+                    request.resource.data.staffId == request.auth.uid &&
+                    sameSchool(request.resource.data.schoolCode) &&
+                    request.resource.data.status == 'pending';
+
+      allow update: if isStaff() && (
+                    (resource.data.staffId == request.auth.uid &&
+                     resource.data.status == 'pending' &&
+                     request.resource.data.status == 'cancelled' &&
+                     request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['status', 'updatedAt'])) ||
+                    (isAdminOrHead() && sameSchool(resource.data.schoolCode) &&
+                     request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['status', 'decidedBy', 'decidedByName', 'decidedAt',
+                                 'decisionNote', 'coverNote', 'updatedAt'])));
+
+      allow delete: if isStaff() && isAdmin() && sameSchool(resource.data.schoolCode);
+    }
+
+    // Cover for a lesson whose teacher is away. Everyone at the school can see
+    // it (the substitute needs to find their duty); leadership assigns it; the
+    // substitute may only accept or decline.
+    match /substitutions/{subId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+      allow create: if isStaff() && isAdminOrHead() &&
+                    sameSchool(request.resource.data.schoolCode);
+      allow update: if isStaff() && sameSchool(resource.data.schoolCode) && (
+                    isAdminOrHead() ||
+                    (resource.data.substituteId == request.auth.uid &&
+                     request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['status', 'respondedAt'])));
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // EXAMINATIONS
+    //
+    // One document per exam sitting holds its papers, rooms, seating and
+    // invigilation roster together — a whole school's seating plan is a few
+    // tens of kilobytes, and one document means the timetable, the rooms and
+    // the duty list can never disagree with each other. Staff read it (a
+    // teacher needs to find their invigilation slot); leadership writes it.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /exams/{examId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+      allow create: if isStaff() && isAdminOrHead() &&
+                    sameSchool(request.resource.data.schoolCode);
+      allow update: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+      allow delete: if isStaff() && isAdmin() && sameSchool(resource.data.schoolCode);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // HEALTH PROFILES  (allergies, conditions, emergency contact)
+    //
+    // Every teacher may read them, because the person who needs to know a
+    // child is allergic to something is the one standing in front of the class.
+    // Only leadership edits them. Guardians are told by notification.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /health_profiles/{profileId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+      allow create: if isStaff() && isAdminOrHead() &&
+                    sameSchool(request.resource.data.schoolCode);
+      allow update: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+      allow delete: if isStaff() && isAdmin() && sameSchool(resource.data.schoolCode);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // TRANSPORT
+    // ─────────────────────────────────────────────────────────────────────────
+    match /transport_routes/{routeId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+      allow create: if isStaff() && isAdminOrHead() &&
+                    sameSchool(request.resource.data.schoolCode);
+      allow update: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // LIBRARY
+    //
+    // Everyone on staff can look a book up; the librarian (and leadership)
+    // keep the catalogue and the loans.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /library_books/{bookId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+      allow create: if isStaff() && (isLibrarian() || isAdminOrHead()) &&
+                    sameSchool(request.resource.data.schoolCode);
+      allow update: if isStaff() && (isLibrarian() || isAdminOrHead()) &&
+                    sameSchool(resource.data.schoolCode);
+      allow delete: if isStaff() && (isLibrarian() || isAdminOrHead()) &&
+                    sameSchool(resource.data.schoolCode);
+    }
+    match /library_loans/{loanId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+      allow create: if isStaff() && (isLibrarian() || isAdminOrHead()) &&
+                    sameSchool(request.resource.data.schoolCode);
+      allow update: if isStaff() && (isLibrarian() || isAdminOrHead()) &&
+                    sameSchool(resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // WHATSAPP OUTBOX
+    //
+    // Messages waiting to be sent. Written and drained only by the Cloud
+    // Function (Admin SDK, which bypasses rules), so no client can write here.
+    // Leadership can read their school's log to see what was sent and what
+    // failed.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /wa_outbox/{messageId} {
+      allow read: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+      allow write: if false;
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // ARREARS, CLEARANCE AND PAYMENT PLANS
     //
@@ -1000,7 +1220,9 @@ service cloud.firestore {
     // guardians are told by notification, not given the log to browse.
     match /sickbay_visits/{visitId} {
       allow read: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
-      allow create: if isStaff() && isAdminOrHead() &&
+      // A class teacher whose learner falls ill logs the visit; only
+      // leadership can read the log back.
+      allow create: if isStaff() &&
         sameSchool(request.resource.data.schoolCode);
       allow update: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
       allow delete: if isStaff() && isAdmin() && sameSchool(resource.data.schoolCode);

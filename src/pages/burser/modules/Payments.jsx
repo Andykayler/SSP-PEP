@@ -2,14 +2,16 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { db } from "../../../firebase";
 import {
-  collection, query, where, getDocs, addDoc,
+  collection, query, where, getDocs, addDoc, updateDoc, doc,
   serverTimestamp, orderBy,
 } from "firebase/firestore";
 import { fetchSponsorships } from "../../../services/sponsorships";
 import { notifyPaymentRecorded } from "../../../services/notificationHooks";
+import { notifyGuardians } from "../../../services/notifications";
+import { tpl } from "../../../services/messageTemplates";
 import {
   Search, X, Plus, Check, Receipt, User, RefreshCw,
-  AlertTriangle, Smartphone,
+  AlertTriangle, Smartphone, MessageCircle,
 } from "lucide-react";
 import PayChanguCheckout from "../../../components/payments/PayChanguCheckout";
 import "./staff-management.css";
@@ -44,6 +46,15 @@ const Btn = ({ children, variant = "accent", size = "md", loading, className = "
 // ─── Helpers ────────────────────────────────────────────────────────────────
 const fmt = (n) => `MWK ${Number(n || 0).toLocaleString()}`;
 const today = () => new Date().toISOString().split("T")[0];
+
+/**
+ * Money the school actually has. A payment the parent app recorded arrives as
+ * status "unverified": someone typed in that they paid, and nothing has
+ * confirmed it. Counting it would show a balance cleared by a claim, which is
+ * how a family gets told they owe nothing when the bursar has seen no money.
+ * Payments recorded before statuses existed have none, and count.
+ */
+const isCounted = (p) => p.status !== "unverified" && p.status !== "rejected";
 
 function initials(name = "") {
   return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
@@ -164,6 +175,55 @@ function StatCard({ label, value, sub, accent = "blue" }) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+// ─── Ask one guardian to pay, on WhatsApp ────────────────────────────────────
+// Sends the balance and how to pay. The guardian answers "Make Payment" in the
+// same chat and the WhatsApp bot (api/whatsapp/webhook.js) pushes an Airtel
+// Money / TNM Mpamba prompt to their phone, so the request and the payment are
+// one conversation.
+function AskOnWhatsApp({ students, studentFinancials, schoolCode, bursarName, onClose, onSent }) {
+  const [term, setTerm] = useState("");
+  const [picked, setPicked] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const t = term.trim().toLowerCase();
+  const matches = t ? students.filter((s) => `${s.fullName} ${s.studentCode} ${s.className}`.toLowerCase().includes(t)).slice(0, 6) : [];
+  const balance = picked ? studentFinancials(picked.id).balance : 0;
+
+  async function send() {
+    setBusy(true);
+    const m = tpl.payPrompt(picked, { balance });
+    await notifyGuardians({
+      students: [picked], schoolCode, ...{ title: m.title, body: m.body, titleNy: m.titleNy, bodyNy: m.bodyNy },
+      category: "fees", priority: "high", actorName: bursarName || "Bursar", actorRole: "bursar", entityType: "fee_request",
+    });
+    setBusy(false);
+    onSent(picked.fullName);
+  }
+
+  return (
+    <Modal title="Ask for payment on WhatsApp" subtitle="Sends the balance and how to pay" onClose={onClose}>
+      <div className="field">
+        <label className="field__label">Student</label>
+        <input className="field__input" autoFocus placeholder="Type a name, code or class…" value={term} onChange={(e) => { setTerm(e.target.value); setPicked(null); }} />
+      </div>
+      {!picked && matches.map((s) => (
+        <button key={s.id} type="button" className="btn btn--secondary btn--sm" style={{ display: "flex", width: "100%", justifyContent: "space-between", marginBottom: 4 }} onClick={() => setPicked(s)}>
+          <span>{s.fullName} · {s.className}</span><span className="text-muted">{fmt(studentFinancials(s.id).balance)} owed</span>
+        </button>
+      ))}
+      {picked && (
+        <div style={{ marginTop: 12 }}>
+          <p style={{ margin: "0 0 6px" }}><strong>{picked.fullName}</strong> owes <strong>{fmt(balance)}</strong>.</p>
+          {!picked.guardianPhone && <p className="error-message">No guardian phone number on record.</p>}
+          {balance <= 0 && <p className="text-muted" style={{ fontSize: 13 }}>Nothing is owed, so there is nothing to ask for.</p>}
+          <Btn variant="accent" loading={busy} disabled={!picked.guardianPhone || balance <= 0} onClick={send}>
+            <MessageCircle size={16} /> Send request
+          </Btn>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 export default function Payments({ schoolCode, bursarName }) {
   const [payments, setPayments] = useState([]);
   const [students, setStudents] = useState([]);
@@ -195,6 +255,8 @@ export default function Payments({ schoolCode, bursarName }) {
   // gateway and written server-side, so the amount is never something a
   // browser said. See api/_lib/paychangu.js.
   const [collecting, setCollecting] = useState(null);
+  const [deciding, setDeciding] = useState("");
+  const [askOpen, setAskOpen] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -227,7 +289,7 @@ export default function Payments({ schoolCode, bursarName }) {
 
   const studentFinancials = useCallback((studentId) => {
     const totalCharged = feeAssignments.filter((fa) => fa.studentId === studentId).reduce((s, fa) => s + (fa.amount || 0), 0);
-    const totalPaid = payments.filter((p) => p.studentId === studentId).reduce((s, p) => s + (p.amount || 0), 0);
+    const totalPaid = payments.filter((p) => p.studentId === studentId && isCounted(p)).reduce((s, p) => s + (p.amount || 0), 0);
     const balance = totalCharged - totalPaid;
     return { totalCharged, totalPaid, balance };
   }, [feeAssignments, payments]);
@@ -342,16 +404,44 @@ export default function Payments({ schoolCode, bursarName }) {
     setActionLoading(false);
   }
 
+  const counted = useMemo(() => payments.filter(isCounted), [payments]);
+
   const stats = useMemo(() => {
     const todayStr = today();
     const nowMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
     return {
-      todayTotal: payments.filter((p) => p.paymentDate === todayStr).reduce((s, p) => s + p.amount, 0),
-      monthTotal: payments.filter((p) => (p.paymentDate || "").startsWith(nowMonth)).reduce((s, p) => s + p.amount, 0),
-      yearTotal: payments.reduce((s, p) => s + p.amount, 0),
-      count: payments.length,
+      todayTotal: counted.filter((p) => p.paymentDate === todayStr).reduce((s, p) => s + p.amount, 0),
+      monthTotal: counted.filter((p) => (p.paymentDate || "").startsWith(nowMonth)).reduce((s, p) => s + p.amount, 0),
+      yearTotal: counted.reduce((s, p) => s + p.amount, 0),
+      count: counted.length,
     };
-  }, [payments]);
+  }, [counted]);
+
+  // Claims from the parent app, waiting for the bursar to confirm the money arrived.
+  const claims = useMemo(() => payments.filter((p) => p.status === "unverified"), [payments]);
+
+  async function decideClaim(p, confirmed) {
+    let reason = "";
+    if (!confirmed) {
+      reason = window.prompt(`Why is this payment being rejected? (${p.studentName}, ${fmt(p.amount)})`, "") || "";
+      if (reason === "" && !window.confirm("Reject without a reason?")) return;
+    }
+    setDeciding(p.id);
+    try {
+      await updateDoc(doc(db, "payments", p.id), {
+        status: confirmed ? "verified" : "rejected",
+        verifiedBy: bursarName || "Bursar",
+        verifiedAt: serverTimestamp(),
+        ...(confirmed ? {} : { rejectReason: reason }),
+      });
+      setPayments((prev) => prev.map((x) => (x.id === p.id ? { ...x, status: confirmed ? "verified" : "rejected" } : x)));
+      showToast("success", confirmed ? "Payment confirmed. It now counts toward the balance." : "Claim rejected.");
+    } catch (e) {
+      console.error(e);
+      showToast("error", e.code === "permission-denied" ? "You don't have permission to do that." : "Could not save. Try again.");
+    }
+    setDeciding("");
+  }
 
   const filtered = useMemo(() => {
     return payments.filter((p) => {
@@ -384,6 +474,9 @@ export default function Payments({ schoolCode, bursarName }) {
           </Btn>
           <Btn variant="primary" onClick={() => setCollecting({ student: null })}>
             <Smartphone size={16} /> Collect Online
+          </Btn>
+          <Btn variant="secondary" onClick={() => setAskOpen(true)}>
+            <MessageCircle size={16} /> Ask on WhatsApp
           </Btn>
           <Btn variant="accent" onClick={() => openModal()}>
             <Plus size={16} /> Record Payment
@@ -419,6 +512,30 @@ export default function Payments({ schoolCode, bursarName }) {
             </Btn>
             <Btn variant="secondary" size="sm" onClick={() => setLastReceipt(null)}>Dismiss</Btn>
           </div>
+        </div>
+      )}
+
+      {/* Claims from the parent app, until confirmed */}
+      {claims.length > 0 && (
+        <div className="alert alert--warning" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+          <div>
+            <strong>{claims.length} payment claim{claims.length === 1 ? "" : "s"} from the parent app to confirm</strong>
+            <div style={{ fontSize: 12.5, marginTop: 2 }}>
+              A parent typed these in. They don't reduce anyone's balance until you've checked the money arrived.
+            </div>
+          </div>
+          {claims.map((p) => (
+            <div key={p.id} className="flex-between flex-wrap" style={{ gap: 8, padding: "8px 0", borderTop: "1px solid rgba(232,168,0,0.25)" }}>
+              <div>
+                <strong>{p.studentName}</strong> · {fmt(p.amount)} · {p.method || "Parent app"}
+                <div className="text-muted" style={{ fontSize: 12 }}>{p.paymentDate}{p.referenceNo ? ` · Ref ${p.referenceNo}` : ""}</div>
+              </div>
+              <div className="flex gap-2">
+                <Btn variant="success" size="sm" loading={deciding === p.id} onClick={() => decideClaim(p, true)}><Check size={14} /> Confirm received</Btn>
+                <Btn variant="danger" size="sm" disabled={deciding === p.id} onClick={() => decideClaim(p, false)}><X size={14} /> Reject</Btn>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -503,7 +620,11 @@ export default function Payments({ schoolCode, bursarName }) {
                           </div>
                         </div>
                       </td>
-                      <td data-label="Receipt" className="text-mono">{p.receiptNo}</td>
+                      <td data-label="Receipt" className="text-mono">
+                        {p.receiptNo}
+                        {p.status === "unverified" && <div><span className="tag tag--neutral">Unverified claim</span></div>}
+                        {p.status === "rejected" && <div><span className="tag tag--neutral" title={p.rejectReason}>Rejected</span></div>}
+                      </td>
                       <td data-label="Method">
                         <span className={METHOD_BADGE[p.method] || "tag"}>{p.method}</span>
                       </td>
@@ -532,10 +653,21 @@ export default function Payments({ schoolCode, bursarName }) {
         {filtered.length > 0 && (
           <div className="flex-between" style={{ padding: "14px 20px", borderTop: "1px solid var(--border-color)" }}>
             <span className="text-muted">{filtered.length} transaction{filtered.length !== 1 ? "s" : ""}</span>
-            <span className="font-semibold">Total: {fmt(filtered.reduce((s, p) => s + p.amount, 0))}</span>
+            <span className="font-semibold">Total: {fmt(filtered.filter(isCounted).reduce((s, p) => s + p.amount, 0))}</span>
           </div>
         )}
       </div>
+
+      {askOpen && (
+        <AskOnWhatsApp
+          students={students}
+          studentFinancials={studentFinancials}
+          schoolCode={schoolCode}
+          bursarName={bursarName}
+          onClose={() => setAskOpen(false)}
+          onSent={(name) => { setAskOpen(false); showToast("success", `Payment request sent to ${name}'s guardian on WhatsApp.`); }}
+        />
+      )}
 
       {/* Record Modal */}
       {showModal && (

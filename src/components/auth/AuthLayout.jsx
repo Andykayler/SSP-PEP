@@ -13,7 +13,7 @@ import { BRAND } from "../brand";
 import "./auth.css";
 
 export default function AuthLayout({
-  eyebrow, title, lead, sheet, stickySide = false,
+  eyebrow, title, lead, sheet, stickySide = false, wide = false,
   switchText, switchLabel, switchTo,
   children,
 }) {
@@ -46,7 +46,7 @@ export default function AuthLayout({
         </div>
       </header>
 
-      <div className={`la-stage${hasSide ? "" : " la-stage--solo"}`}>
+      <div className={`la-stage${hasSide ? "" : " la-stage--solo"}${wide ? " la-stage--wide" : ""}`}>
         {hasSide && (
           <aside className={`la-side${stickySide ? " la-side--sticky" : ""}`}>
             {eyebrow && <p className="lp-eyebrow">{eyebrow}</p>}

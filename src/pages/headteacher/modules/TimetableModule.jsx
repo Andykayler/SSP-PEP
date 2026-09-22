@@ -8,6 +8,7 @@ import {
   Calendar, Clock, MapPin, Users, X, Save, Trash2,
   RefreshCw, AlertCircle, CheckCircle, Loader2, Plus,
 } from "lucide-react";
+import { findClashes, conflictsFor, describeClash } from "../../../services/timetableClash";
 import "./staff-management.css";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -74,7 +75,11 @@ function SlotModal({ day, period, existing, subjects, teachers, onSave, onDelete
       onClose();
     } catch (err) {
       console.error("Save timetable slot:", err);
-      setError(err.code === "permission-denied" ? "Permission denied. Check your Firestore rules." : "Failed to save. Please try again.");
+      setError(
+        err.clash ? err.message
+          : err.code === "permission-denied" ? "Permission denied. Check your Firestore rules."
+            : "Failed to save. Please try again.",
+      );
       setSaving(false);
     }
   };
@@ -211,6 +216,18 @@ export default function TimetableModule({ schoolCode }) {
     return () => { cancelled = true; };
   }, [schoolCode]);
 
+  // ── Every slot in the school, so a clash between two classes is visible ────
+  // The grid below is per class, so it can never show that the teacher it is
+  // assigning is already teaching someone else at that time.
+  const [allSlots, setAllSlots] = useState([]);
+  useEffect(() => {
+    if (!schoolCode) return;
+    getDocs(query(collection(db, "timetable"), where("schoolCode", "==", schoolCode)))
+      .then((snap) => setAllSlots(snap.docs.map((d) => ({ id: d.id, ...d.data() }))))
+      .catch((err) => console.error("Failed to load school timetable:", err));
+  }, [schoolCode]);
+  const clashes = useMemo(() => findClashes(allSlots), [allSlots]);
+
   // ── Load timetable slots for the selected class ───────────────────────────
   const fetchSlots = async () => {
     if (!schoolCode || !selectedClassId) return;
@@ -253,6 +270,18 @@ export default function TimetableModule({ schoolCode }) {
 
   const saveSlot = async (day, period, data) => {
     const id = slotId(schoolCode, selectedClassId, day, period.number);
+
+    // Refuse a booking the school could not actually deliver.
+    const conflicts = conflictsFor(allSlots, {
+      classId: selectedClassId, day, periodNumber: period.number,
+      teacherId: data.teacherId, venue: data.venue,
+    });
+    if (conflicts.length > 0) {
+      const err = new Error(`${conflicts.map((c) => c.message).join(" ")} Choose another teacher or venue, or change that lesson first.`);
+      err.clash = true;
+      throw err;
+    }
+
     const payload = {
       schoolCode,
       classId: selectedClassId,
@@ -272,6 +301,7 @@ export default function TimetableModule({ schoolCode }) {
       next.push({ id, ...payload });
       return next;
     });
+    setAllSlots((prev) => [...prev.filter((s) => s.id !== id), { id, ...payload }]);
     showToast(existing ? "Period updated." : "Period assigned.");
   };
 
@@ -279,6 +309,7 @@ export default function TimetableModule({ schoolCode }) {
     const id = slotId(schoolCode, selectedClassId, day, period.number);
     await deleteDoc(doc(db, "timetable", id));
     setSlots((prev) => prev.filter((s) => s.id !== id));
+    setAllSlots((prev) => prev.filter((s) => s.id !== id));
     showToast("Period cleared.");
   };
 
@@ -297,6 +328,16 @@ export default function TimetableModule({ schoolCode }) {
           <RefreshCw size={16} className={isLoading ? "spin" : ""} />
         </button>
       </div>
+
+      {clashes.length > 0 && (
+        <div className="alert alert--error" role="alert" style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
+          <strong>{clashes.length} clash{clashes.length === 1 ? "" : "es"} in the school timetable</strong>
+          {clashes.slice(0, 5).map((c, i) => (
+            <span key={i} style={{ fontSize: 12.5 }}>{describeClash(c)}</span>
+          ))}
+          {clashes.length > 5 && <span style={{ fontSize: 12.5 }}>and {clashes.length - 5} more</span>}
+        </div>
+      )}
 
       {error && <div className="error-message">{error}</div>}
 

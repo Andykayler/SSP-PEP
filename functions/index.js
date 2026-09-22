@@ -1,45 +1,66 @@
 // functions/index.js
 // ─────────────────────────────────────────────────────────────────────────────
-// Delivers `notifications` documents to phones as FCM pushes.
+// Delivers `notifications` documents to people — WhatsApp first.
 //
-// This is the same logic as scripts/push-worker.js, moved somewhere it runs
-// without anybody's laptop being open. That was the whole problem: the worker
-// only pushed while a terminal on a developer machine was running it, so a
-// parent whose app was closed got nothing — which is precisely when a push is
-// the only way to reach them.
+// Every alert the school raises is one `notifications` document. This file is
+// what turns that document into something that reaches a phone:
+//
+//   1. WHATSAPP  the primary channel, for guardians and for staff. Messages go
+//                through an outbox (`wa_outbox`) that a scheduled function
+//                drains at a steady pace, because WaAPI is an unofficial
+//                gateway riding a real number and a burst of near-identical
+//                messages is exactly what gets such a number banned. Only an
+//                urgent alert skips the queue.
+//   2. PUSH      free, and still sent to any guardian who has the app.
+//   3. SMS       a fallback, not a peer: it fires only where WhatsApp could not
+//                carry the message (switched off, not configured, a number that
+//                is not on WhatsApp, or three failed attempts) and the school
+//                has opted that category into SMS. See src/services/smsFallback.js.
+//
+// Who gets a WhatsApp is a school setting (`school_settings/{code}`):
+//   whatsappEnabled        default true
+//   whatsappCategories     default: every guardian-facing category
+//   whatsappStaffAlerts    default true
+//   defaultLanguage        "en" | "ny" — a guardian's own `guardianLanguage` wins
 //
 // Deploy once and it stays up:
 //
 //     firebase deploy --only functions
 //
-// Requires the Blaze plan. Cloud Functions has a free monthly allowance that a
-// pilot will not come close to exhausting, but a billing account has to exist.
+// Requires the Blaze plan. Secrets:
+//
+//     firebase functions:secrets:set WAAPI_API_TOKEN
+//     firebase functions:secrets:set WAAPI_INSTANCE_ID
+//     firebase functions:secrets:set TWILIO_ACC_SID          (SMS fallback, optional)
+//     firebase functions:secrets:set TWILIO_AUTH_TOKEN
+//     firebase functions:secrets:set TWILIO_PHONE_NUMBER
 //
 // scripts/push-worker.js is kept for local testing against the emulator. Do
 // not run both against the same project — `pushedAt` stops a double send, but
 // the two would race for it.
 // ─────────────────────────────────────────────────────────────────────────────
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentUpdated } from "firebase-functions/v2/firestore";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { setGlobalOptions } from "firebase-functions/v2";
-import { defineSecret } from "firebase-functions/params";
+import { defineSecret, defineString } from "firebase-functions/params";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import { logger } from "firebase-functions";
+import { sendWhatsApp, cleanPhone } from "./whatsapp.js";
 
-// Twilio credentials for the SMS fallback (see sendSmsFallback below). Held as
-// deployed secrets rather than plain config so they are not readable from the
-// function's environment listing:
-//
-//     firebase functions:secrets:set TWILIO_ACC_SID
-//     firebase functions:secrets:set TWILIO_AUTH_TOKEN
-//     firebase functions:secrets:set TWILIO_PHONE_NUMBER
-//
-// Absent secrets are not an error — the fallback simply stays off, which is
-// the same outcome as a school that has not opted in.
+// Held as deployed secrets rather than plain config so they are not readable
+// from the function's environment listing. Absent secrets are not an error —
+// that channel simply stays off.
 const TWILIO_ACC_SID = defineSecret("TWILIO_ACC_SID");
 const TWILIO_AUTH_TOKEN = defineSecret("TWILIO_AUTH_TOKEN");
 const TWILIO_PHONE_NUMBER = defineSecret("TWILIO_PHONE_NUMBER");
+const WAAPI_API_TOKEN = defineSecret("WAAPI_API_TOKEN");
+const WAAPI_INSTANCE_ID = defineSecret("WAAPI_INSTANCE_ID");
+/** Public origin of the web app, for the sign-in link in approval messages. */
+const APP_URL = defineString("APP_URL", { default: "" });
+
+const SECRETS = [TWILIO_ACC_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, WAAPI_API_TOKEN, WAAPI_INSTANCE_ID];
 
 initializeApp();
 const db = getFirestore();
@@ -57,6 +78,17 @@ setGlobalOptions({ maxInstances: 10 });
 
 /** Only guardians get pushes; staff have the portal open and its own bell. */
 const PARENT_PREFIX = "parent:";
+
+const waCredentials = () => ({
+  token: WAAPI_API_TOKEN.value(),
+  instanceId: WAAPI_INSTANCE_ID.value(),
+});
+const waConfigured = () => {
+  const c = waCredentials();
+  return Boolean(c.token && c.instanceId);
+};
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Android notification channel + tap payload for one notification document.
@@ -124,102 +156,227 @@ async function pruneDeadTokens(tokens, responses) {
   logger.info(`pruned ${dead.length} dead token(s)`);
 }
 
+// ─── School context ──────────────────────────────────────────────────────────
+// Settings and the school's name are read once per notification, and a class
+// fan-out is hundreds of notifications for one school — so without a cache,
+// publishing marks to 600 pupils is 1,200 identical reads. Instances are
+// reused between invocations, so a short TTL collapses a burst into one read
+// while still picking up a change from the settings screen within the minute.
+const contextCache = new Map();
+const CONTEXT_TTL_MS = 60_000;
+
+async function schoolContext(schoolCode) {
+  const empty = { settings: {}, school: {}, schoolName: "" };
+  if (!schoolCode) return empty;
+
+  const hit = contextCache.get(schoolCode);
+  if (hit && Date.now() - hit.at < CONTEXT_TTL_MS) return hit.ctx;
+
+  let ctx = empty;
+  try {
+    const [settingsSnap, schoolSnap] = await Promise.all([
+      db.collection("school_settings").doc(schoolCode).get(),
+      db.collection("schools").doc(schoolCode).get(),
+    ]);
+    const school = schoolSnap.exists ? schoolSnap.data() : {};
+    ctx = {
+      settings: settingsSnap.exists ? settingsSnap.data() : {},
+      school,
+      schoolName: school.name || "",
+    };
+  } catch (err) {
+    // A read failure must not stop the notification being stamped.
+    logger.error(`context read failed for ${schoolCode}: ${err.message}`);
+  }
+
+  contextCache.set(schoolCode, { ctx, at: Date.now() });
+  return ctx;
+}
+
+// ─── WhatsApp policy ─────────────────────────────────────────────────────────
+/**
+ * Guardian-facing categories that go out on WhatsApp by default.
+ * Deliberately not `message`, `mention`, `thread`: those are conversations that
+ * only make sense inside the app, and `staff`/`system` never address a guardian.
+ */
+const GUARDIAN_WA_DEFAULT = [
+  "fees", "discipline", "attendance", "announcement", "homework",
+  "performance", "report", "health", "transport", "library", "risk",
+];
+
+/** Staff categories that reach WhatsApp whatever the priority — see notifications.js. */
+const STAFF_WA_ALWAYS = new Set(["leave", "review", "cover", "exam", "health", "risk", "security"]);
+
+const guardianCategories = (settings) =>
+  Array.isArray(settings.whatsappCategories) ? settings.whatsappCategories : GUARDIAN_WA_DEFAULT;
+
+/** The guardian's number is the second half of the recipient id, `parent:+265…`. */
+function phoneFromRecipient(recipientId) {
+  const phone = String(recipientId || "").slice(PARENT_PREFIX.length);
+  return /^\+\d{7,15}$/.test(phone) ? phone : "";
+}
+
+/** Guardians can opt out by replying STOP; api/whatsapp/webhook.js records it. */
+async function isOptedOut(phone) {
+  try {
+    const snap = await db.collection("wa_optouts").doc(phone.replace(/[^\d]/g, "")).get();
+    return snap.exists;
+  } catch {
+    return false;
+  }
+}
+
+function pickLanguage(n, ctx) {
+  const lang = n.lang || ctx.settings.defaultLanguage || "en";
+  return lang === "ny" ? "ny" : "en";
+}
+
+/** WhatsApp text: bold title, body, and who it is from. */
+function composeWhatsApp(n, ctx, isParent) {
+  const ny = isParent && pickLanguage(n, ctx) === "ny";
+  const title = (ny && n.titleNy) || n.title || "";
+  const body = (ny && n.bodyNy) || n.body || "";
+  const from = ctx.schoolName || "Your school";
+  const footer = isParent
+    ? `\n\n_${from}_\n_${ny ? "Tumizani STOP kuti musiye kulandira mauthenga." : "Reply STOP to stop these messages."}_`
+    : `\n\n_${from} · Acalink_`;
+  return `*${title}*\n${body}${footer}`.slice(0, 1500);
+}
+
+/**
+ * Decides whether this notification goes to WhatsApp and, if so, sends it now
+ * (urgent) or leaves it in the outbox for the drain. Returns a status string
+ * that is stamped on the notification so the reason someone did or did not get
+ * a message is visible on the document itself rather than only in the logs.
+ *
+ *   queued | sent | failed          it is going, or went, or could not
+ *   skipped:<reason>                deliberately not sent on WhatsApp
+ */
+async function routeWhatsApp(n, ctx) {
+  const isParent = String(n.recipientId || "").startsWith(PARENT_PREFIX);
+
+  if (ctx.settings.whatsappEnabled === false) return "skipped:disabled";
+  if (!waConfigured()) return "skipped:not_configured";
+
+  let phone = "";
+  if (isParent) {
+    if (!guardianCategories(ctx.settings).includes(n.category)) return "skipped:category";
+    phone = phoneFromRecipient(n.recipientId);
+    if (!phone) return "skipped:bad_number";
+    if (await isOptedOut(phone)) return "skipped:opted_out";
+  } else {
+    if (ctx.settings.whatsappStaffAlerts === false) return "skipped:staff_off";
+    const urgent = n.priority === "urgent" || n.priority === "high";
+    if (!urgent && !STAFF_WA_ALWAYS.has(n.category)) return "skipped:staff_priority";
+    let user;
+    try {
+      user = (await db.collection("users").doc(n.recipientId).get()).data();
+    } catch (err) {
+      logger.error(`staff profile read failed for ${n.recipientId}: ${err.message}`);
+      return "skipped:error";
+    }
+    if (!user || user.status === "disabled") return "skipped:no_user";
+    if (user.whatsappAlerts === false) return "skipped:opted_out";
+    phone = cleanPhone(user.phone);
+    if (!phone) return "skipped:no_phone";
+  }
+
+  const message = composeWhatsApp(n, ctx, isParent);
+  return enqueueWhatsApp({
+    schoolCode: n.schoolCode || "",
+    notificationId: n.id || "",
+    recipientId: n.recipientId || "",
+    category: n.category || "system",
+    priority: n.priority || "normal",
+    to: phone,
+    message,
+    immediate: n.priority === "urgent",
+  });
+}
+
+const OUTBOX = "wa_outbox";
+const OUTBOX_TTL_DAYS = 14;
+
+/**
+ * Puts a message in the outbox, or — for an urgent one — sends it now and
+ * records the result. A failed immediate send drops back into the queue so the
+ * drain's retry and SMS-fallback logic handles it like any other.
+ */
+async function enqueueWhatsApp({ immediate = false, ...m }) {
+  const now = Date.now();
+  // Time-ordered ids keep the drain roughly first-in first-out, using the
+  // default `__name__` ordering — no composite index to create by hand.
+  const id = `${String(now).padStart(13, "0")}_${Math.random().toString(36).slice(2, 8)}`;
+  const base = {
+    ...m,
+    attempts: 0,
+    createdAt: FieldValue.serverTimestamp(),
+    createdAtMs: now,
+    expiresAt: new Date(now + OUTBOX_TTL_DAYS * 86_400_000),   // read by the Firestore TTL policy
+  };
+
+  if (immediate) {
+    try {
+      await sendWhatsApp(waCredentials(), m.to, m.message);
+      await db.collection(OUTBOX).doc(id).set({
+        ...base, status: "sent", attempts: 1, sentAt: FieldValue.serverTimestamp(),
+      });
+      return "sent";
+    } catch (err) {
+      if (err.permanent || err.notConfigured) {
+        await db.collection(OUTBOX).doc(id).set({
+          ...base, status: "failed", attempts: 1, error: String(err.message || err).slice(0, 300),
+        });
+        return "failed";
+      }
+      // transient: fall through and queue it
+    }
+  }
+
+  await db.collection(OUTBOX).doc(id).set({ ...base, status: "queued", nextAttemptAt: now });
+  return "queued";
+}
+
 // ─── SMS fallback ────────────────────────────────────────────────────────────
-// A guardian with no registered device never sees an in-app notification,
-// because there is no app to see it in. For the categories a school has opted
-// into, the message is sent as an SMS instead — see src/services/smsFallback.js
-// for why this is a per-school choice rather than always on.
+// SMS is the fallback for a message WhatsApp could not carry. A guardian who has
+// the app already got a free push and is not charged for a second copy — see
+// src/services/smsFallback.js for why this is a per-school choice.
 //
 // This lives in the function rather than the portal because the deciding fact
 // is whether `parent_devices` holds a token for the guardian, and that
-// collection is `allow read: if false` for every client. The Admin SDK is the
-// only thing that can see it, and the push path already looks it up.
+// collection is `allow read: if false` for every client.
 
 /** Field on `school_settings/{schoolCode}`. Mirrors SMS_FALLBACK_FIELD. */
 const SMS_FALLBACK_FIELD = "smsFallbackCategories";
 
 /**
  * Categories sent to every guardian rather than only those without the app.
- *
- * Empty, and deliberately so. The one such category — `report` — is sent by
- * the portal itself in headteacher/modules/reports.jsx, because a message that
- * goes out regardless of app installation needs nothing this function uniquely
- * knows. Adding "report" back here would double-send: every guardian would get
- * the portal's SMS and this one.
- *
- * What is left for this function is the genuinely app-dependent case, which a
- * browser cannot decide: `parent_devices` is unreadable by every client, so
- * only the Admin SDK can tell whether a guardian has the app at all.
+ * Empty: the one such category — `report` — is sent by the portal itself in
+ * headteacher/modules/reports.jsx. Adding it here would double-send.
  */
 const ALWAYS_CATEGORIES = new Set();
 
 /**
- * Settings are read once per notification, and a class fan-out is hundreds of
- * notifications for one school — so without a cache, publishing marks to 600
- * pupils is 600 identical reads. Instances are reused between invocations, so
- * a short TTL cache collapses a burst into one read while still picking up a
- * change from the settings screen within the minute.
- */
-const settingsCache = new Map();
-const SETTINGS_TTL_MS = 60_000;
-
-async function smsCategoriesFor(schoolCode) {
-  if (!schoolCode) return [];
-
-  const hit = settingsCache.get(schoolCode);
-  if (hit && Date.now() - hit.at < SETTINGS_TTL_MS) return hit.categories;
-
-  let categories = [];
-  try {
-    const snap = await db.collection("school_settings").doc(schoolCode).get();
-    const raw = snap.exists ? snap.get(SMS_FALLBACK_FIELD) : null;
-    categories = Array.isArray(raw) ? raw : [];
-  } catch (err) {
-    // A settings read failure must not stop the notification being stamped.
-    logger.error(`settings read failed for ${schoolCode}: ${err.message}`);
-  }
-
-  settingsCache.set(schoolCode, { categories, at: Date.now() });
-  return categories;
-}
-
-/**
  * One GSM-7 segment is 160 characters and each segment bills separately, so a
- * message that runs to 161 costs double for the sake of a word. Titles and
- * bodies from notificationHooks.js sit well inside that; anything longer is
- * cut rather than allowed to silently double the school's bill.
+ * message that runs to 161 costs double for the sake of a word. Anything longer
+ * is cut rather than allowed to silently double the school's bill.
  */
 const SMS_MAX = 160;
 
-function composeSms(n) {
-  const parts = [n.title, n.body].map((s) => String(s || "").trim()).filter(Boolean);
+function composeSms(n, ctx) {
+  const ny = pickLanguage(n, ctx) === "ny";
+  const parts = [(ny && n.titleNy) || n.title, (ny && n.bodyNy) || n.body]
+    .map((s) => String(s || "").trim())
+    .filter(Boolean);
   const text = parts.join(". ").replace(/\s+/g, " ");
   return text.length <= SMS_MAX ? text : text.slice(0, SMS_MAX - 1).trimEnd() + "…";
 }
 
-/**
- * The guardian's number is already the second half of the recipient id
- * (`parent:+265991234567`), written by parentRecipientId() through
- * normalisePhone(), so it is E.164 by construction. Validated anyway — a
- * malformed number is a 400 from Twilio and a wasted call.
- */
-function phoneFromRecipient(recipientId) {
-  const phone = String(recipientId || "").slice(PARENT_PREFIX.length);
-  return /^\+\d{7,15}$/.test(phone) ? phone : "";
-}
-
-/**
- * Sends one SMS. Returns a short status string that is stamped onto the
- * notification so the reason a guardian did or did not get a message is
- * visible on the document itself rather than only in the logs.
- */
-async function sendSmsFallback(n, { hasDevice }) {
-  const categories = await smsCategoriesFor(n.schoolCode);
+async function sendSmsFallback(n, ctx, { hasDevice }) {
+  const raw = ctx.settings[SMS_FALLBACK_FIELD];
+  const categories = Array.isArray(raw) ? raw : [];
   if (!categories.includes(n.category)) return "not_enabled";
 
-  // Report cards go to every guardian. Everything else is a fallback: a
-  // guardian with the app already got a free push and must not be charged for
-  // a second copy of it.
   if (!ALWAYS_CATEGORIES.has(n.category) && hasDevice) return "has_device";
 
   const accountSid = TWILIO_ACC_SID.value();
@@ -240,26 +397,17 @@ async function sendSmsFallback(n, { hasDevice }) {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
-          Authorization:
-            "Basic " + Buffer.from(`${accountSid}:${authToken}`).toString("base64"),
+          Authorization: "Basic " + Buffer.from(`${accountSid}:${authToken}`).toString("base64"),
         },
-        body: new URLSearchParams({
-          To: to,
-          From: fromNumber,
-          Body: composeSms(n),
-        }).toString(),
+        body: new URLSearchParams({ To: to, From: fromNumber, Body: composeSms(n, ctx) }).toString(),
       },
     );
 
     const data = await res.json();
     if (!res.ok) {
-      // 21408 is an unenabled destination country and 21608 an unverified
-      // number on a trial account — both are Twilio console settings, not
-      // faults here, and both are worth naming in the log.
       logger.error(`SMS fallback rejected for ${n.recipientId}: ${data?.code} ${data?.message}`);
       return `failed_${data?.code || res.status}`;
     }
-
     logger.info(`SMS fallback sent to ${n.recipientId} (${n.category})`);
     return "sent";
   } catch (err) {
@@ -268,9 +416,10 @@ async function sendSmsFallback(n, { hasDevice }) {
   }
 }
 
+// ─── The delivery trigger ────────────────────────────────────────────────────
 export const pushNotification = onDocumentCreated({
   document: "notifications/{id}",
-  secrets: [TWILIO_ACC_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER],
+  secrets: SECRETS,
 }, async (event) => {
   const snap = event.data;
   if (!snap) return;
@@ -278,23 +427,30 @@ export const pushNotification = onDocumentCreated({
   const n = { id: snap.id, ...snap.data() };
   if (n.pushedAt) return;
 
+  const ctx = await schoolContext(n.schoolCode);
+  const whatsapp = await routeWhatsApp(n, ctx);
+
   if (!String(n.recipientId || "").startsWith(PARENT_PREFIX)) {
-    // Staff notification — stamped so a retry does not reconsider it.
-    await snap.ref.update({ pushedAt: FieldValue.serverTimestamp(), pushSkipped: "staff" });
+    // Staff have the portal open and its own bell; WhatsApp above is the only
+    // out-of-app channel they get. Stamped so a retry does not reconsider it.
+    await snap.ref.update({ pushedAt: FieldValue.serverTimestamp(), pushSkipped: "staff", whatsapp });
     return;
   }
 
   const tokens = await tokensFor(n.recipientId);
 
-  // Attempted before the push, and for guardians with a device too, because a
-  // report card is sent by SMS whether or not the app is installed. The
-  // fallback categories still check `hasDevice` inside.
-  const smsFallback = await sendSmsFallback(n, { hasDevice: tokens.length > 0 });
+  // SMS is decided now only when WhatsApp is not carrying the message. When it
+  // is queued, the drain decides — after it knows whether the send succeeded.
+  let smsFallback = "after_whatsapp";
+  if (whatsapp.startsWith("skipped") || whatsapp === "failed") {
+    smsFallback = await sendSmsFallback(n, ctx, { hasDevice: tokens.length > 0 });
+  }
 
   if (tokens.length === 0) {
     await snap.ref.update({
       pushedAt: FieldValue.serverTimestamp(),
       pushSkipped: "no_devices",
+      whatsapp,
       smsFallback,
     });
     return;
@@ -307,6 +463,7 @@ export const pushNotification = onDocumentCreated({
     await snap.ref.update({
       pushedAt: FieldValue.serverTimestamp(),
       pushDelivered: res.successCount,
+      whatsapp,
       smsFallback,
     });
   } catch (err) {
@@ -315,6 +472,199 @@ export const pushNotification = onDocumentCreated({
     // instead of losing the notification silently.
     logger.error(`send failed for ${snap.id}: ${err.message}`);
     throw err;
+  }
+});
+
+// ─── The outbox drain ────────────────────────────────────────────────────────
+/** Roughly two a second, well under anything that looks like bulk messaging. */
+const THROTTLE_MS = 450;
+/** Sized to finish inside the function's timeout with real network latency. */
+const MAX_PER_RUN = 70;
+const WA_MAX_ATTEMPTS = 3;
+
+async function stampNotification(notificationId, patch) {
+  if (!notificationId) return;
+  try {
+    await db.collection("notifications").doc(notificationId).update(patch);
+  } catch {
+    // The notification may have been dismissed (deleted) already. Fine.
+  }
+}
+
+/** A WhatsApp that definitively failed: try SMS, and record what happened. */
+async function fallBackAfterFailure(m) {
+  if (!m.notificationId) return;
+  try {
+    const snap = await db.collection("notifications").doc(m.notificationId).get();
+    if (!snap.exists) return;
+    const n = { id: snap.id, ...snap.data() };
+    if (!String(n.recipientId || "").startsWith(PARENT_PREFIX)) return;
+    const ctx = await schoolContext(n.schoolCode);
+    const tokens = await tokensFor(n.recipientId);
+    const smsFallback = await sendSmsFallback(n, ctx, { hasDevice: tokens.length > 0 });
+    await snap.ref.update({ smsFallback });
+  } catch (err) {
+    logger.error(`SMS fallback after WhatsApp failure errored: ${err.message}`);
+  }
+}
+
+export const drainWhatsAppOutbox = onSchedule({
+  schedule: "every 1 minutes",
+  secrets: SECRETS,
+  timeoutSeconds: 120,
+  maxInstances: 1,          // two drains at once would double-send
+}, async () => {
+  if (!waConfigured()) return;
+
+  // One equality filter (auto-indexed); "is it due yet" is checked in memory,
+  // which avoids a composite index for a queue this small.
+  const snap = await db.collection(OUTBOX).where("status", "==", "queued").limit(120).get();
+  const now = Date.now();
+  const due = snap.docs.filter((d) => (d.get("nextAttemptAt") || 0) <= now).slice(0, MAX_PER_RUN);
+  if (due.length === 0) return;
+
+  let sent = 0;
+  let failed = 0;
+  for (const d of due) {
+    const m = d.data();
+    try {
+      await sendWhatsApp(waCredentials(), m.to, m.message);
+      await d.ref.update({
+        status: "sent", sentAt: FieldValue.serverTimestamp(), attempts: FieldValue.increment(1),
+      });
+      await stampNotification(m.notificationId, { whatsapp: "sent" });
+      sent += 1;
+    } catch (err) {
+      const attempts = (m.attempts || 0) + 1;
+      if (err.permanent || attempts >= WA_MAX_ATTEMPTS) {
+        await d.ref.update({ status: "failed", attempts, error: String(err.message || err).slice(0, 300) });
+        await stampNotification(m.notificationId, { whatsapp: "failed" });
+        await fallBackAfterFailure(m);
+        failed += 1;
+      } else {
+        // Back off: 2 minutes, then 4.
+        await d.ref.update({ attempts, nextAttemptAt: Date.now() + attempts * 120_000, error: String(err.message || err).slice(0, 300) });
+      }
+    }
+    await sleep(THROTTLE_MS);
+  }
+  logger.info(`whatsapp drain: ${sent} sent, ${failed} failed, ${due.length} attempted`);
+});
+
+// ─── School approval and subscription messages ───────────────────────────────
+// The platform owner approves, rejects or suspends a school from the platform
+// console. This is what tells the school about it: a WhatsApp to the number it
+// registered with, and a notification for the founder's bell.
+const DAY = 86_400_000;
+const fmtDate = (ms) => new Date(ms).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+const tsMs = (v) => (v && typeof v.toMillis === "function" ? v.toMillis() : typeof v === "number" ? v : null);
+
+async function tellSchool(schoolCode, school, { title, body }) {
+  const ctxMessage = `*${title}*\n${body}\n\n_Acalink_`;
+  const phone = cleanPhone(school.phone);
+  if (phone && waConfigured()) {
+    await enqueueWhatsApp({
+      schoolCode, notificationId: "", recipientId: school.authUid || "", category: "system",
+      priority: "high", to: phone, message: ctxMessage, immediate: true,
+    });
+  }
+  if (school.authUid) {
+    await db.collection("notifications").add({
+      schoolCode,
+      recipientId: school.authUid,
+      recipientType: "staff",
+      recipientName: school.name || "",
+      title, body,
+      category: "system",
+      priority: "high",
+      actorId: "", actorName: "Acalink", actorRole: "platform",
+      tab: "billing",
+      entityType: "school", entityId: schoolCode, studentId: "", studentName: "",
+      read: false,
+      createdAt: FieldValue.serverTimestamp(),
+      createdAtMs: Date.now(),
+      titleNy: "", bodyNy: "", lang: "",
+      expiresAt: new Date(Date.now() + 90 * DAY),
+      pushedAt: FieldValue.serverTimestamp(),           // already handled; do not route it again
+      pushSkipped: "platform",
+    });
+  }
+}
+
+export const onSchoolStatusChange = onDocumentUpdated({
+  document: "schools/{schoolCode}",
+  secrets: SECRETS,
+}, async (event) => {
+  const before = event.data?.before?.data() || {};
+  const after = event.data?.after?.data() || {};
+  const schoolCode = event.params.schoolCode;
+  if (before.status === after.status) return;
+
+  const link = APP_URL.value() ? `\n\nSign in: ${APP_URL.value().replace(/\/$/, "")}/signin` : "";
+  const name = after.name || "your school";
+
+  if (after.status === "active" && (before.status === "pending" || !before.status)) {
+    const ends = tsMs(after.trialEndsAt);
+    await tellSchool(schoolCode, after, {
+      title: `${name} is approved`,
+      body: `Welcome to Acalink. Your ${ends ? `free trial runs until ${fmtDate(ends)}` : "account is now active"}.${link}`,
+    });
+  } else if (after.status === "active" && before.status === "suspended") {
+    await tellSchool(schoolCode, after, {
+      title: `Access restored for ${name}`,
+      body: `Your school can use Acalink again.${link}`,
+    });
+  } else if (after.status === "rejected") {
+    await tellSchool(schoolCode, after, {
+      title: `${name}: registration not approved`,
+      body: after.rejectedReason ? `Reason: ${after.rejectedReason}` : "Please contact Acalink support.",
+    });
+  } else if (after.status === "suspended") {
+    await tellSchool(schoolCode, after, {
+      title: `${name}: access suspended`,
+      body: after.suspendedReason ? `Reason: ${after.suspendedReason}` : "Please contact Acalink support.",
+    });
+  }
+});
+
+/**
+ * Every morning, tells schools whose trial or paid period is about to end — at
+ * 7, 3 and 1 days out, and the day it lapses. `lastReminderKey` on the school
+ * stops the same reminder going twice.
+ */
+export const subscriptionReminders = onSchedule({
+  schedule: "every day 08:00",
+  timeZone: "Africa/Blantyre",
+  secrets: SECRETS,
+  timeoutSeconds: 300,
+}, async () => {
+  const snap = await db.collection("schools").where("status", "==", "active").get();
+  const now = Date.now();
+  for (const d of snap.docs) {
+    const s = d.data();
+    const paid = s.subscription_status === "active";
+    const end = tsMs(paid ? s.paidThrough : s.trialEndsAt);
+    if (!end) continue;
+
+    const daysLeft = Math.ceil((end - now) / DAY);
+    if (![7, 3, 1, 0].includes(daysLeft)) continue;
+
+    const key = `${paid ? "paid" : "trial"}:${daysLeft}`;
+    if (s.lastReminderKey === key) continue;
+
+    const what = paid ? "subscription" : "free trial";
+    const title = daysLeft === 0
+      ? `Your ${what} ends today`
+      : `Your ${what} ends in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`;
+    const body = `${s.name || "Your school"}: ${paid ? "renew" : "subscribe"} in Billing to keep every module working for your staff.`;
+
+    try {
+      await tellSchool(d.id, s, { title, body });
+      await d.ref.update({ lastReminderKey: key });
+    } catch (err) {
+      logger.error(`subscription reminder failed for ${d.id}: ${err.message}`);
+    }
+    await sleep(THROTTLE_MS);
   }
 });
 

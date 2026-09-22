@@ -5,6 +5,12 @@ import NotificationProvider from "./notifications/NotificationProvider";
 import { NotificationBell, NotificationToasts } from "./notifications/NotificationBell";
 import GuidedTour, { TourHelpButton } from "./tour/GuidedTour";
 import { buildTourSteps, hasSeenTour } from "./tour/tourSteps";
+import AccountPanel from "./account/AccountPanel";
+import useOnlineStatus from "../hooks/useOnlineStatus";
+import { onUpdateAvailable, applyUpdate } from "../services/pwa";
+import useSchoolAccess from "./subscription/useSchoolAccess";
+import AccessBlocked from "./subscription/AccessBlocked";
+import SubscriptionBanner from "./subscription/SubscriptionBanner";
 
 const THEME_ICONS = {
   sun: (
@@ -34,7 +40,7 @@ function initials(name = "") {
 }
 
 export default function DashboardShell({
-  navItems,
+  navItems: allNavItems,
   currentTab,
   onTabChange,
   title,
@@ -64,7 +70,25 @@ export default function DashboardShell({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [theme, setTheme] = useState(getInitialTheme);
   const [tourOpen, setTourOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const online = useOnlineStatus();
+  const [updateReady, setUpdateReady] = useState(false);
+  useEffect(() => { onUpdateAvailable(() => setUpdateReady(true)); }, []);
   const [tourSeen, setTourSeen] = useState(() => hasSeenTour(tourRole));
+
+  // Whether this school may use the platform right now (approval, trial,
+  // subscription). Live, so approval or renewal lets people in without a
+  // refresh. The platform owner has no school, so nothing is gated for them.
+  const { school, access } = useSchoolAccess(schoolCode);
+  // The director can pay; when the subscription has lapsed they get the
+  // Billing page and nothing else. Everyone else is stopped at a screen that
+  // says who to ask.
+  const canPay = tourRole === "director";
+  const lockedToBilling = access.restricted && canPay;
+  const navItems = lockedToBilling ? allNavItems.filter((i) => i.id === "billing") : allNavItems;
+  useEffect(() => {
+    if (lockedToBilling && currentTab !== "billing") onTabChange("billing");
+  }, [lockedToBilling, currentTab, onTabChange]);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -134,6 +158,10 @@ export default function DashboardShell({
     hasBell: Boolean(notificationRecipientId),
   });
 
+  if (access.blocked || (access.restricted && !canPay)) {
+    return <AccessBlocked access={access} school={school} onSignOut={onSignOut} />;
+  }
+
   return (
     <NotificationProvider
       recipientId={notificationRecipientId}
@@ -180,9 +208,20 @@ export default function DashboardShell({
           </div>
 
           <div className="topbar__right">
-            <div className="topbar__status" aria-label="System status online">
-              <span className="topbar__status-dot" />
-              <span className="topbar__status-text">Online</span>
+            {updateReady && (
+              <button
+                type="button"
+                onClick={applyUpdate}
+                className="topbar__status"
+                style={{ cursor: "pointer", background: "var(--primary-pale)", border: "1px solid var(--border-color)" }}
+                title="A new version of Acalink is ready"
+              >
+                <span className="topbar__status-text">Update ready — tap to reload</span>
+              </button>
+            )}
+            <div className="topbar__status" aria-label={online ? "System status online" : "No internet connection — your work is saved on this device"} title={online ? undefined : "No connection. Your work is saved here and will sync when you're back online."}>
+              <span className="topbar__status-dot" style={online ? undefined : { background: "var(--warning-light)" }} />
+              <span className="topbar__status-text">{online ? "Online" : "Offline"}</span>
             </div>
 
             {notificationRecipientId && (
@@ -208,13 +247,30 @@ export default function DashboardShell({
               <div className="topbar__user-name">{userName}</div>
               {roleLabel && <div className="topbar__user-role">{roleLabel}</div>}
             </div>
-            <div className="topbar__avatar" aria-hidden="true">
+            <div
+              className="topbar__avatar"
+              role="button"
+              tabIndex={0}
+              title="Your account: WhatsApp alerts and two-step sign-in"
+              aria-label="Your account"
+              data-tour="profile"
+              style={{ cursor: "pointer" }}
+              onClick={() => setAccountOpen(true)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setAccountOpen(true); } }}
+            >
               {initials(userName) || "??"}
             </div>
           </div>
         </header>
 
-        <main className="page-content">{children}</main>
+        <main className="page-content">
+          <SubscriptionBanner
+            access={access}
+            canPay={canPay}
+            onSubscribe={() => onTabChange("billing")}
+          />
+          {children}
+        </main>
 
         <footer className="dashboard-footer">
           <span>© 2026 Acalink</span>
@@ -223,6 +279,8 @@ export default function DashboardShell({
       </div>
 
       <NotificationToasts />
+
+      <AccountPanel open={accountOpen} onClose={() => setAccountOpen(false)} name={userName} roleLabel={roleLabel} />
 
       <GuidedTour
         open={tourOpen}

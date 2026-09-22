@@ -7,7 +7,21 @@
 // far smaller problem than the mark failing to save.
 import { db } from "../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
-import { notifyGuardians, notifyRoles, pushNotifications, parentRecipientId } from "./notifications";
+import { notifyGuardians, notifyRoles, notifyUsers, pushNotifications, parentRecipientId } from "./notifications";
+import { tpl, learnerName } from "./messageTemplates";
+
+/**
+ * Spreads a per-student template into the four fields notifyGuardians reads,
+ * so each hook says what happened once and both languages come with it.
+ */
+function bilingual(make) {
+  return {
+    title: (s) => make(s).title,
+    body: (s) => make(s).body,
+    titleNy: (s) => make(s).titleNy,
+    bodyNy: (s) => make(s).bodyNy,
+  };
+}
 
 /** Loads the student docs for a school, optionally narrowed to some ids. */
 async function loadStudents(schoolCode, ids = null) {
@@ -93,8 +107,7 @@ export async function notifyDisciplineLogged({
     await notifyGuardians({
       students: [student],
       schoolCode,
-      title: `Discipline record for ${student.fullName || student.studentName || "your child"}`,
-      body: `${offense}${action ? ` · Action: ${action}` : ""}`,
+      ...bilingual(() => tpl.discipline(student, { offense, action })),
       category: "discipline",
       priority: severity === "High" ? "urgent" : "high",
       actorId: actor?.id,
@@ -155,8 +168,7 @@ export async function notifyAttendanceSaved({
     await notifyGuardians({
       students: flagged,
       schoolCode,
-      title: (s) => `${s.fullName || "Your child"} was marked ${records[s.id].status.toLowerCase()}`,
-      body: `${className || "Class"} register for ${readableDate}.`,
+      ...bilingual((s) => tpl.attendance(s, records[s.id].status, className, readableDate)),
       category: "attendance",
       priority: "high",
       actorId: actor?.id,
@@ -180,8 +192,7 @@ export async function notifyMarksPublished({
     await notifyGuardians({
       students,
       schoolCode,
-      title: `New ${subject || "subject"} results available`,
-      body: `${assessment || "Assessment"} marks for ${className || "your child's class"}${term ? ` · ${term}` : ""} have been published.`,
+      ...bilingual(() => tpl.marks({ subject, assessment, className, term })),
       category: "performance",
       actorId: actor?.id,
       actorName: actor?.name,
@@ -208,8 +219,7 @@ export async function notifyHomeworkPosted({
     await notifyGuardians({
       students,
       schoolCode,
-      title: `New homework: ${subject || "assignment"}`,
-      body: `${title}${due ? ` — due ${due}` : ""}`,
+      ...bilingual(() => tpl.homework({ subject, title, dueLabel: due })),
       category: "homework",
       actorId: actor?.id,
       actorName: actor?.name,
@@ -227,14 +237,10 @@ export async function notifyPaymentRecorded({
   schoolCode, student, amount, method, receiptNumber, balance, actor,
 }) {
   try {
-    const money = (n) => `MK ${Number(n || 0).toLocaleString()}`;
     await notifyGuardians({
       students: [student],
       schoolCode,
-      title: `Payment received — ${money(amount)}`,
-      body: `${method || "Payment"} for ${student.fullName || "your child"}`
-        + `${receiptNumber ? ` · Receipt ${receiptNumber}` : ""}`
-        + `${balance !== undefined && balance !== null ? ` · Balance ${money(balance)}` : ""}`,
+      ...bilingual((s) => tpl.payment(s, { amount, method, receiptNumber, balance })),
       category: "fees",
       actorId: actor?.id,
       actorName: actor?.name,
@@ -273,4 +279,239 @@ export async function notifyStaffAdded({ schoolCode, staffName, role, actor }) {
 export async function notifyGuardianDirect({ schoolCode, phone, ...payload }) {
   if (!phone) return;
   await pushNotifications([{ ...payload, schoolCode, recipientId: parentRecipientId(phone) }]);
+}
+
+// ─── Staff leave ─────────────────────────────────────────────────────────────
+export async function notifyLeaveRequested({ schoolCode, request, actor }) {
+  try {
+    await notifyRoles({
+      schoolCode,
+      roles: ["head_teacher"],
+      excludeIds: [actor?.id],
+      title: `Leave request: ${request.staffName}`,
+      body: `${request.type} · ${request.startDate}${request.endDate !== request.startDate ? ` to ${request.endDate}` : ""} (${request.days} day${request.days === 1 ? "" : "s"})`,
+      category: "leave",
+      priority: "high",
+      actorId: actor?.id,
+      actorName: actor?.name,
+      tab: "leave",
+      entityType: "leave_request",
+      entityId: request.id || "",
+    });
+  } catch (err) {
+    console.error("[hooks] leave request notify failed:", err);
+  }
+}
+
+export async function notifyLeaveDecided({ schoolCode, request, approved, note, actor }) {
+  try {
+    await notifyUsers({
+      userIds: [request.staffId],
+      schoolCode,
+      title: approved ? "Your leave was approved" : "Your leave was not approved",
+      body: `${request.type} · ${request.startDate}${request.endDate !== request.startDate ? ` to ${request.endDate}` : ""}${note ? ` — ${note}` : ""}`,
+      category: "leave",
+      priority: "high",
+      actorId: actor?.id,
+      actorName: actor?.name,
+      tab: "leave",
+      entityType: "leave_request",
+      entityId: request.id || "",
+    });
+  } catch (err) {
+    console.error("[hooks] leave decision notify failed:", err);
+  }
+}
+
+// ─── Cover / substitutions ───────────────────────────────────────────────────
+export async function notifyCoverAssigned({ schoolCode, substitution, actor }) {
+  try {
+    await notifyUsers({
+      userIds: [substitution.substituteId],
+      schoolCode,
+      title: `Cover needed: ${substitution.className} ${substitution.subject}`,
+      body: `${substitution.date} · Period ${substitution.periodNumber}${substitution.originalTeacherName ? ` (for ${substitution.originalTeacherName})` : ""}. Please confirm you can take it.`,
+      category: "cover",
+      priority: "high",
+      actorId: actor?.id,
+      actorName: actor?.name,
+      tab: "leave",
+      entityType: "substitution",
+      entityId: substitution.id || "",
+    });
+  } catch (err) {
+    console.error("[hooks] cover notify failed:", err);
+  }
+}
+
+// ─── Lesson plan review ──────────────────────────────────────────────────────
+export async function notifyLessonReviewed({ schoolCode, plan, status, comment, actor }) {
+  try {
+    await notifyUsers({
+      userIds: [plan.teacherId],
+      schoolCode,
+      title: status === "approved" ? "Lesson plan approved" : "Changes requested on a lesson plan",
+      body: `${plan.className} · ${plan.subject} · ${plan.topic}${comment ? ` — ${comment}` : ""}`,
+      category: "review",
+      priority: status === "approved" ? "normal" : "high",
+      actorId: actor?.id,
+      actorName: actor?.name,
+      tab: "myclasses",
+      entityType: "lesson_plan",
+      entityId: plan.id || "",
+    });
+  } catch (err) {
+    console.error("[hooks] lesson review notify failed:", err);
+  }
+}
+
+// ─── Exams ───────────────────────────────────────────────────────────────────
+/** Tells guardians the timetable for their child's exam. */
+export async function notifyExamTimetable({ schoolCode, exam, students, actor }) {
+  try {
+    const papers = (exam.papers || [])
+      .slice()
+      .sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`));
+    if (papers.length === 0 || students.length === 0) return;
+    const fmt = (d) => new Date(`${d}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    const summary = papers.slice(0, 6).map((p) => `${p.subject} ${fmt(p.date)} ${p.start}`).join("; ")
+      + (papers.length > 6 ? ` +${papers.length - 6} more` : "");
+    await notifyGuardians({
+      students,
+      schoolCode,
+      ...bilingual((s) => tpl.examTimetable(s, { examName: exam.name, firstDate: fmt(papers[0].date), papers: summary })),
+      category: "announcement",
+      priority: "high",
+      actorId: actor?.id,
+      actorName: actor?.name,
+      actorRole: actor?.role,
+      entityType: "exam",
+      entityId: exam.id || "",
+    });
+  } catch (err) {
+    console.error("[hooks] exam timetable notify failed:", err);
+  }
+}
+
+/** Tells each invigilator their own duties. `duties` is [{ staffId, lines }]. */
+export async function notifyExamDuty({ schoolCode, exam, duties, actor }) {
+  try {
+    await pushNotifications(duties.filter((d) => d.staffId).map((d) => ({
+      schoolCode,
+      recipientId: d.staffId,
+      title: `Invigilation duty — ${exam.name}`,
+      body: d.lines,
+      category: "exam",
+      priority: "high",
+      actorId: actor?.id,
+      actorName: actor?.name,
+      tab: "exams",
+      entityType: "exam",
+      entityId: exam.id || "",
+    })));
+  } catch (err) {
+    console.error("[hooks] exam duty notify failed:", err);
+  }
+}
+
+// ─── Transport ───────────────────────────────────────────────────────────────
+export async function notifyTransportDelay({ schoolCode, route, students, minutes, note, actor }) {
+  try {
+    await notifyGuardians({
+      students,
+      schoolCode,
+      ...bilingual((s) => tpl.transportDelay(s, { route: route.name, minutes, note })),
+      category: "transport",
+      priority: "high",
+      actorId: actor?.id,
+      actorName: actor?.name,
+      actorRole: actor?.role,
+      entityType: "transport_route",
+      entityId: route.id || "",
+    });
+  } catch (err) {
+    console.error("[hooks] transport notify failed:", err);
+  }
+}
+
+// ─── Sick bay ────────────────────────────────────────────────────────────────
+export async function notifySickbayVisit({ schoolCode, student, complaint, action, sentHome, actor }) {
+  try {
+    await notifyGuardians({
+      students: [student],
+      schoolCode,
+      ...bilingual((s) => tpl.sickbay(s, { complaint, action, sentHome })),
+      category: "health",
+      priority: sentHome ? "urgent" : "high",
+      actorId: actor?.id,
+      actorName: actor?.name,
+      actorRole: actor?.role,
+      entityType: "sickbay_visit",
+    });
+    if (sentHome) {
+      await notifyRoles({
+        schoolCode,
+        roles: ["head_teacher"],
+        excludeIds: [actor?.id],
+        title: `${learnerName(student)} was sent home from the sick bay`,
+        body: `${complaint}${action ? ` · ${action}` : ""}`,
+        category: "health",
+        priority: "high",
+        actorId: actor?.id,
+        actorName: actor?.name,
+        tab: "health",
+        entityType: "sickbay_visit",
+      });
+    }
+  } catch (err) {
+    console.error("[hooks] sickbay notify failed:", err);
+  }
+}
+
+// ─── Library ─────────────────────────────────────────────────────────────────
+export async function notifyLibraryOverdue({ schoolCode, student, title, days, actor }) {
+  try {
+    await notifyGuardians({
+      students: [student],
+      schoolCode,
+      ...bilingual((s) => tpl.libraryOverdue(s, { title, days })),
+      category: "library",
+      priority: "normal",
+      actorId: actor?.id,
+      actorName: actor?.name,
+      actorRole: actor?.role,
+      entityType: "library_loan",
+    });
+  } catch (err) {
+    console.error("[hooks] library notify failed:", err);
+  }
+}
+
+// ─── At-risk learners ────────────────────────────────────────────────────────
+export async function notifyAtRiskGuardian({ schoolCode, student, reasons, actor }) {
+  try {
+    await notifyGuardians({
+      students: [student],
+      schoolCode,
+      ...bilingual((s) => tpl.atRisk(s, { reasons })),
+      category: "risk",
+      priority: "high",
+      actorId: actor?.id,
+      actorName: actor?.name,
+      actorRole: actor?.role,
+      entityType: "student",
+      entityId: student.id || "",
+    });
+  } catch (err) {
+    console.error("[hooks] at-risk notify failed:", err);
+  }
+}
+
+/** Direct alert to one staff member, e.g. a security event on their account. */
+export async function notifyStaffDirect({ schoolCode, userId, ...payload }) {
+  try {
+    await notifyUsers({ userIds: [userId], schoolCode, ...payload });
+  } catch (err) {
+    console.error("[hooks] staff notify failed:", err);
+  }
 }

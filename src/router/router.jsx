@@ -3,6 +3,7 @@ import { lazy, Suspense } from "react";
 import Registration from "../pages/registration";
 import SignIn from "../pages/signin";
 import AcademixLanding from "../pages/landing";
+import { Terms, Privacy } from "../pages/legal";
 
 // The four dashboards are the bulk of the bundle, and nobody loads more than
 // one of them — a bursar never pulls in the head teacher's modules. Splitting
@@ -13,6 +14,8 @@ const TeacherDashboard = lazy(() => import("../pages/teacher/teacherdashboard"))
 const HeadteacherDashboard = lazy(() => import("../pages/headteacher/dashboard"));
 const BursarDashboard = lazy(() => import("../pages/burser/burser"));
 const DirectorDashboard = lazy(() => import("../pages/director/dashboard"));
+const PlatformDashboard = lazy(() => import("../pages/platform/dashboard"));
+const LibrarianDashboard = lazy(() => import("../pages/library/dashboard"));
 
 // Where PayChangu returns the payer's browser. Split out too: it is reached
 // once per payment, from an external redirect, and has nothing to do with the
@@ -49,6 +52,14 @@ const router = createBrowserRouter([
     element: <SignIn />,
   },
   {
+    path: "/terms",
+    element: <Terms />,
+  },
+  {
+    path: "/privacy",
+    element: <Privacy />,
+  },
+  {
     path: "/admin",
     element: portal(<AdminDashboard />),
   },
@@ -67,6 +78,14 @@ const router = createBrowserRouter([
   {
     path: "/director",
     element: portal(<DirectorDashboard />),
+  },
+  {
+    path: "/platform",
+    element: portal(<PlatformDashboard />),
+  },
+  {
+    path: "/library",
+    element: portal(<LibrarianDashboard />),
   },
   {
     path: "/pay/return",

@@ -1,11 +1,26 @@
 // modules/classplanning.jsx — "Lesson Plans"
-// Read-only view of every lesson plan the school's teachers have written
-// (lesson_plans, created from the teacher dashboard). The head teacher reviews
-// them here; editing stays with the teacher who owns the plan.
-import { useState, useEffect, useMemo } from "react";
+// Every lesson plan the school's teachers have written (`lesson_plans`, created
+// from the teacher dashboard), and the head teacher's review of them.
+//
+// A plan starts "awaiting review". The head teacher approves it, or asks for
+// changes with a comment; the teacher is told on WhatsApp either way, and a
+// plan saved again after "changes requested" goes back into the queue. The
+// head teacher can change only the review fields — never the plan itself
+// (see the lesson_plans rules).
+//
+// The second job is the one a head teacher cannot do by reading: noticing
+// whose plans are MISSING. The timetable says who is teaching this week; a
+// teacher with lessons and no plan is listed, with a reminder button.
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { db } from "../../../firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
-import { Eye, X, BookOpen, RefreshCw, Search, ClipboardList, CheckCircle, Loader2, Calendar } from "lucide-react";
+import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { Eye, BookOpen, RefreshCw, Search, BellRing, Check, MessageSquareWarning } from "lucide-react";
+import { notifyLessonReviewed } from "../../../services/notificationHooks";
+import { notifyUsers } from "../../../services/notifications";
+import {
+  Modal, Btn, Pill, Textarea, EmptyState, StatGrid, StatCard, ModuleHeader,
+  Notice, LoadingState, FilterBar,
+} from "../../../components/ui/ModuleKit";
 import "./staff-management.css";
 
 const PERIODS = [
@@ -19,97 +34,48 @@ const PERIODS = [
   { number: 8, label: "P8", start: "15:00", end: "15:50" },
 ];
 
-const STATUS = {
-  planned: {
-    label: "Planned",
-    pill: { background: "var(--warning-pale)", color: "var(--warning-light)", border: "1px solid rgba(232,168,0,0.2)" },
-  },
-  "in-progress": {
-    label: "In progress",
-    pill: { background: "var(--primary-pale)", color: "var(--primary-light)", border: "1px solid var(--border-color)" },
-  },
-  completed: {
-    label: "Completed",
-    pill: { background: "var(--success-pale)", color: "var(--success-light)", border: "1px solid rgba(34,197,94,0.22)" },
-  },
+const REVIEW = {
+  pending: { label: "Awaiting review", tone: "warning" },
+  approved: { label: "Approved", tone: "success" },
+  changes: { label: "Changes requested", tone: "danger" },
 };
+const reviewOf = (p) => p.reviewStatus || "pending";
 
-const labelStyle = {
-  fontSize: 10, fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase",
-  color: "var(--text-muted)", marginBottom: 6, fontFamily: "var(--font-mono)",
-};
-
-const selectStyle = {
-  padding: "9px 12px", background: "var(--surface)", color: "var(--text-primary)",
-  border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", fontSize: 13,
-};
-
-const ghostBtnStyle = {
-  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-  padding: "8px 14px", background: "var(--surface)", color: "var(--text-primary)",
-  border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)",
-  fontSize: 12, fontWeight: 600, cursor: "pointer",
-};
+const getPeriod = (n) => PERIODS.find((p) => p.number === Number(n)) || null;
 
 function fmt(dateStr) {
   if (!dateStr) return "—";
   const d = new Date(dateStr);
-  if (isNaN(d)) return dateStr;
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return Number.isNaN(d.getTime()) ? dateStr : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-function getPeriod(num) {
-  return PERIODS.find((p) => p.number === Number(num)) || null;
+/** Monday and Sunday of the week containing today, as yyyy-mm-dd. */
+function thisWeek() {
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return { start: iso(monday), end: iso(sunday) };
 }
 
-function StatusPill({ status }) {
-  const cfg = STATUS[status] || STATUS.planned;
-  return (
-    <span className="status-pill" style={cfg.pill}>
-      <span className="status-pill__dot" />
-      {cfg.label}
-    </span>
-  );
-}
-
-function KpiCard({ label, value, icon: Icon, accent }) {
-  let valueClass = "stat-card__value";
-  if (accent === "success") valueClass += " stat-card__value--success";
-  if (accent === "warning") valueClass += " stat-card__value--warning";
-  if (accent === "info") valueClass += " stat-card__value--accent";
-  return (
-    <div className="stat-card">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="stat-card__label">{label}</div>
-          <div className={valueClass}>{value}</div>
-        </div>
-        {Icon && <Icon size={24} className="text-muted shrink-0" />}
-      </div>
-    </div>
-  );
-}
-
-function PlanCard({ plan, onView }) {
+function PlanCard({ plan, onOpen }) {
+  const r = REVIEW[reviewOf(plan)];
   const period = getPeriod(plan.periodNumber);
   return (
-    <div className="card" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+    <div className="card" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           <span className="badge badge--blue">{plan.className}</span>
           <span className="badge badge--teal">{plan.subject}</span>
-          <StatusPill status={plan.status} />
+          <Pill tone={r.tone}>{r.label}</Pill>
         </div>
-        <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-          Wk {plan.week || "—"} · {plan.term}
-        </span>
+        <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>Wk {plan.week || "—"} · {plan.term}</span>
       </div>
-
       <div>
-        <h3 style={{ fontFamily: "var(--font-display)", fontSize: "1.05rem", color: "var(--text-primary)", lineHeight: 1.3 }}>
-          {plan.topic}
-        </h3>
-        <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+        <h3 style={{ fontFamily: "var(--font-display)", fontSize: "1.05rem", color: "var(--text-primary)", lineHeight: 1.3, margin: 0 }}>{plan.topic}</h3>
+        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "4px 0 0" }}>
           By {plan.teacherName} · {fmt(plan.date)}{period ? ` · ${period.label} (${period.start}–${period.end})` : ""}
         </p>
         {plan.objectives && (
@@ -118,254 +84,277 @@ function PlanCard({ plan, onView }) {
           </p>
         )}
       </div>
-
       <div>
-        <button onClick={() => onView(plan)} style={ghostBtnStyle}>
-          <Eye size={14} /> View plan
-        </button>
+        <Btn size="sm" variant={reviewOf(plan) === "pending" ? "accent" : "secondary"} icon={<Eye size={14} />} onClick={() => onOpen(plan)}>
+          {reviewOf(plan) === "pending" ? "Review" : "View"}
+        </Btn>
       </div>
     </div>
   );
 }
 
-function ViewModal({ plan, onClose }) {
+function Label({ children }) {
+  return <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", color: "var(--text-muted)", margin: "0 0 6px", fontFamily: "var(--font-mono)" }}>{children}</p>;
+}
+
+function ReviewDialog({ plan, onClose, onDecide, busy }) {
+  const [comment, setComment] = useState(plan.review || "");
   const period = getPeriod(plan.periodNumber);
+  const r = REVIEW[reviewOf(plan)];
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
-        backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
-        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 16,
-      }}
+    <Modal
+      title={plan.topic}
+      subtitle={`${plan.className} · ${plan.subject} · ${plan.teacherName}`}
+      onClose={onClose}
+      wide
+      footer={
+        <>
+          <Btn variant="secondary" onClick={onClose} disabled={busy}>Close</Btn>
+          <Btn variant="danger" icon={<MessageSquareWarning size={15} />} disabled={busy || !comment.trim()} onClick={() => onDecide("changes", comment.trim())}>
+            Request changes
+          </Btn>
+          <Btn variant="accent" icon={<Check size={15} />} loading={busy} onClick={() => onDecide("approved", comment.trim())}>
+            Approve
+          </Btn>
+        </>
+      }
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "var(--card-bg)", borderRadius: "var(--radius-xl)", width: "100%", maxWidth: 560,
-          maxHeight: "90vh", overflowY: "auto", boxShadow: "var(--shadow-lg)", border: "1px solid var(--border-strong)",
-        }}
-      >
-        <div style={{ background: "var(--hero-bg)", padding: "20px 28px", borderBottom: "1px solid var(--border-strong)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-              <span className="badge badge--blue">{plan.className}</span>
-              <span className="badge badge--teal">{plan.subject}</span>
-              <StatusPill status={plan.status} />
-            </div>
-            <h3 style={{ fontFamily: "var(--font-display)", fontSize: "1.2rem", color: "var(--text-primary)", lineHeight: 1.3 }}>
-              {plan.topic}
-            </h3>
-          </div>
-          <button onClick={onClose} aria-label="Close" style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer" }}>
-            <X size={18} />
-          </button>
-        </div>
-
-        <div style={{ padding: 28, display: "flex", flexDirection: "column", gap: 20 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, fontSize: 13 }}>
-            <div>
-              <p style={labelStyle}>Teacher</p>
-              <p style={{ color: "var(--text-secondary)" }}>{plan.teacherName}</p>
-            </div>
-            <div>
-              <p style={labelStyle}>Date</p>
-              <p style={{ color: "var(--text-secondary)" }}>
-                {fmt(plan.date)}{period ? ` · ${period.label} (${period.start}–${period.end})` : ""}
-              </p>
-            </div>
-            <div>
-              <p style={labelStyle}>Week / Term</p>
-              <p style={{ color: "var(--text-secondary)" }}>Wk {plan.week || "—"} · {plan.term}</p>
-            </div>
-          </div>
-
-          <div>
-            <p style={labelStyle}>Learning objectives</p>
-            <div style={{ background: "var(--surface)", padding: 16, borderRadius: "var(--radius-md)", fontSize: 13, lineHeight: 1.6, color: "var(--text-secondary)", border: "1px solid var(--border-color)", whiteSpace: "pre-wrap" }}>
-              {plan.objectives || "—"}
-            </div>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, fontSize: 13 }}>
-            <div>
-              <p style={labelStyle}>Resources</p>
-              <p style={{ color: "var(--text-secondary)" }}>{plan.resources || "—"}</p>
-            </div>
-            <div>
-              <p style={labelStyle}>Assessment</p>
-              <p style={{ color: "var(--text-secondary)" }}>{plan.assessment || "—"}</p>
-            </div>
-          </div>
-
-          {plan.notes && (
-            <div>
-              <p style={labelStyle}>Notes</p>
-              <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>{plan.notes}</p>
-            </div>
-          )}
-
-          <div style={{ paddingTop: 12, borderTop: "1px solid var(--border-color)", display: "flex", justifyContent: "flex-end" }}>
-            <button onClick={onClose} style={{ ...ghostBtnStyle, padding: "10px 24px" }}>Close</button>
-          </div>
-        </div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14 }}>
+        <Pill tone={r.tone}>{r.label}</Pill>
+        {plan.reviewedByName && plan.reviewedAt && <span className="text-muted" style={{ fontSize: 12 }}>by {plan.reviewedByName}</span>}
       </div>
-    </div>
+
+      <div className="grid grid-cols-2 gap-4" style={{ marginBottom: 14, fontSize: 13 }}>
+        <div><Label>Date</Label>{fmt(plan.date)}{period ? ` · ${period.label} (${period.start}–${period.end})` : ""}</div>
+        <div><Label>Week / term</Label>Wk {plan.week || "—"} · {plan.term}</div>
+      </div>
+
+      <Label>Learning objectives</Label>
+      <div style={{ background: "var(--surface)", padding: 14, borderRadius: "var(--radius-md)", fontSize: 13, lineHeight: 1.6, color: "var(--text-secondary)", border: "1px solid var(--border-color)", whiteSpace: "pre-wrap", marginBottom: 14 }}>
+        {plan.objectives || "—"}
+      </div>
+
+      <div className="grid grid-cols-2 gap-4" style={{ marginBottom: 14, fontSize: 13 }}>
+        <div><Label>Resources</Label>{plan.resources || "—"}</div>
+        <div><Label>Assessment</Label>{plan.assessment || "—"}</div>
+      </div>
+      {plan.notes && <div style={{ marginBottom: 14, fontSize: 13 }}><Label>Notes</Label>{plan.notes}</div>}
+
+      <Textarea
+        label="Your feedback"
+        rows={3}
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        placeholder="Required when asking for changes. Optional when approving."
+        hint="The teacher receives this on WhatsApp and sees it on their plan."
+      />
+    </Modal>
   );
 }
 
-export default function ClassPlanningModule({ schoolCode }) {
-  const [plans, setPlans] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function ClassPlanningModule({ schoolCode, currentUser }) {
+  const [plans, setPlans] = useState(null);
+  const [timetable, setTimetable] = useState([]);
   const [error, setError] = useState("");
-  const [viewPlan, setViewPlan] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(null);
 
   const [search, setSearch] = useState("");
+  const [review, setReview] = useState("pending");
   const [teacherFilter, setTeacherFilter] = useState("all");
-  const [classFilter, setClassFilter] = useState("all");
   const [subjectFilter, setSubjectFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!schoolCode) return;
-    setLoading(true);
     setError("");
     try {
-      // Plans are filtered by schoolCode only (the shape the security rules
-      // can verify for a head teacher) and sorted client-side, which avoids a
+      // Plans are filtered by schoolCode only (the shape the security rules can
+      // verify for a head teacher) and sorted client-side, which avoids a
       // composite index.
-      const [planSnap, userSnap] = await Promise.all([
+      const [planSnap, userSnap, ttSnap] = await Promise.all([
         getDocs(query(collection(db, "lesson_plans"), where("schoolCode", "==", schoolCode))),
         getDocs(query(collection(db, "users"), where("schoolCode", "==", schoolCode))),
+        getDocs(query(collection(db, "timetable"), where("schoolCode", "==", schoolCode))),
       ]);
       const names = {};
       userSnap.docs.forEach((d) => {
         const u = d.data();
         names[d.id] = u.name || u.fullName || u.displayName || u.email || "Unknown teacher";
       });
-      const rows = planSnap.docs
-        .map((d) => {
-          const p = d.data();
-          return { id: d.id, ...p, teacherName: p.teacherName || names[p.teacherId] || "Unknown teacher" };
-        })
-        .sort((a, b) => {
-          const da = a.date || "";
-          const db_ = b.date || "";
-          if (db_ !== da) return db_.localeCompare(da);
-          return (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0);
-        });
-      setPlans(rows);
+      setPlans(
+        planSnap.docs
+          .map((d) => {
+            const p = d.data();
+            return { id: d.id, ...p, teacherName: p.teacherName || names[p.teacherId] || "Unknown teacher" };
+          })
+          .sort((a, b) => {
+            const da = a.date || "";
+            const db_ = b.date || "";
+            if (db_ !== da) return db_.localeCompare(da);
+            return (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0);
+          }),
+      );
+      setTimetable(ttSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
     } catch (err) {
       console.error("lesson plans load error:", err);
       setError(err.message || "Could not load lesson plans.");
-    } finally {
-      setLoading(false);
+      setPlans([]);
     }
-  };
+  }, [schoolCode]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { load(); }, [schoolCode]);
+  useEffect(() => { load(); }, [load]);
 
   const options = useMemo(() => {
     const uniq = (arr) => [...new Set(arr)].filter(Boolean).sort();
-    return {
-      teachers: uniq(plans.map((p) => p.teacherName)),
-      classes: uniq(plans.map((p) => p.className)),
-      subjects: uniq(plans.map((p) => p.subject)),
-    };
+    return { teachers: uniq((plans || []).map((p) => p.teacherName)), subjects: uniq((plans || []).map((p) => p.subject)) };
   }, [plans]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return plans.filter((p) => {
-      const matchSearch = !q
-        || p.topic?.toLowerCase().includes(q)
-        || p.className?.toLowerCase().includes(q)
-        || p.subject?.toLowerCase().includes(q)
-        || p.teacherName?.toLowerCase().includes(q);
-      return matchSearch
-        && (teacherFilter === "all" || p.teacherName === teacherFilter)
-        && (classFilter === "all" || p.className === classFilter)
-        && (subjectFilter === "all" || p.subject === subjectFilter)
-        && (statusFilter === "all" || p.status === statusFilter);
-    });
-  }, [plans, search, teacherFilter, classFilter, subjectFilter, statusFilter]);
+  const counts = useMemo(() => {
+    const c = { pending: 0, approved: 0, changes: 0 };
+    (plans || []).forEach((p) => { c[reviewOf(p)] += 1; });
+    return c;
+  }, [plans]);
 
-  const count = (s) => plans.filter((p) => p.status === s).length;
+  // Teachers with lessons on this week's timetable but no plan dated this week.
+  const missing = useMemo(() => {
+    if (!plans) return [];
+    const { start, end } = thisWeek();
+    const planned = new Set(plans.filter((p) => p.date >= start && p.date <= end).map((p) => p.teacherId));
+    const lessons = new Map();
+    timetable.forEach((s) => {
+      if (!s.teacherId) return;
+      const e = lessons.get(s.teacherId) || { id: s.teacherId, name: s.teacherName || "Teacher", lessons: 0 };
+      e.lessons += 1;
+      lessons.set(s.teacherId, e);
+    });
+    return [...lessons.values()].filter((t) => !planned.has(t.id)).sort((a, b) => b.lessons - a.lessons);
+  }, [plans, timetable]);
+
+  const filtered = (plans || []).filter((p) => {
+    const q = search.trim().toLowerCase();
+    if (q && ![p.topic, p.className, p.subject, p.teacherName].some((v) => String(v || "").toLowerCase().includes(q))) return false;
+    if (review !== "all" && reviewOf(p) !== review) return false;
+    if (teacherFilter !== "all" && p.teacherName !== teacherFilter) return false;
+    if (subjectFilter !== "all" && p.subject !== subjectFilter) return false;
+    return true;
+  });
+
+  const decide = async (status, comment) => {
+    const plan = open;
+    setBusy(true);
+    try {
+      await updateDoc(doc(db, "lesson_plans", plan.id), {
+        reviewStatus: status,
+        review: comment,
+        reviewedAt: serverTimestamp(),
+        reviewedBy: currentUser?.id || "",
+        reviewedByName: currentUser?.name || "",
+      });
+      await notifyLessonReviewed({ schoolCode, plan, status, comment, actor: currentUser });
+      setNotice({ tone: "success", text: status === "approved" ? "Plan approved. The teacher has been told." : "Changes requested. The teacher has been told." });
+      setOpen(null);
+      await load();
+    } catch (err) {
+      setNotice({ tone: "danger", text: err.message || "Could not save your review." });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remind = async (targets) => {
+    setBusy(true);
+    try {
+      await notifyUsers({
+        userIds: targets.map((t) => t.id),
+        schoolCode,
+        title: "Please submit your lesson plans for this week",
+        body: "You have lessons on the timetable this week but no lesson plan yet. Add them under My Classes.",
+        category: "review",
+        priority: "high",
+        actorId: currentUser?.id,
+        actorName: currentUser?.name,
+        tab: "myclasses",
+      });
+      setNotice({ tone: "success", text: `Reminded ${targets.length} teacher${targets.length === 1 ? "" : "s"}.` });
+    } catch (err) {
+      setNotice({ tone: "danger", text: err.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (plans === null) return <LoadingState label="Loading lesson plans…" />;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <div>
-          <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1.5rem", color: "var(--text-primary)" }}>Lesson Plans</h2>
-          <p style={{ fontSize: 13, color: "var(--text-muted)" }}>Plans written by your teachers, newest first</p>
-        </div>
-        <button onClick={load} disabled={loading} style={ghostBtnStyle}>
-          <RefreshCw size={14} /> Refresh
-        </button>
-      </div>
+    <div>
+      <ModuleHeader
+        title="Lesson Plans"
+        subtitle="Review the plans your teachers have written"
+        actions={<Btn variant="secondary" icon={<RefreshCw size={15} />} onClick={load}>Refresh</Btn>}
+      />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 16 }}>
-        <KpiCard label="Total plans" value={plans.length} icon={ClipboardList} />
-        <KpiCard label="Planned" value={count("planned")} icon={Calendar} accent="warning" />
-        <KpiCard label="In progress" value={count("in-progress")} icon={Loader2} accent="info" />
-        <KpiCard label="Completed" value={count("completed")} icon={CheckCircle} accent="success" />
-      </div>
+      {error && <Notice tone="danger">Could not load lesson plans: {error}</Notice>}
+      {notice && <Notice tone={notice.tone} onDismiss={() => setNotice(null)}>{notice.text}</Notice>}
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-        <div style={{ position: "relative", flex: "1 1 220px", minWidth: 200 }}>
-          <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search topic, teacher, class, subject…"
-            style={{ ...selectStyle, width: "100%", paddingLeft: 34 }}
-          />
-        </div>
-        <select value={teacherFilter} onChange={(e) => setTeacherFilter(e.target.value)} style={selectStyle}>
-          <option value="all">All teachers</option>
-          {options.teachers.map((t) => <option key={t} value={t}>{t}</option>)}
-        </select>
-        <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} style={selectStyle}>
-          <option value="all">All classes</option>
-          {options.classes.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)} style={selectStyle}>
-          <option value="all">All subjects</option>
-          {options.subjects.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={selectStyle}>
-          <option value="all">All statuses</option>
-          <option value="planned">Planned</option>
-          <option value="in-progress">In progress</option>
-          <option value="completed">Completed</option>
-        </select>
-      </div>
+      <StatGrid>
+        <StatCard label="Total plans" value={plans.length} />
+        <StatCard label="Awaiting review" value={counts.pending} tone={counts.pending ? "warning" : undefined} />
+        <StatCard label="Approved" value={counts.approved} tone="success" />
+        <StatCard label="Changes requested" value={counts.changes} tone={counts.changes ? "danger" : undefined} />
+      </StatGrid>
 
-      {error && (
-        <div style={{ padding: 14, borderRadius: "var(--radius-md)", background: "var(--danger-pale)", color: "var(--danger-light)", fontSize: 13 }}>
-          Could not load lesson plans: {error}
+      {missing.length > 0 && (
+        <div className="alert alert--warning" style={{ marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+          <div style={{ flex: "1 1 260px" }}>
+            <strong>No lesson plan yet this week: {missing.length} teacher{missing.length === 1 ? "" : "s"}</strong>
+            <div style={{ fontSize: 12.5, marginTop: 2 }}>
+              {missing.slice(0, 6).map((t) => `${t.name} (${t.lessons} lesson${t.lessons === 1 ? "" : "s"})`).join(", ")}
+              {missing.length > 6 ? ` and ${missing.length - 6} more` : ""}
+            </div>
+          </div>
+          <Btn size="sm" variant="secondary" icon={<BellRing size={14} />} loading={busy} onClick={() => remind(missing)}>Remind on WhatsApp</Btn>
         </div>
       )}
 
-      {loading ? (
-        <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>
-          <div className="spinner" style={{ width: 28, height: 28 }} />
+      <div className="flex items-center gap-3 mb-4" style={{ flexWrap: "wrap" }}>
+        <FilterBar
+          value={review}
+          onChange={setReview}
+          options={[
+            { id: "pending", label: "Awaiting review", count: counts.pending },
+            { id: "changes", label: "Changes requested", count: counts.changes },
+            { id: "approved", label: "Approved", count: counts.approved },
+            { id: "all", label: "All", count: plans.length },
+          ]}
+        />
+        <div className="search-wrapper" style={{ maxWidth: 260 }}>
+          <Search size={15} className="search-icon" />
+          <input className="search-input" placeholder="Search topic, teacher, class…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-      ) : filtered.length === 0 ? (
-        <div className="card" style={{ padding: 48, textAlign: "center", color: "var(--text-muted)" }}>
-          <BookOpen size={32} style={{ margin: "0 auto 12px" }} />
-          <p style={{ fontSize: 14 }}>
-            {plans.length === 0 ? "No teacher has created a lesson plan yet." : "No lesson plans match your filters."}
-          </p>
-        </div>
+        <select className="search-input" style={{ maxWidth: 170 }} value={teacherFilter} onChange={(e) => setTeacherFilter(e.target.value)}>
+          <option value="all">All teachers</option>
+          {options.teachers.map((t) => <option key={t}>{t}</option>)}
+        </select>
+        <select className="search-input" style={{ maxWidth: 160 }} value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)}>
+          <option value="all">All subjects</option>
+          {options.subjects.map((s) => <option key={s}>{s}</option>)}
+        </select>
+      </div>
+
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={<BookOpen size={28} />}
+          title={plans.length === 0 ? "No teacher has created a lesson plan yet" : review === "pending" ? "Nothing is waiting for review" : "No lesson plans match"}
+          sub={plans.length === 0 ? "Plans appear here as soon as teachers write them." : "Try another filter."}
+        />
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
-          {filtered.map((plan) => <PlanCard key={plan.id} plan={plan} onView={setViewPlan} />)}
+          {filtered.map((p) => <PlanCard key={p.id} plan={p} onOpen={setOpen} />)}
         </div>
       )}
 
-      {viewPlan && <ViewModal plan={viewPlan} onClose={() => setViewPlan(null)} />}
+      {open && <ReviewDialog plan={open} onClose={() => setOpen(null)} onDecide={decide} busy={busy} />}
     </div>
   );
 }

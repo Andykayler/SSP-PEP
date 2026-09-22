@@ -10,6 +10,7 @@ import {
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { Check } from "lucide-react";
 import AuthLayout from "../components/auth/AuthLayout";
+import { apiPost } from "../services/api";
 import "./signin.css";
 
 const ROLES = {
@@ -19,6 +20,7 @@ const ROLES = {
   class_teacher: { label: "Class Teacher",   redirectTo: "/teacher" },
   bursar:        { label: "Bursar / Fees",   redirectTo: "/bursar"  },
   librarian:     { label: "Librarian",       redirectTo: "/library" },
+  superadmin:    { label: "Platform Owner",  redirectTo: "/platform" },
 };
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -296,6 +298,87 @@ const ForceChangePassword = ({ firebaseUser, redirectTo, userDisplayName }) => {
   );
 };
 
+// ─── Two-step sign-in ─────────────────────────────────────────────────────────
+// The code is checked on the server (api/auth/otp.js); nothing here can decide
+// that a code is right.
+const OtpStep = ({ to, onVerified, onCancel }) => {
+  const [code, setCode]       = useState("");
+  const [busy, setBusy]       = useState(false);
+  const [error, setError]     = useState("");
+  const [cooldown, setCooldown] = useState(45);
+  const [resent, setResent]   = useState(false);
+
+  useEffect(() => {
+    if (cooldown <= 0) return undefined;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  const verify = async (e) => {
+    e.preventDefault();
+    if (code.length !== 6) return;
+    setBusy(true); setError("");
+    try {
+      await apiPost("/api/auth/otp", { action: "verify", purpose: "login", code });
+      onVerified();
+    } catch (err) {
+      setError(err.message || "That code isn't right.");
+      setBusy(false);
+    }
+  };
+
+  const resend = async () => {
+    setError(""); setResent(false);
+    try {
+      await apiPost("/api/auth/otp", { action: "request", purpose: "login" });
+      setCooldown(45); setResent(true);
+    } catch (err) {
+      setError(err.message || "Couldn't send a new code.");
+    }
+  };
+
+  return (
+    <div className="la-card">
+      <p className="lp-eyebrow">Two-step sign-in</p>
+      <h1 className="form-heading">Enter your code</h1>
+      <p className="form-hint">We sent a 6-digit code on WhatsApp to <strong>{to}</strong>. It expires in 10 minutes.</p>
+
+      {error && (
+        <div className="auth-error"><span className="auth-error-icon"><IconWarn /></span><p className="auth-error-msg">{error}</p></div>
+      )}
+      {resent && !error && <p className="security-note" style={{ marginTop: 0, marginBottom: 14 }}>A new code is on its way.</p>}
+
+      <form onSubmit={verify} noValidate>
+        <div className="field-group">
+          <label className="field-label" htmlFor="otp-code">6-digit code</label>
+          <input
+            id="otp-code"
+            className="field-input"
+            style={{ paddingLeft: 14, letterSpacing: "0.4em", fontSize: 22, textAlign: "center" }}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            autoFocus
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            placeholder="••••••"
+          />
+        </div>
+        <button type="submit" className="submit-btn" disabled={busy || code.length !== 6}>
+          {busy ? <><Spinner /> Checking…</> : <>Verify <IconArrow /></>}
+        </button>
+      </form>
+
+      <div className="row-between" style={{ marginTop: 18 }}>
+        <button type="button" className="forgot-btn" onClick={resend} disabled={cooldown > 0} style={cooldown > 0 ? { opacity: 0.5, cursor: "default" } : undefined}>
+          {cooldown > 0 ? `Resend code in ${cooldown}s` : "Resend code"}
+        </button>
+        <button type="button" className="forgot-btn" onClick={onCancel}>Use a different account</button>
+      </div>
+    </div>
+  );
+};
+
 // ─── Side panel ─────────────────────────────────────────────────────────────────
 // Decorative: a teacher's to-do sheet, the same paper object as on the landing page.
 const TodaySheet = () => (
@@ -319,6 +402,8 @@ export default function SignIn() {
   const [loading, setLoading]     = useState(false);
   const [authError, setAuthError] = useState("");
   const [showForgot, setShowForgot] = useState(false);
+  // Set once the password has been accepted and a WhatsApp code is awaited.
+  const [otp, setOtp] = useState(null);
 
   // Force-change password state
   const [mustChangePw, setMustChangePw]     = useState(false);
@@ -365,7 +450,7 @@ export default function SignIn() {
       }
 
       const userData = userSnap.data();
-      const allowedRoles = ["admin", "director", "head_teacher", "class_teacher", "bursar"];
+      const allowedRoles = ["admin", "director", "head_teacher", "class_teacher", "bursar", "librarian", "superadmin"];
 
       if (!allowedRoles.includes(userData.role)) {
         await signOut(auth);
@@ -387,6 +472,20 @@ export default function SignIn() {
         return;
       }
 
+      // Two-step sign-in: the password was right, but this account also
+      // wants a code sent to its WhatsApp number before it lets anyone in.
+      if (userData.twoFactor === true) {
+        try {
+          const sent = await apiPost("/api/auth/otp", { action: "request", purpose: "login" });
+          setOtp({ destination, to: sent.to });
+        } catch (otpErr) {
+          await signOut(auth);
+          setAuthError(otpErr.message || "Couldn't send your sign-in code. Please try again.");
+        }
+        setLoading(false);
+        return;
+      }
+
       // Normal login — redirect immediately, no welcome card
       window.location.href = destination;
 
@@ -403,6 +502,19 @@ export default function SignIn() {
       setLoading(false);
     }
   };
+
+  // ── Waiting for the WhatsApp code ──
+  if (otp) {
+    return (
+      <AuthLayout>
+        <OtpStep
+          to={otp.to}
+          onVerified={() => { window.location.href = otp.destination; }}
+          onCancel={async () => { await signOut(auth); setOtp(null); setPassword(""); }}
+        />
+      </AuthLayout>
+    );
+  }
 
   // ── Show force-change screen ──
   if (mustChangePw && fbUser) {

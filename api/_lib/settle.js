@@ -19,6 +19,7 @@ import { adminDb, FieldValue } from "./firebaseAdmin.js";
 import {
   verifyTransaction, verifyDirectCharge, mobileMoneyOperatorRef, initiateMobileMoneyPayout,
 } from "./paychangu.js";
+import { paidThroughAfter } from "../../src/services/subscriptionState.js";
 
 export const TX_COLLECTION = "payment_transactions";
 
@@ -286,8 +287,16 @@ async function recordSubscriptionPayment(tx, verified) {
   // The school is now a paying customer. `paidThroughLabel` is what the
   // Billing page shows instead of "Trial", so an admin who has just paid sees
   // it reflected without waiting for anyone at Acalink to act.
-  await adminDb.collection("schools").doc(tx.schoolCode).set({
+  // How long this payment carries the school. Paying early extends from the
+  // existing date rather than restarting the clock, so nobody loses days by
+  // renewing ahead of time. Without this the school could never lapse.
+  const schoolRef = adminDb.collection("schools").doc(tx.schoolCode);
+  const current = (await schoolRef.get()).data() || {};
+  const paidThrough = new Date(paidThroughAfter(tx.cadence, current.paidThrough));
+
+  await schoolRef.set({
     subscription_status: "active",
+    paidThrough,
     billing_cadence: tx.cadence || "",
     lastPaymentAt: FieldValue.serverTimestamp(),
     lastPaymentAmount: Math.round(Number(tx.amount || 0)),

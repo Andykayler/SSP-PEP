@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { auth, db } from "../../firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { signOut, onAuthStateChanged } from "firebase/auth";
-import { Users, Calendar, Award, AlertTriangle, Bell, Home, FileText, UserCheck, ClipboardCheck, MessageSquare, CalendarDays, GraduationCap, Wallet, BedDouble, Package, UserPlus, BookOpen } from "lucide-react";
+import { Users, Calendar, Award, AlertTriangle, Bell, Home, FileText, UserCheck, ClipboardCheck, MessageSquare, CalendarDays, GraduationCap, Wallet, BedDouble, Package, UserPlus, BookOpen, HeartPulse, Bus, CalendarOff, ClipboardList } from "lucide-react";
 
 import DashboardShell from "../../components/DashboardShell";
 import TermCard from "../../components/TermCard";
@@ -11,6 +11,11 @@ import StudentManagement from "./modules/student";
 import ClassAndStreamModule from "./modules/ClassModule";
 import TimetableModule from "./modules/TimetableModule";
 import LessonPlansModule from "./modules/classplanning";
+import ExamsModule from "./modules/ExamsModule";
+import AtRiskModule from "./modules/AtRiskModule";
+import TransportModule from "./modules/TransportModule";
+import LeaveModule from "../../components/leave/LeaveModule";
+import HealthModule from "../../components/health/HealthModule";
 import ClassSessionsModule from "./modules/ClassSessionsModule";
 import AttendanceOverview from "./modules/AttendanceModule";
 import DisciplineOverview from "./modules/DisciplineModule";
@@ -131,7 +136,7 @@ export default function HeadTeacherDashboard() {
     { id: "classes", label: "Classes & Streams", icon: <Users className="w-5 h-5" />, component: <ClassAndStreamModule schoolCode={schoolCode} currentUser={currentUser} /> },
     { id: "messages", label: "Parent Messages", icon: <MessageSquare className="w-5 h-5" />, component: <MessagesModule key={pendingConversationId || "inbox"} schoolCode={schoolCode} currentUser={currentUser} initialConversationId={pendingConversationId} /> },
     { id: "timetable", label: "Timetable", icon: <Calendar className="w-5 h-5" />, component: <TimetableModule schoolCode={schoolCode} /> },
-    { id: "lessonplans", label: "Lesson Plans", icon: <BookOpen className="w-5 h-5" />, component: <LessonPlansModule schoolCode={schoolCode} /> },
+    { id: "lessonplans", label: "Lesson Plans", icon: <BookOpen className="w-5 h-5" />, component: <LessonPlansModule schoolCode={schoolCode} currentUser={currentUser} /> },
     { id: "classmonitor", label: "Class Monitor", icon: <ClipboardCheck className="w-5 h-5" />, component: <ClassSessionsModule schoolCode={schoolCode} /> },
     { id: "attendance", label: "Attendance Overview", icon: <UserCheck className="w-5 h-5" />, component: <AttendanceOverview schoolCode={schoolCode} /> },
     { id: "performance", label: "Performance Analytics", icon: <Award className="w-5 h-5" />, component: <PerformanceAnalytics schoolCode={schoolCode} /> },
@@ -141,6 +146,11 @@ export default function HeadTeacherDashboard() {
     { id: "announcements", label: "Announcements", icon: <Bell className="w-5 h-5" />, component: <AnnouncementsModule schoolCode={schoolCode} userId={uid} userName={displayName} /> },
     { id: "calendar", label: "School Calendar", icon: <CalendarDays className="w-5 h-5" />, component: <CalendarModule schoolCode={schoolCode} currentUser={currentUser} /> },
     { id: "readiness", label: "Exam Readiness", icon: <GraduationCap className="w-5 h-5" />, component: <ExamReadiness schoolCode={schoolCode} /> },
+    { id: "exams", label: "Exams", icon: <ClipboardList className="w-5 h-5" />, component: <ExamsModule schoolCode={schoolCode} currentUser={currentUser} /> },
+    { id: "atrisk", label: "At-Risk Learners", icon: <HeartPulse className="w-5 h-5" />, component: <AtRiskModule schoolCode={schoolCode} currentUser={currentUser} /> },
+    { id: "leave", label: "Leave & Cover", icon: <CalendarOff className="w-5 h-5" />, component: <LeaveModule schoolCode={schoolCode} currentUser={currentUser} mode="head" /> },
+    { id: "health", label: "Health", icon: <HeartPulse className="w-5 h-5" />, component: <HealthModule schoolCode={schoolCode} currentUser={currentUser} mode="lead" /> },
+    { id: "transport", label: "Transport", icon: <Bus className="w-5 h-5" />, component: <TransportModule schoolCode={schoolCode} currentUser={currentUser} /> },
     { id: "arrears", label: "Arrears & Clearance", icon: <Wallet className="w-5 h-5" />, component: <ArrearsModule schoolCode={schoolCode} currentUser={currentUser} canDecide /> },
     { id: "admissions", label: "Admissions", icon: <UserPlus className="w-5 h-5" />, component: <Admissions schoolCode={schoolCode} currentUser={currentUser} schoolBoards={boards(settings)} /> },
     ...(boards(settings)

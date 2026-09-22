@@ -70,6 +70,9 @@ const TRIGGER_RE = /\b(make\s*a?\s*payment|pay\s*(my\s*)?fees?|pay\s*now|i\s*wan
 const YES_RE = /^\s*(yes|y|confirm|full|all|pay)\s*$/i;
 const NO_RE = /^\s*(no|n|cancel|stop)\s*$/i;
 const CHECK_RE = /^\s*check\s*$/i;
+/** Opting out of, and back into, the school's WhatsApp alerts. */
+const STOP_RE = /^\s*(stop|unsubscribe|imani)\s*$/i;
+const START_RE = /^\s*(start|subscribe|yambani)\s*$/i;
 const AIRTEL_RE = /^\s*(1|airtel)\s*$/i;
 const TNM_RE = /^\s*(2|tnm|mpamba)\s*$/i;
 const CARD_RE = /^\s*(3|card|bank)\s*$/i;
@@ -415,7 +418,38 @@ async function handleCheckCommand(senderPhone) {
   }
 }
 
+/**
+ * A guardian who replies STOP stops receiving the school's alerts. This is not
+ * a courtesy: the alerts go out from one real WhatsApp number, and a number
+ * that people report as spam gets banned, taking every school's alerts down
+ * with it. The delivery function (functions/index.js) checks this list before
+ * every guardian message.
+ *
+ * STOP only counts when no payment conversation is open, because "stop" is also
+ * how someone abandons a half-finished payment (NO_RE below).
+ */
+async function optOut(senderPhone) {
+  await adminDb.collection("wa_optouts").doc(senderPhone.replace(/[^\d]/g, "")).set({
+    phone: senderPhone, optedOutAt: new Date(),
+  });
+  await reply(senderPhone,
+    "You will no longer receive WhatsApp alerts from your school. Reply START to receive them again.\n\n"
+    + "Simudzalandiranso mauthenga a sukulu pa WhatsApp. Tumizani START kuti mulandirenso.");
+}
+
+async function optIn(senderPhone) {
+  const ref = adminDb.collection("wa_optouts").doc(senderPhone.replace(/[^\d]/g, ""));
+  if (!(await ref.get()).exists) return;             // never opted out: stay silent
+  await ref.delete();
+  await reply(senderPhone,
+    "Welcome back. You will receive your school's WhatsApp alerts again.\n\n"
+    + "Zikomo, mudzalandiranso mauthenga a sukulu pa WhatsApp.");
+}
+
 async function route(senderPhone, text) {
+  if (STOP_RE.test(text) && !(await getSession(senderPhone))) return optOut(senderPhone);
+  if (START_RE.test(text)) return optIn(senderPhone);
+
   if (NO_RE.test(text)) {
     const had = await getSession(senderPhone);
     if (had) {
