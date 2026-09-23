@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { auth, db } from "../../../firebase";
 import {
-  doc, getDoc, collection, getDocs, setDoc, updateDoc, deleteDoc, query, where, serverTimestamp,
+  doc, collection, getDocs, setDoc, updateDoc, query, where, serverTimestamp,
 } from "firebase/firestore";
 import { createUserWithEmailAndPassword, getAuth, signOut as secondarySignOut } from "firebase/auth";
 import { initializeApp, deleteApp } from "firebase/app";
@@ -22,6 +22,8 @@ import {
 import { downloadCsv } from "../../../services/csv";
 import { subscribeCampuses, describeScope, isMultiCampus } from "../../../services/campuses";
 import { subscribeSchoolSettings } from "../../../services/academicTerm";
+import { apiPost } from "../../../services/api";
+import { isDeactivated } from "../../../services/staffAccountCore";
 
 // Roles that are school-wide by their nature. A director oversees every
 // campus — that is what the job is — so offering to restrict one to a single
@@ -120,7 +122,11 @@ export default function UserManagement({ schoolCode, schoolName }) {
   const [roleFilter, setRoleFilter]       = useState("all");
   const [showAdd, setShowAdd]             = useState(false);
   const [showEdit, setShowEdit]           = useState(null);
-  const [showDelete, setShowDelete]       = useState(null);
+  // The account being deactivated, while the confirmation is open.
+  const [confirmDeactivate, setConfirmDeactivate] = useState(null);
+  // People who left this school for another one (former_staff). They can be
+  // taken back, which restores the profile they had here.
+  const [formerStaff, setFormerStaff]     = useState([]);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError]                 = useState("");
   const [successMsg, setSuccessMsg]       = useState("");
@@ -144,7 +150,61 @@ export default function UserManagement({ schoolCode, schoolName }) {
       const snap = await getDocs(q);
       setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => u.role !== "admin" && u.role !== "student"));
     } catch (e) { console.error(e); }
+    try {
+      const former = await getDocs(query(collection(db, "former_staff"), where("schoolCode", "==", schoolCode)));
+      setFormerStaff(former.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (e) { console.error("former staff:", e); }
     setLoading(false);
+  }
+
+  // Email + SMS with the sign-in details. Shared by a brand-new account and a
+  // person taken on from another school (who gets a fresh password too).
+  async function sendCredentials({ name, email, role, phone, password }) {
+    const emailSent = await sendEmail({
+      templateId: EMAILJS_STAFF_TEMPLATE_ID,
+      toEmail: email,
+      toName:  name,
+      params: {
+        school_name: schoolName,
+        user_role:   roleMap[role]?.label || role,
+        login_email: email,
+        password,
+        login_url:   `${APP_URL}/login`,
+      },
+    });
+    let smsSent = false;
+    if (phone) {
+      const smsResult = await sendSms(
+        phone,
+        `Welcome to ${schoolName}!\nYour account has been created.\nRole: ${roleMap[role]?.label || role}\nEmail: ${email}\nPassword: ${password}\nLogin: ${APP_URL}/login\n\nChange your password after first login.`
+      );
+      smsSent = smsResult.success;
+    }
+    return [emailSent && "email", smsSent && "SMS"].filter(Boolean).join(" & ");
+  }
+
+  // The email already has a login: someone who worked at a school on Acalink
+  // before. The server decides whether they can join (they must have been
+  // deactivated wherever they were) and starts them here as new staff.
+  async function hireExisting(phone) {
+    const res = await apiPost("/api/staff/account", {
+      action: "hire",
+      email: form.email.trim(),
+      name: form.name.trim(),
+      role: form.role,
+      phone,
+      allCampuses: form.allCampuses,
+      campusIds: form.campusIds,
+    });
+    const channels = await sendCredentials({
+      name: form.name.trim(), email: form.email.trim(), role: form.role, phone, password: res.password,
+    });
+    setShowAdd(false);
+    setForm({ name: "", email: "", role: "", phone: "", allCampuses: false, campusIds: [] });
+    setSuccessMsg(res.returning
+      ? `Welcome back — ${form.name.trim()}'s previous record at this school has been restored. New sign-in details sent via ${channels || "— check manually"}.`
+      : `${form.name.trim()} has joined as new staff. Nothing from their previous school carries over. Sign-in details sent via ${channels || "— check manually"}.`);
+    fetchUsers();
   }
 
   function validateForm(f) {
@@ -183,29 +243,9 @@ export default function UserManagement({ schoolCode, schoolName }) {
         createdAt: serverTimestamp(),
       });
 
-      // ── Email notification ──
-      const emailSent = await sendEmail({
-        templateId: EMAILJS_STAFF_TEMPLATE_ID,
-        toEmail: form.email.trim(),
-        toName:  form.name.trim(),
-        params: {
-          school_name: schoolName,
-          user_role:   roleMap[form.role]?.label || form.role,
-          login_email: form.email.trim(),
-          password:    autoPassword,
-          login_url:   `${APP_URL}/login`,
-        },
+      const channels = await sendCredentials({
+        name: form.name.trim(), email: form.email.trim(), role: form.role, phone, password: autoPassword,
       });
-
-      // ── SMS notification (if phone provided) ──
-      let smsSent = false;
-      if (phone) {
-        const smsResult = await sendSms(
-          phone,
-          `Welcome to ${schoolName}!\nYour account has been created.\nRole: ${roleMap[form.role]?.label || form.role}\nEmail: ${form.email.trim()}\nPassword: ${autoPassword}\nLogin: ${APP_URL}/login\n\nChange your password after first login.`
-        );
-        smsSent = smsResult.success;
-      }
 
       // In-app notices: leadership sees the new colleague, and the colleague
       // has something waiting the first time they sign in.
@@ -228,15 +268,19 @@ export default function UserManagement({ schoolCode, schoolName }) {
       });
 
       setShowAdd(false);
-      setForm({ name: "", email: "", role: "", phone: "" });
-
-      const channels = [emailSent && "email", smsSent && "SMS"].filter(Boolean).join(" & ");
+      setForm({ name: "", email: "", role: "", phone: "", allCampuses: false, campusIds: [] });
       setSuccessMsg(`Account created! Credentials sent via ${channels || "— check manually"}.`);
       fetchUsers();
     } catch (err) {
-      setError(err.code === "auth/email-already-in-use"
-        ? "This email is already registered."
-        : "Failed: " + err.message);
+      if (err.code === "auth/email-already-in-use") {
+        try {
+          await hireExisting(phone);
+        } catch (hireErr) {
+          setError(hireErr.message);
+        }
+      } else {
+        setError("Failed: " + err.message);
+      }
     }
     setActionLoading(false);
   }
@@ -258,41 +302,31 @@ export default function UserManagement({ schoolCode, schoolName }) {
     setActionLoading(false);
   }
 
-  async function toggleStatus(user) {
+  // Accounts are never deleted. Deactivating keeps the profile and every
+  // record the person made, disables their login, and signs them out.
+  async function setActive(user, active) {
+    setActionLoading(true); setError(""); setSuccessMsg("");
     try {
-      await updateDoc(doc(db, "users", user.id), {
-        status: user.status === "active" ? "suspended" : "active",
-      });
-      fetchUsers();
-    } catch (err) { console.error(err); }
-  }
-
-  async function handleDelete() {
-    setActionLoading(true);
-    // Fetch both docs to compare schoolCodes
-    const adminDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
-    const targetDoc = await getDoc(doc(db, "users", showDelete.id));
-
-    console.log("Admin schoolCode :", adminDoc.data()?.schoolCode);
-    console.log("Target schoolCode:", targetDoc.data()?.schoolCode);
-    console.log("Match:", adminDoc.data()?.schoolCode === targetDoc.data()?.schoolCode);
-    try {
-      const res = await fetch("/api/delete-user", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uid: showDelete.id }),
-      });
-      const data = await res.json();
-      console.log("Delete response:", res.status, data);
-      if (!res.ok) throw new Error(data.error || "Auth deletion failed");
-      await deleteDoc(doc(db, "users", showDelete.id));
-      setShowDelete(null);
+      await apiPost("/api/staff/account", { action: active ? "reactivate" : "deactivate", uid: user.id });
+      setConfirmDeactivate(null);
+      setSuccessMsg(active
+        ? `${user.name} is active again. Their records at this school carry on as before.`
+        : `${user.name} has been deactivated and signed out. Their records stay with the school.`);
       fetchUsers();
     } catch (err) {
-      console.error("Delete error:", err);
-      setError("Delete failed: " + err.message);
+      setError(err.message);
     }
     setActionLoading(false);
+  }
+
+  // Taking back someone who left for another school: the Add form, prefilled.
+  // The server finds their old record here and restores it.
+  function openRehire(person) {
+    setForm({
+      name: person.name || "", email: person.email || "", role: person.role || "", phone: person.phone || "",
+      allCampuses: Boolean(person.profile?.allCampuses), campusIds: person.profile?.campusIds || [],
+    });
+    setFormErrors({}); setError(""); setShowAdd(true);
   }
 
   function openEdit(user) {
@@ -332,6 +366,9 @@ export default function UserManagement({ schoolCode, schoolName }) {
 
       {successMsg && (
         <div className="alert alert--success">{IC.mail}<span>{successMsg}</span></div>
+      )}
+      {error && !showAdd && !showEdit && !confirmDeactivate && (
+        <div className="alert alert--error">{IC.warning}<span>{error}</span></div>
       )}
 
       <div className="filter-pills">
@@ -388,13 +425,18 @@ export default function UserManagement({ schoolCode, schoolName }) {
                         {describeScope(u, campuses)}
                       </td>
                     )}
-                    <td data-label="Status"><StatusPill active={u.status !== "suspended"} /></td>
+                    <td data-label="Status">
+                      <StatusPill active={!isDeactivated(u)} label={isDeactivated(u) ? "Deactivated" : "Active"} />
+                    </td>
                     <td style={{ fontSize: 12, color: "var(--text3)" }} data-label="Added">{fmtDate(u.createdAt)}</td>
                     <td data-label="Actions">
                       <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
                         <ActionBtn onClick={() => openEdit(u)} icon={IC.edit} title="Edit" />
-                        <ActionBtn onClick={() => toggleStatus(u)} icon={IC.shield} title={u.status === "suspended" ? "Activate" : "Suspend"} hoverBg="rgba(251,191,36,0.12)" />
-                        <ActionBtn onClick={() => setShowDelete(u)} icon={IC.trash} title="Delete" hoverBg="rgba(239,68,68,0.1)" />
+                        {isDeactivated(u) ? (
+                          <ActionBtn onClick={() => setActive(u, true)} icon={IC.shield} title="Reactivate" hoverBg="rgba(34,197,94,0.12)" />
+                        ) : (
+                          <ActionBtn onClick={() => { setError(""); setConfirmDeactivate(u); }} icon={IC.shield} title="Deactivate" hoverBg="rgba(251,191,36,0.12)" />
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -412,7 +454,7 @@ export default function UserManagement({ schoolCode, schoolName }) {
             {error && <div className="alert alert--error">{IC.warning}<span>{error}</span></div>}
             <div className="alert alert--info">
               {IC.mail}
-              <span>A secure auto-generated password will be sent to the user by email and/or SMS upon account creation.</span>
+              <span>A secure auto-generated password will be sent to the user by email and/or SMS. If they already have an Acalink account from another school, it must be deactivated there first; they join you as new staff and nothing from that school carries over.</span>
             </div>
             <div className="grid-2">
               <Input label="Full Name" required value={form.name} onChange={e => setForm(p => ({...p, name: e.target.value}))} placeholder="Jane Mwale" error={formErrors.name} />
@@ -480,23 +522,64 @@ export default function UserManagement({ schoolCode, schoolName }) {
         </Modal>
       )}
 
-      {/* ── Delete User Modal ── */}
-      {showDelete && (
-        <Modal title="Delete User" onClose={() => setShowDelete(null)} size="md">
+      {/* ── Deactivate confirmation ── */}
+      {confirmDeactivate && (
+        <Modal title="Deactivate account" onClose={() => setConfirmDeactivate(null)} size="md">
           <div className="space-y-4">
-            <div className="alert alert--error">
+            {error && <div className="alert alert--error">{IC.warning}<span>{error}</span></div>}
+            <div className="alert alert--warning">
               {IC.warning}
               <div>
-                <p style={{ fontWeight: 600, fontSize: 13, marginBottom: 3 }}>This cannot be undone.</p>
-                <p style={{ fontSize: 12 }}>The Firestore record for <strong>{showDelete.name}</strong> will be permanently deleted. Their Firebase Auth account must be removed separately.</p>
+                <p style={{ fontWeight: 600, fontSize: 13, marginBottom: 3 }}>
+                  {confirmDeactivate.name} will be signed out and won&apos;t be able to sign in.
+                </p>
+                <p style={{ fontSize: 12 }}>
+                  Their registers, marks, lesson plans and messages stay with {schoolName}. You can reactivate them at
+                  any time and everything carries on. Once deactivated, another school can take them on as new staff —
+                  none of this school&apos;s records go with them.
+                </p>
               </div>
             </div>
             <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <Btn variant="ghost" onClick={() => setShowDelete(null)}>Cancel</Btn>
-              <Btn variant="danger" loading={actionLoading} onClick={handleDelete}>Delete User</Btn>
+              <Btn variant="ghost" onClick={() => setConfirmDeactivate(null)}>Cancel</Btn>
+              <Btn variant="danger" loading={actionLoading} onClick={() => setActive(confirmDeactivate, false)}>Deactivate</Btn>
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* ── Former staff: moved to another school ── */}
+      {formerStaff.length > 0 && (
+        <div className="card">
+          <div className="cc__head">
+            <div className="cc__head-left"><h3>Former staff</h3></div>
+          </div>
+          <p className="module-sub" style={{ padding: "12px 20px 0" }}>
+            People who left for another school. Taking them back restores the record they had here.
+          </p>
+          <div className="data-table-wrap">
+            <table className="data-table data-table--stack">
+              <thead>
+                <tr><th>Name</th><th>Role here</th><th>Left</th><th style={{ textAlign: "right" }}>Actions</th></tr>
+              </thead>
+              <tbody>
+                {formerStaff.map((f) => (
+                  <tr key={f.id}>
+                    <td data-label="Name">
+                      <div className="data-table__primary">{f.name}</div>
+                      <div className="data-table__meta">{f.email}</div>
+                    </td>
+                    <td data-label="Role here"><RoleBadge role={f.role} /></td>
+                    <td data-label="Left" style={{ fontSize: 12, color: "var(--text3)" }}>{fmtDate(f.leftAt)}</td>
+                    <td data-label="Actions" style={{ textAlign: "right" }}>
+                      <Btn size="sm" variant="primary" onClick={() => openRehire(f)}>Take back</Btn>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {/* ── Bulk import ── */}

@@ -44,8 +44,19 @@ service cloud.firestore {
     function isLibrarian() {
       return myData().role == "librarian";
     }
+    // Membership of a school means an ACTIVE account there. A deactivated
+    // member keeps their profile (so their records stay attributed and can
+    // resume if they are reactivated) but loses every right that flows from
+    // belonging to the school. Their login is also disabled server-side
+    // (api/staff/account.js); this covers the session token they already
+    // hold, which stays valid for up to an hour. "suspended" is the older
+    // name for the same state. myData() is fetched once per evaluation, so
+    // the extra field check costs no document reads.
+    function isActiveAccount() {
+      return !(myData().get('status', 'active') in ['deactivated', 'suspended']);
+    }
     function sameSchool(schoolCode) {
-      return myData().schoolCode == schoolCode;
+      return myData().schoolCode == schoolCode && isActiveAccount();
     }
 
     // Whether a school may currently WRITE its own data. A school that is
@@ -121,7 +132,7 @@ service cloud.firestore {
       return isSignedIn() && !isAnonParent();
     }
     function isStaffOfSchool(schoolCode) {
-      return isStaff() && myData().schoolCode == schoolCode;
+      return isStaff() && myData().schoolCode == schoolCode && isActiveAccount();
     }
     // A guardian's inbox address. Matches `parentRecipientId()` in
     // src/services/notifications.js and notifications_service.dart.
@@ -241,17 +252,11 @@ service cloud.firestore {
                     sameSchool(resource.data.schoolCode) &&
                     schoolIsActive(resource.data.schoolCode);
 
-      // An administrator deletes staff at their OWN school.
-      //
-      // This was previously unrestricted, with a comment saying so — an
-      // administrator at any school could delete any user account on the
-      // platform, including another school's head teacher. Nothing in the
-      // product needs that: User Management only ever lists, and only ever
-      // deletes, accounts from the signed-in administrator's own school.
-      allow delete: if request.auth != null &&
-                    isAdmin() &&
-                    sameSchool(resource.data.schoolCode) &&
-                    schoolIsActive(resource.data.schoolCode);
+      // Staff accounts are never deleted. Deleting one orphans everything the
+      // person recorded and frees their email for someone else to inherit.
+      // An administrator deactivates instead (api/staff/account.js), which
+      // keeps the profile and the school's records intact.
+      allow delete: if false;
 
       // Head teacher limited update
       allow update: if request.auth != null &&
@@ -260,6 +265,17 @@ service cloud.firestore {
                     schoolIsActive(resource.data.schoolCode) &&
                     request.resource.data.diff(resource.data).affectedKeys()
                       .hasOnly(['assignedClasses', 'assignedSubjects', 'status', 'updatedAt']);
+    }
+
+    // =============================================
+    // FORMER STAFF
+    // =============================================
+    // Written only by api/staff/account.js when someone a school deactivated
+    // is taken on by another school. The school they left keeps this record,
+    // and uses it to take them back later with their old profile restored.
+    match /former_staff/{recordId} {
+      allow read: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+      allow write: if false;
     }
 
     // =============================================
@@ -487,11 +503,16 @@ service cloud.firestore {
     // LESSON PLANS
     // =============================================
     match /lesson_plans/{planId} {
+      // Your own plans at the school you work at NOW. Without the school
+      // check, someone who moves schools would carry their old school's
+      // plans with them.
       allow read: if request.auth != null &&
-                  resource.data.teacherId == request.auth.uid;
+                  resource.data.teacherId == request.auth.uid &&
+                  sameSchool(resource.data.schoolCode);
 
       allow delete: if request.auth != null &&
                     resource.data.teacherId == request.auth.uid &&
+                    sameSchool(resource.data.schoolCode) &&
                     schoolIsActive(resource.data.schoolCode);
 
       // The author edits the plan but cannot mark it approved. The one review
@@ -499,6 +520,7 @@ service cloud.firestore {
       // after changes were asked for).
       allow update: if request.auth != null &&
                     resource.data.teacherId == request.auth.uid &&
+                    sameSchool(resource.data.schoolCode) &&
                     schoolIsActive(resource.data.schoolCode) &&
                     !request.resource.data.diff(resource.data).affectedKeys()
                       .hasAny(['review', 'reviewedAt', 'reviewedBy', 'reviewedByName']) &&
@@ -516,6 +538,7 @@ service cloud.firestore {
 
       allow create: if request.auth != null &&
                     request.resource.data.teacherId == request.auth.uid &&
+                    sameSchool(request.resource.data.schoolCode) &&
                     schoolIsActive(request.resource.data.schoolCode);
 
       allow read: if request.auth != null &&
@@ -532,8 +555,8 @@ service cloud.firestore {
       // schoolCode + classId for the child's upcoming work.
       allow read: if isAnonParent() ||
                   (request.auth != null &&
-                   (resource.data.teacherId == request.auth.uid ||
-                    (isAdminOrHead() && sameSchool(resource.data.schoolCode))));
+                   sameSchool(resource.data.schoolCode) &&
+                   (resource.data.teacherId == request.auth.uid || isAdminOrHead()));
 
       allow create: if request.auth != null &&
                     request.resource.data.teacherId == request.auth.uid &&
@@ -542,11 +565,12 @@ service cloud.firestore {
 
       allow update: if request.auth != null &&
                     resource.data.teacherId == request.auth.uid &&
+                    sameSchool(resource.data.schoolCode) &&
                     schoolIsActive(resource.data.schoolCode);
 
       allow delete: if request.auth != null &&
-                    (resource.data.teacherId == request.auth.uid ||
-                     (isAdmin() && sameSchool(resource.data.schoolCode))) &&
+                    sameSchool(resource.data.schoolCode) &&
+                    (resource.data.teacherId == request.auth.uid || isAdmin()) &&
                     schoolIsActive(resource.data.schoolCode);
     }
 
@@ -564,14 +588,15 @@ service cloud.firestore {
   allow read: if isAnonParent() ||
               (request.auth != null &&
               (resource == null ||
-               resource.data.teacherId == request.auth.uid ||
-               (isAdminOrHead() && sameSchool(resource.data.schoolCode))));
+               (sameSchool(resource.data.schoolCode) &&
+                (resource.data.teacherId == request.auth.uid || isAdminOrHead()))));
 
   // Writes are confined to the open term. The portal already hides the
   // controls, but a hidden button is a courtesy, not a control — this is what
   // makes "a teacher cannot enter marks for a term that is not set" true.
   allow update: if request.auth != null &&
                 resource.data.teacherId == request.auth.uid &&
+                sameSchool(resource.data.schoolCode) &&
                 schoolIsActive(resource.data.schoolCode) &&
                 isWritableTerm(resource.data.schoolCode, request.resource.data.term);
 
@@ -641,9 +666,13 @@ service cloud.firestore {
       // any parent-addressed notification — the same trust level the parent app
       // already has on /students. Tightening this needs Firebase Phone Auth;
       // see the note at the bottom of this file.
+      // A staff inbox is per school: someone who moves schools does not bring
+      // the old school's notices along. The platform owner belongs to no
+      // school, so their inbox is theirs alone.
       allow read: if isAnonParent()
                      ? isParentAddress(resource.data.recipientId)
-                     : (isSignedIn() && resource.data.recipientId == request.auth.uid);
+                     : (isSignedIn() && resource.data.recipientId == request.auth.uid &&
+                        (isPlatformOwner() || sameSchool(resource.data.schoolCode)));
 
       // Staff raise notifications for their own school only.
       allow create: if isStaffOfSchool(request.resource.data.schoolCode) &&
@@ -837,7 +866,8 @@ service cloud.firestore {
       // session could already read any of them. The real fix is Phone Auth —
       // see the note at the bottom of this file.
       allow read: if isAnonParent() ||
-                     (isSignedIn() && request.auth.uid in resource.data.participantIds);
+                     (isSignedIn() && request.auth.uid in resource.data.participantIds &&
+                      sameSchool(resource.data.schoolCode));
 
       // Staff open a thread with one of their school's guardians.
       allow create: if isStaffOfSchool(request.resource.data.schoolCode) &&
@@ -858,6 +888,7 @@ service cloud.firestore {
                           touchesOnlyConversationFields())
                        : (isSignedIn() &&
                           request.auth.uid in resource.data.participantIds &&
+                          sameSchool(resource.data.schoolCode) &&
                           touchesOnlyConversationFields());
 
       allow delete: if isStaffOfSchool(resource.data.schoolCode) && isAdminOrHead();
@@ -868,12 +899,14 @@ service cloud.firestore {
         // against the rules engine's per-query document-access budget.
         allow read: if isAnonParent()
                        ? request.auth != null
-                       : (isSignedIn() && request.auth.uid in resource.data.participantIds);
+                       : (isSignedIn() && request.auth.uid in resource.data.participantIds &&
+                          sameSchool(conversationId.split('__')[0]));
 
         allow create: if isSignedIn() &&
                       !isAnonParent() &&
                       request.resource.data.senderId == request.auth.uid &&
-                      request.auth.uid in request.resource.data.participantIds;
+                      request.auth.uid in request.resource.data.participantIds &&
+                      sameSchool(conversationId.split('__')[0]);
 
         allow create: if isAnonParent() &&
                       request.resource.data.senderType == 'parent' &&
@@ -1040,9 +1073,9 @@ service cloud.firestore {
     // filters by their own staffId, the head teacher by schoolCode.
     // ─────────────────────────────────────────────────────────────────────────
     match /leave_requests/{requestId} {
-      allow read: if isStaff() && (
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode) && (
                     resource.data.staffId == request.auth.uid ||
-                    (isAdminOrHead() && sameSchool(resource.data.schoolCode)));
+                    isAdminOrHead());
 
       allow create: if isStaff() &&
                     request.resource.data.staffId == request.auth.uid &&
@@ -1052,6 +1085,7 @@ service cloud.firestore {
 
       allow update: if isStaff() && (
                     (resource.data.staffId == request.auth.uid &&
+                     sameSchool(resource.data.schoolCode) &&
                      resource.data.status == 'pending' &&
                      request.resource.data.status == 'cancelled' &&
                      request.resource.data.diff(resource.data).affectedKeys()

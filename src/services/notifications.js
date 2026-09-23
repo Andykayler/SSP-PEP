@@ -19,6 +19,7 @@ import {
   collection, doc, query, where, limit, onSnapshot, getDocs,
   writeBatch, updateDoc, serverTimestamp, deleteDoc,
 } from "firebase/firestore";
+import { isDeactivated } from "./staffAccountCore";
 
 export const PARENT_PREFIX = "parent:";
 
@@ -180,7 +181,7 @@ export async function notifyRoles({ schoolCode, roles, excludeIds = [], ...paylo
     ));
     const skip = new Set(excludeIds.filter(Boolean));
     const targets = snap.docs
-      .filter((d) => !skip.has(d.id) && d.data().status !== "disabled")
+      .filter((d) => !skip.has(d.id) && d.data().status !== "disabled" && !isDeactivated(d.data()))
       .map((d) => ({
         ...payload,
         schoolCode,
@@ -257,13 +258,23 @@ export async function notifyGuardiansOfClass({ schoolCode, className, ...payload
  * Live subscription to one recipient inbox.
  * Returns the unsubscribe function; `onChange` receives a newest-first array.
  */
-export function subscribeNotifications(recipientId, onChange, { max = 60 } = {}) {
+export function subscribeNotifications(recipientId, onChange, { max = 60, schoolCode = "" } = {}) {
   if (!recipientId) return () => {};
-  const q = query(
-    collection(db, "notifications"),
-    where("recipientId", "==", recipientId),
-    limit(max),
-  );
+  // A staff inbox is per school (firestore.rules): someone who has moved
+  // schools doesn't see the old school's notices. Only the platform owner,
+  // who belongs to no school, reads without the school filter.
+  const q = schoolCode
+    ? query(
+      collection(db, "notifications"),
+      where("recipientId", "==", recipientId),
+      where("schoolCode", "==", schoolCode),
+      limit(max),
+    )
+    : query(
+      collection(db, "notifications"),
+      where("recipientId", "==", recipientId),
+      limit(max),
+    );
   return onSnapshot(
     q,
     (snap) => {

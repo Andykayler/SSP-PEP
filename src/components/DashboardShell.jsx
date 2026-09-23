@@ -11,6 +11,9 @@ import { onUpdateAvailable, applyUpdate } from "../services/pwa";
 import useSchoolAccess from "./subscription/useSchoolAccess";
 import AccessBlocked from "./subscription/AccessBlocked";
 import SubscriptionBanner from "./subscription/SubscriptionBanner";
+import { auth, db } from "../firebase";
+import { doc, onSnapshot } from "firebase/firestore";
+import { isDeactivated } from "../services/staffAccountCore";
 
 const THEME_ICONS = {
   sun: (
@@ -80,10 +83,26 @@ export default function DashboardShell({
   // subscription). Live, so approval or renewal lets people in without a
   // refresh. The platform owner has no school, so nothing is gated for them.
   const { school, access } = useSchoolAccess(schoolCode);
-  // The director can pay; when the subscription has lapsed they get the
-  // Billing page and nothing else. Everyone else is stopped at a screen that
+
+  // Watch the signed-in person's own profile. Deactivation (or being taken on
+  // by another school) takes effect on an open dashboard straight away,
+  // rather than when the session token next refreshes.
+  const [accountState, setAccountState] = useState("ok");
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return undefined;
+    return onSnapshot(doc(db, "users", uid), (snap) => {
+      const data = snap.data();
+      if (!data) return;
+      if (isDeactivated(data)) setAccountState("deactivated");
+      else if (schoolCode && data.schoolCode && data.schoolCode !== schoolCode) setAccountState("moved");
+      else setAccountState("ok");
+    }, () => {});
+  }, [schoolCode]);
+  // The director and the administrator can pay; when the subscription has
+  // lapsed they get the Billing page and nothing else. Everyone else is stopped at a screen that
   // says who to ask.
-  const canPay = tourRole === "director";
+  const canPay = tourRole === "director" || tourRole === "admin";
   const lockedToBilling = access.restricted && canPay;
   const navItems = lockedToBilling ? allNavItems.filter((i) => i.id === "billing") : allNavItems;
   useEffect(() => {
@@ -157,6 +176,24 @@ export default function DashboardShell({
     roleLabel,
     hasBell: Boolean(notificationRecipientId),
   });
+
+  if (accountState !== "ok") {
+    return (
+      <div className="page-loading" role="alert">
+        <div className="card" style={{ padding: "32px 28px", maxWidth: 420, textAlign: "center" }}>
+          <h2 className="module-title" style={{ marginBottom: 8 }}>
+            {accountState === "deactivated" ? "Account deactivated" : "Your account has moved"}
+          </h2>
+          <p className="module-sub" style={{ marginBottom: 20 }}>
+            {accountState === "deactivated"
+              ? "Your school administrator has deactivated this account. Contact them if you think this is a mistake."
+              : "This account now belongs to a different school. Sign in again to continue there."}
+          </p>
+          <button type="button" className="btn btn--accent btn--md" onClick={onSignOut}>Sign out</button>
+        </div>
+      </div>
+    );
+  }
 
   if (access.blocked || (access.restricted && !canPay)) {
     return <AccessBlocked access={access} school={school} onSignOut={onSignOut} />;

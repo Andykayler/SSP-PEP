@@ -8,6 +8,7 @@
 // may do, exactly as firestore.rules does.
 // ─────────────────────────────────────────────────────────────────────────────
 import { adminAuth, adminDb } from "./firebaseAdmin.js";
+import { isDeactivated } from "../../src/services/staffAccountCore.js";
 
 export function readBody(req) {
   if (typeof req.body === "string") {
@@ -47,6 +48,9 @@ export async function requireStaff(req, { roles } = {}) {
   if (!snap.exists) return { ok: false, status: 403, error: "No staff profile is attached to this account." };
 
   const user = snap.data();
+  if (isDeactivated(user)) {
+    return { ok: false, status: 403, error: "This account has been deactivated. Contact your school administrator." };
+  }
   if (roles && !roles.includes(user.role)) {
     return { ok: false, status: 403, error: "You don't have access to this." };
   }

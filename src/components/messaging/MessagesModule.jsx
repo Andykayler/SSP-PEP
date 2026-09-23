@@ -324,10 +324,10 @@ export default function MessagesModule({ schoolCode, currentUser, initialConvers
   const [composing, setComposing] = useState(false);
 
   useEffect(() => {
-    if (!myId) return undefined;
-    const unsub = subscribeConversations(myId, setConversations);
+    if (!myId || !schoolCode) return undefined;
+    const unsub = subscribeConversations(myId, setConversations, schoolCode);
     return () => unsub();
-  }, [myId]);
+  }, [myId, schoolCode]);
 
   const loading = myId ? conversations === null : false;
 

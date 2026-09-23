@@ -25,6 +25,7 @@ import {
   Btn, Pill, EmptyState, StatGrid, StatCard, ModuleHeader, Notice, LoadingState, TableWrap, FilterBar,
 } from "../../../components/ui/ModuleKit";
 import "./staff-management.css";
+import { isDeactivated } from "../../../services/staffAccountCore";
 
 const today = () => new Date().toISOString().slice(0, 10);
 const SIGNAL_TONE = { high: "danger", medium: "warning" };
@@ -56,7 +57,7 @@ export default function AtRiskModule({ schoolCode, currentUser }) {
 
       setData({
         students,
-        teachers: users.docs.map((d) => ({ id: d.id, ...d.data() })),
+        teachers: users.docs.map((d) => ({ id: d.id, ...d.data() })).filter((t) => !isDeactivated(t)),
         attendance: att.docs.map((d) => d.data()),
         discipline: dis.docs.map((d) => d.data()),
         marks: mergeMarks(sheets),

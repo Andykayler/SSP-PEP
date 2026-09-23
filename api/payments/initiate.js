@@ -24,6 +24,7 @@
 // firestore.rules does it.
 // ─────────────────────────────────────────────────────────────────────────────
 import { adminAuth, adminDb, FieldValue } from "../_lib/firebaseAdmin.js";
+import { isDeactivated } from "../../src/services/staffAccountCore.js";
 import { createCheckout, makeTxRef, isConfigured, CURRENCY } from "../_lib/paychangu.js";
 import { TX_COLLECTION } from "../_lib/settle.js";
 import { quote } from "../../src/services/pricing.js";
@@ -74,6 +75,7 @@ async function authenticate(req) {
 
   const userSnap = await adminDb.collection("users").doc(decoded.uid).get();
   if (!userSnap.exists) return { error: "No staff profile is attached to this account." };
+  if (isDeactivated(userSnap.data())) return { error: "This account has been deactivated. Contact your school administrator." };
 
   return { uid: decoded.uid, isAnonymous: false, user: userSnap.data() };
 }

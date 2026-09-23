@@ -210,7 +210,12 @@ class ChatService {
         .where('role', whereIn: ['head_teacher', 'class_teacher'])
         .get();
 
-    final all = snap.docs.map((d) {
+    // A deactivated staff member can't read replies, so they aren't offered.
+    // ('suspended' is the older name for the same state.)
+    final all = snap.docs.where((d) {
+      final status = d.data()['status'];
+      return status != 'deactivated' && status != 'suspended';
+    }).map((d) {
       final data = d.data();
       return StaffContact(
         id: d.id,

@@ -136,12 +136,20 @@ export async function sendMessage({ conversationId: id, sender, body, meta = {} 
 }
 
 /** Live list of the conversations one participant is part of. */
-export function subscribeConversations(participantId, onChange) {
+export function subscribeConversations(participantId, onChange, schoolCode = "") {
   if (!participantId) return () => {};
-  const q = query(
-    collection(db, CONVERSATIONS),
-    where("participantIds", "array-contains", participantId),
-  );
+  // Staff see threads at the school they work at now; firestore.rules checks
+  // the same thing, so the filter is also what lets the query through.
+  const q = schoolCode
+    ? query(
+      collection(db, CONVERSATIONS),
+      where("participantIds", "array-contains", participantId),
+      where("schoolCode", "==", schoolCode),
+    )
+    : query(
+      collection(db, CONVERSATIONS),
+      where("participantIds", "array-contains", participantId),
+    );
   return onSnapshot(
     q,
     (snap) => {

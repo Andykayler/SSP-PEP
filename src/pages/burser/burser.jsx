@@ -12,7 +12,19 @@ import Sponsors from "./modules/Sponsors";
 import Expenses from "./modules/Expenses";
 import ArrearsModule from "../../components/fees/ArrearsModule";
 import LeaveModule from "../../components/leave/LeaveModule";
+import {
+  Wallet, AlertTriangle, Banknote, BarChart3, Receipt, Users, School, CalendarDays,
+} from "lucide-react";
+import useDashboardSkin from "../../hooks/useDashboardSkin";
+import { subscribeSchoolSettings, academicYearFor } from "../../services/academicTerm";
+import { loadFinancePulse } from "../../services/financePulse";
+import { money } from "../../components/ui/format";
+import { plural } from "../../components/overview/overviewText";
+import {
+  OverviewHero, TodoSheet, SectionTitle, StatGrid, QuickActions, Banner, ModuleDirectory,
+} from "../../components/overview/OverviewKit";
 import "../admin/admin_dashboard.css";
+import "../../styles/paper-skin.css";
 
 const IC = {
   home: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955a1.126 1.126 0 011.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/></svg>,
@@ -20,81 +32,166 @@ const IC = {
   students: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5"/></svg>,
   audit: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"/></svg>,
   leave: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0V11.25a2.25 2.25 0 012.25-2.25h13.5a2.25 2.25 0 012.25 2.25v7.5M9 16.5l1.5 1.5 3-3"/></svg>,
-  plus: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>,
 };
 
-function greeting() {
-  const h = new Date().getHours();
-  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
-}
+const MODULE_GROUPS = [
+  { title: "Fees in", ids: ["fee-structure", "student-fees", "payments", "receipts"] },
+  { title: "Follow-up", ids: ["arrears", "sponsors"] },
+  { title: "Money out & reporting", ids: ["expenses", "reports"] },
+  { title: "You", ids: ["leave"] },
+];
 
-function BursarOverview({ userData, schoolData, schoolCode, setTab }) {
-  const displayName = userData?.name || "Bursar";
-  const schoolName = schoolData?.name || schoolCode;
+const MODULE_HINTS = {
+  "fee-structure": "Fees per class and term",
+  "student-fees": "Balances and fee assignment",
+  payments: "Record and confirm payments",
+  receipts: "Printable official receipts",
+  arrears: "Who owes, and what was decided",
+  sponsors: "Who pays for which student",
+  expenses: "Money out and petty cash",
+  reports: "Summaries and exports",
+  leave: "Your own leave requests",
+};
 
-  const quickActions = [
-    { label: "Fee Structure", icon: IC.billing, tab: "fee-structure", variant: "gold" },
-    { label: "Student Fees", icon: IC.students, tab: "student-fees", variant: "teal" },
-    { label: "Record Payment", icon: IC.plus, tab: "payments", variant: "navy" },
-    { label: "Generate Receipt", icon: IC.billing, tab: "receipts", variant: "purple" },
+const quickActions = [
+  { label: "Record a Payment", hint: "Cash, bank or mobile money", icon: <Banknote size={22} />, tab: "payments", tone: "green" },
+  { label: "Student Fees", hint: "Look up a balance", icon: <Users size={22} />, tab: "student-fees", tone: "" },
+  { label: "Receipts", hint: "Print or resend a receipt", icon: <Receipt size={22} />, tab: "receipts", tone: "gold" },
+  { label: "Financial Reports", hint: "Term and year summaries", icon: <BarChart3 size={22} />, tab: "reports", tone: "teal" },
+];
+
+function BursarOverview({ displayName, schoolName, schoolCode, navItems, setTab }) {
+  const [settings, setSettings] = useState(undefined);
+  const [pulse, setPulse] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!schoolCode) return undefined;
+    return subscribeSchoolSettings(schoolCode, (s) => setSettings(s || null));
+  }, [schoolCode]);
+
+  const academicYear = settings?.currentTerm ? academicYearFor(settings.currentTerm) : "";
+
+  useEffect(() => {
+    if (!schoolCode || settings === undefined) return undefined;
+    let alive = true;
+    loadFinancePulse({ schoolCode, academicYear })
+      .then((p) => { if (alive) { setPulse(p); setError(""); } })
+      .catch((err) => {
+        console.error("[bursar] overview failed:", err);
+        if (alive) { setError("The fee figures couldn't be loaded. Please refresh."); setPulse(null); }
+      });
+    return () => { alive = false; };
+  }, [schoolCode, academicYear, settings]);
+
+  const loading = pulse === null && !error;
+  const p = pulse;
+
+  const stats = [
+    {
+      label: "Collected",
+      value: p ? money(p.collected) : "—",
+      sub: p ? `of ${money(p.billed)} billed${academicYear ? ` · ${academicYear}` : ""}` : "",
+      icon: <Wallet size={17} />, tone: "green",
+      meter: p?.collectionRate ?? null,
+    },
+    {
+      label: "Outstanding",
+      value: p ? money(p.outstanding) : "—",
+      sub: p ? `${plural(p.owing, "student")} still owing` : "",
+      icon: <AlertTriangle size={17} />, tone: "red",
+    },
+    {
+      label: "Taken Today",
+      value: p ? money(p.collectedToday) : "—",
+      sub: p ? `${plural(p.paymentsToday, "payment")} recorded` : "",
+      icon: <Banknote size={17} />, tone: "gold",
+    },
+    {
+      label: "Collection Rate",
+      value: p?.collectionRate != null ? `${p.collectionRate}%` : "—",
+      sub: p ? `${plural(p.students, "student")} on roll` : "",
+      icon: <BarChart3 size={17} />, tone: "teal",
+      meter: p?.collectionRate ?? null,
+    },
   ];
 
-  const modules = [
-    { tab: "fee-structure", icon: IC.billing, title: "Fee Structure", desc: "Define fees per class and term" },
-    { tab: "student-fees", icon: IC.students, title: "Student Fees", desc: "View balances and assign fees" },
-    { tab: "payments", icon: IC.billing, title: "Payments", desc: "Record and track all payments" },
-    { tab: "receipts", icon: IC.billing, title: "Receipts", desc: "Generate printable official receipts" },
-    { tab: "arrears", icon: IC.students, title: "Arrears & Clearance", desc: "Who owes, for how long, and what was decided" },
-    { tab: "sponsors", icon: IC.students, title: "Sponsors & Bursaries", desc: "Who pays for which student" },
-    { tab: "expenses", icon: IC.billing, title: "Expenses & Petty Cash", desc: "Money out, beside money in" },
-    { tab: "reports", icon: IC.audit, title: "Financial Reports", desc: "Summaries, exports & analytics" },
-  ];
+  const todos = p ? [
+    {
+      key: "claims", tab: "payments",
+      done: p.unverified === 0, urgent: p.unverified > 0,
+      text: p.unverified === 0 ? "No parent-app payments to confirm" : `Confirm ${plural(p.unverified, "parent-app payment")}`,
+    },
+    {
+      key: "unbilled", tab: "student-fees",
+      done: p.unbilled === 0,
+      text: p.unbilled === 0 ? "Every student has fees assigned" : `Assign fees to ${plural(p.unbilled, "student")}`,
+    },
+    {
+      key: "owing", tab: "arrears",
+      done: p.owing === 0,
+      text: p.owing === 0 ? "Nobody owes fees" : `Follow up ${plural(p.owing, "student")} with a balance`,
+    },
+    {
+      key: "today", tab: "payments",
+      done: p.paymentsToday > 0,
+      text: p.paymentsToday > 0 ? `${plural(p.paymentsToday, "payment")} recorded today` : "No payments recorded today yet",
+    },
+  ] : [];
 
   return (
-    <div className="space-y-8">
-      <div className="overview-hero">
-        <div>
-          <div className="overview-hero__greeting">{greeting()}</div>
-          <h2 className="overview-hero__name">
-            <span className="overview-hero__name-gradient">{displayName.split(" ")[0]}</span>
-          </h2>
-          <p className="overview-hero__school">{schoolName} · Finance Office</p>
-        </div>
-        <div>
-          <span className="overview-hero__plan overview-hero__plan--trial">Bursar</span>
-          {schoolCode && <div className="overview-hero__code">{schoolCode}</div>}
-        </div>
-      </div>
+    <div className="tp">
+      <OverviewHero
+        name={displayName.split(" ")[0]}
+        lead={
+          loading ? "Adding up the ledger…"
+            : !p ? "Your finance office at a glance."
+            : <>
+                <strong>{money(p.collected)}</strong> collected of <strong>{money(p.billed)}</strong> billed
+                {academicYear ? <> this year</> : null}.{" "}
+                {p.outstanding > 0
+                  ? <><strong>{money(p.outstanding)}</strong> is still outstanding.</>
+                  : "Nothing is outstanding."}
+              </>
+        }
+        chips={[
+          { label: "Bursar", icon: <Wallet size={14} aria-hidden="true" /> },
+          { label: schoolName, icon: <School size={14} aria-hidden="true" /> },
+          academicYear && { label: academicYear, icon: <CalendarDays size={14} aria-hidden="true" /> },
+        ]}
+        aside={
+          <TodoSheet
+            title="Finance office"
+            todos={todos}
+            loading={loading}
+            emptyText="Figures will appear once the ledger loads."
+            onOpen={setTab}
+          />
+        }
+      />
 
-      <div>
-        <div className="sec-eyebrow">Quick actions</div>
-        <div className="quick-actions-grid">
-          {quickActions.map((a) => (
-            <button key={a.tab} type="button" className={`quick-action-btn quick-action-btn--${a.variant}`} onClick={() => setTab(a.tab)}>
-              <span className="quick-action-btn__icon">{a.icon}</span>
-              <span className="quick-action-btn__label">{a.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
+      {error && <Banner tone="error" icon={<AlertTriangle size={17} aria-hidden="true" />}>{error}</Banner>}
 
-      <div>
-        <div className="sec-eyebrow">Finance modules</div>
-        <div className="modules-grid">
-          {modules.map((m) => (
-            <button key={m.tab} type="button" className="module-card" onClick={() => setTab(m.tab)}>
-              <div className="module-card__icon">{m.icon}</div>
-              <div className="module-card__title">{m.title}</div>
-              <div className="module-card__desc">{m.desc}</div>
-            </button>
-          ))}
-        </div>
-      </div>
+      <section aria-labelledby="tp-glance">
+        <SectionTitle id="tp-glance">At a glance</SectionTitle>
+        <StatGrid stats={stats} loading={loading} />
+      </section>
+
+      <section aria-labelledby="tp-quick">
+        <SectionTitle id="tp-quick">Quick actions</SectionTitle>
+        <QuickActions actions={quickActions} onOpen={setTab} />
+      </section>
+
+      <section aria-labelledby="tp-modules">
+        <SectionTitle id="tp-modules">All modules</SectionTitle>
+        <ModuleDirectory groups={MODULE_GROUPS} navItems={navItems} hints={MODULE_HINTS} onOpen={setTab} />
+      </section>
     </div>
   );
 }
 
 export default function BursarDashboard() {
+  useDashboardSkin("paper");
   const [currentTab, setCurrentTab] = useState("overview");
   const [uid, setUid] = useState("");
   const [userData, setUserData] = useState(null);
@@ -116,7 +213,7 @@ export default function BursarDashboard() {
           const schoolSnap = await getDoc(doc(db, "schools", user.schoolCode));
           if (schoolSnap.exists()) setSchoolData(schoolSnap.data());
         }
-      } catch (e) {
+      } catch {
         setAuthError("Failed to load profile.");
       }
       setLoading(false);
@@ -167,7 +264,7 @@ export default function BursarDashboard() {
       navItems={navItems}
       currentTab={currentTab}
       onTabChange={setCurrentTab}
-      title={currentNavItem?.label || "Bursar Dashboard"}
+      title={currentTab === "overview" ? "Finance Office" : currentNavItem?.label || "Bursar Dashboard"}
       subtitle={`Finance Management · ${schoolName}`}
       roleLabel="Bursar"
       tourRole="bursar"
@@ -181,7 +278,13 @@ export default function BursarDashboard() {
       onSignOut={handleSignOut}
     >
       {currentTab === "overview" && (
-        <BursarOverview userData={userData} schoolData={schoolData} schoolCode={schoolCode} setTab={setCurrentTab} />
+        <BursarOverview
+          displayName={displayName}
+          schoolName={schoolName}
+          schoolCode={schoolCode}
+          navItems={navItems}
+          setTab={setCurrentTab}
+        />
       )}
       {currentTab === "fee-structure" && <FeeStructure schoolCode={schoolCode} schoolName={schoolName} />}
       {currentTab === "student-fees" && <StudentFees schoolCode={schoolCode} schoolName={schoolName} />}

@@ -16,6 +16,7 @@ import {
 } from "../../../services/platform";
 import { schoolAccess, toMs, TRIAL_DAYS } from "../../../services/subscriptionState";
 import { apiPost } from "../../../services/api";
+import { countSchools } from "../../../services/platformSummary";
 import {
   Modal, Btn, Input, Textarea, Pill, EmptyState, StatGrid, StatCard,
   ModuleHeader, Notice, LoadingState, TableWrap, FilterBar,
@@ -41,10 +42,10 @@ function planLabel(school, access) {
     : `Trial ended ${fmtDate(te)}`;
 }
 
-export default function SchoolsConsole({ currentUser }) {
+export default function SchoolsConsole({ currentUser, initialFilter = "pending" }) {
   const [schools, setSchools] = useState(null);
   const [error, setError] = useState("");
-  const [filter, setFilter] = useState("pending");
+  const [filter, setFilter] = useState(initialFilter);
   const [search, setSearch] = useState("");
   const [verified, setVerified] = useState({});
   const [dialog, setDialog] = useState(null);      // { kind, school }
@@ -70,18 +71,7 @@ export default function SchoolsConsole({ currentUser }) {
     [schools],
   );
 
-  const counts = useMemo(() => {
-    const c = { pending: 0, trial: 0, paying: 0, attention: 0, legacy: 0, closed: 0 };
-    rows.forEach(({ status, subscription_status: sub, access }) => {
-      if (access.state === "legacy") c.legacy += 1;
-      else if (status === "pending") c.pending += 1;
-      else if (status === "rejected" || status === "suspended") c.closed += 1;
-      else if (access.restricted || access.state === "trial_grace" || access.state === "past_due_grace") c.attention += 1;
-      else if (sub === "active") c.paying += 1;
-      else c.trial += 1;
-    });
-    return c;
-  }, [rows]);
+  const counts = useMemo(() => countSchools(rows), [rows]);
 
   const visible = rows.filter((s) => {
     const q = search.trim().toLowerCase();

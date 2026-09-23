@@ -32,6 +32,7 @@ import {
   ModuleHeader, Notice, LoadingState, TableWrap, FilterBar,
 } from "../../../components/ui/ModuleKit";
 import "./staff-management.css";
+import { isDeactivated } from "../../../services/staffAccountCore";
 
 const STATUS_TONE = { draft: "warning", published: "success" };
 
@@ -59,7 +60,7 @@ export default function ExamsModule({ schoolCode, currentUser }) {
       ]);
       setExams(ex);
       setStudents(sSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setTeachers(uSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setTeachers(uSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((t) => !isDeactivated(t)));
       setClasses(cSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
       setLeaves(lv);
     } catch (err) {

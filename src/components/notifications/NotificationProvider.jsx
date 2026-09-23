@@ -41,9 +41,9 @@ export default function NotificationProvider({
       if (fresh.length) {
         setToasts((prev) => [...fresh.slice(0, 3), ...prev].slice(0, 4));
       }
-    });
+    }, { schoolCode });
     return () => unsub();
-  }, [recipientId]);
+  }, [recipientId, schoolCode]);
 
   // Auto-dismiss the oldest toast on a timer. One timer per render pass is
   // enough because the effect re-runs whenever the stack changes.

@@ -12,6 +12,7 @@ import {
 import ClassActivityBoard, { SCHOOL_SCOPE } from "../../../components/activity/ClassActivityBoard";
 import { fetchThreadCounts } from "../../../services/activity";
 import "./staff-management.css";
+import { isDeactivated } from "../../../services/staffAccountCore";
 
 const DEFAULT_CAPACITY = 45;
 
@@ -283,7 +284,7 @@ export default function ClassAndStreamModule({ schoolCode, currentUser }) {
       setStudents(studentSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setStaff(
         staffSnap.docs
-          .filter((d) => d.data().role && d.data().role !== "student")
+          .filter((d) => d.data().role && d.data().role !== "student" && !isDeactivated(d.data()))
           .map((d) => ({
             id: d.id,
             name: d.data().name || d.data().displayName || "Staff",

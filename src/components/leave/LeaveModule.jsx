@@ -31,6 +31,7 @@ import {
   ModuleHeader, Notice, LoadingState, TableWrap, FilterBar,
 } from "../ui/ModuleKit";
 import "../../pages/headteacher/modules/staff-management.css";
+import { isDeactivated } from "../../services/staffAccountCore";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const fmt = (iso) => (iso ? new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }) : "—");
@@ -52,7 +53,7 @@ export default function LeaveModule({ schoolCode, currentUser, mode = "teacher" 
     if (!schoolCode || !currentUser?.id) return;
     try {
       const [l, s] = await Promise.all([
-        head ? fetchSchoolLeave(schoolCode) : fetchMyLeave(currentUser.id),
+        head ? fetchSchoolLeave(schoolCode) : fetchMyLeave(currentUser.id, schoolCode),
         fetchSubstitutions(schoolCode),
       ]);
       setLeaves(l);
@@ -63,7 +64,8 @@ export default function LeaveModule({ schoolCode, currentUser, mode = "teacher" 
           getDocs(query(collection(db, "users"), where("schoolCode", "==", schoolCode), where("role", "in", ["head_teacher", "class_teacher"]))),
         ]);
         setTimetable(tt.docs.map((d) => ({ id: d.id, ...d.data() })));
-        setTeachers(us.docs.map((d) => ({ id: d.id, ...d.data() })));
+        // Deactivated staff can't cover a lesson.
+        setTeachers(us.docs.map((d) => ({ id: d.id, ...d.data() })).filter((t) => !isDeactivated(t)));
       }
     } catch (err) {
       console.error("[leave] load failed:", err);

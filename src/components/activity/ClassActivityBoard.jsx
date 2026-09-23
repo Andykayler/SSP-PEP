@@ -12,6 +12,7 @@ import { Users, School, Loader2 } from "lucide-react";
 import ActivityFeed from "./ActivityFeed";
 import { fetchThreadCounts } from "../../services/activity";
 import "./activity.css";
+import { isDeactivated } from "../../services/staffAccountCore";
 
 export const SCHOOL_SCOPE = "__school__";
 
@@ -120,7 +121,7 @@ export function ClassActivityPage({ schoolCode, currentUser, restrictToAssigned 
         if (cancelled) return;
 
         const roster = staffSnap.docs
-          .filter((d) => d.data().role && d.data().role !== "student")
+          .filter((d) => d.data().role && d.data().role !== "student" && !isDeactivated(d.data()))
           .map((d) => ({
             id: d.id,
             name: d.data().name || d.data().displayName || "Staff",

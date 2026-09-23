@@ -299,13 +299,15 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
   // ── removed orderBy("date") to avoid requiring a composite index.
   // Plans are sorted client-side instead.
   const fetchPlans = async () => {
-    if (!userId) return;
+    if (!userId || !schoolCode) return;
     setLoading(true);
     try {
+      // Scoped to this school too: plans written at a previous school stay there.
       const snap = await getDocs(
         query(
           collection(db, "lesson_plans"),
-          where("teacherId", "==", userId)
+          where("teacherId", "==", userId),
+          where("schoolCode", "==", schoolCode)
         )
       );
       const sorted = snap.docs
@@ -327,7 +329,7 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
     }
   };
 
-  useEffect(() => { fetchPlans(); }, [userId]);
+  useEffect(() => { fetchPlans(); }, [userId, schoolCode]);
 
   const savePlan = async (formData, existingId = null) => {
     const payload = { ...formData, teacherId: userId, schoolCode, updatedAt: serverTimestamp() };

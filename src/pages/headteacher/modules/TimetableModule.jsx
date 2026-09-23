@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { findClashes, conflictsFor, describeClash } from "../../../services/timetableClash";
 import "./staff-management.css";
+import { isDeactivated } from "../../../services/staffAccountCore";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
@@ -204,7 +205,7 @@ export default function TimetableModule({ schoolCode }) {
           .map((d) => ({ id: d.id, ...d.data() }))
           .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
         setClasses(classList);
-        setStaff(staffSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setStaff(staffSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((t) => !isDeactivated(t)));
         if (classList.length > 0) setSelectedClassId((prev) => prev || classList[0].id);
       } catch (err) {
         console.error("Failed to load classes/staff:", err);

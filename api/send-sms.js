@@ -11,7 +11,7 @@
 // Vercel serves any file under a top-level `api/` directory as a function,
 // whatever the framework, so this is reachable at /api/send-sms with no route
 // configuration. server.js is kept for local development and still owns
-// /api/delete-user and the transfer approvals, which have NOT been ported yet.
+// the transfer approvals, which have NOT been ported yet.
 //
 // Credentials are read from process.env and never leave this file. They are
 // not bundled into the browser — vite.config.js allowlists only the EMAILJS_

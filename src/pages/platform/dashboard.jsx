@@ -9,15 +9,22 @@ import { useState, useEffect } from "react";
 import { auth, db } from "../../firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { signOut, onAuthStateChanged } from "firebase/auth";
-import { Building2, ScrollText } from "lucide-react";
+import { Building2, ScrollText, Home } from "lucide-react";
 
 import DashboardShell from "../../components/DashboardShell";
 import SchoolsConsole from "./modules/SchoolsConsole";
 import PlatformActivity from "./modules/PlatformActivity";
+import PlatformOverview from "./modules/PlatformOverview";
+import useDashboardSkin from "../../hooks/useDashboardSkin";
 import "../admin/admin_dashboard.css";
+import "../../styles/paper-skin.css";
 
 export default function PlatformDashboard() {
-  const [currentTab, setCurrentTab] = useState("schools");
+  useDashboardSkin("paper");
+  const [currentTab, setCurrentTab] = useState("overview");
+  // Which filter the Schools console opens on when the overview sends the
+  // owner there.
+  const [schoolsFilter, setSchoolsFilter] = useState("pending");
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState("");
@@ -68,8 +75,14 @@ export default function PlatformDashboard() {
     );
   }
 
+  const openSchools = (filter) => { setSchoolsFilter(filter); setCurrentTab("schools"); };
+
   const navItems = [
-    { id: "schools", label: "Schools", icon: <Building2 className="w-5 h-5" />, component: <SchoolsConsole currentUser={me} /> },
+    {
+      id: "overview", label: "Overview", icon: <Home className="w-5 h-5" />,
+      component: <PlatformOverview displayName={me.name} onOpenSchools={openSchools} onOpenActivity={() => setCurrentTab("activity")} />,
+    },
+    { id: "schools", label: "Schools", icon: <Building2 className="w-5 h-5" />, component: <SchoolsConsole key={schoolsFilter} currentUser={me} initialFilter={schoolsFilter} /> },
     { id: "activity", label: "Activity", icon: <ScrollText className="w-5 h-5" />, component: <PlatformActivity /> },
   ];
   const current = navItems.find((i) => i.id === currentTab) || navItems[0];
@@ -79,6 +92,8 @@ export default function PlatformDashboard() {
       navItems={navItems}
       currentTab={current.id}
       onTabChange={setCurrentTab}
+      title={current.id === "overview" ? "Acalink Back Office" : current.label}
+      subtitle="Platform owner"
       roleLabel="Platform Owner"
       tourRole="platform"
       userName={me.name}

@@ -85,23 +85,8 @@ app.post("/api/send-sms", async (req, res) => {
   }
 });
 
-// ─── POST /api/delete-user ────────────────────────────────────────────────────
-app.post("/api/delete-user", async (req, res) => {
-  const { uid } = req.body;
-
-  if (!uid) {
-    return res.status(400).json({ error: "UID required." });
-  }
-
-  try {
-    await getAuth().deleteUser(uid);
-    console.log(`✅  Auth account deleted: ${uid}`);
-    return res.status(200).json({ success: true });
-  } catch (err) {
-    console.error("❌  Auth delete error:", err.message);
-    return res.status(500).json({ error: err.message });
-  }
-});
+// Staff accounts are never deleted — see api/staff/account.js, which
+// deactivates them instead so their records stay with the school.
 
 // ─── Auth helper (shared by the transfer endpoints below) ────────────────────
 // Verifies the caller's Firebase ID token, then loads users/{uid} to get

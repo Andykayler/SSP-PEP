@@ -31,6 +31,7 @@
 // and the response carries only the handful of fields each flow actually needs.
 // ─────────────────────────────────────────────────────────────────────────────
 import { adminAuth, adminDb } from "../_lib/firebaseAdmin.js";
+import { isDeactivated } from "../../src/services/staffAccountCore.js";
 
 /** Only the roles that run enrolment and transfers. */
 const ALLOWED_ROLES = ["admin", "head_teacher"];
@@ -122,6 +123,7 @@ export default async function handler(req, res) {
   const userSnap = await adminDb.collection("users").doc(decoded.uid).get();
   if (!userSnap.exists) return res.status(403).json({ error: "No staff profile on this account." });
   const user = userSnap.data();
+  if (isDeactivated(user)) return res.status(403).json({ error: "This account has been deactivated. Contact your school administrator." });
   if (!ALLOWED_ROLES.includes(user.role)) {
     return res.status(403).json({ error: "Only an administrator or head teacher can look a student up." });
   }

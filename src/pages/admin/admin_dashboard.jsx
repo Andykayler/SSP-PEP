@@ -3,20 +3,12 @@ import { auth, db } from "../../firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { signOut, onAuthStateChanged } from "firebase/auth";
 
-import Sidebar, { NAV_ITEMS } from "./side_bar";
-import { getInitialTheme, applyTheme, toggleTheme as flipTheme } from "../../utils/theme";
+import { NAV_ITEMS } from "./side_bar";
 import "./admin_dashboard.css";
-import GuidedTour, { TourHelpButton } from "../../components/tour/GuidedTour";
-import { buildTourSteps, hasSeenTour } from "../../components/tour/tourSteps";
-import AccountPanel from "../../components/account/AccountPanel";
-import useOnlineStatus from "../../hooks/useOnlineStatus";
-import { onUpdateAvailable, applyUpdate } from "../../services/pwa";
-import useSchoolAccess from "../../components/subscription/useSchoolAccess";
-import AccessBlocked from "../../components/subscription/AccessBlocked";
-import SubscriptionBanner from "../../components/subscription/SubscriptionBanner";
+import "../../styles/paper-skin.css";
+import DashboardShell from "../../components/DashboardShell";
+import useDashboardSkin from "../../hooks/useDashboardSkin";
 
-import { IC } from "./modules/icons";
-import { initials } from "./modules/helpers";
 import Overview from "./modules/Overview";
 import UserManagement from "./modules/UserManagement";
 import StudentManagement from "./modules/StudentManagement";
@@ -32,27 +24,21 @@ import { subscribeSchoolSettings } from "../../services/academicTerm";
 import { isSetUp } from "../../services/schoolProfile";
 
 // ─── MAIN DASHBOARD ───────────────────────────────────────────────────────────
+// Runs on the same DashboardShell as every other portal, so the sidebar,
+// top bar, notifications, guided tour, account panel and subscription gate
+// behave identically. The shell locks a lapsed school's administrator to
+// Billing, so they can pay their way back in.
 export default function AdminDashboard() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  useDashboardSkin("paper");
   const [currentTab, setCurrentTab]   = useState("overview");
-  const [tourOpen,   setTourOpen]     = useState(false);
-  const [accountOpen, setAccountOpen]  = useState(false);
-  const online = useOnlineStatus();
-  const [updateReady, setUpdateReady] = useState(false);
-  useEffect(() => { onUpdateAvailable(() => setUpdateReady(true)); }, []);
-  const [tourSeen,   setTourSeen]     = useState(() => hasSeenTour("admin"));
   const [authUser,   setAuthUser]     = useState(null);
   const [userData,   setUserData]     = useState(null);
   const [schoolData, setSchoolData]   = useState(null);
   const [loading,    setLoading]      = useState(true);
   const [authError,  setAuthError]    = useState("");
-  // null while unknown, so the gate is not flashed at a school that is
+  // undefined while unknown, so the gate is not flashed at a school that is
   // already set up before its settings have arrived.
   const [settings,   setSettings]     = useState(undefined);
-
-  const [theme, setTheme] = useState(getInitialTheme);
-  useEffect(() => { applyTheme(theme); }, [theme]);
-  function handleToggleTheme() { setTheme(t => flipTheme(t)); }
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
@@ -67,24 +53,10 @@ export default function AdminDashboard() {
           const schoolSnap = await getDoc(doc(db, "schools", user.schoolCode));
           if (schoolSnap.exists()) setSchoolData(schoolSnap.data());
         }
-      } catch (e) { setAuthError("Failed to load profile. Please refresh."); }
+      } catch { setAuthError("Failed to load profile. Please refresh."); }
       setLoading(false);
     });
     return () => unsub();
-  }, []);
-
-  // Pressing Back after Sign Out can restore this dashboard straight from
-  // the browser's back-forward cache (bfcache) — a frozen DOM snapshot from
-  // before sign-out, painted instantly without re-running the auth check
-  // above. `pageshow` with `event.persisted === true` detects a bfcache
-  // restore; reloading re-runs onAuthStateChanged, which redirects a
-  // signed-out user to "/" instead of leaving the stale page on screen.
-  useEffect(() => {
-    const handlePageShow = (event) => {
-      if (event.persisted) window.location.reload();
-    };
-    window.addEventListener("pageshow", handlePageShow);
-    return () => window.removeEventListener("pageshow", handlePageShow);
   }, []);
 
   useEffect(() => {
@@ -99,145 +71,74 @@ export default function AdminDashboard() {
   const schoolName     = schoolData?.name || userData?.name || "Your School";
   const schoolDistrict = schoolData?.district || "";
   const schoolCode     = userData?.schoolCode || "";
-  const currentNavItem = NAV_ITEMS.find(i => i.id === currentTab);
+  const uid            = authUser?.uid || "";
+  const currentNavItem = NAV_ITEMS.find((i) => i.id === currentTab);
 
-  // Whether this school may use the platform right now (approval, trial,
-  // subscription). A lapsed school's administrator keeps Billing, and only
-  // Billing, so they can pay their way back in.
-  const { school: accessSchool, access } = useSchoolAccess(schoolCode);
-  const lockedToBilling = access.restricted;
-  const navItems = lockedToBilling ? NAV_ITEMS.filter(i => i.id === "billing") : NAV_ITEMS;
-  useEffect(() => {
-    if (!lockedToBilling || currentTab === "billing") return undefined;
-    const id = setTimeout(() => setCurrentTab("billing"), 0);
-    return () => clearTimeout(id);
-  }, [lockedToBilling, currentTab]);
-
-  if (loading) return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ textAlign: "center" }}>
-        <div style={{ width: 44, height: 44, border: "3px solid var(--border)", borderTop: "3px solid var(--accent)", borderRadius: "50%", animation: "spin .7s linear infinite", margin: "0 auto 16px" }} />
-        <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text3)", letterSpacing: 1 }}>Loading your dashboard…</p>
+  if (loading) {
+    return (
+      <div className="page-loading">
+        <div className="page-loading__spinner" />
+        <p className="page-loading__text">Loading your dashboard…</p>
       </div>
-    </div>
-  );
-
-  if (authError) return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <div style={{ background: "var(--bg2)", borderRadius: 20, border: "1px solid var(--border)", padding: 40, maxWidth: 380, textAlign: "center" }}>
-        <div style={{ width: 48, height: 48, background: "rgba(239,68,68,0.12)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", color: "#f87171" }}>{IC.warning}</div>
-        <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", marginBottom: 20 }}>{authError}</p>
-        <button onClick={handleSignOut} className="btn btn--accent btn--md">Back to Sign In</button>
-      </div>
-    </div>
-  );
-
-  if (access.blocked) {
-    return <AccessBlocked access={access} school={accessSchool} onSignOut={handleSignOut} />;
+    );
   }
 
+  if (authError) {
+    return (
+      <div className="page-loading">
+        <div style={{ padding: "40px 32px", maxWidth: 420, textAlign: "center" }}>
+          <div className="alert alert--error" style={{ marginBottom: 16 }}>{authError}</div>
+          <button type="button" className="btn btn--accent btn--md" onClick={handleSignOut}>Back to Sign In</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Until the school has said whether it boards and which term is running,
+  // the modules would be configured against nothing — so setup comes first
+  // rather than as a prompt to dismiss.
+  const needsSetup = schoolCode && settings !== undefined && !isSetUp(settings);
+
   return (
-    <div className="dashboard-shell">
-      <Sidebar
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        currentTab={currentTab}
-        onTabChange={(tab) => { setCurrentTab(tab); setSidebarOpen(false); }}
-        schoolName={schoolName}
-        navItems={navItems}
-        schoolDistrict={schoolDistrict}
-        schoolCode={schoolCode}
-        notificationRecipientId={authUser?.uid || ""}
-        onSignOut={handleSignOut}
-      />
-
-      <div className="main-area">
-        <header className="topbar">
-          <div className="topbar__left">
-            <button className="topbar__menu-btn" onClick={() => setSidebarOpen(v => !v)}>
-              {sidebarOpen ? IC.close : IC.menu}
-            </button>
-            <div>
-              <div className="topbar__title">{currentNavItem?.label || "Dashboard"}</div>
-              <div className="topbar__subtitle">System Administrator · {schoolName}</div>
-            </div>
-          </div>
-          <div className="topbar__right">
-            {updateReady && (
-              <button type="button" onClick={applyUpdate} className="topbar__status" style={{ cursor: "pointer" }} title="A new version of Acalink is ready">
-                <span className="topbar__status-text">Update ready — tap to reload</span>
-              </button>
-            )}
-            <div className="topbar__status" title={online ? undefined : "No connection. Your work is saved here and will sync when you're back online."}>
-              <span className="topbar__status-dot" style={online ? undefined : { background: "var(--warning-light)" }} />
-              <span className="topbar__status-text">{online ? "Online" : "Offline"}</span>
-            </div>
-            <TourHelpButton onClick={() => setTourOpen(true)} seen={tourSeen} />
-            <button data-tour="theme" onClick={handleToggleTheme} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} className="theme-toggle-btn">
-              {theme === "dark" ? IC.sun : IC.moon}
-            </button>
-            <div style={{ textAlign: "right" }}>
-              <div className="topbar-user-name">{displayName}</div>
-              <div className="topbar__user-role">System Admin</div>
-            </div>
-            <div
-              className="topbar__avatar"
-              role="button"
-              tabIndex={0}
-              title="Your account: WhatsApp alerts and two-step sign-in"
-              aria-label="Your account"
-              style={{ cursor: "pointer" }}
-              onClick={() => setAccountOpen(true)}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setAccountOpen(true); } }}
-            >{initials(displayName) || "??"}</div>
-          </div>
-        </header>
-
-        <main className="page-content">
-          <SubscriptionBanner access={access} canPay onSubscribe={() => setCurrentTab("billing")} />
-          {/* Until the school has said whether it boards and which term is
-              running, the modules below would be configured against nothing —
-              so setup comes first rather than as a prompt to dismiss. */}
-          {schoolCode && settings !== undefined && !isSetUp(settings) ? (
-            <SchoolSetupGate
-              schoolCode={schoolCode}
-              schoolName={schoolName}
-              actorId={authUser?.uid || ""}
-              onDone={(next) => setSettings((prev) => ({ ...(prev || {}), ...next }))}
-            />
-          ) : (
-          <>
-          {currentTab === "overview"      && <Overview userData={userData} schoolData={schoolData} schoolCode={schoolCode} setTab={setCurrentTab} />}
+    <DashboardShell
+      navItems={NAV_ITEMS}
+      currentTab={currentTab}
+      onTabChange={setCurrentTab}
+      title={currentTab === "overview" ? "School Administration" : currentNavItem?.label || "Dashboard"}
+      subtitle={`System Administrator · ${schoolName}${schoolDistrict ? ` · ${schoolDistrict}` : ""}`}
+      roleLabel="System Admin"
+      tourRole="admin"
+      userName={displayName}
+      schoolName={schoolName}
+      schoolDistrict={schoolDistrict}
+      schoolCode={schoolCode}
+      portalLabel="Admin Portal"
+      navSectionLabel="Administration"
+      footerVersion="Admin Portal v1.5"
+      notificationRecipientId={uid}
+      onSignOut={handleSignOut}
+    >
+      {needsSetup ? (
+        <SchoolSetupGate
+          schoolCode={schoolCode}
+          schoolName={schoolName}
+          actorId={uid}
+          onDone={(next) => setSettings((prev) => ({ ...(prev || {}), ...next }))}
+        />
+      ) : (
+        <>
+          {currentTab === "overview"      && <Overview userData={userData} schoolData={schoolData} schoolCode={schoolCode} settings={settings} navItems={NAV_ITEMS} setTab={setCurrentTab} />}
           {currentTab === "users"         && <UserManagement schoolCode={schoolCode} schoolName={schoolName} />}
-          {currentTab === "campuses"      && <CampusManagement schoolCode={schoolCode} schoolName={schoolName} actorId={authUser?.uid || ""} />}
-          {currentTab === "transfers"     && <TransferApprovals schoolCode={schoolCode} currentUser={{ id: authUser?.uid || "", name: displayName, role: "admin" }} canDecide />}
+          {currentTab === "campuses"      && <CampusManagement schoolCode={schoolCode} schoolName={schoolName} actorId={uid} />}
+          {currentTab === "transfers"     && <TransferApprovals schoolCode={schoolCode} currentUser={{ id: uid, name: displayName, role: "admin" }} canDecide />}
           {currentTab === "students"      && <StudentManagement schoolCode={schoolCode} schoolName={schoolName} />}
           {currentTab === "settings"      && <SchoolSettings schoolCode={schoolCode} schoolData={schoolData} onUpdate={setSchoolData} />}
           {currentTab === "billing"       && <Billing schoolData={schoolData} schoolCode={schoolCode} />}
           {currentTab === "announcements" && <Announcements schoolCode={schoolCode} userName={displayName} />}
           {currentTab === "audit"         && <AuditLog schoolCode={schoolCode} />}
           {currentTab === "backup"        && <DataBackup schoolCode={schoolCode} schoolName={schoolName} actorName={displayName} />}
-          </>
-          )}
-        </main>
-
-        <footer className="dashboard-footer">
-          <span>© 2026 Acalink</span>
-          <span>v1.4.1</span>
-        </footer>
-      </div>
-
-      <AccountPanel open={accountOpen} onClose={() => setAccountOpen(false)} name={displayName} roleLabel="System Admin" />
-
-      <GuidedTour
-        open={tourOpen}
-        steps={buildTourSteps({ role: "admin", navItems, userName: displayName, roleLabel: "System Admin" })}
-        role="admin"
-        startTab={currentTab}
-        onTabChange={setCurrentTab}
-        setSidebarOpen={setSidebarOpen}
-        onClose={() => { setTourOpen(false); setTourSeen(true); }}
-      />
-    </div>
+        </>
+      )}
+    </DashboardShell>
   );
 }

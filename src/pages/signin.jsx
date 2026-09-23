@@ -10,6 +10,10 @@ import {
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { Check } from "lucide-react";
 import AuthLayout from "../components/auth/AuthLayout";
+import { isDeactivated } from "../services/staffAccountCore";
+
+const DEACTIVATED_MESSAGE =
+  "This account has been deactivated. If you think this is a mistake, contact your school administrator.";
 import { apiPost } from "../services/api";
 import "./signin.css";
 
@@ -450,6 +454,12 @@ export default function SignIn() {
       }
 
       const userData = userSnap.data();
+      if (isDeactivated(userData)) {
+        await signOut(auth);
+        setAuthError(DEACTIVATED_MESSAGE);
+        setLoading(false);
+        return;
+      }
       const allowedRoles = ["admin", "director", "head_teacher", "class_teacher", "bursar", "librarian", "superadmin"];
 
       if (!allowedRoles.includes(userData.role)) {
@@ -495,7 +505,7 @@ export default function SignIn() {
         "auth/wrong-password":         "Incorrect password. Please try again.",
         "auth/invalid-credential":     "Invalid email or password.",
         "auth/too-many-requests":      "Too many failed attempts. Please wait and try again.",
-        "auth/user-disabled":          "This account has been disabled. Contact support.",
+        "auth/user-disabled":          DEACTIVATED_MESSAGE,
         "auth/network-request-failed": "Network error. Check your connection and try again.",
       };
       setAuthError(map[err.code] || "Sign-in failed. Please try again.");

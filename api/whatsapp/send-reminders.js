@@ -25,6 +25,7 @@
 // how many are left) rather than a queueing system this pass doesn't build.
 // ─────────────────────────────────────────────────────────────────────────────
 import { adminAuth, adminDb, FieldValue } from "../_lib/firebaseAdmin.js";
+import { isDeactivated } from "../../src/services/staffAccountCore.js";
 import { sendWhatsAppText, isConfigured as waConfigured } from "../_lib/waapi.js";
 import { computeSchoolArrears } from "../_lib/feeBalance.js";
 import { stageFor } from "../../src/services/feeReminderCore.js";
@@ -74,6 +75,7 @@ async function authenticate(req) {
   }
   if (!userSnap.exists) return { error: "No staff profile is attached to this account." };
   const user = userSnap.data();
+  if (isDeactivated(user)) return { error: "This account has been deactivated. Contact your school administrator." };
   if (!FINANCE_ROLES.includes(user.role)) {
     return { error: "Only the bursar or an administrator can send fee reminders." };
   }

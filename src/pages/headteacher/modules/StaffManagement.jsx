@@ -16,6 +16,7 @@ import {
   Search,
   RefreshCw,
 } from "lucide-react";
+import { isDeactivated } from "../../../services/staffAccountCore";
 
 function initials(name = "") {
   return name
@@ -215,7 +216,7 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
 
       // Show only what the school still has, whether or not the clean-up
       // write below goes through.
-      setStaff(rawStaff.map((m) => {
+      setStaff(rawStaff.filter((m) => !isDeactivated(m)).map((m) => {
         const r = cleanAssignments(m, classes);
         return { ...m, assignedClasses: r.classes, assignedSubjects: r.subjects };
       }));

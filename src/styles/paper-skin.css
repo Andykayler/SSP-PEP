@@ -240,11 +240,16 @@ html.skin-paper .sb-weather {
 html.skin-paper .sb-signout { border-radius: 12px !important; border-color: var(--border-strong) !important; }
 
 /* ── Topbar ── */
+/* Two module stylesheets (staff-management.css) carry an unscoped `.topbar`
+   rule that zeroes the side padding once they load; pin it here. */
 html.skin-paper .topbar {
+  padding: 0 16px;
   height: 64px;
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
 }
+@media (min-width: 640px) { html.skin-paper .topbar { padding: 0 24px; } }
+@media (min-width: 1024px) { html.skin-paper .topbar { padding: 0 28px; } }
 html.skin-paper .topbar__title { font-size: clamp(1.05rem, 2.6vw, 1.35rem); line-height: 1.15; }
 html.skin-paper .topbar__subtitle { font-size: 10.5px; letter-spacing: 0.06em; color: var(--text-secondary); margin-top: 3px; }
 html.skin-paper .topbar__status {
@@ -562,6 +567,8 @@ html.skin-paper :is(.field__input, .search-wrap__input, .form-input, .form-selec
   letter-spacing: -0.02em;
   color: var(--text-primary);
 }
+/* Money and other long figures: smaller, on one line. */
+.tp-stat__value--long { font-size: clamp(1.3rem, 1.9vw, 1.65rem); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tp-stat__sub { font-size: 12.5px; color: var(--text-secondary); }
 .tp-meter {
   height: 6px;

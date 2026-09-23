@@ -36,8 +36,11 @@ import { subscribeSchoolSettings, academicYearFor } from "../../services/academi
 import { loadSchoolOverview, emptyOverview } from "../../services/schoolOverview";
 import "../admin/admin_dashboard.css";
 import "../burser/modules/staff-management.css";
+import "../../styles/paper-skin.css";
+import useDashboardSkin from "../../hooks/useDashboardSkin";
 
 export default function DirectorDashboard() {
+  useDashboardSkin("paper");
   const [currentTab, setCurrentTab] = useState("overview");
   const [uid, setUid] = useState("");
   const [userData, setUserData] = useState(null);
@@ -209,6 +212,7 @@ export default function DirectorDashboard() {
     >
       {currentTab === "overview" ? (
         <SchoolOverview
+          displayName={displayName}
           schoolName={schoolName}
           schoolCode={schoolCode}
           overview={overviewData}

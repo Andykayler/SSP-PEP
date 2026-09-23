@@ -8,10 +8,10 @@ export const RoleBadge = ({ role }) => {
   return <span className={`badge ${r.badgeClass}`}><span className="badge__dot" />{r.label}</span>;
 };
 
-export const StatusPill = ({ active }) => (
+export const StatusPill = ({ active, label }) => (
   <span className={`status-pill ${active ? "status-pill--active" : "status-pill--suspended"}`}>
     <span className="status-pill__dot" />
-    {active ? "Active" : "Suspended"}
+    {label || (active ? "Active" : "Suspended")}
   </span>
 );
 

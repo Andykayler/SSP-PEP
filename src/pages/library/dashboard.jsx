@@ -5,14 +5,21 @@ import { useState, useEffect } from "react";
 import { auth, db } from "../../firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { signOut, onAuthStateChanged } from "firebase/auth";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Home } from "lucide-react";
 
 import DashboardShell from "../../components/DashboardShell";
 import LibraryModule from "./modules/LibraryModule";
+import LibraryOverview from "./modules/LibraryOverview";
+import useDashboardSkin from "../../hooks/useDashboardSkin";
 import "../admin/admin_dashboard.css";
+import "../../styles/paper-skin.css";
 
 export default function LibrarianDashboard() {
-  const [currentTab, setCurrentTab] = useState("library");
+  useDashboardSkin("paper");
+  const [currentTab, setCurrentTab] = useState("overview");
+  // Which view the Library page opens on when the overview sends someone
+  // there ("catalogue", "loans" or "overdue").
+  const [libraryView, setLibraryView] = useState("catalogue");
   const [uid, setUid] = useState("");
   const [userData, setUserData] = useState(null);
   const [schoolData, setSchoolData] = useState(null);
@@ -75,8 +82,18 @@ export default function LibrarianDashboard() {
   const displayName = userData?.name || "Librarian";
   const currentUser = { id: uid, name: displayName, role: "librarian" };
 
+  const schoolName = schoolData?.name || schoolCode || "Your School";
+  const openLibrary = (view) => { setLibraryView(view); setCurrentTab("library"); };
+
   const navItems = [
-    { id: "library", label: "Library", icon: <BookOpen className="w-5 h-5" />, component: <LibraryModule schoolCode={schoolCode} currentUser={currentUser} /> },
+    {
+      id: "overview", label: "Overview", icon: <Home className="w-5 h-5" />,
+      component: <LibraryOverview displayName={displayName} schoolName={schoolName} schoolCode={schoolCode} onOpen={openLibrary} />,
+    },
+    {
+      id: "library", label: "Library", icon: <BookOpen className="w-5 h-5" />,
+      component: <LibraryModule key={libraryView} schoolCode={schoolCode} currentUser={currentUser} initialTab={libraryView} />,
+    },
   ];
   const current = navItems.find((i) => i.id === currentTab) || navItems[0];
 
@@ -85,10 +102,12 @@ export default function LibrarianDashboard() {
       navItems={navItems}
       currentTab={current.id}
       onTabChange={setCurrentTab}
+      title={current.id === "overview" ? "Library Desk" : "Library"}
+      subtitle={`Librarian · ${schoolName}`}
       roleLabel="Librarian"
       tourRole="librarian"
       userName={displayName}
-      schoolName={schoolData?.name || schoolCode || "Your School"}
+      schoolName={schoolName}
       schoolDistrict={schoolData?.district || ""}
       schoolCode={schoolCode}
       portalLabel="Librarian"

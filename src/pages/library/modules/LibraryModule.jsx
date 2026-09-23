@@ -26,8 +26,8 @@ import "../../headteacher/modules/staff-management.css";
 
 const BLANK_BOOK = { title: "", author: "", isbn: "", category: "Textbook", subject: "", shelf: "", copies: "1" };
 
-export default function LibraryModule({ schoolCode, currentUser, canConfigure = false }) {
-  const [tab, setTab] = useState("catalogue");
+export default function LibraryModule({ schoolCode, currentUser, canConfigure = false, initialTab = "catalogue" }) {
+  const [tab, setTab] = useState(initialTab);
   const [books, setBooks] = useState(null);
   const [loans, setLoans] = useState([]);
   const [students, setStudents] = useState([]);

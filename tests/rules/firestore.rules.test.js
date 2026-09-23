@@ -754,3 +754,140 @@ describe("a suspended school cannot write, but can still read", () => {
     }));
   });
 });
+
+// ─── Staff accounts: deactivation, moving schools, no deletion ──────────────
+// Accounts are deactivated, never deleted (api/staff/account.js). A
+// deactivated member keeps their profile but loses every right that comes
+// from belonging to the school. Someone taken on by another school keeps the
+// same login, so every "my own record" rule must also check the record is at
+// the school they belong to NOW — otherwise the old school's data follows them.
+describe("staff accounts", () => {
+  const DEACTIVATED = "teacher_uid_deactivated";
+  const MOVER = "teacher_uid_moved_to_other_school";
+  const ADMIN = "admin_uid_1";
+  const oldConvo = `${SCHOOL}__${STUDENT}__${MOVER}`;
+  const asDeactivated = () => testEnv.authenticatedContext(DEACTIVATED).firestore();
+  const asMover = () => testEnv.authenticatedContext(MOVER).firestore();
+  const asAdmin = () => testEnv.authenticatedContext(ADMIN).firestore();
+
+  before(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, "users", DEACTIVATED), {
+        name: "Gone Teacher", role: "class_teacher", schoolCode: SCHOOL,
+        assignedClasses: ["Form 1A"], status: "deactivated",
+      });
+      await setDoc(doc(db, "users", ADMIN), { name: "Admin", role: "admin", schoolCode: SCHOOL });
+      // Worked at SCHOOL, now belongs to OTHER_SCHOOL. Their SCHOOL records stay put.
+      await setDoc(doc(db, "users", MOVER), {
+        name: "Moved Teacher", role: "class_teacher", schoolCode: OTHER_SCHOOL,
+        assignedClasses: [], status: "active",
+      });
+      await setDoc(doc(db, "lesson_plans", "lp_old"), { schoolCode: SCHOOL, teacherId: MOVER, topic: "Old" });
+      await setDoc(doc(db, "homework", "hw_old"), { schoolCode: SCHOOL, teacherId: MOVER, title: "Old" });
+      await setDoc(doc(db, "ca_marks", "cm_old"), { schoolCode: SCHOOL, teacherId: MOVER, term: "Term 2 2026", marks: {} });
+      await setDoc(doc(db, "leave_requests", "lr_old"), {
+        schoolCode: SCHOOL, staffId: MOVER, status: "pending", startDate: "2026-09-01", endDate: "2026-09-02",
+      });
+      await setDoc(doc(db, "notifications", "n_old"), {
+        schoolCode: SCHOOL, recipientId: MOVER, recipientType: "staff", title: "Old", body: "b", read: false,
+      });
+      await setDoc(doc(db, "conversations", oldConvo), {
+        schoolCode: SCHOOL, studentId: STUDENT, staffId: MOVER, parentId: PARENT,
+        participantIds: [MOVER, PARENT], unread: {},
+      });
+      await setDoc(doc(db, "conversations", oldConvo, "messages", "m_old"), {
+        body: "old", senderId: MOVER, senderType: "staff", participantIds: [MOVER, PARENT],
+      });
+      await setDoc(doc(db, "former_staff", `${SCHOOL}__${MOVER}`), {
+        schoolCode: SCHOOL, uid: MOVER, name: "Moved Teacher", role: "class_teacher",
+      });
+    });
+  });
+
+  describe("a deactivated account", () => {
+    it("can still read its own profile (sign-in needs it to explain why)", async () => {
+      await assertSucceeds(getDoc(doc(asDeactivated(), "users", DEACTIVATED)));
+    });
+    it("cannot read the school's students", async () => {
+      await assertFails(getDoc(doc(asDeactivated(), "students", STUDENT)));
+    });
+    it("cannot take a register", async () => {
+      await assertFails(setDoc(doc(asDeactivated(), "attendance", "att_deactivated"), {
+        schoolCode: SCHOOL, classId: CLASS, className: "Form 1A",
+        date: "2026-09-05", teacherId: DEACTIVATED, records: {},
+      }));
+    });
+    it("cannot read its own inbox at the school", async () => {
+      await assertFails(getDocs(query(
+        collection(asDeactivated(), "notifications"),
+        where("recipientId", "==", DEACTIVATED), where("schoolCode", "==", SCHOOL),
+      )));
+    });
+  });
+
+  describe("someone who moved to another school", () => {
+    it("cannot read their old lesson plan", async () => {
+      await assertFails(getDoc(doc(asMover(), "lesson_plans", "lp_old")));
+    });
+    it("cannot edit their old homework", async () => {
+      await assertFails(updateDoc(doc(asMover(), "homework", "hw_old"), { title: "Changed" }));
+    });
+    it("cannot read their old marks", async () => {
+      await assertFails(getDoc(doc(asMover(), "ca_marks", "cm_old")));
+    });
+    it("cannot read their old leave request", async () => {
+      await assertFails(getDoc(doc(asMover(), "leave_requests", "lr_old")));
+    });
+    it("cannot read the old school's notifications", async () => {
+      await assertFails(getDoc(doc(asMover(), "notifications", "n_old")));
+    });
+    it("cannot read an old parent conversation or its messages", async () => {
+      await assertFails(getDoc(doc(asMover(), "conversations", oldConvo)));
+      await assertFails(getDoc(doc(asMover(), "conversations", oldConvo, "messages", "m_old")));
+    });
+    it("can list their inbox at the new school", async () => {
+      await assertSucceeds(getDocs(query(
+        collection(asMover(), "notifications"),
+        where("recipientId", "==", MOVER), where("schoolCode", "==", OTHER_SCHOOL),
+      )));
+    });
+    it("while the old school's leadership still sees their records", async () => {
+      await assertSucceeds(getDoc(doc(asHead(), "homework", "hw_old")));
+      await assertSucceeds(getDoc(doc(asHead(), "leave_requests", "lr_old")));
+    });
+  });
+
+  describe("an inbox list must name the school", () => {
+    it("filtered by recipient and school succeeds", async () => {
+      await assertSucceeds(getDocs(query(
+        collection(asTeacher(), "notifications"),
+        where("recipientId", "==", TEACHER), where("schoolCode", "==", SCHOOL), limit(60),
+      )));
+    });
+    it("filtered by recipient alone is denied", async () => {
+      await assertFails(getDocs(query(
+        collection(asTeacher(), "notifications"),
+        where("recipientId", "==", TEACHER), limit(60),
+      )));
+    });
+  });
+
+  describe("users are never deleted", () => {
+    it("an administrator cannot delete a staff account", async () => {
+      await assertFails(deleteDoc(doc(asAdmin(), "users", TEACHER)));
+    });
+  });
+
+  describe("former staff records", () => {
+    it("the school they left can read them", async () => {
+      await assertSucceeds(getDocs(query(collection(asHead(), "former_staff"), where("schoolCode", "==", SCHOOL))));
+    });
+    it("a class teacher cannot", async () => {
+      await assertFails(getDoc(doc(asTeacher(), "former_staff", `${SCHOOL}__${MOVER}`)));
+    });
+    it("no client can write them", async () => {
+      await assertFails(setDoc(doc(asAdmin(), "former_staff", `${SCHOOL}__x`), { schoolCode: SCHOOL }));
+    });
+  });
+});

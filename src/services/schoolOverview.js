@@ -18,6 +18,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { db } from "../firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
+import { isDeactivated } from "./staffAccountCore";
 
 /** Roles that count as staff on the establishment, in the order they are shown. */
 const STAFF_ROLES = ["head_teacher", "class_teacher", "bursar", "librarian", "director"];
@@ -51,6 +52,8 @@ export async function loadSchoolOverview({ schoolCode, campuses = [], academicYe
   ]);
 
   const activeStudents = students.filter((s) => (s.status || "active") === "active");
+  // A deactivated account is no longer on the establishment.
+  const staffNow = users.filter((u) => !isDeactivated(u));
 
   // Fees are summed against the student, then rolled up to that student's
   // campus. Payments carry a campusId only from the point this feature shipped,
@@ -72,6 +75,8 @@ export async function loadSchoolOverview({ schoolCode, campuses = [], academicYe
     // exactly the error the payment-integrity note in firestore.rules warns
     // about, and it would show up first on this screen.
     if (p.status === "unverified") { unverified += 1; continue; }
+    // A payment the bursar turned down never became money either.
+    if (p.status === "rejected") continue;
     const key = campusOfStudent.get(p.studentId) || attributed(p);
     collected.set(key, (collected.get(key) || 0) + Number(p.amount || 0));
   }
@@ -80,7 +85,7 @@ export async function loadSchoolOverview({ schoolCode, campuses = [], academicYe
     .filter((c) => c.status !== "archived")
     .map((c) => {
       const roll = activeStudents.filter((s) => attributed(s) === c.id);
-      const staff = users.filter((u) => STAFF_ROLES.includes(u.role) && servesCampus(u, c.id, primaryId));
+      const staff = staffNow.filter((u) => STAFF_ROLES.includes(u.role) && servesCampus(u, c.id, primaryId));
       const due = billed.get(c.id) || 0;
       const paid = collected.get(c.id) || 0;
       return {
@@ -124,7 +129,7 @@ export async function loadSchoolOverview({ schoolCode, campuses = [], academicYe
     unverifiedPayments: unverified,
     staffByRole: STAFF_ROLES.map((role) => ({
       role,
-      count: users.filter((u) => u.role === role).length,
+      count: staffNow.filter((u) => u.role === role).length,
     })),
   };
 }

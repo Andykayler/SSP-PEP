@@ -191,16 +191,18 @@ describe("students — one school cannot read another's children", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3. Cross-school account deletion.
+// 3. Account deletion. Staff accounts are never deleted — an administrator
+//    deactivates them instead (api/staff/account.js) so their records stay
+//    with the school. Nobody can delete one, least of all across schools.
 // ─────────────────────────────────────────────────────────────────────────────
-describe("users — an admin deletes only their own school's staff", () => {
-  it("our admin can delete one of ours", async () => {
+describe("users — accounts are deactivated, never deleted", () => {
+  it("our admin cannot delete even one of ours", async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(doc(ctx.firestore(), "users", "ours_to_delete"), {
         name: "Leaver", role: "class_teacher", schoolCode: OURS, assignedClasses: [],
       });
     });
-    await assertSucceeds(deleteDoc(doc(as(OUR_ADMIN), "users", "ours_to_delete")));
+    await assertFails(deleteDoc(doc(as(OUR_ADMIN), "users", "ours_to_delete")));
   });
 
   it("our admin CANNOT delete another school's head teacher", async () => {

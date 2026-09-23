@@ -37,10 +37,11 @@ import { fetchSchoolClasses, cleanAssignments } from "../../services/staffAssign
 import useDashboardSkin from "../../hooks/useDashboardSkin";
 import { plural } from "../../components/overview/overviewText";
 import {
-  OverviewHero, TodoSheet, SectionTitle, StatGrid, QuickActions, Banner,
+  OverviewHero, TodoSheet, SectionTitle, StatGrid, QuickActions, Banner, ModuleDirectory,
 } from "../../components/overview/OverviewKit";
 import "../admin/admin_dashboard.css"; // shared component styles
 import "../../styles/paper-skin.css";
+import { isDeactivated } from "../../services/staffAccountCore";
 
 const quickActions = [
   { label: "Enrol a Student", hint: "Add to the school roll", icon: <UserPlus size={22} />, tab: "students", tone: "green" },
@@ -173,7 +174,7 @@ export default function HeadTeacherDashboard() {
           collection(db, "users"),
           where("schoolCode", "==", code),
           where("role", "in", ["head_teacher", "class_teacher"])
-        ))).docs.map((d) => ({ id: d.id, ...d.data() })), []),
+        ))).docs.map((d) => ({ id: d.id, ...d.data() })).filter((m) => !isDeactivated(m)), []),
         safe("attendance", async () => {
           const today = todayISO();
           const snaps = await Promise.all(
@@ -364,14 +365,6 @@ export default function HeadTeacherDashboard() {
     ];
   }, [pulse, classCount]);
 
-  // navItems is rebuilt every render, so the grouping is plain derivation.
-  const byId = Object.fromEntries(navItems.map((n) => [n.id, n]));
-  const listed = new Set(MODULE_GROUPS.flatMap((g) => g.ids));
-  const moduleGroups = MODULE_GROUPS
-    .map((g) => ({ title: g.title, items: g.ids.map((id) => byId[id]).filter(Boolean) }))
-    .filter((g) => g.items.length);
-  const unlisted = navItems.filter((n) => n.id !== "overview" && !listed.has(n.id));
-  if (unlisted.length) moduleGroups.push({ title: "More", items: unlisted });
 
   const displayTitle = currentTab === "overview" ? "School Leadership Dashboard" : currentNavItem?.label;
 
@@ -480,24 +473,7 @@ export default function HeadTeacherDashboard() {
 
           <section aria-labelledby="tp-modules">
             <SectionTitle id="tp-modules">All modules</SectionTitle>
-            <div className="tp-dir">
-              {moduleGroups.map((group) => (
-                <div key={group.title} className="tp-dir__group">
-                  <h3 className="tp-dir__title">{group.title}</h3>
-                  <div className="tp-dir__grid">
-                    {group.items.map((item) => (
-                      <button key={item.id} type="button" className="tp-mod" onClick={() => setCurrentTab(item.id)}>
-                        <span className="tp-mod__icon" aria-hidden="true">{item.icon}</span>
-                        <span className="tp-mod__text">
-                          <span className="tp-mod__label">{item.label}</span>
-                          {MODULE_HINTS[item.id] && <span className="tp-mod__hint">{MODULE_HINTS[item.id]}</span>}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <ModuleDirectory groups={MODULE_GROUPS} navItems={navItems} hints={MODULE_HINTS} onOpen={setCurrentTab} />
           </section>
         </div>
       ) : (

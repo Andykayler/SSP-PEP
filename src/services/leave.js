@@ -37,8 +37,12 @@ export async function submitLeave({ schoolCode, staff, type, startDate, endDate,
 
 const byNewest = (a, b) => (b.startDate || "").localeCompare(a.startDate || "");
 
-export async function fetchMyLeave(uid) {
-  const snap = await getDocs(query(collection(db, LEAVE), where("staffId", "==", uid)));
+export async function fetchMyLeave(uid, schoolCode) {
+  const snap = await getDocs(query(
+    collection(db, LEAVE),
+    where("staffId", "==", uid),
+    where("schoolCode", "==", schoolCode),
+  ));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(byNewest);
 }
 

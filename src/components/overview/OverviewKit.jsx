@@ -102,7 +102,9 @@ export function StatGrid({ stats, loading }) {
             </>
           ) : (
             <>
-              <div className="tp-stat__value">{stat.value}</div>
+              <div className={`tp-stat__value${String(stat.value).length > 8 ? " tp-stat__value--long" : ""}`} title={String(stat.value)}>
+                {stat.value}
+              </div>
               <div className="tp-stat__sub" title={stat.sub}>{stat.sub}</div>
               {stat.meter != null && (
                 <div className="tp-meter" role="progressbar" aria-valuenow={stat.meter} aria-valuemin={0} aria-valuemax={100} aria-label={stat.label}>
@@ -170,6 +172,42 @@ export function EmptyNote({ icon, title, children, actionLabel, onAction }) {
           {actionLabel} <ArrowRight size={14} aria-hidden="true" />
         </button>
       )}
+    </div>
+  );
+}
+
+/**
+ * Every module in a portal, grouped. `groups` is [{ title, ids }] in display
+ * order; `navItems` supplies label and icon; `hints` maps id → one line.
+ * Anything in navItems not placed in a group lands under "More".
+ */
+export function ModuleDirectory({ groups, navItems, hints = {}, onOpen }) {
+  const byId = Object.fromEntries(navItems.map((n) => [n.id, n]));
+  const placed = new Set(groups.flatMap((g) => g.ids));
+  const rows = groups
+    .map((g) => ({ title: g.title, items: g.ids.map((id) => byId[id]).filter(Boolean) }))
+    .filter((g) => g.items.length);
+  const rest = navItems.filter((n) => n.id !== "overview" && !placed.has(n.id));
+  if (rest.length) rows.push({ title: "More", items: rest });
+
+  return (
+    <div className="tp-dir">
+      {rows.map((group) => (
+        <div key={group.title} className="tp-dir__group">
+          <h3 className="tp-dir__title">{group.title}</h3>
+          <div className="tp-dir__grid">
+            {group.items.map((item) => (
+              <button key={item.id} type="button" className="tp-mod" onClick={() => onOpen(item.id)}>
+                <span className="tp-mod__icon" aria-hidden="true">{item.icon}</span>
+                <span className="tp-mod__text">
+                  <span className="tp-mod__label">{item.label}</span>
+                  {hints[item.id] && <span className="tp-mod__hint">{hints[item.id]}</span>}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
