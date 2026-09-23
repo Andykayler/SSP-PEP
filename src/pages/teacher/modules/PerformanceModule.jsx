@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { db } from "../../../firebase";
+import { fetchMyAssignments } from "../../../services/staffAssignments";
 import {
   collection, query, where, getDocs, doc, getDoc,
   setDoc, serverTimestamp,
@@ -263,12 +264,12 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
       setClasses([]);
       setError("");
       try {
-        const userSnap = await getDoc(doc(db, "users", userId));
+        // Only classes and subjects the school still has registered — a
+        // dropped subject must not get a marks column.
+        const mine = await fetchMyAssignments(userId, schoolCode);
         if (cancelled) return;
-        const userData = userSnap.exists() ? userSnap.data() : {};
-        const assignedNames    = userData.assignedClasses  || [];
-        const assignedSubjects = userData.assignedSubjects || [];
-        setMySubjects(assignedSubjects);
+        const assignedNames = mine.classNames;
+        setMySubjects(mine.subjects);
 
         if (assignedNames.length === 0) {
           setClasses([]);
@@ -283,13 +284,7 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
           return;
         }
 
-        const snap = await getDocs(
-          query(collection(db, "school_classes"), where("schoolCode", "==", schoolCode))
-        );
-        if (cancelled) return;
-        const myClasses = snap.docs
-          .map(d => ({ id: d.id, ...d.data() }))
-          .filter(c => assignedNames.includes(c.name));
+        const myClasses = mine.classes;
 
         setClasses(myClasses);
         setClassesReady(true);

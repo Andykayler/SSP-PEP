@@ -7,8 +7,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import {
   Users, BookOpen, Calendar, Award, TrendingUp, AlertTriangle,
   Home, FileText, CheckCircle, Clock, MessageSquare, MessagesSquare,
-  CalendarOff, HeartPulse, ArrowRight, Check, School, Hash, CalendarDays,
-  ClipboardCheck, ClipboardList,
+  CalendarOff, HeartPulse, School, Hash, ClipboardCheck, ClipboardList,
 } from "lucide-react";
 
 import DashboardShell from "../../components/DashboardShell";
@@ -24,6 +23,11 @@ import HomeworkModule from "./modules/homework";
 import LeaveModule from "../../components/leave/LeaveModule";
 import HealthModule from "../../components/health/HealthModule";
 import useDashboardSkin from "../../hooks/useDashboardSkin";
+import { plural } from "../../components/overview/overviewText";
+import {
+  OverviewHero, TodoSheet, SectionTitle, StatGrid, QuickActions, Panel,
+  EmptyNote, Banner, Skeleton,
+} from "../../components/overview/OverviewKit";
 import "../admin/admin_dashboard.css";
 import "../../styles/paper-skin.css";
 
@@ -58,21 +62,8 @@ function periodPhase(num, now = new Date()) {
   return "now";
 }
 
-function todayLabel() {
-  return new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
-}
-
-function plural(n, word, suffix = "s") {
-  return `${n} ${word}${n === 1 ? "" : suffix}`;
-}
-
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function greeting() {
-  const h = new Date().getHours();
-  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
 const quickActions = [
@@ -451,7 +442,6 @@ export default function TeacherDashboard() {
       },
     ];
   }, [statsLoading, classes, overview]);
-  const todosLeft = todos.filter((t) => !t.done).length;
 
   if (authLoading) {
     return (
@@ -493,251 +483,150 @@ export default function TeacherDashboard() {
     >
       {currentTab === "overview" ? (
         <div className="tp">
-          {/* ── Hero: greeting + today's list on an exercise-book sheet ── */}
-          <section className="tp-hero" aria-labelledby="tp-greeting">
-            <div>
-              <span className="tp-eyebrow"><CalendarDays size={14} aria-hidden="true" /> {todayLabel()}</span>
-              <h1 id="tp-greeting" className="tp-hero__title">
-                {greeting()}, <span className="tp-mark">{displayName.split(" ")[0]}</span>.
-              </h1>
-              <p className="tp-hero__lead">
-                {statsLoading ? (
-                  "Getting your day ready…"
-                ) : classes.length === 0 ? (
-                  "Once your head teacher assigns your classes, your registers, marks and timetable will appear here."
-                ) : (
-                  <>
-                    You teach <strong>{plural(overview.totalStudents, "student")}</strong> across{" "}
-                    <strong>{plural(classes.length, "class", "es")}</strong>.{" "}
-                    {overview.todayPlans.length > 0 ? (
-                      <>There {overview.todayPlans.length === 1 ? "is" : "are"} <strong>{plural(overview.todayPlans.length, "lesson")}</strong> on today&apos;s plan.</>
-                    ) : (
-                      "No lessons are planned for today yet."
-                    )}
-                  </>
-                )}
-              </p>
-              <div className="tp-chips">
-                <span className="tp-chip"><Users size={14} aria-hidden="true" /> {displayRole}</span>
-                {profile?.schoolName && <span className="tp-chip"><School size={14} aria-hidden="true" /> {profile.schoolName}</span>}
-                {schoolCode && <span className="tp-chip tp-chip--mono" title="School code"><Hash size={13} aria-hidden="true" /> {schoolCode}</span>}
-              </div>
-            </div>
-
-            <div className="tp-sheet" role="region" aria-label="Today's to-do list">
-              <div className="tp-sheet__head">
-                <strong>Today&apos;s list</strong>
-                <span>{new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</span>
-              </div>
-              {statsLoading ? (
-                <div style={{ padding: "8px 0" }}>
-                  <div className="tp-skel" style={{ width: "80%" }} />
-                  <div className="tp-skel" style={{ width: "65%" }} />
-                  <div className="tp-skel" style={{ width: "72%" }} />
-                </div>
-              ) : todos.length === 0 ? (
-                <p className="tp-sheet__empty">Nothing to do until classes are assigned.</p>
+          <OverviewHero
+            name={displayName.split(" ")[0]}
+            lead={
+              statsLoading ? (
+                "Getting your day ready…"
+              ) : classes.length === 0 ? (
+                "Once your head teacher assigns your classes, your registers, marks and timetable will appear here."
               ) : (
                 <>
-                  <ul className="tp-todo">
-                    {todos.map((t) => (
-                      <li key={t.key} className={t.done ? "is-done" : t.urgent ? "is-urgent" : ""}>
-                        <button type="button" onClick={() => setCurrentTab(t.tab)}>
-                          <span className="tp-todo__box" aria-hidden="true">
-                            {t.done && <Check size={13} strokeWidth={3} />}
-                          </span>
-                          <span className="tp-todo__text">
-                            <span className="tp-sr">{t.done ? "Done: " : "To do: "}</span>
-                            {t.text}
-                          </span>
-                          <ArrowRight size={15} className="tp-todo__go" aria-hidden="true" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="tp-pen">
-                    {todosLeft === 0 ? "All caught up — well done!" : `${todosLeft} to go today`}
-                  </p>
+                  You teach <strong>{plural(overview.totalStudents, "student")}</strong> across{" "}
+                  <strong>{plural(classes.length, "class", "es")}</strong>.{" "}
+                  {overview.todayPlans.length > 0 ? (
+                    <>There {overview.todayPlans.length === 1 ? "is" : "are"} <strong>{plural(overview.todayPlans.length, "lesson")}</strong> on today&apos;s plan.</>
+                  ) : (
+                    "No lessons are planned for today yet."
+                  )}
                 </>
-              )}
-            </div>
-          </section>
+              )
+            }
+            chips={[
+              { label: displayRole, icon: <Users size={14} aria-hidden="true" /> },
+              profile?.schoolName && { label: profile.schoolName, icon: <School size={14} aria-hidden="true" /> },
+              schoolCode && { label: schoolCode, icon: <Hash size={13} aria-hidden="true" />, mono: true, title: "School code" },
+            ]}
+            aside={
+              <TodoSheet
+                todos={todos}
+                loading={statsLoading}
+                emptyText="Nothing to do until classes are assigned."
+                onOpen={setCurrentTab}
+              />
+            }
+          />
 
           {classes.length === 0 && classesReady && (
-            <div className="tp-banner tp-banner--warn">
-              <AlertTriangle size={17} aria-hidden="true" />
-              <span>No classes have been assigned to you yet. Ask your head teacher to assign classes from Staff Management.</span>
-            </div>
+            <Banner icon={<AlertTriangle size={17} aria-hidden="true" />}>
+              No classes have been assigned to you yet. Ask your head teacher to assign classes from Staff Management.
+            </Banner>
           )}
 
           {overviewError && (
-            <div className="tp-banner tp-banner--error" role="alert">
-              <AlertTriangle size={17} aria-hidden="true" />
-              <span>{overviewError}</span>
-            </div>
+            <Banner tone="error" icon={<AlertTriangle size={17} aria-hidden="true" />}>{overviewError}</Banner>
           )}
 
-          {/* ── At a glance ── */}
           <section aria-labelledby="tp-glance">
-            <div className="tp-section-title"><h2 id="tp-glance">At a glance</h2></div>
-            <div className="tp-stats">
-              {teacherStats.map((stat) => (
-                <div key={stat.label} className={`tp-stat${stat.tone ? ` tp-stat--${stat.tone}` : ""}`}>
-                  <div className="tp-stat__top">
-                    <span className="tp-stat__label">{stat.label}</span>
-                    <span className="tp-stat__icon" aria-hidden="true">{stat.icon}</span>
-                  </div>
-                  {statsLoading ? (
-                    <>
-                      <div className="tp-skel" style={{ height: 30, width: "45%", marginTop: 6 }} />
-                      <div className="tp-skel" style={{ width: "70%" }} />
-                    </>
-                  ) : (
-                    <>
-                      <div className="tp-stat__value">{stat.value}</div>
-                      <div className="tp-stat__sub" title={stat.sub}>{stat.sub}</div>
-                      {stat.meter != null && (
-                        <div className="tp-meter" role="progressbar" aria-valuenow={stat.meter} aria-valuemin={0} aria-valuemax={100} aria-label={stat.label}>
-                          <span style={{ width: `${stat.meter}%` }} />
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
+            <SectionTitle id="tp-glance">At a glance</SectionTitle>
+            <StatGrid stats={teacherStats} loading={statsLoading} />
           </section>
 
-          {/* ── Quick actions ── */}
           <section aria-labelledby="tp-quick">
-            <div className="tp-section-title"><h2 id="tp-quick">Quick actions</h2></div>
-            <div className="tp-actions">
-              {quickActions.map((action) => (
-                <button
-                  key={action.tab}
-                  type="button"
-                  className={`tp-action${action.tone ? ` tp-action--${action.tone}` : ""}`}
-                  onClick={() => setCurrentTab(action.tab)}
-                >
-                  <span className="tp-action__icon" aria-hidden="true">{action.icon}</span>
-                  <span className="tp-action__text">
-                    <span className="tp-action__label">{action.label}</span>
-                    <span className="tp-action__hint">{action.hint}</span>
-                  </span>
-                  <ArrowRight size={18} className="tp-action__arrow" aria-hidden="true" />
-                </button>
-              ))}
-            </div>
+            <SectionTitle id="tp-quick">Quick actions</SectionTitle>
+            <QuickActions actions={quickActions} onOpen={setCurrentTab} />
           </section>
 
-          {/* ── Schedule + homework ── */}
           <div className="tp-grid">
-            <section className="tp-panel" aria-labelledby="tp-schedule">
-              <div className="tp-panel__head">
-                <div className="tp-panel__title">
-                  <Calendar size={18} aria-hidden="true" />
-                  <h3 id="tp-schedule">Today&apos;s Schedule</h3>
-                </div>
-                <button type="button" className="tp-link" onClick={() => setCurrentTab("timetable")}>
-                  Timetable <ArrowRight size={14} aria-hidden="true" />
-                </button>
-              </div>
-              <div className="tp-panel__body">
-                {statsLoading ? (
-                  <div style={{ padding: "14px 0" }}>
-                    <div className="tp-skel" />
-                    <div className="tp-skel" style={{ width: "85%" }} />
-                    <div className="tp-skel" style={{ width: "70%" }} />
-                  </div>
-                ) : overview.todayPlans.length === 0 ? (
-                  <div className="tp-empty">
-                    <span className="tp-empty__icon" aria-hidden="true"><ClipboardList size={20} /></span>
-                    <strong>No lessons planned for today</strong>
-                    <p>Plan a lesson from My Classes and it will show up here with its period and time.</p>
-                    <button type="button" className="tp-link" onClick={() => setCurrentTab("myclasses")}>
-                      Go to My Classes <ArrowRight size={14} aria-hidden="true" />
-                    </button>
-                  </div>
-                ) : (
-                  <ol className="tp-periods">
-                    {overview.todayPlans.map((lesson) => {
-                      const phase = periodPhase(lesson.periodNumber);
-                      const status = lesson.status === "completed" ? "done"
-                        : lesson.status === "in-progress" || phase === "now" ? "live"
-                        : phase === "past" ? "past"
-                        : "next";
-                      const label = { done: "Done", live: "Now", past: "Earlier", next: "Upcoming" }[status];
-                      return (
-                        <li key={lesson.id} className={`tp-period${status === "live" ? " is-now" : ""}`}>
-                          <span className="tp-period__num" aria-label={`Period ${lesson.periodNumber}`}>
-                            {lesson.periodNumber ?? "–"}
-                          </span>
-                          <span className="tp-period__time">{periodTime(lesson.periodNumber)}</span>
-                          <div className="tp-period__main">
-                            <div className="tp-period__subject">{lesson.subject}{lesson.topic ? ` — ${lesson.topic}` : ""}</div>
-                            <div className="tp-period__meta">{lesson.className}</div>
-                          </div>
-                          <span className={`tp-tag tp-tag--${status}`}>{label}</span>
-                        </li>
-                      );
-                    })}
-                  </ol>
-                )}
-              </div>
-            </section>
+            <Panel
+              id="tp-schedule"
+              icon={<Calendar size={18} aria-hidden="true" />}
+              title="Today's Schedule"
+              linkLabel="Timetable"
+              onLink={() => setCurrentTab("timetable")}
+            >
+              {statsLoading ? (
+                <Skeleton />
+              ) : overview.todayPlans.length === 0 ? (
+                <EmptyNote
+                  icon={<ClipboardList size={20} />}
+                  title="No lessons planned for today"
+                  actionLabel="Go to My Classes"
+                  onAction={() => setCurrentTab("myclasses")}
+                >
+                  Plan a lesson from My Classes and it will show up here with its period and time.
+                </EmptyNote>
+              ) : (
+                <ol className="tp-periods">
+                  {overview.todayPlans.map((lesson) => {
+                    const phase = periodPhase(lesson.periodNumber);
+                    const status = lesson.status === "completed" ? "done"
+                      : lesson.status === "in-progress" || phase === "now" ? "live"
+                      : phase === "past" ? "past"
+                      : "next";
+                    const label = { done: "Done", live: "Now", past: "Earlier", next: "Upcoming" }[status];
+                    return (
+                      <li key={lesson.id} className={`tp-period${status === "live" ? " is-now" : ""}`}>
+                        <span className="tp-period__num" aria-label={`Period ${lesson.periodNumber}`}>
+                          {lesson.periodNumber ?? "–"}
+                        </span>
+                        <span className="tp-period__time">{periodTime(lesson.periodNumber)}</span>
+                        <div className="tp-period__main">
+                          <div className="tp-period__subject">{lesson.subject}{lesson.topic ? ` — ${lesson.topic}` : ""}</div>
+                          <div className="tp-period__meta">{lesson.className}</div>
+                        </div>
+                        <span className={`tp-tag tp-tag--${status}`}>{label}</span>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </Panel>
 
-            <section className="tp-panel" aria-labelledby="tp-homework">
-              <div className="tp-panel__head">
-                <div className="tp-panel__title">
-                  <FileText size={18} aria-hidden="true" />
-                  <h3 id="tp-homework">Upcoming Homework</h3>
-                </div>
-                <button type="button" className="tp-link" onClick={() => setCurrentTab("Homework")}>
-                  View all <ArrowRight size={14} aria-hidden="true" />
-                </button>
-              </div>
-              <div className="tp-panel__body">
-                {statsLoading ? (
-                  <div style={{ padding: "14px 0" }}>
-                    <div className="tp-skel" />
-                    <div className="tp-skel" style={{ width: "60%" }} />
-                  </div>
-                ) : overview.upcomingHomework.length === 0 ? (
-                  <div className="tp-empty">
-                    <span className="tp-empty__icon" aria-hidden="true"><FileText size={20} /></span>
-                    <strong>No deadlines coming up</strong>
-                    <p>Homework you set will appear here with how many students have handed it in.</p>
-                    <button type="button" className="tp-link" onClick={() => setCurrentTab("Homework")}>
-                      Set homework <ArrowRight size={14} aria-hidden="true" />
-                    </button>
-                  </div>
-                ) : (
-                  <ul className="tp-hw">
-                    {overview.upcomingHomework.map((hw) => {
-                      const total = hw.totalStudents || 0;
-                      const handed = hw.submitted || 0;
-                      const rate = total > 0 ? Math.round((handed / total) * 100) : 0;
-                      const dueToday = hw.dueDate === todayISO();
-                      return (
-                        <li key={hw.id}>
-                          <div className="tp-hw__row">
-                            <span className="tp-hw__title">{hw.title}</span>
-                            <span className="tp-hw__count">{handed}/{total} in</span>
-                          </div>
-                          <div className={`tp-hw__meta${dueToday ? " is-soon" : ""}`}>
-                            <Clock size={12} aria-hidden="true" />
-                            {hw.className} · {dueToday ? "Due today" : `Due ${hw.dueDate}`}
-                          </div>
-                          <div className="tp-meter" role="progressbar" aria-valuenow={rate} aria-valuemin={0} aria-valuemax={100} aria-label={`${hw.title} submissions`}>
-                            <span style={{ width: `${rate}%` }} />
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-            </section>
+            <Panel
+              id="tp-homework"
+              icon={<FileText size={18} aria-hidden="true" />}
+              title="Upcoming Homework"
+              linkLabel="View all"
+              onLink={() => setCurrentTab("Homework")}
+            >
+              {statsLoading ? (
+                <Skeleton lines={2} />
+              ) : overview.upcomingHomework.length === 0 ? (
+                <EmptyNote
+                  icon={<FileText size={20} />}
+                  title="No deadlines coming up"
+                  actionLabel="Set homework"
+                  onAction={() => setCurrentTab("Homework")}
+                >
+                  Homework you set will appear here with how many students have handed it in.
+                </EmptyNote>
+              ) : (
+                <ul className="tp-hw">
+                  {overview.upcomingHomework.map((hw) => {
+                    const total = hw.totalStudents || 0;
+                    const handed = hw.submitted || 0;
+                    const rate = total > 0 ? Math.round((handed / total) * 100) : 0;
+                    const dueToday = hw.dueDate === todayISO();
+                    return (
+                      <li key={hw.id}>
+                        <div className="tp-hw__row">
+                          <span className="tp-hw__title">{hw.title}</span>
+                          <span className="tp-hw__count">{handed}/{total} in</span>
+                        </div>
+                        <div className={`tp-hw__meta${dueToday ? " is-soon" : ""}`}>
+                          <Clock size={12} aria-hidden="true" />
+                          {hw.className} · {dueToday ? "Due today" : `Due ${hw.dueDate}`}
+                        </div>
+                        <div className="tp-meter" role="progressbar" aria-valuenow={rate} aria-valuemin={0} aria-valuemax={100} aria-label={`${hw.title} submissions`}>
+                          <span style={{ width: `${rate}%` }} />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Panel>
           </div>
         </div>
       ) : (

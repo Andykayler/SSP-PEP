@@ -1,6 +1,7 @@
 // modules/ClassAndStreamModule.jsx
 import { useState, useEffect, useMemo } from "react";
 import { auth, db } from "../../../firebase";
+import { syncAssignmentsWithClasses } from "../../../services/staffAssignments";
 import {
   collection, query, where, getDocs, doc, getDoc, writeBatch, serverTimestamp,
 } from "firebase/firestore";
@@ -149,6 +150,7 @@ function ClassSetupModal({ schoolCode, existingClasses, existingSettings, onClos
       });
 
       await batch.commit();
+      await syncAssignmentsWithClasses(schoolCode).catch((e) => console.error("assignment sync failed:", e));
       onSaved();
       onClose();
     } catch (err) {

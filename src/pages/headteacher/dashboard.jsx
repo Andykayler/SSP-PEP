@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { auth, db } from "../../firebase";
-import { doc, getDoc } from "firebase/firestore";
+import {
+  doc, getDoc, getDocs, collection, query, where, getCountFromServer,
+} from "firebase/firestore";
 import { signOut, onAuthStateChanged } from "firebase/auth";
-import { Users, Calendar, Award, AlertTriangle, Bell, Home, FileText, UserCheck, ClipboardCheck, MessageSquare, CalendarDays, GraduationCap, Wallet, BedDouble, Package, UserPlus, BookOpen, HeartPulse, Bus, CalendarOff, ClipboardList } from "lucide-react";
+import { Users, Calendar, Award, AlertTriangle, Bell, Home, FileText, UserCheck, ClipboardCheck, MessageSquare, CalendarDays, GraduationCap, Wallet, BedDouble, Package, UserPlus, BookOpen, HeartPulse, Bus, CalendarOff, ClipboardList, School, Hash, MapPin, LayoutGrid, UserCog, ShieldCheck } from "lucide-react";
 
 import DashboardShell from "../../components/DashboardShell";
 import TermCard from "../../components/TermCard";
@@ -31,21 +33,64 @@ import Inventory from "./modules/Inventory";
 import ArrearsModule from "../../components/fees/ArrearsModule";
 import { subscribeSchoolSettings } from "../../services/academicTerm";
 import { boards } from "../../services/schoolProfile";
+import { fetchSchoolClasses, cleanAssignments } from "../../services/staffAssignments";
+import useDashboardSkin from "../../hooks/useDashboardSkin";
+import { plural } from "../../components/overview/overviewText";
+import {
+  OverviewHero, TodoSheet, SectionTitle, StatGrid, QuickActions, Banner,
+} from "../../components/overview/OverviewKit";
 import "../admin/admin_dashboard.css"; // shared component styles
-
-function greeting() {
-  const h = new Date().getHours();
-  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
-}
+import "../../styles/paper-skin.css";
 
 const quickActions = [
-  { label: "Enroll New Student", icon: <Users width={22} height={22} />, tab: "students", variant: "navy" },
-  { label: "School Timetable", icon: <Calendar width={22} height={22} />, tab: "timetable", variant: "gold" },
-  { label: "View Reports", icon: <FileText width={22} height={22} />, tab: "reports", variant: "teal" },
-  { label: "Staff Management", icon: <Users width={22} height={22} />, tab: "staff", variant: "purple" },
+  { label: "Enrol a Student", hint: "Add to the school roll", icon: <UserPlus size={22} />, tab: "students", tone: "green" },
+  { label: "Staff Management", hint: "Assign classes & subjects", icon: <UserCog size={22} />, tab: "staff", tone: "" },
+  { label: "School Timetable", hint: "Build and check the week", icon: <Calendar size={22} />, tab: "timetable", tone: "gold" },
+  { label: "Reports & Exports", hint: "Report cards and returns", icon: <FileText size={22} />, tab: "reports", tone: "teal" },
 ];
 
+// The module directory on the overview, grouped the way a head teacher thinks
+// about the school. Ids must match navItems; anything not listed here falls
+// into "More".
+const MODULE_GROUPS = [
+  { title: "Teaching & learning", ids: ["classes", "timetable", "lessonplans", "classmonitor", "performance", "exams", "readiness", "reports"] },
+  { title: "Students & welfare", ids: ["students", "attendance", "discipline", "atrisk", "health", "admissions", "boarding"] },
+  { title: "Staff & operations", ids: ["staff", "leave", "transport", "inventory", "arrears"] },
+  { title: "Communication", ids: ["messages", "announcements", "calendar"] },
+];
+
+const MODULE_HINTS = {
+  students: "Enrol, transfer and look up learners",
+  classes: "Forms, streams and class teachers",
+  messages: "Conversations with parents",
+  timetable: "The weekly timetable and clashes",
+  lessonplans: "Review teachers' lesson plans",
+  classmonitor: "Which lessons ran today",
+  attendance: "Registers and absence trends",
+  performance: "Marks, grades and rankings",
+  discipline: "Cases waiting for your review",
+  reports: "Report cards and exports",
+  staff: "Staff list and class assignments",
+  announcements: "Notices to staff and parents",
+  calendar: "Terms, holidays and events",
+  readiness: "MSCE / JCE exam preparation",
+  exams: "Exam timetables and invigilation",
+  atrisk: "Learners who need attention",
+  leave: "Staff leave and lesson cover",
+  health: "Sick bay visits and conditions",
+  transport: "Routes and riders",
+  arrears: "Fee balances and clearance",
+  admissions: "Applications and intake",
+  boarding: "Hostels and bed allocation",
+  inventory: "Stock, books and equipment",
+};
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function HeadTeacherDashboard() {
+  useDashboardSkin("paper");
   const [currentTab, setCurrentTab] = useState("overview");
   const [uid, setUid] = useState("");
   const [userData, setUserData] = useState(null);
@@ -58,6 +103,9 @@ export default function HeadTeacherDashboard() {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState("");
+  // Live numbers for the overview. `null` while loading.
+  const [pulse, setPulse] = useState(null);
+  const [pulseError, setPulseError] = useState("");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
@@ -97,6 +145,77 @@ export default function HeadTeacherDashboard() {
     const code = userData?.schoolCode;
     if (!code) return;
     return subscribeSchoolSettings(code, setSettings);
+  }, [userData?.schoolCode]);
+
+  // ── School pulse: roll, staff, today's registers, open discipline cases ────
+  // Each part is fetched and caught on its own so one refused query can't
+  // blank the numbers that did load.
+  useEffect(() => {
+    const code = userData?.schoolCode;
+    if (!code) return undefined;
+    let cancelled = false;
+    (async () => {
+      const failed = [];
+      const safe = async (label, fn, fallback) => {
+        try { return await fn(); } catch (err) {
+          console.error(`overview: ${label}:`, err);
+          failed.push(label);
+          return fallback;
+        }
+      };
+
+      const classes = await safe("classes", () => fetchSchoolClasses(code), []);
+      const [students, staff, registers, discipline] = await Promise.all([
+        safe("students", async () => (await getCountFromServer(
+          query(collection(db, "students"), where("schoolCode", "==", code))
+        )).data().count, null),
+        safe("staff", async () => (await getDocs(query(
+          collection(db, "users"),
+          where("schoolCode", "==", code),
+          where("role", "in", ["head_teacher", "class_teacher"])
+        ))).docs.map((d) => ({ id: d.id, ...d.data() })), []),
+        safe("attendance", async () => {
+          const today = todayISO();
+          const snaps = await Promise.all(
+            classes.map((c) => getDoc(doc(db, "attendance", `${code}_${c.id}_${today}`)))
+          );
+          let taken = 0, present = 0, marked = 0;
+          snaps.forEach((snap) => {
+            if (!snap.exists()) return;
+            taken += 1;
+            Object.values(snap.data().records || {}).forEach((r) => {
+              if (!r?.status) return;
+              marked += 1;
+              if (r.status === "Present" || r.status === "Late") present += 1;
+            });
+          });
+          return { taken, present, marked };
+        }, { taken: 0, present: 0, marked: 0 }),
+        safe("discipline", async () => (await getCountFromServer(query(
+          collection(db, "discipline_cases"),
+          where("schoolCode", "==", code),
+          where("status", "==", "Pending Review")
+        ))).data().count, 0),
+      ]);
+
+      if (cancelled) return;
+      // Coverage is judged against the register, so a teacher still carrying
+      // a closed class doesn't make it look covered.
+      const teachers = staff.filter((m) => m.role === "class_teacher");
+      const covered = new Set(staff.flatMap((m) => cleanAssignments(m, classes).classes));
+      setPulse({
+        classes,
+        students,
+        teachers,
+        heads: staff.length - teachers.length,
+        registers,
+        discipline,
+        uncovered: classes.filter((c) => !covered.has(c.name)),
+        idleTeachers: teachers.filter((t) => cleanAssignments(t, classes).classes.length === 0),
+      });
+      setPulseError(failed.length ? `Some numbers couldn't be loaded (${failed.join(", ")}).` : "");
+    })();
+    return () => { cancelled = true; };
   }, [userData?.schoolCode]);
 
   // Pressing Back after Sign Out can restore this dashboard straight from
@@ -160,6 +279,100 @@ export default function HeadTeacherDashboard() {
   ];
 
   const currentNavItem = navItems.find((item) => item.id === currentTab);
+
+  const pulseLoading = pulse === null;
+  const classCount = pulse?.classes.length || 0;
+  const attendancePct = pulse?.registers.marked
+    ? Math.round((pulse.registers.present / pulse.registers.marked) * 100)
+    : null;
+
+  const stats = useMemo(() => {
+    if (!pulse) return [
+      { label: "Students", icon: <GraduationCap size={17} /> },
+      { label: "Teaching Staff", icon: <Users size={17} />, tone: "teal" },
+      { label: "Today's Attendance", icon: <UserCheck size={17} />, tone: "green" },
+      { label: "Classes Covered", icon: <LayoutGrid size={17} />, tone: "gold" },
+    ];
+    const coveredCount = classCount - pulse.uncovered.length;
+    return [
+      {
+        label: "Students",
+        value: pulse.students == null ? "—" : pulse.students.toLocaleString("en-GB"),
+        sub: `Enrolled across ${plural(classCount, "class", "es")}`,
+        icon: <GraduationCap size={17} />,
+      },
+      {
+        label: "Teaching Staff",
+        value: String(pulse.teachers.length),
+        sub: `${plural(pulse.teachers.length, "class teacher")} · ${plural(pulse.heads, "head")}`,
+        icon: <Users size={17} />,
+        tone: "teal",
+      },
+      {
+        label: "Today's Attendance",
+        value: attendancePct !== null ? `${attendancePct}%` : "—",
+        sub: `${pulse.registers.taken} of ${plural(classCount, "register")} taken`,
+        icon: <UserCheck size={17} />,
+        tone: "green",
+        meter: attendancePct,
+      },
+      {
+        label: "Classes Covered",
+        value: `${coveredCount}/${classCount}`,
+        sub: "Classes with a teacher assigned",
+        icon: <LayoutGrid size={17} />,
+        tone: "gold",
+        meter: classCount ? Math.round((coveredCount / classCount) * 100) : null,
+      },
+    ];
+  }, [pulse, classCount, attendancePct]);
+
+  const todos = useMemo(() => {
+    if (!pulse || classCount === 0) return [];
+    const regsLeft = classCount - pulse.registers.taken;
+    const unc = pulse.uncovered;
+    const idle = pulse.idleTeachers;
+    return [
+      {
+        key: "registers",
+        tab: "attendance",
+        done: regsLeft <= 0,
+        text: regsLeft <= 0 ? "Every register taken" : `Registers outstanding · ${regsLeft} of ${classCount}`,
+      },
+      {
+        key: "discipline",
+        tab: "discipline",
+        done: pulse.discipline === 0,
+        urgent: pulse.discipline > 0,
+        text: pulse.discipline === 0 ? "No discipline cases to review" : `Review ${plural(pulse.discipline, "discipline case")}`,
+      },
+      {
+        key: "uncovered",
+        tab: "staff",
+        done: unc.length === 0,
+        urgent: unc.length > 0,
+        text: unc.length === 0
+          ? "Every class has a teacher"
+          : `Assign a teacher to ${unc.slice(0, 3).map((c) => c.name).join(", ")}${unc.length > 3 ? ` +${unc.length - 3}` : ""}`,
+      },
+      {
+        key: "idle",
+        tab: "staff",
+        done: idle.length === 0,
+        text: idle.length === 0 ? "Every teacher has classes" : `${plural(idle.length, "teacher")} without classes`,
+      },
+    ];
+  }, [pulse, classCount]);
+
+  // navItems is rebuilt every render, so the grouping is plain derivation.
+  const byId = Object.fromEntries(navItems.map((n) => [n.id, n]));
+  const listed = new Set(MODULE_GROUPS.flatMap((g) => g.ids));
+  const moduleGroups = MODULE_GROUPS
+    .map((g) => ({ title: g.title, items: g.ids.map((id) => byId[id]).filter(Boolean) }))
+    .filter((g) => g.items.length);
+  const unlisted = navItems.filter((n) => n.id !== "overview" && !listed.has(n.id));
+  if (unlisted.length) moduleGroups.push({ title: "More", items: unlisted });
+
   const displayTitle = currentTab === "overview" ? "School Leadership Dashboard" : currentNavItem?.label;
 
   // Clicking a notification (bell or toast) opens the module it points at.
@@ -213,57 +426,79 @@ export default function HeadTeacherDashboard() {
       onSignOut={handleSignOut}
     >
       {currentTab === "overview" ? (
-    <div className="space-y-8">
-          <div className="overview-hero">
-            <div>
-              <div className="overview-hero__greeting">{greeting()}</div>
-              <h2 className="overview-hero__name">
-                <span className="overview-hero__name-gradient">{displayName.split(" ")[0]}</span>
-              </h2>
-              <p className="overview-hero__school">{schoolName}</p>
-            </div>
-            <div>
-              <span className="overview-hero__plan overview-hero__plan--trial">Head Teacher</span>
-              {schoolCode && <div className="overview-hero__code">{schoolCode}</div>}
-            </div>
-          </div>
+        <div className="tp">
+          <OverviewHero
+            name={displayName.split(" ")[0]}
+            lead={
+              pulseLoading ? (
+                "Getting the school's day together…"
+              ) : classCount === 0 ? (
+                "No classes are set up yet. Open Classes & Streams to create your forms, then assign teachers in Staff Management."
+              ) : (
+                <>
+                  {pulse.students != null && <><strong>{plural(pulse.students, "student")}</strong> across </>}
+                  <strong>{plural(classCount, "class", "es")}</strong>, taught by{" "}
+                  <strong>{plural(pulse.teachers.length, "teacher")}</strong>.{" "}
+                  {pulse.registers.taken >= classCount
+                    ? "Every register is in for today."
+                    : <><strong>{plural(classCount - pulse.registers.taken, "register")}</strong> still to come in today.</>}
+                </>
+              )
+            }
+            chips={[
+              { label: "Head Teacher", icon: <ShieldCheck size={14} aria-hidden="true" /> },
+              { label: schoolName, icon: <School size={14} aria-hidden="true" /> },
+              schoolDistrict && { label: schoolDistrict, icon: <MapPin size={14} aria-hidden="true" /> },
+              schoolCode && { label: schoolCode, icon: <Hash size={13} aria-hidden="true" />, mono: true, title: "School code" },
+            ]}
+            aside={
+              <TodoSheet
+                title="Today at school"
+                todos={todos}
+                loading={pulseLoading}
+                emptyText="Set up your classes to start the day's checklist."
+                onOpen={setCurrentTab}
+              />
+            }
+          />
+
+          {pulseError && (
+            <Banner tone="error" icon={<AlertTriangle size={17} aria-hidden="true" />}>{pulseError}</Banner>
+          )}
+
+          <section aria-labelledby="tp-glance">
+            <SectionTitle id="tp-glance">At a glance</SectionTitle>
+            <StatGrid stats={stats} loading={pulseLoading} />
+          </section>
 
           <TermCard schoolCode={schoolCode} actorId={uid} />
 
-          <div>
-            <div className="sec-eyebrow">Quick actions</div>
-            <div className="quick-actions-grid">
-              {quickActions.map((action) => (
-                <button
-                  key={action.tab}
-                  type="button"
-                  className={`quick-action-btn quick-action-btn--${action.variant}`}
-                  onClick={() => setCurrentTab(action.tab)}
-                >
-                  <span className="quick-action-btn__icon">{action.icon}</span>
-                  <span className="quick-action-btn__label">{action.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+          <section aria-labelledby="tp-quick">
+            <SectionTitle id="tp-quick">Quick actions</SectionTitle>
+            <QuickActions actions={quickActions} onOpen={setCurrentTab} />
+          </section>
 
-          <div>
-            <div className="sec-eyebrow">Leadership modules</div>
-            <div className="modules-grid">
-              {navItems.filter((n) => n.id !== "overview").map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className="module-card"
-                  onClick={() => setCurrentTab(item.id)}
-                >
-                  <div className="module-card__icon">{item.icon}</div>
-                  <div className="module-card__title">{item.label}</div>
-                  <div className="module-card__desc">Open {item.label.toLowerCase()}</div>
-                </button>
+          <section aria-labelledby="tp-modules">
+            <SectionTitle id="tp-modules">All modules</SectionTitle>
+            <div className="tp-dir">
+              {moduleGroups.map((group) => (
+                <div key={group.title} className="tp-dir__group">
+                  <h3 className="tp-dir__title">{group.title}</h3>
+                  <div className="tp-dir__grid">
+                    {group.items.map((item) => (
+                      <button key={item.id} type="button" className="tp-mod" onClick={() => setCurrentTab(item.id)}>
+                        <span className="tp-mod__icon" aria-hidden="true">{item.icon}</span>
+                        <span className="tp-mod__text">
+                          <span className="tp-mod__label">{item.label}</span>
+                          {MODULE_HINTS[item.id] && <span className="tp-mod__hint">{MODULE_HINTS[item.id]}</span>}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
-          </div>
+          </section>
         </div>
       ) : (
         currentNavItem?.component || (

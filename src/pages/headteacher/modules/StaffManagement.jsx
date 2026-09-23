@@ -5,6 +5,9 @@ import {
   collection, query, where, getDocs, doc, updateDoc, serverTimestamp,
 } from "firebase/firestore";
 import {
+  cleanAssignments, fetchSchoolClasses, pruneStaleAssignments, registeredSubjects,
+} from "../../../services/staffAssignments";
+import {
   BookOpen,
   Eye,
   X,
@@ -77,13 +80,16 @@ function CheckboxGroup({ items, selected = [], onChange }) {
 }
 
 function AssignModal({ member, allClasses, onSave, onClose }) {
-  const [assignedClasses, setAssignedClasses] = useState(member.assignedClasses || []);
-  const [assignedSubjects, setAssignedSubjects] = useState(member.assignedSubjects || []);
+  // Start from what the school still has — a class that has since closed must
+  // not ride along unseen and be written back on save.
+  const initial = cleanAssignments(member, allClasses);
+  const [assignedClasses, setAssignedClasses] = useState(initial.classes);
+  const [assignedSubjects, setAssignedSubjects] = useState(initial.subjects);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [activeTab, setActiveTab] = useState("classes");
 
-  const allSubjects = [...new Set(allClasses.flatMap((c) => c.subjects || []))];
+  const allSubjects = registeredSubjects(allClasses);
 
   const handleSave = async () => {
     setSaving(true);
@@ -136,7 +142,7 @@ function AssignModal({ member, allClasses, onSave, onClose }) {
           {saveError && <div className="error-message">{saveError}</div>}
           {activeTab === "classes" ? (
             <>
-              <p className="text-muted">Select classes this staff member will be responsible for:</p>
+              <p className="text-muted">Select classes this staff member will be responsible for. Only classes registered in School Settings are listed.</p>
               <CheckboxGroup
                 items={allClasses.map((c) => c.name)}
                 selected={assignedClasses}
@@ -145,7 +151,7 @@ function AssignModal({ member, allClasses, onSave, onClose }) {
             </>
           ) : (
             <>
-              <p className="text-muted">Select subjects this staff member teaches:</p>
+              <p className="text-muted">Select subjects this staff member teaches. Only subjects offered by a registered class are listed.</p>
               <CheckboxGroup
                 items={allSubjects}
                 selected={assignedSubjects}
@@ -179,6 +185,9 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
   const [roleFilter, setRoleFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("staff");
   const [modal, setModal] = useState(null);
+  // What the last load removed from staff records because the class or
+  // subject is no longer registered, so the head teacher knows it happened.
+  const [cleanupNote, setCleanupNote] = useState("");
 
   useEffect(() => {
     if (schoolCode) {
@@ -200,16 +209,28 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
           where("role", "in", ["head_teacher", "class_teacher"])
         )
       );
-      setStaff(staffSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const rawStaff = staffSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const classes = await fetchSchoolClasses(schoolCode);
+      setAllClasses(classes);
 
-      const classesSnap = await getDocs(
-        query(collection(db, "school_classes"), where("schoolCode", "==", schoolCode))
-      );
-      setAllClasses(
-        classesSnap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .sort((a, b) => (a.order || 0) - (b.order || 0))
-      );
+      // Show only what the school still has, whether or not the clean-up
+      // write below goes through.
+      setStaff(rawStaff.map((m) => {
+        const r = cleanAssignments(m, classes);
+        return { ...m, assignedClasses: r.classes, assignedSubjects: r.subjects };
+      }));
+
+      try {
+        const removed = await pruneStaleAssignments(rawStaff, classes);
+        if (removed.length > 0) {
+          const gone = [...new Set(removed.flatMap((r) => [...r.staleClasses, ...r.staleSubjects]))];
+          setCleanupNote(
+            `Removed ${gone.join(", ")} from ${removed.length} staff record${removed.length !== 1 ? "s" : ""} — no longer registered at this school.`
+          );
+        }
+      } catch (err) {
+        console.error("Stale assignment clean-up failed:", err);
+      }
     } catch (err) {
       console.error("Fetch error:", err);
       if (err.code === "permission-denied") {
@@ -222,7 +243,11 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
     }
   }
 
-  const saveAssignments = async (userId, assignedClasses, assignedSubjects) => {
+  const saveAssignments = async (userId, pickedClasses, pickedSubjects) => {
+    const { classes: assignedClasses, subjects: assignedSubjects } = cleanAssignments(
+      { assignedClasses: pickedClasses, assignedSubjects: pickedSubjects },
+      allClasses
+    );
     await updateDoc(doc(db, "users", userId), {
       assignedClasses,
       assignedSubjects,
@@ -246,6 +271,7 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
 
   const stats = {
     total: staff.length,
+    teachers: staff.filter((s) => s.role === "class_teacher").length,
     active: staff.filter((s) => s.status === "active").length,
     covered: new Set(staff.flatMap((s) => s.assignedClasses || [])).size,
   };
@@ -269,7 +295,7 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
           <div className="stat-card__label">Total Staff</div>
         </div>
         <div className="stat-card">
-          <div className="stat-card__value stat-card__value--accent">{stats.total}</div>
+          <div className="stat-card__value stat-card__value--accent">{stats.teachers}</div>
           <div className="stat-card__label">Teachers</div>
         </div>
         <div className="stat-card">
@@ -278,7 +304,7 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
         </div>
         <div className="stat-card">
           <div className="stat-card__value stat-card__value--warning">{stats.covered}</div>
-          <div className="stat-card__label">Forms Covered</div>
+          <div className="stat-card__label">Classes Covered</div>
         </div>
       </div>
 
@@ -295,6 +321,7 @@ export default function StaffManagement({ schoolCode, schoolName = "Your School"
       </div>
 
       {error && <div className="error-message">{error}</div>}
+      {cleanupNote && <div className="alert alert--info">{cleanupNote}</div>}
       {saveError && <div className="error-message">{saveError}</div>}
 
       {activeTab === "staff" && (

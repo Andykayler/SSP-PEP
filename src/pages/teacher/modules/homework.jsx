@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { db } from "../../../firebase";
+import { fetchMyAssignments } from "../../../services/staffAssignments";
 import {
   collection, query, where, getDocs, addDoc, updateDoc, deleteDoc,
-  doc, getDoc, serverTimestamp,
+  doc, serverTimestamp,
 } from "firebase/firestore";
 import { notifyHomeworkPosted } from "../../../services/notificationHooks";
 import SubmissionPanel from "../../../components/homework/SubmissionPanel";
@@ -494,29 +495,12 @@ export default function HomeworkModule({ userId, schoolCode, userName, userRole 
     (async () => {
       setAssignLoading(true);
       try {
-        const userSnap = await getDoc(doc(db, "users", userId));
-        if (!userSnap.exists()) return;
-        const data = userSnap.data();
-        const assignedNames    = data.assignedClasses  || [];
-        const assignedSubjects = data.assignedSubjects || [];
-
-        setMyClasses(assignedNames);
-        setMySubjects(assignedSubjects);
-
-        if (assignedNames.length > 0) {
-          const snap = await getDocs(
-            query(collection(db, "school_classes"), where("schoolCode", "==", schoolCode))
-          );
-          if (cancelled) return;
-          const map = {};
-          snap.docs.forEach(d => {
-            const cls = d.data();
-            if (assignedNames.includes(cls.name)) {
-              map[cls.name] = d.id;
-            }
-          });
-          setSchoolClassesMap(map);
-        }
+        // Only classes and subjects the school still has registered.
+        const mine = await fetchMyAssignments(userId, schoolCode);
+        if (cancelled) return;
+        setMyClasses(mine.classNames);
+        setMySubjects(mine.subjects);
+        setSchoolClassesMap(Object.fromEntries(mine.classes.map((c) => [c.name, c.id])));
       } catch (err) {
         console.error("Failed to load assignments:", err);
         setError("Could not load your class assignments.");

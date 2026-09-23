@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "../../../firebase";
+import { fetchMyAssignments } from "../../../services/staffAssignments";
 import {
   collection, query, where, getDocs, addDoc, updateDoc, deleteDoc,
   doc, serverTimestamp,
@@ -278,18 +279,14 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
   const showToast = (message, type = "success") => setToast({ message, type });
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !schoolCode) return;
     (async () => {
       setAssignLoading(true);
       try {
-        const snap = await getDocs(
-          query(collection(db, "users"), where("__name__", "==", userId))
-        );
-        if (!snap.empty) {
-          const d = snap.docs[0].data();
-          setMyClasses(d.assignedClasses  || []);
-          setMySubjects(d.assignedSubjects || []);
-        }
+        // Only classes and subjects the school still has registered.
+        const mine = await fetchMyAssignments(userId, schoolCode);
+        setMyClasses(mine.classNames);
+        setMySubjects(mine.subjects);
       } catch (err) {
         console.error(err);
         showToast("Could not load your class assignments.", "error");
@@ -297,7 +294,7 @@ export default function ClassPlanningModule({ userId, schoolCode }) {
         setAssignLoading(false);
       }
     })();
-  }, [userId]);
+  }, [userId, schoolCode]);
 
   // ── removed orderBy("date") to avoid requiring a composite index.
   // Plans are sorted client-side instead.

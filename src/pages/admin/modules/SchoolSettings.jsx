@@ -10,6 +10,7 @@ import { normalisePhone } from "./helpers";
 import { Modal, Input, Select, Textarea, Btn, EmptyState, ActionBtn } from "./ui";
 import { SCHOOL_TYPES, setSchoolType, schoolTypeLabel } from "../../../services/schoolProfile";
 import { subscribeSchoolSettings } from "../../../services/academicTerm";
+import { syncAssignmentsWithClasses } from "../../../services/staffAssignments";
 import {
   SMS_ALWAYS_CATEGORIES, SMS_FALLBACK_CATEGORIES,
   smsFallbackCategories, setSmsFallbackCategories,
@@ -144,14 +145,22 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
       };
       if (editingClass) await updateDoc(doc(db, "school_classes", editingClass.id), data);
       else await addDoc(collection(db, "school_classes"), data);
+      // Keep teachers' assignments in step with the register: a rename moves
+      // them to the new name, a dropped subject comes off their list.
+      const renames = editingClass && editingClass.name !== data.name ? { [editingClass.name]: data.name } : {};
+      await syncAssignmentsWithClasses(schoolCode, renames).catch((e) => console.error("assignment sync failed:", e));
       setShowClassModal(false); fetchClasses();
     } catch (err) { alert("Failed to save class"); }
     setLoading(false);
   }
 
   async function deleteClass(id) {
-    if (!confirm("Delete this class?")) return;
-    try { await deleteDoc(doc(db, "school_classes", id)); fetchClasses(); } catch (e) { console.error(e); }
+    if (!confirm("Delete this class? Teachers assigned to it will be unassigned.")) return;
+    try {
+      await deleteDoc(doc(db, "school_classes", id));
+      await syncAssignmentsWithClasses(schoolCode).catch((e) => console.error("assignment sync failed:", e));
+      fetchClasses();
+    } catch (e) { console.error(e); }
   }
 
   function toggleSubject(subject) {
