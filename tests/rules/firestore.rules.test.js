@@ -31,13 +31,17 @@ import {
 
 const SCHOOL = "TEST-SCHOOL-1";
 const OTHER_SCHOOL = "TEST-SCHOOL-2";
+const SUSPENDED_SCHOOL = "TEST-SCHOOL-SUSPENDED";
 const TEACHER = "teacher_uid_1";
 const HEAD = "head_uid_1";
 const OUTSIDER = "teacher_uid_other_school";
 const BURSAR = "bursar_uid_1";
+const SUSPENDED_TEACHER = "teacher_uid_suspended";
+const SUSPENDED_HEAD = "head_uid_suspended";
 const PHONE = "+265991234567";
 const PARENT = `parent:${PHONE}`;
 const STUDENT = "student_1";
+const SUSPENDED_STUDENT = "student_suspended_1";
 const CLASS = "class_1";
 const THREAD = "thread_1";
 
@@ -48,6 +52,8 @@ const asTeacher = () => testEnv.authenticatedContext(TEACHER).firestore();
 const asHead = () => testEnv.authenticatedContext(HEAD).firestore();
 const asOutsider = () => testEnv.authenticatedContext(OUTSIDER).firestore();
 const asBursar = () => testEnv.authenticatedContext(BURSAR).firestore();
+const asSuspendedTeacher = () => testEnv.authenticatedContext(SUSPENDED_TEACHER).firestore();
+const asSuspendedHead = () => testEnv.authenticatedContext(SUSPENDED_HEAD).firestore();
 
 /** The parent app signs in anonymously — no users/{uid} document exists. */
 const asParent = () =>
@@ -143,6 +149,35 @@ before(async () => {
     await setDoc(doc(db, "school_settings", SCHOOL), {
       schoolCode: SCHOOL, schoolType: "Secondary",
       currentTerm: "Term 2 2026", promotionThreshold: 40,
+    });
+
+    // A suspended school, and its own staff, for the write-gating suite below.
+    // SCHOOL deliberately has no schools/{SCHOOL} document at all above — that
+    // absence is what proves a school predating the approval flow still
+    // reads as active. This one exists and is explicitly suspended.
+    await setDoc(doc(db, "schools", SUSPENDED_SCHOOL), {
+      name: "Suspended School", status: "suspended",
+    });
+    await setDoc(doc(db, "users", SUSPENDED_TEACHER), {
+      name: "Suspended Teacher", role: "class_teacher",
+      schoolCode: SUSPENDED_SCHOOL, assignedClasses: ["Form 1A"],
+    });
+    await setDoc(doc(db, "users", SUSPENDED_HEAD), {
+      name: "Suspended Head", role: "head_teacher",
+      schoolCode: SUSPENDED_SCHOOL, assignedClasses: [],
+    });
+    await setDoc(doc(db, "students", SUSPENDED_STUDENT), {
+      fullName: "Suspended Child", guardianPhone: "+265997654321",
+      schoolCode: SUSPENDED_SCHOOL, classId: "class_s", className: "Form 1A",
+      parentPortalPassword: "x",
+    });
+    await setDoc(doc(db, "attendance", "att_suspended"), {
+      schoolCode: SUSPENDED_SCHOOL, classId: "class_s", className: "Form 1A",
+      date: "2026-09-01", teacherId: SUSPENDED_TEACHER, records: {},
+    });
+    await setDoc(doc(db, "leave_requests", "leave_suspended_1"), {
+      staffId: SUSPENDED_TEACHER, schoolCode: SUSPENDED_SCHOOL,
+      status: "pending", reason: "Sick", startDate: "2026-09-01", endDate: "2026-09-02",
     });
   });
 });
@@ -653,5 +688,69 @@ describe("guardian link confirmation", () => {
     await assertFails(getDoc(
       doc(asParent(), "guardian_link_requests", "req_2"),
     ));
+  });
+});
+
+// ─── Suspension enforcement — schoolIsActive() ───────────────────────────────
+// The UI already refuses to render a suspended school's dashboards
+// (DashboardShell / useSchoolAccess), but that is cosmetic unless the rules
+// back it up: a direct write from a suspended school's own staff must be
+// refused too, not just hidden behind a blocked screen the staff member could
+// route around. Reads stay open throughout — the point is to stop the school
+// operating, not to erase what it already recorded.
+describe("a suspended school cannot write, but can still read", () => {
+  it("a teacher cannot mark attendance", async () => {
+    await assertFails(addDoc(collection(asSuspendedTeacher(), "attendance"), {
+      schoolCode: SUSPENDED_SCHOOL, classId: "class_s", className: "Form 1A",
+      date: "2026-09-05", teacherId: SUSPENDED_TEACHER, records: {},
+    }));
+  });
+
+  it("a teacher can still read the register recorded before suspension", async () => {
+    await assertSucceeds(getDoc(doc(asSuspendedTeacher(), "attendance", "att_suspended")));
+  });
+
+  it("a head teacher cannot update a student record", async () => {
+    await assertFails(updateDoc(doc(asSuspendedHead(), "students", SUSPENDED_STUDENT), {
+      fullName: "Renamed Child",
+    }));
+  });
+
+  it("a head teacher can still read a student record", async () => {
+    await assertSucceeds(getDoc(doc(asSuspendedHead(), "students", SUSPENDED_STUDENT)));
+  });
+
+  it("a head teacher cannot enrol a new student", async () => {
+    await assertFails(addDoc(collection(asSuspendedHead(), "students"), {
+      fullName: "New Child", guardianPhone: "+265991112222",
+      schoolCode: SUSPENDED_SCHOOL, classId: "class_s", className: "Form 1A",
+      parentPortalPassword: "x",
+    }));
+  });
+
+  it("a school with no status field at all is still treated as active", async () => {
+    // SCHOOL has no schools/{SCHOOL} document in these fixtures at all —
+    // proving that absence (a school that predates the approval flow) does
+    // not get caught by the same gate as an explicit suspension.
+    await assertSucceeds(addDoc(collection(asTeacher(), "attendance"), {
+      schoolCode: SCHOOL, classId: CLASS, className: "Form 1A",
+      date: "2026-09-05", teacherId: TEACHER, records: {},
+    }));
+  });
+
+  it("a teacher can still withdraw their own pending leave request", async () => {
+    // The narrow, deliberate carve-out: a suspended school's staff can still
+    // cleanly back out of a request rather than being stuck in limbo, even
+    // though the head teacher's decide-branch (tested next) is blocked.
+    await assertSucceeds(updateDoc(doc(asSuspendedTeacher(), "leave_requests", "leave_suspended_1"), {
+      status: "cancelled", updatedAt: new Date(),
+    }));
+  });
+
+  it("but a head teacher cannot decide on one", async () => {
+    await assertFails(updateDoc(doc(asSuspendedHead(), "leave_requests", "leave_suspended_1"), {
+      status: "approved", decidedBy: SUSPENDED_HEAD, decidedByName: "Suspended Head",
+      decidedAt: new Date(), updatedAt: new Date(),
+    }));
   });
 });

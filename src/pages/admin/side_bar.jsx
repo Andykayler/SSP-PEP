@@ -150,7 +150,7 @@ export default function HeadTeacherSidebar({
         }}
       >
         {/* ── Brand header ── */}
-        <div style={{
+        <div className="sb-brand" style={{
           padding: "24px 20px 16px",
           display: "flex",
           alignItems: "center",
@@ -158,7 +158,7 @@ export default function HeadTeacherSidebar({
           borderBottom: "1px solid var(--border-color)",
           flexShrink: 0,
         }}>
-          <div style={{
+          <div className="sb-brand__mark" style={{
             width: 40, height: 40, flexShrink: 0,
             background: "linear-gradient(135deg, var(--primary), var(--primary-light))",
             borderRadius: "var(--radius-lg)",
@@ -171,7 +171,7 @@ export default function HeadTeacherSidebar({
             </svg>
           </div>
           <div>
-            <div style={{
+            <div className="sb-brand__name" style={{
               fontFamily: "var(--font-display)",
               fontSize: "1.5rem",
               lineHeight: 1.2,
@@ -179,8 +179,8 @@ export default function HeadTeacherSidebar({
               backgroundClip: "text",
               WebkitBackgroundClip: "text",
               color: "transparent",
-            }}>ACALINK</div>
-            <div style={{
+            }}>Acalink</div>
+            <div className="sb-brand__sub" style={{
               fontFamily: "var(--font-mono)",
               fontSize: "0.65rem",
               letterSpacing: "1.5px",
@@ -191,7 +191,7 @@ export default function HeadTeacherSidebar({
         </div>
 
         {/* ── User info ── */}
-        <div style={{
+        <div className="sb-school" style={{
           padding: "14px 20px 12px",
           fontSize: "0.75rem",
           fontWeight: 500,
@@ -214,7 +214,7 @@ export default function HeadTeacherSidebar({
 
         {/* ── Navigation ── */}
         <nav data-tour="sidebar-nav" style={{ flex: 1, padding: "20px 16px", overflowY: "auto" }}>
-          <span style={{
+          <span className="sb-nav-label" style={{
             fontFamily: "var(--font-mono)",
             fontSize: "0.65rem",
             letterSpacing: "1.5px",
@@ -287,7 +287,7 @@ export default function HeadTeacherSidebar({
           flexShrink: 0,
         }}>
           {/* Weather widget */}
-          <div style={{
+          <div className="sb-weather" style={{
             display: "flex",
             flexWrap: "wrap",
             gap: "8px 12px",

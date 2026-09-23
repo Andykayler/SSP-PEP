@@ -7,7 +7,8 @@ import { onAuthStateChanged } from "firebase/auth";
 import {
   Users, BookOpen, Calendar, Award, TrendingUp, AlertTriangle,
   Home, FileText, CheckCircle, Clock, MessageSquare, MessagesSquare,
-  CalendarOff, HeartPulse,
+  CalendarOff, HeartPulse, ArrowRight, Check, School, Hash, CalendarDays,
+  ClipboardCheck, ClipboardList,
 } from "lucide-react";
 
 import DashboardShell from "../../components/DashboardShell";
@@ -22,7 +23,9 @@ import PerformanceModule from "./modules/PerformanceModule";
 import HomeworkModule from "./modules/homework";
 import LeaveModule from "../../components/leave/LeaveModule";
 import HealthModule from "../../components/health/HealthModule";
+import useDashboardSkin from "../../hooks/useDashboardSkin";
 import "../admin/admin_dashboard.css";
+import "../../styles/paper-skin.css";
 
 // Keep this in sync with the term shown in PerformanceModule's TERMS list
 // and used to build the ca_marks document id (schoolCode_classId_term_userId).
@@ -45,6 +48,24 @@ function periodTime(num) {
   return p ? `${p.start}` : "—";
 }
 
+// Where a period sits relative to the clock: "past", "now" or "future".
+function periodPhase(num, now = new Date()) {
+  const p = PERIODS.find((x) => x.number === Number(num));
+  if (!p) return "future";
+  const hhmm = now.toTimeString().slice(0, 5);
+  if (hhmm < p.start) return "future";
+  if (hhmm > p.end) return "past";
+  return "now";
+}
+
+function todayLabel() {
+  return new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+}
+
+function plural(n, word, suffix = "s") {
+  return `${n} ${word}${n === 1 ? "" : suffix}`;
+}
+
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -55,13 +76,14 @@ function greeting() {
 }
 
 const quickActions = [
-  { label: "Take Attendance", icon: <TrendingUp width={22} height={22} />, tab: "attendance", variant: "teal" },
-  { label: "Enter Marks", icon: <Award width={22} height={22} />, tab: "marks", variant: "gold" },
-  { label: "Log Discipline", icon: <AlertTriangle width={22} height={22} />, tab: "discipline", variant: "purple" },
-  { label: "View Timetable", icon: <Calendar width={22} height={22} />, tab: "timetable", variant: "navy" },
+  { label: "Take Attendance", hint: "Mark today's register", icon: <ClipboardCheck size={22} />, tab: "attendance", tone: "green" },
+  { label: "Enter Marks", hint: "Continuous assessment", icon: <Award size={22} />, tab: "marks", tone: "gold" },
+  { label: "Log Discipline", hint: "Record an incident", icon: <AlertTriangle size={22} />, tab: "discipline", tone: "red" },
+  { label: "View Timetable", hint: "Your week at a glance", icon: <Calendar size={22} />, tab: "timetable", tone: "" },
 ];
 
 export default function TeacherDashboard() {
+  useDashboardSkin("paper");
   const [currentTab, setCurrentTab] = useState("overview");
   const [userId, setUserId] = useState(null);
   const [schoolCode, setSchoolCode] = useState(null);
@@ -354,70 +376,82 @@ export default function TeacherDashboard() {
     ? Math.round((overview.presentCount / overview.markedCount) * 100)
     : null;
 
+  const marksDone = classes.length - overview.pendingMarksClasses.length;
+
   const teacherStats = useMemo(() => ([
     {
       label: "My Students",
-      value: statsLoading ? "…" : String(overview.totalStudents),
-      change: statsLoading ? "" : `${classes.length} class${classes.length !== 1 ? "es" : ""}`,
-      variant: "",
+      value: String(overview.totalStudents),
+      sub: `Across ${plural(classes.length, "class", "es")}`,
+      icon: <Users size={17} />,
+      tone: "",
     },
     {
       label: "Classes Taught",
-      value: statsLoading ? "…" : String(classes.length),
-      change: "Active",
-      variant: "teal",
+      value: String(classes.length),
+      sub: classes.length ? classes.map((c) => c.name).join(", ") : "None assigned yet",
+      icon: <BookOpen size={17} />,
+      tone: "teal",
     },
     {
       label: "Today's Attendance",
-      value: statsLoading ? "…" : (attendancePct !== null ? `${attendancePct}%` : "—"),
-      change: statsLoading ? "" : `${overview.classesTaken}/${classes.length} classes marked`,
-      variant: "gold",
+      value: attendancePct !== null ? `${attendancePct}%` : "—",
+      sub: `${overview.classesTaken} of ${plural(classes.length, "register")} taken`,
+      icon: <CheckCircle size={17} />,
+      tone: "green",
+      meter: attendancePct,
     },
     {
-      label: "Pending Marks",
-      value: statsLoading ? "…" : String(overview.pendingMarksClasses.length),
-      change: "Classes",
-      variant: "",
+      label: "Marks Entered",
+      value: `${marksDone}/${classes.length}`,
+      sub: `Classes with ${CURRENT_TERM} marks`,
+      icon: <Award size={17} />,
+      tone: "gold",
+      meter: classes.length ? Math.round((marksDone / classes.length) * 100) : null,
     },
-  ]), [statsLoading, overview, classes.length, attendancePct]);
+  ]), [overview, classes, attendancePct, marksDone]);
 
-  // ── Pending-actions list built from real data ───────────────────────────────
-  const pendingActions = useMemo(() => {
-    if (statsLoading) return [];
-    const actions = [];
-
-    if (classes.length > 0 && overview.classesTaken < classes.length) {
-      const remaining = classes.length - overview.classesTaken;
-      actions.push({
-        type: "warning",
-        text: `Attendance not yet taken for ${remaining} of ${classes.length} class${classes.length !== 1 ? "es" : ""} today`,
-      });
-    }
-
-    if (overview.pendingMarksClasses.length > 0) {
-      const names = overview.pendingMarksClasses.map((c) => c.name).join(", ");
-      actions.push({
-        type: "warning",
-        text: `Enter ${CURRENT_TERM} marks for ${names}`,
-      });
-    }
-
-    if (overview.disciplinePendingCount > 0) {
-      actions.push({
-        type: "error",
-        text: `${overview.disciplinePendingCount} discipline case${overview.disciplinePendingCount !== 1 ? "s" : ""} awaiting review`,
-      });
-    }
-
-    if (overview.overdueHomeworkCount > 0) {
-      actions.push({
-        type: "error",
-        text: `${overview.overdueHomeworkCount} homework assignment${overview.overdueHomeworkCount !== 1 ? "s" : ""} overdue with unsubmitted work`,
-      });
-    }
-
-    return actions;
-  }, [statsLoading, classes.length, overview]);
+  // ── Today's list: each line opens the module that clears it ─────────────────
+  const todos = useMemo(() => {
+    if (statsLoading || classes.length === 0) return [];
+    const regsLeft = classes.length - overview.classesTaken;
+    const pendingMarks = overview.pendingMarksClasses;
+    const disc = overview.disciplinePendingCount;
+    const overdue = overview.overdueHomeworkCount;
+    return [
+      {
+        key: "attendance",
+        tab: "attendance",
+        done: regsLeft <= 0,
+        text: regsLeft <= 0
+          ? "All registers taken"
+          : `Take attendance · ${regsLeft} of ${plural(classes.length, "class", "es")} left`,
+      },
+      {
+        key: "marks",
+        tab: "marks",
+        done: pendingMarks.length === 0,
+        text: pendingMarks.length === 0
+          ? `${CURRENT_TERM} marks entered`
+          : `Enter marks for ${pendingMarks.map((c) => c.name).join(", ")}`,
+      },
+      {
+        key: "discipline",
+        tab: "discipline",
+        done: disc === 0,
+        urgent: disc > 0,
+        text: disc === 0 ? "No discipline cases waiting" : `${plural(disc, "discipline case")} awaiting review`,
+      },
+      {
+        key: "homework",
+        tab: "Homework",
+        done: overdue === 0,
+        urgent: overdue > 0,
+        text: overdue === 0 ? "No overdue homework" : `${plural(overdue, "homework task")} overdue with missing work`,
+      },
+    ];
+  }, [statsLoading, classes, overview]);
+  const todosLeft = todos.filter((t) => !t.done).length;
 
   if (authLoading) {
     return (
@@ -458,169 +492,252 @@ export default function TeacherDashboard() {
       onSignOut={async () => { await auth.signOut(); window.location.href = "/"; }}
     >
       {currentTab === "overview" ? (
-        <div className="space-y-8">
-          <div className="overview-hero">
+        <div className="tp">
+          {/* ── Hero: greeting + today's list on an exercise-book sheet ── */}
+          <section className="tp-hero" aria-labelledby="tp-greeting">
             <div>
-              <div className="overview-hero__greeting">{greeting()}</div>
-              <h2 className="overview-hero__name">
-                <span className="overview-hero__name-gradient">{displayName.split(" ")[0]}</span>
-              </h2>
-              <p className="overview-hero__school">My Teaching Workspace</p>
+              <span className="tp-eyebrow"><CalendarDays size={14} aria-hidden="true" /> {todayLabel()}</span>
+              <h1 id="tp-greeting" className="tp-hero__title">
+                {greeting()}, <span className="tp-mark">{displayName.split(" ")[0]}</span>.
+              </h1>
+              <p className="tp-hero__lead">
+                {statsLoading ? (
+                  "Getting your day ready…"
+                ) : classes.length === 0 ? (
+                  "Once your head teacher assigns your classes, your registers, marks and timetable will appear here."
+                ) : (
+                  <>
+                    You teach <strong>{plural(overview.totalStudents, "student")}</strong> across{" "}
+                    <strong>{plural(classes.length, "class", "es")}</strong>.{" "}
+                    {overview.todayPlans.length > 0 ? (
+                      <>There {overview.todayPlans.length === 1 ? "is" : "are"} <strong>{plural(overview.todayPlans.length, "lesson")}</strong> on today&apos;s plan.</>
+                    ) : (
+                      "No lessons are planned for today yet."
+                    )}
+                  </>
+                )}
+              </p>
+              <div className="tp-chips">
+                <span className="tp-chip"><Users size={14} aria-hidden="true" /> {displayRole}</span>
+                {profile?.schoolName && <span className="tp-chip"><School size={14} aria-hidden="true" /> {profile.schoolName}</span>}
+                {schoolCode && <span className="tp-chip tp-chip--mono" title="School code"><Hash size={13} aria-hidden="true" /> {schoolCode}</span>}
+              </div>
             </div>
-            <div>
-              <span className="overview-hero__plan overview-hero__plan--active">{displayRole}</span>
-              {schoolCode && <div className="overview-hero__code">{schoolCode}</div>}
+
+            <div className="tp-sheet" role="region" aria-label="Today's to-do list">
+              <div className="tp-sheet__head">
+                <strong>Today&apos;s list</strong>
+                <span>{new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</span>
+              </div>
+              {statsLoading ? (
+                <div style={{ padding: "8px 0" }}>
+                  <div className="tp-skel" style={{ width: "80%" }} />
+                  <div className="tp-skel" style={{ width: "65%" }} />
+                  <div className="tp-skel" style={{ width: "72%" }} />
+                </div>
+              ) : todos.length === 0 ? (
+                <p className="tp-sheet__empty">Nothing to do until classes are assigned.</p>
+              ) : (
+                <>
+                  <ul className="tp-todo">
+                    {todos.map((t) => (
+                      <li key={t.key} className={t.done ? "is-done" : t.urgent ? "is-urgent" : ""}>
+                        <button type="button" onClick={() => setCurrentTab(t.tab)}>
+                          <span className="tp-todo__box" aria-hidden="true">
+                            {t.done && <Check size={13} strokeWidth={3} />}
+                          </span>
+                          <span className="tp-todo__text">
+                            <span className="tp-sr">{t.done ? "Done: " : "To do: "}</span>
+                            {t.text}
+                          </span>
+                          <ArrowRight size={15} className="tp-todo__go" aria-hidden="true" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="tp-pen">
+                    {todosLeft === 0 ? "All caught up — well done!" : `${todosLeft} to go today`}
+                  </p>
+                </>
+              )}
             </div>
-          </div>
+          </section>
 
           {classes.length === 0 && classesReady && (
-            <div className="alert alert--warning">
-              No classes have been assigned to you yet. Ask your head teacher to assign classes from Staff Management.
+            <div className="tp-banner tp-banner--warn">
+              <AlertTriangle size={17} aria-hidden="true" />
+              <span>No classes have been assigned to you yet. Ask your head teacher to assign classes from Staff Management.</span>
             </div>
           )}
 
           {overviewError && (
-            <div className="alert alert--error">{overviewError}</div>
+            <div className="tp-banner tp-banner--error" role="alert">
+              <AlertTriangle size={17} aria-hidden="true" />
+              <span>{overviewError}</span>
+            </div>
           )}
 
-          <div>
-            <div className="sec-eyebrow">At a glance</div>
-            <div className="stat-strip">
-              {teacherStats.map((stat, i) => (
-                <div key={i} className="stat-card">
-                  <div className="stat-card__top">
-                    <div className={`stat-card__icon${stat.variant ? ` stat-card__icon--${stat.variant}` : ""}`}>
-                      <Award width={16} height={16} />
-                    </div>
-                    <span className="stat-card__label">{stat.label}</span>
+          {/* ── At a glance ── */}
+          <section aria-labelledby="tp-glance">
+            <div className="tp-section-title"><h2 id="tp-glance">At a glance</h2></div>
+            <div className="tp-stats">
+              {teacherStats.map((stat) => (
+                <div key={stat.label} className={`tp-stat${stat.tone ? ` tp-stat--${stat.tone}` : ""}`}>
+                  <div className="tp-stat__top">
+                    <span className="tp-stat__label">{stat.label}</span>
+                    <span className="tp-stat__icon" aria-hidden="true">{stat.icon}</span>
                   </div>
-                  <div className="stat-card__value">{stat.value}</div>
-                  <div className="stat-card__sub">{stat.change}</div>
-                  <div className="stat-card__bar">
-                    <div className={`stat-card__bar-fill${stat.variant ? ` stat-card__bar-fill--${stat.variant}` : ""}`} style={{ width: `${60 + i * 8}%` }} />
-                  </div>
+                  {statsLoading ? (
+                    <>
+                      <div className="tp-skel" style={{ height: 30, width: "45%", marginTop: 6 }} />
+                      <div className="tp-skel" style={{ width: "70%" }} />
+                    </>
+                  ) : (
+                    <>
+                      <div className="tp-stat__value">{stat.value}</div>
+                      <div className="tp-stat__sub" title={stat.sub}>{stat.sub}</div>
+                      {stat.meter != null && (
+                        <div className="tp-meter" role="progressbar" aria-valuenow={stat.meter} aria-valuemin={0} aria-valuemax={100} aria-label={stat.label}>
+                          <span style={{ width: `${stat.meter}%` }} />
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               ))}
             </div>
-          </div>
+          </section>
 
-          <div>
-            <div className="sec-eyebrow">Quick actions</div>
-            <div className="quick-actions-grid">
+          {/* ── Quick actions ── */}
+          <section aria-labelledby="tp-quick">
+            <div className="tp-section-title"><h2 id="tp-quick">Quick actions</h2></div>
+            <div className="tp-actions">
               {quickActions.map((action) => (
                 <button
                   key={action.tab}
                   type="button"
-                  className={`quick-action-btn quick-action-btn--${action.variant}`}
+                  className={`tp-action${action.tone ? ` tp-action--${action.tone}` : ""}`}
                   onClick={() => setCurrentTab(action.tab)}
                 >
-                  <span className="quick-action-btn__icon">{action.icon}</span>
-                  <span className="quick-action-btn__label">{action.label}</span>
+                  <span className="tp-action__icon" aria-hidden="true">{action.icon}</span>
+                  <span className="tp-action__text">
+                    <span className="tp-action__label">{action.label}</span>
+                    <span className="tp-action__hint">{action.hint}</span>
+                  </span>
+                  <ArrowRight size={18} className="tp-action__arrow" aria-hidden="true" />
                 </button>
               ))}
             </div>
-          </div>
+          </section>
 
-          <div className="grid-2" style={{ gridTemplateColumns: "minmax(0, 3fr) minmax(0, 2fr)" }}>
-            <div className="cc">
-              <div className="cc__head">
-                <div className="cc__head-left">
-                  <Calendar width={18} height={18} />
-                  <h3>Today&apos;s Schedule</h3>
+          {/* ── Schedule + homework ── */}
+          <div className="tp-grid">
+            <section className="tp-panel" aria-labelledby="tp-schedule">
+              <div className="tp-panel__head">
+                <div className="tp-panel__title">
+                  <Calendar size={18} aria-hidden="true" />
+                  <h3 id="tp-schedule">Today&apos;s Schedule</h3>
                 </div>
+                <button type="button" className="tp-link" onClick={() => setCurrentTab("timetable")}>
+                  Timetable <ArrowRight size={14} aria-hidden="true" />
+                </button>
               </div>
-              <div className="cc__body">
+              <div className="tp-panel__body">
                 {statsLoading ? (
-                  <div className="cc-row"><span className="module-sub">Loading schedule…</span></div>
+                  <div style={{ padding: "14px 0" }}>
+                    <div className="tp-skel" />
+                    <div className="tp-skel" style={{ width: "85%" }} />
+                    <div className="tp-skel" style={{ width: "70%" }} />
+                  </div>
                 ) : overview.todayPlans.length === 0 ? (
-                  <div className="cc-row">
-                    <span className="module-sub">No lessons scheduled for today. Add one from Class Planning.</span>
+                  <div className="tp-empty">
+                    <span className="tp-empty__icon" aria-hidden="true"><ClipboardList size={20} /></span>
+                    <strong>No lessons planned for today</strong>
+                    <p>Plan a lesson from My Classes and it will show up here with its period and time.</p>
+                    <button type="button" className="tp-link" onClick={() => setCurrentTab("myclasses")}>
+                      Go to My Classes <ArrowRight size={14} aria-hidden="true" />
+                    </button>
                   </div>
                 ) : (
-                  overview.todayPlans.map((lesson) => {
-                    const status = lesson.status === "completed" ? "Completed"
-                      : lesson.status === "in-progress" ? "In Progress"
-                      : "Upcoming";
-                    return (
-                      <div key={lesson.id} className="cc-row">
-                        <div className="cc-row__rank" style={{ borderRadius: 8, fontFamily: "var(--font-mono)", fontSize: 10 }}>
-                          {periodTime(lesson.periodNumber)}
-                        </div>
-                        <div className="cc-row__info">
-                          <div className="cc-row__name">{lesson.subject} — {lesson.topic}</div>
-                          <div className="cc-row__meta">{lesson.className}</div>
-                        </div>
-                        <div className="cc-row__right">
-                          <span
-                            className={`status-pill status-pill--${status === "Completed" ? "active" : "suspended"}`}
-                            style={status === "Upcoming" ? { background: "var(--warning-pale)", color: "var(--warning-light)", border: "1px solid rgba(232,168,0,0.2)" } : undefined}
-                          >
-                            {status}
+                  <ol className="tp-periods">
+                    {overview.todayPlans.map((lesson) => {
+                      const phase = periodPhase(lesson.periodNumber);
+                      const status = lesson.status === "completed" ? "done"
+                        : lesson.status === "in-progress" || phase === "now" ? "live"
+                        : phase === "past" ? "past"
+                        : "next";
+                      const label = { done: "Done", live: "Now", past: "Earlier", next: "Upcoming" }[status];
+                      return (
+                        <li key={lesson.id} className={`tp-period${status === "live" ? " is-now" : ""}`}>
+                          <span className="tp-period__num" aria-label={`Period ${lesson.periodNumber}`}>
+                            {lesson.periodNumber ?? "–"}
                           </span>
-                        </div>
-                      </div>
-                    );
-                  })
+                          <span className="tp-period__time">{periodTime(lesson.periodNumber)}</span>
+                          <div className="tp-period__main">
+                            <div className="tp-period__subject">{lesson.subject}{lesson.topic ? ` — ${lesson.topic}` : ""}</div>
+                            <div className="tp-period__meta">{lesson.className}</div>
+                          </div>
+                          <span className={`tp-tag tp-tag--${status}`}>{label}</span>
+                        </li>
+                      );
+                    })}
+                  </ol>
                 )}
               </div>
-            </div>
+            </section>
 
-            <div className="space-y-4">
-              <div className="cc">
-                <div className="cc__head">
-                  <div className="cc__head-left">
-                    <AlertTriangle width={18} height={18} />
-                    <h3>Pending Actions</h3>
+            <section className="tp-panel" aria-labelledby="tp-homework">
+              <div className="tp-panel__head">
+                <div className="tp-panel__title">
+                  <FileText size={18} aria-hidden="true" />
+                  <h3 id="tp-homework">Upcoming Homework</h3>
+                </div>
+                <button type="button" className="tp-link" onClick={() => setCurrentTab("Homework")}>
+                  View all <ArrowRight size={14} aria-hidden="true" />
+                </button>
+              </div>
+              <div className="tp-panel__body">
+                {statsLoading ? (
+                  <div style={{ padding: "14px 0" }}>
+                    <div className="tp-skel" />
+                    <div className="tp-skel" style={{ width: "60%" }} />
                   </div>
-                </div>
-                <div className="cc__body" style={{ padding: "12px 20px" }}>
-                  {statsLoading ? (
-                    <p className="module-sub">Loading…</p>
-                  ) : pendingActions.length === 0 ? (
-                    <div className="alert alert--success" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <CheckCircle size={16} /> You&apos;re all caught up — no pending actions.
-                    </div>
-                  ) : (
-                    pendingActions.map((a, i) => (
-                      <div key={i} className={`alert alert--${a.type}`} style={{ marginBottom: i < pendingActions.length - 1 ? 8 : 0 }}>
-                        {a.text}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-              <div className="cc">
-                <div className="cc__head"><h3>Upcoming Homework</h3></div>
-                <div className="cc__body" style={{ padding: "16px 20px" }}>
-                  {statsLoading ? (
-                    <p className="module-sub">Loading…</p>
-                  ) : overview.upcomingHomework.length === 0 ? (
-                    <p className="module-sub">No upcoming homework deadlines.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {overview.upcomingHomework.map((hw) => {
-                        const rate = hw.totalStudents > 0
-                          ? Math.round(((hw.submitted || 0) / hw.totalStudents) * 100)
-                          : 0;
-                        return (
-                          <div key={hw.id} className="flex items-center justify-between gap-3" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <div>
-                              <p className="module-title" style={{ fontSize: 13, marginBottom: 2 }}>{hw.title}</p>
-                              <p className="module-sub" style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}>
-                                <Clock size={11} /> {hw.className} · Due {hw.dueDate}
-                              </p>
-                            </div>
-                            <span className="status-pill status-pill--active" style={{ whiteSpace: "nowrap" }}>
-                              {hw.submitted || 0}/{hw.totalStudents || 0} ({rate}%)
-                            </span>
+                ) : overview.upcomingHomework.length === 0 ? (
+                  <div className="tp-empty">
+                    <span className="tp-empty__icon" aria-hidden="true"><FileText size={20} /></span>
+                    <strong>No deadlines coming up</strong>
+                    <p>Homework you set will appear here with how many students have handed it in.</p>
+                    <button type="button" className="tp-link" onClick={() => setCurrentTab("Homework")}>
+                      Set homework <ArrowRight size={14} aria-hidden="true" />
+                    </button>
+                  </div>
+                ) : (
+                  <ul className="tp-hw">
+                    {overview.upcomingHomework.map((hw) => {
+                      const total = hw.totalStudents || 0;
+                      const handed = hw.submitted || 0;
+                      const rate = total > 0 ? Math.round((handed / total) * 100) : 0;
+                      const dueToday = hw.dueDate === todayISO();
+                      return (
+                        <li key={hw.id}>
+                          <div className="tp-hw__row">
+                            <span className="tp-hw__title">{hw.title}</span>
+                            <span className="tp-hw__count">{handed}/{total} in</span>
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                          <div className={`tp-hw__meta${dueToday ? " is-soon" : ""}`}>
+                            <Clock size={12} aria-hidden="true" />
+                            {hw.className} · {dueToday ? "Due today" : `Due ${hw.dueDate}`}
+                          </div>
+                          <div className="tp-meter" role="progressbar" aria-valuenow={rate} aria-valuemin={0} aria-valuemax={100} aria-label={`${hw.title} submissions`}>
+                            <span style={{ width: `${rate}%` }} />
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
-            </div>
+            </section>
           </div>
         </div>
       ) : (

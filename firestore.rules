@@ -48,6 +48,31 @@ service cloud.firestore {
       return myData().schoolCode == schoolCode;
     }
 
+    // Whether a school may currently WRITE its own data. A school that is
+    // pending or rejected has never been allowed to operate; a suspended one
+    // has had that permission withdrawn.
+    //
+    // Reads are deliberately NOT gated on this, for two reasons: a suspended
+    // school should not lose the ability to show what it already recorded
+    // (the point is to stop it operating, not to erase it), and gating reads
+    // too would add a second get() to every LIST query in this file, against
+    // the ~20-document-access budget a single query evaluation gets — a write
+    // rule is evaluated against one document, so the same get() costs far
+    // less there. A school with no status field at all (registered before
+    // approval existed) reads as active, matching schoolAccess() in
+    // src/services/subscriptionState.js. A school document that does not
+    // exist at all also reads as active rather than throwing — get() itself
+    // errors on a missing document (it does not just return null data), so
+    // existence is checked first via exists(), which is what costs a second
+    // document access here on top of the get().
+    function schoolIsActive(schoolCode) {
+      let path = /databases/$(database)/documents/schools/$(schoolCode);
+      return !exists(path) || schoolStatusOk(get(path).data);
+    }
+    function schoolStatusOk(s) {
+      return !('status' in s) || s.status == 'active';
+    }
+
     // The term the school is recording against. Costs one document read per
     // marks write, which is the price of the guarantee: without it a class
     // teacher can file marks under any term they like, and the mistake only
@@ -141,6 +166,7 @@ service cloud.firestore {
       // settlement, which runs on the Admin SDK and bypasses rules.
       allow update: if request.auth != null &&
                     request.auth.uid == resource.data.authUid &&
+                    resource.data.status != 'suspended' &&
                     !request.resource.data.diff(resource.data).affectedKeys()
                       .hasAny(['status', 'subscription_status', 'trialEndsAt',
                                'approvedAt', 'approvedBy', 'rejectedReason',
@@ -195,6 +221,7 @@ service cloud.firestore {
       allow create: if request.auth != null &&
                     isAdmin() &&
                     sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(request.resource.data.schoolCode) &&
                     request.resource.data.role in ['director', 'head_teacher', 'class_teacher', 'bursar', 'librarian'];
 
       // Owner can update only safe fields
@@ -211,7 +238,8 @@ service cloud.firestore {
       // Admin full control within same school
       allow update: if request.auth != null &&
                     isAdmin() &&
-                    sameSchool(resource.data.schoolCode);
+                    sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
 
       // An administrator deletes staff at their OWN school.
       //
@@ -222,12 +250,14 @@ service cloud.firestore {
       // deletes, accounts from the signed-in administrator's own school.
       allow delete: if request.auth != null &&
                     isAdmin() &&
-                    sameSchool(resource.data.schoolCode);
+                    sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
 
       // Head teacher limited update
       allow update: if request.auth != null &&
                     isHeadTeacher() &&
                     sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode) &&
                     request.resource.data.diff(resource.data).affectedKeys()
                       .hasOnly(['assignedClasses', 'assignedSubjects', 'status', 'updatedAt']);
     }
@@ -258,14 +288,17 @@ service cloud.firestore {
               );
   allow create: if request.auth != null &&
                 isAdminOrHead() &&
-                sameSchool(request.resource.data.schoolCode);
+                sameSchool(request.resource.data.schoolCode) &&
+                schoolIsActive(request.resource.data.schoolCode);
   allow update: if request.auth != null &&
                 isAdminOrHead() &&
                 sameSchool(resource.data.schoolCode) &&
-                sameSchool(request.resource.data.schoolCode);
+                sameSchool(request.resource.data.schoolCode) &&
+                schoolIsActive(resource.data.schoolCode);
   allow delete: if request.auth != null &&
                 isAdmin() &&
-                sameSchool(resource.data.schoolCode);
+                sameSchool(resource.data.schoolCode) &&
+                schoolIsActive(resource.data.schoolCode);
 
   // The one write a director may make to a student record: completing an
   // approved campus transfer. Narrowed to the fields that move — everything
@@ -275,6 +308,7 @@ service cloud.firestore {
                 isDirector() &&
                 sameSchool(resource.data.schoolCode) &&
                 sameSchool(request.resource.data.schoolCode) &&
+                schoolIsActive(resource.data.schoolCode) &&
                 request.resource.data.diff(resource.data).affectedKeys()
                   .hasOnly(['campusId', 'campusName', 'classId', 'className',
                             'campusTransferredAt']);
@@ -289,16 +323,19 @@ service cloud.firestore {
 
       allow create: if request.auth != null &&
                     isFinance() &&
-                    sameSchool(request.resource.data.schoolCode);
+                    sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(request.resource.data.schoolCode);
 
       allow update: if request.auth != null &&
                     isFinance() &&
                     sameSchool(resource.data.schoolCode) &&
-                    sameSchool(request.resource.data.schoolCode);
+                    sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
 
       allow delete: if request.auth != null &&
                     isFinance() &&
-                    sameSchool(resource.data.schoolCode);
+                    sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
     }
 
        // =============================================
@@ -321,14 +358,17 @@ service cloud.firestore {
       // batch-writes these) failed for everyone, always. Split so each verb
       // reads the document that actually exists during it.
       allow create: if request.auth != null && isFinance() &&
-                    sameSchool(request.resource.data.schoolCode);
+                    sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(request.resource.data.schoolCode);
 
       allow update: if request.auth != null && isFinance() &&
                     sameSchool(resource.data.schoolCode) &&
-                    sameSchool(request.resource.data.schoolCode);
+                    sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
 
       allow delete: if request.auth != null && isFinance() &&
-                    sameSchool(resource.data.schoolCode);
+                    sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
     }
 
        // =============================================
@@ -354,13 +394,15 @@ service cloud.firestore {
                           request.resource.data.status == 'unverified')
                        : (request.auth != null &&
                           isFinance() &&
-                          sameSchool(request.resource.data.schoolCode));
+                          sameSchool(request.resource.data.schoolCode) &&
+                          schoolIsActive(request.resource.data.schoolCode));
       // The bursar confirms or rejects a claim a parent typed into the app —
       // and ONLY that: the fields of the decision, on a payment that came from
       // the parent app. Everything else about a payment stays admin-only, so a
       // bursar cannot quietly edit an amount after the fact.
       allow update: if request.auth != null && isFinance() &&
                     sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode) &&
                     resource.data.source == 'parent_app' &&
                     resource.data.status == 'unverified' &&
                     request.resource.data.status in ['verified', 'rejected'] &&
@@ -368,7 +410,8 @@ service cloud.firestore {
                       .hasOnly(['status', 'verifiedBy', 'verifiedAt', 'rejectReason']);
 
       allow update, delete: if request.auth != null && isAdmin() &&
-                            sameSchool(resource.data.schoolCode);
+                            sameSchool(resource.data.schoolCode) &&
+                            schoolIsActive(resource.data.schoolCode);
     }
 
     // =============================================
@@ -376,9 +419,9 @@ service cloud.firestore {
     // =============================================
       match /school_classes/{classId} {
       allow read: if request.auth != null && sameSchool(resource.data.schoolCode);
-      allow create: if request.auth != null && isAdminOrHead() && sameSchool(request.resource.data.schoolCode);
-      allow update: if request.auth != null && isAdminOrHead() && sameSchool(resource.data.schoolCode) && sameSchool(request.resource.data.schoolCode);
-      allow delete: if request.auth != null && isAdmin() && sameSchool(resource.data.schoolCode);
+      allow create: if request.auth != null && isAdminOrHead() && sameSchool(request.resource.data.schoolCode) && schoolIsActive(request.resource.data.schoolCode);
+      allow update: if request.auth != null && isAdminOrHead() && sameSchool(resource.data.schoolCode) && sameSchool(request.resource.data.schoolCode) && schoolIsActive(resource.data.schoolCode);
+      allow delete: if request.auth != null && isAdmin() && sameSchool(resource.data.schoolCode) && schoolIsActive(resource.data.schoolCode);
     }
 
     // =============================================
@@ -399,11 +442,13 @@ service cloud.firestore {
 
       allow create: if request.auth != null &&
                     sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(request.resource.data.schoolCode) &&
                     (request.resource.data.teacherId == request.auth.uid ||
                      isAdminOrHead());
 
       allow update: if request.auth != null &&
                     sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode) &&
                     (resource.data.teacherId == request.auth.uid ||
                      isMyClass() ||
                      isAdminOrHead());
@@ -426,12 +471,14 @@ service cloud.firestore {
 
       allow create: if request.auth != null &&
                     sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(request.resource.data.schoolCode) &&
                     (request.resource.data.reportedByUid == request.auth.uid ||
                      isAdminOrHead());
 
       allow update: if request.auth != null &&
                     isAdminOrHead() &&
-                    sameSchool(resource.data.schoolCode);
+                    sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
 
       allow delete: if request.auth != null && isAdmin();
     }
@@ -440,14 +487,19 @@ service cloud.firestore {
     // LESSON PLANS
     // =============================================
     match /lesson_plans/{planId} {
-      allow read, delete: if request.auth != null &&
-                          resource.data.teacherId == request.auth.uid;
+      allow read: if request.auth != null &&
+                  resource.data.teacherId == request.auth.uid;
+
+      allow delete: if request.auth != null &&
+                    resource.data.teacherId == request.auth.uid &&
+                    schoolIsActive(resource.data.schoolCode);
 
       // The author edits the plan but cannot mark it approved. The one review
       // field they may touch is putting it back to "pending" (resubmitting
       // after changes were asked for).
       allow update: if request.auth != null &&
                     resource.data.teacherId == request.auth.uid &&
+                    schoolIsActive(resource.data.schoolCode) &&
                     !request.resource.data.diff(resource.data).affectedKeys()
                       .hasAny(['review', 'reviewedAt', 'reviewedBy', 'reviewedByName']) &&
                     (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['reviewStatus']) ||
@@ -458,11 +510,13 @@ service cloud.firestore {
       allow update: if request.auth != null &&
                     isAdminOrHead() &&
                     sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode) &&
                     request.resource.data.diff(resource.data).affectedKeys()
                       .hasOnly(['review', 'reviewStatus', 'reviewedAt', 'reviewedBy', 'reviewedByName']);
 
       allow create: if request.auth != null &&
-                    request.resource.data.teacherId == request.auth.uid;
+                    request.resource.data.teacherId == request.auth.uid &&
+                    schoolIsActive(request.resource.data.schoolCode);
 
       allow read: if request.auth != null &&
                   isAdminOrHead() &&
@@ -483,14 +537,17 @@ service cloud.firestore {
 
       allow create: if request.auth != null &&
                     request.resource.data.teacherId == request.auth.uid &&
-                    sameSchool(request.resource.data.schoolCode);
+                    sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(request.resource.data.schoolCode);
 
       allow update: if request.auth != null &&
-                    resource.data.teacherId == request.auth.uid;
+                    resource.data.teacherId == request.auth.uid &&
+                    schoolIsActive(resource.data.schoolCode);
 
       allow delete: if request.auth != null &&
                     (resource.data.teacherId == request.auth.uid ||
-                     (isAdmin() && sameSchool(resource.data.schoolCode)));
+                     (isAdmin() && sameSchool(resource.data.schoolCode))) &&
+                    schoolIsActive(resource.data.schoolCode);
     }
 
     // =============================================
@@ -515,16 +572,19 @@ service cloud.firestore {
   // makes "a teacher cannot enter marks for a term that is not set" true.
   allow update: if request.auth != null &&
                 resource.data.teacherId == request.auth.uid &&
+                schoolIsActive(resource.data.schoolCode) &&
                 isWritableTerm(resource.data.schoolCode, request.resource.data.term);
 
   allow create: if request.auth != null &&
                 request.resource.data.teacherId == request.auth.uid &&
                 sameSchool(request.resource.data.schoolCode) &&
+                schoolIsActive(request.resource.data.schoolCode) &&
                 isWritableTerm(request.resource.data.schoolCode, request.resource.data.term);
 
   allow delete: if request.auth != null &&
                 isAdmin() &&
-                sameSchool(resource.data.schoolCode);
+                sameSchool(resource.data.schoolCode) &&
+                schoolIsActive(resource.data.schoolCode);
 }
 
 
@@ -543,11 +603,13 @@ service cloud.firestore {
 
       allow create: if request.auth != null &&
                     isAdminOrHead() &&
-                    sameSchool(request.resource.data.schoolCode);
+                    sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(request.resource.data.schoolCode);
 
       allow update, delete: if request.auth != null &&
                             isAdminOrHead() &&
-                            sameSchool(resource.data.schoolCode);
+                            sameSchool(resource.data.schoolCode) &&
+                            schoolIsActive(resource.data.schoolCode);
 
       // A guardian marking an announcement read bumps readCount and nothing
       // else. Constrained to a +1 so the counter cannot be driven anywhere a
@@ -585,6 +647,7 @@ service cloud.firestore {
 
       // Staff raise notifications for their own school only.
       allow create: if isStaffOfSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(request.resource.data.schoolCode) &&
                     request.resource.data.read == false;
 
       // A parent replying in chat notifies the staff member. That is the only
@@ -656,9 +719,11 @@ service cloud.firestore {
                       resource.data.get('decidedBy', '');
 
       // Staff answer the request, and can correct a record afterwards.
-      allow create, update: if isStaffOfSchool(request.resource.data.schoolCode);
+      allow create, update: if isStaffOfSchool(request.resource.data.schoolCode) &&
+                            schoolIsActive(request.resource.data.schoolCode);
 
-      allow delete: if isStaffOfSchool(resource.data.schoolCode) && isAdminOrHead();
+      allow delete: if isStaffOfSchool(resource.data.schoolCode) && isAdminOrHead() &&
+                    schoolIsActive(resource.data.schoolCode);
     }
 
     // =============================================
@@ -680,9 +745,11 @@ service cloud.firestore {
       // Issuing and re-issuing is a leadership act; a class teacher publishing
       // their own component does not release the combined result.
       allow create, update: if isStaffOfSchool(request.resource.data.schoolCode) &&
-                            isAdminOrHead();
+                            isAdminOrHead() &&
+                            schoolIsActive(request.resource.data.schoolCode);
 
-      allow delete: if isStaffOfSchool(resource.data.schoolCode) && isAdmin();
+      allow delete: if isStaffOfSchool(resource.data.schoolCode) && isAdmin() &&
+                    schoolIsActive(resource.data.schoolCode);
     }
 
     // =============================================
@@ -842,6 +909,7 @@ service cloud.firestore {
       allow create: if request.auth != null &&
                     isAdminOrHead() &&
                     sameSchool(request.resource.data.toSchoolCode) &&
+                    schoolIsActive(request.resource.data.toSchoolCode) &&
                     request.resource.data.fromSchoolCode != request.resource.data.toSchoolCode &&
                     request.resource.data.status == "pending";
 
@@ -858,16 +926,19 @@ service cloud.firestore {
 
       allow create: if request.auth != null &&
                     isAdminOrHead() &&
-                    sameSchool(request.resource.data.schoolCode);
+                    sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(request.resource.data.schoolCode);
 
       allow update: if request.auth != null &&
                     isAdminOrHead() &&
                     sameSchool(resource.data.schoolCode) &&
-                    sameSchool(request.resource.data.schoolCode);
+                    sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
 
       allow delete: if request.auth != null &&
                     isAdminOrHead() &&
-                    sameSchool(resource.data.schoolCode);
+                    sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
     }
 
     // =============================================
@@ -882,11 +953,13 @@ service cloud.firestore {
 
       allow create: if request.auth != null &&
                     sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(request.resource.data.schoolCode) &&
                     (request.resource.data.teacherId == request.auth.uid ||
                      isAdminOrHead());
 
       allow update: if request.auth != null &&
                     sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode) &&
                     (resource.data.teacherId == request.auth.uid ||
                      isAdminOrHead());
 
@@ -901,11 +974,13 @@ service cloud.firestore {
 
       allow create, update: if request.auth != null &&
                             isAdminOrHead() &&
-                            sameSchool(schoolCode);
+                            sameSchool(schoolCode) &&
+                            schoolIsActive(schoolCode);
 
       allow delete: if request.auth != null &&
                     isAdmin() &&
-                    sameSchool(schoolCode);
+                    sameSchool(schoolCode) &&
+                    schoolIsActive(schoolCode);
     }
     // =============================================
     // SCHOOL SETTINGS (school type, promotion threshold)
@@ -918,8 +993,8 @@ service cloud.firestore {
       // guardian session does not have.
       allow read: if isAnonParent() ||
                   (request.auth != null && sameSchool(schoolCode));
-      allow create, update: if request.auth != null && isAdminOrHead() && sameSchool(schoolCode);
-      allow delete: if request.auth != null && isAdmin() && sameSchool(schoolCode);
+      allow create, update: if request.auth != null && isAdminOrHead() && sameSchool(schoolCode) && schoolIsActive(schoolCode);
+      allow delete: if request.auth != null && isAdmin() && sameSchool(schoolCode) && schoolIsActive(schoolCode);
     }
     // =============================================
     // GUARDIAN LINK CONFIRMATION
@@ -972,6 +1047,7 @@ service cloud.firestore {
       allow create: if isStaff() &&
                     request.resource.data.staffId == request.auth.uid &&
                     sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(request.resource.data.schoolCode) &&
                     request.resource.data.status == 'pending';
 
       allow update: if isStaff() && (
@@ -981,11 +1057,13 @@ service cloud.firestore {
                      request.resource.data.diff(resource.data).affectedKeys()
                        .hasOnly(['status', 'updatedAt'])) ||
                     (isAdminOrHead() && sameSchool(resource.data.schoolCode) &&
+                     schoolIsActive(resource.data.schoolCode) &&
                      request.resource.data.diff(resource.data).affectedKeys()
                        .hasOnly(['status', 'decidedBy', 'decidedByName', 'decidedAt',
                                  'decisionNote', 'coverNote', 'updatedAt'])));
 
-      allow delete: if isStaff() && isAdmin() && sameSchool(resource.data.schoolCode);
+      allow delete: if isStaff() && isAdmin() && sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
     }
 
     // Cover for a lesson whose teacher is away. Everyone at the school can see
@@ -994,13 +1072,15 @@ service cloud.firestore {
     match /substitutions/{subId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
       allow create: if isStaff() && isAdminOrHead() &&
-                    sameSchool(request.resource.data.schoolCode);
+                    sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(request.resource.data.schoolCode);
       allow update: if isStaff() && sameSchool(resource.data.schoolCode) && (
-                    isAdminOrHead() ||
+                    (isAdminOrHead() && schoolIsActive(resource.data.schoolCode)) ||
                     (resource.data.substituteId == request.auth.uid &&
                      request.resource.data.diff(resource.data).affectedKeys()
                        .hasOnly(['status', 'respondedAt'])));
-      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1015,9 +1095,12 @@ service cloud.firestore {
     match /exams/{examId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
       allow create: if isStaff() && isAdminOrHead() &&
-                    sameSchool(request.resource.data.schoolCode);
-      allow update: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
-      allow delete: if isStaff() && isAdmin() && sameSchool(resource.data.schoolCode);
+                    sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(request.resource.data.schoolCode);
+      allow update: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
+      allow delete: if isStaff() && isAdmin() && sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1030,9 +1113,12 @@ service cloud.firestore {
     match /health_profiles/{profileId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
       allow create: if isStaff() && isAdminOrHead() &&
-                    sameSchool(request.resource.data.schoolCode);
-      allow update: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
-      allow delete: if isStaff() && isAdmin() && sameSchool(resource.data.schoolCode);
+                    sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(request.resource.data.schoolCode);
+      allow update: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
+      allow delete: if isStaff() && isAdmin() && sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1041,9 +1127,12 @@ service cloud.firestore {
     match /transport_routes/{routeId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
       allow create: if isStaff() && isAdminOrHead() &&
-                    sameSchool(request.resource.data.schoolCode);
-      allow update: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
-      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+                    sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(request.resource.data.schoolCode);
+      allow update: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1055,19 +1144,25 @@ service cloud.firestore {
     match /library_books/{bookId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
       allow create: if isStaff() && (isLibrarian() || isAdminOrHead()) &&
-                    sameSchool(request.resource.data.schoolCode);
+                    sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(request.resource.data.schoolCode);
       allow update: if isStaff() && (isLibrarian() || isAdminOrHead()) &&
-                    sameSchool(resource.data.schoolCode);
+                    sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
       allow delete: if isStaff() && (isLibrarian() || isAdminOrHead()) &&
-                    sameSchool(resource.data.schoolCode);
+                    sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
     }
     match /library_loans/{loanId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
       allow create: if isStaff() && (isLibrarian() || isAdminOrHead()) &&
-                    sameSchool(request.resource.data.schoolCode);
+                    sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(request.resource.data.schoolCode);
       allow update: if isStaff() && (isLibrarian() || isAdminOrHead()) &&
-                    sameSchool(resource.data.schoolCode);
-      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+                    sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1095,9 +1190,11 @@ service cloud.firestore {
     match /fee_clearance/{clearanceId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
       allow create, update: if isStaff() && isHeadTeacher() &&
-        sameSchool(request.resource.data.schoolCode);
+        sameSchool(request.resource.data.schoolCode) &&
+        schoolIsActive(request.resource.data.schoolCode);
       allow delete: if isStaff() && isHeadTeacher() &&
-        sameSchool(resource.data.schoolCode);
+        sameSchool(resource.data.schoolCode) &&
+        schoolIsActive(resource.data.schoolCode);
     }
 
     // The log of what has been sent, so the office is not guessing whether a
@@ -1105,15 +1202,19 @@ service cloud.firestore {
     match /fee_reminders/{reminderId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
       allow create, update: if isStaff() && isFinance() &&
-        sameSchool(request.resource.data.schoolCode);
-      allow delete: if isStaff() && isAdmin() && sameSchool(resource.data.schoolCode);
+        sameSchool(request.resource.data.schoolCode) &&
+        schoolIsActive(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isAdmin() && sameSchool(resource.data.schoolCode) &&
+        schoolIsActive(resource.data.schoolCode);
     }
 
     match /payment_plans/{planId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
       allow create, update: if isStaff() && isFinance() &&
-        sameSchool(request.resource.data.schoolCode);
-      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+        sameSchool(request.resource.data.schoolCode) &&
+        schoolIsActive(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode) &&
+        schoolIsActive(resource.data.schoolCode);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1125,15 +1226,19 @@ service cloud.firestore {
     match /sponsors/{sponsorId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
       allow create, update: if isStaff() && isFinance() &&
-        sameSchool(request.resource.data.schoolCode);
-      allow delete: if isStaff() && isFinance() && sameSchool(resource.data.schoolCode);
+        sameSchool(request.resource.data.schoolCode) &&
+        schoolIsActive(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isFinance() && sameSchool(resource.data.schoolCode) &&
+        schoolIsActive(resource.data.schoolCode);
     }
 
     match /sponsorships/{sponsorshipId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
       allow create, update: if isStaff() && isFinance() &&
-        sameSchool(request.resource.data.schoolCode);
-      allow delete: if isStaff() && isFinance() && sameSchool(resource.data.schoolCode);
+        sameSchool(request.resource.data.schoolCode) &&
+        schoolIsActive(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isFinance() && sameSchool(resource.data.schoolCode) &&
+        schoolIsActive(resource.data.schoolCode);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1154,8 +1259,10 @@ service cloud.firestore {
     match /school_events/{eventId} {
       allow read: if isAnonParent() || (isStaff() && sameSchool(resource.data.schoolCode));
       allow create, update: if isStaff() && isAdminOrHead() &&
-        sameSchool(request.resource.data.schoolCode);
-      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+        sameSchool(request.resource.data.schoolCode) &&
+        schoolIsActive(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode) &&
+        schoolIsActive(resource.data.schoolCode);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1169,8 +1276,10 @@ service cloud.firestore {
       allow read: if isStaff() && (isFinance() || isHeadTeacher()) &&
         sameSchool(resource.data.schoolCode);
       allow create, update: if isStaff() && isFinance() &&
-        sameSchool(request.resource.data.schoolCode);
-      allow delete: if isStaff() && isFinance() && sameSchool(resource.data.schoolCode);
+        sameSchool(request.resource.data.schoolCode) &&
+        schoolIsActive(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isFinance() && sameSchool(resource.data.schoolCode) &&
+        schoolIsActive(resource.data.schoolCode);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1183,8 +1292,10 @@ service cloud.firestore {
     match /admissions/{applicationId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
       allow create, update: if isStaff() && isAdminOrHead() &&
-        sameSchool(request.resource.data.schoolCode);
-      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+        sameSchool(request.resource.data.schoolCode) &&
+        schoolIsActive(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode) &&
+        schoolIsActive(resource.data.schoolCode);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1197,23 +1308,30 @@ service cloud.firestore {
     match /dormitories/{dormId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
       allow create, update: if isStaff() && isAdminOrHead() &&
-        sameSchool(request.resource.data.schoolCode);
-      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+        sameSchool(request.resource.data.schoolCode) &&
+        schoolIsActive(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode) &&
+        schoolIsActive(resource.data.schoolCode);
     }
 
     match /boarding_allocations/{allocationId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
       allow create, update: if isStaff() && isAdminOrHead() &&
-        sameSchool(request.resource.data.schoolCode);
-      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+        sameSchool(request.resource.data.schoolCode) &&
+        schoolIsActive(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode) &&
+        schoolIsActive(resource.data.schoolCode);
     }
 
     match /boarding_signouts/{signoutId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
-      allow create: if isStaff() && sameSchool(request.resource.data.schoolCode);
+      allow create: if isStaff() && sameSchool(request.resource.data.schoolCode) &&
+        schoolIsActive(request.resource.data.schoolCode);
       allow update: if isStaff() && sameSchool(resource.data.schoolCode) &&
-        sameSchool(request.resource.data.schoolCode);
-      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+        sameSchool(request.resource.data.schoolCode) &&
+        schoolIsActive(resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode) &&
+        schoolIsActive(resource.data.schoolCode);
     }
 
     // A child's medical record. Leadership only, and never a parent branch —
@@ -1223,9 +1341,12 @@ service cloud.firestore {
       // A class teacher whose learner falls ill logs the visit; only
       // leadership can read the log back.
       allow create: if isStaff() &&
-        sameSchool(request.resource.data.schoolCode);
-      allow update: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
-      allow delete: if isStaff() && isAdmin() && sameSchool(resource.data.schoolCode);
+        sameSchool(request.resource.data.schoolCode) &&
+        schoolIsActive(request.resource.data.schoolCode);
+      allow update: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode) &&
+        schoolIsActive(resource.data.schoolCode);
+      allow delete: if isStaff() && isAdmin() && sameSchool(resource.data.schoolCode) &&
+        schoolIsActive(resource.data.schoolCode);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1237,16 +1358,21 @@ service cloud.firestore {
     match /inventory_items/{itemId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
       allow create, update: if isStaff() && isAdminOrHead() &&
-        sameSchool(request.resource.data.schoolCode);
-      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+        sameSchool(request.resource.data.schoolCode) &&
+        schoolIsActive(request.resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode) &&
+        schoolIsActive(resource.data.schoolCode);
     }
 
     match /inventory_issues/{issueId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
-      allow create: if isStaff() && sameSchool(request.resource.data.schoolCode);
+      allow create: if isStaff() && sameSchool(request.resource.data.schoolCode) &&
+        schoolIsActive(request.resource.data.schoolCode);
       allow update: if isStaff() && sameSchool(resource.data.schoolCode) &&
-        sameSchool(request.resource.data.schoolCode);
-      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+        sameSchool(request.resource.data.schoolCode) &&
+        schoolIsActive(resource.data.schoolCode);
+      allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode) &&
+        schoolIsActive(resource.data.schoolCode);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1267,10 +1393,12 @@ service cloud.firestore {
     match /campuses/{campusId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
       allow create: if isStaff() && isCampusApprover() &&
-                    sameSchool(request.resource.data.schoolCode);
+                    sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(request.resource.data.schoolCode);
       allow update: if isStaff() && isCampusApprover() &&
                     sameSchool(resource.data.schoolCode) &&
-                    sameSchool(request.resource.data.schoolCode);
+                    sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode);
       allow delete: if false;
     }
 
@@ -1294,12 +1422,14 @@ service cloud.firestore {
 
       allow create: if isStaff() &&
                     sameSchool(request.resource.data.schoolCode) &&
+                    schoolIsActive(request.resource.data.schoolCode) &&
                     request.resource.data.status == 'pending' &&
                     request.resource.data.studentId is string &&
                     request.resource.data.toCampusId is string;
 
       allow update: if isStaff() && isCampusApprover() &&
                     sameSchool(resource.data.schoolCode) &&
+                    schoolIsActive(resource.data.schoolCode) &&
                     request.resource.data.diff(resource.data).affectedKeys()
                       .hasOnly(['status', 'decisionNote', 'decidedById',
                                 'decidedByName', 'decidedAt']) &&
