@@ -6,6 +6,8 @@ import {
 } from "../../../services/academicTerm";
 import { notifyGuardians } from "../../../services/notifications";
 import { fetchClearances, reportCardAllowed } from "../../../services/feeClearance";
+import { buildArrears } from "../../../services/feeAllocationCore";
+import { fetchReleases, resultsAccess } from "../../../services/resultsRelease";
 import { sendSmsToMany } from "../../../services/sms";
 import { smsFallbackCategories } from "../../../services/smsFallback";
 import { isModuleOn } from "../../../services/modules";
@@ -582,6 +584,34 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
     const withheld = scored.filter((s) => !reportCardAllowed(clearances.get(s.id)));
     const targets = scored.filter((s) => reportCardAllowed(clearances.get(s.id)));
 
+    // Families who owe fees don't see results until the balance is cleared or
+    // the bursar releases them. Their cards are still issued — the parent app
+    // shows each one as soon as that happens — but they are not sent the
+    // notice or the SMS, which carries the marks themselves.
+    let feeHeld = new Set();
+    try {
+      const [chargeSnap, paySnap, releases] = await Promise.all([
+        getDocs(query(collection(db, "fee_assignments"), where("schoolCode", "==", schoolCode))),
+        getDocs(query(collection(db, "payments"), where("schoolCode", "==", schoolCode))),
+        fetchReleases(schoolCode, selectedTerm),
+      ]);
+      const balances = buildArrears({
+        students: targets,
+        charges: chargeSnap.docs.map((d) => d.data()),
+        payments: paySnap.docs.map((d) => d.data()).filter((p) => p.status === "verified"),
+        currentTerm: selectedTerm,
+      });
+      feeHeld = new Set(balances
+        .filter((r) => !resultsAccess({ balance: r.balance, release: releases.get(r.id), term: selectedTerm }).visible)
+        .map((r) => r.id));
+    } catch (err) {
+      // Without the fee position, nobody is notified — telling a family that
+      // owes fees their child's marks is the one thing this must not do.
+      console.error("[reports] fee position unavailable:", err);
+      feeHeld = new Set(targets.map((s) => s.id));
+    }
+    const notifyTargets = targets.filter((s) => !feeHeld.has(s.id));
+
     if (targets.length === 0) {
       setReleaseNote({
         type: "error",
@@ -600,6 +630,10 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
         ? `${withheld.length} student(s) are held back over fees and will be skipped: `
           + `${withheld.slice(0, 5).map(fullName).join(", ")}`
           + `${withheld.length > 5 ? ` and ${withheld.length - 5} more` : ""}.\n\n`
+        : "")
+      + (feeHeld.size > 0
+        ? `${feeHeld.size} famil${feeHeld.size === 1 ? "y owes" : "ies owe"} fees: their cards are issued but stay `
+          + `hidden, and they are not notified, until fees are cleared or the bursar releases them.\n\n`
         : "")
       + `Guardians will be notified and the combined result becomes visible in the `
       + `ACALink app. Re-issuing overwrites the previous card.`
@@ -783,7 +817,7 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
       // taps the notification the second it arrives should find the finished
       // report, not one that grows a paragraph while they are reading it.
       await notifyGuardians({
-        students: targets,
+        students: notifyTargets,
         schoolCode,
         title: (s) => `${selectedTerm} report card for ${fullName(s)}`,
         body: "Your child's report card has been issued. Open ACALink to see the full result.",
@@ -815,7 +849,7 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
       if (isModuleOn(schoolSettings, "sms")
           && smsFallbackCategories(schoolSettings).includes("report")) {
 
-        const recipients = targets
+        const recipients = notifyTargets
           .filter((s) => s.guardianPhone)
           .map((s) => ({
             to: s.guardianPhone,
@@ -847,7 +881,8 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
       // own that a module it switched on is doing nothing.
       setReleaseNote({
         type: insightError ? "error" : "ok",
-        text: `Issued ${targets.length} report card(s). Guardians notified.${smsNote}`
+        text: `Issued ${targets.length} report card(s). ${notifyTargets.length} guardian(s) notified.${smsNote}`
+            + (feeHeld.size > 0 ? ` ${feeHeld.size} held back until fees are cleared or released by the bursar.` : "")
             + (insightError ? ` Insights unavailable: ${insightError}` : ""),
       });
     } catch (err) {

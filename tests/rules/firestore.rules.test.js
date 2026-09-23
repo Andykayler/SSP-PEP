@@ -240,11 +240,15 @@ describe("parent app reads", () => {
     ["announcements", (db) => query(collection(db, "announcements"), where("schoolCode", "==", SCHOOL))],
     ["attendance", (db) => query(collection(db, "attendance"), where("schoolCode", "==", SCHOOL), where("classId", "==", CLASS))],
     ["homework", (db) => query(collection(db, "homework"), where("schoolCode", "==", SCHOOL), where("classId", "==", CLASS))],
-    ["ca_marks", (db) => query(collection(db, "ca_marks"), where("schoolCode", "==", SCHOOL), where("classId", "==", CLASS), where("term", "==", "Term 2 2026"))],
     ["discipline cases", (db) => query(collection(db, "discipline_cases"), where("schoolCode", "==", SCHOOL), where("studentId", "==", STUDENT))],
     ["own notifications", (db) => query(collection(db, "notifications"), where("recipientId", "==", PARENT), limit(60))],
     ["teaching staff for the contact picker", (db) => query(collection(db, "users"), where("schoolCode", "==", SCHOOL), where("role", "in", ["head_teacher", "class_teacher"]))],
   ];
+
+  it("denies reading the class mark sheets — results come through api/parent/results.js", async () => {
+    await assertFails(getDocs(query(collection(asParent(), "ca_marks"),
+      where("schoolCode", "==", SCHOOL), where("classId", "==", CLASS), where("term", "==", "Term 2 2026"))));
+  });
 
   it("allows reading the school's current term", async () => {
     // Without this the grades card cannot know which term to query, which is
@@ -382,8 +386,8 @@ describe("homework submissions — the late-approval flow", () => {
 describe("report cards", () => {
   const CARD = `${SCHOOL}__${STUDENT}__Term_2_2026`;
 
-  it("a parent can read their child's issued report card", async () => {
-    await assertSucceeds(getDoc(doc(asParent(), "report_cards", CARD)));
+  it("a parent cannot read a report card directly — the results endpoint checks fees first", async () => {
+    await assertFails(getDoc(doc(asParent(), "report_cards", CARD)));
   });
 
   it("a head teacher can issue one", async () => {
@@ -889,5 +893,35 @@ describe("staff accounts", () => {
     it("no client can write them", async () => {
       await assertFails(setDoc(doc(asAdmin(), "former_staff", `${SCHOOL}__x`), { schoolCode: SCHOOL }));
     });
+  });
+});
+
+// ─── Results released despite a fee balance ─────────────────────────────────
+describe("results release", () => {
+  const RID = `${SCHOOL}__${STUDENT}__Term_2_2026`;
+  const row = (status = "approved") => ({
+    schoolCode: SCHOOL, studentId: STUDENT, term: "Term 2 2026", status,
+  });
+
+  it("a bursar can release a child's results", async () => {
+    await assertSucceeds(setDoc(doc(asBursar(), "results_release", RID), row()));
+  });
+  it("and revoke the release", async () => {
+    await assertSucceeds(setDoc(doc(asBursar(), "results_release", RID), row("revoked")));
+  });
+  it("but not delete the record", async () => {
+    await assertFails(deleteDoc(doc(asBursar(), "results_release", RID)));
+  });
+  it("a class teacher cannot release results", async () => {
+    await assertFails(setDoc(doc(asTeacher(), "results_release", `${RID}_t`), row()));
+  });
+  it("a bursar at another school cannot release here", async () => {
+    await assertFails(setDoc(doc(asOutsider(), "results_release", `${RID}_o`), row()));
+  });
+  it("a parent cannot release their own child's results", async () => {
+    await assertFails(setDoc(doc(asParent(), "results_release", `${RID}_p`), row()));
+  });
+  it("the head teacher can see the decisions", async () => {
+    await assertSucceeds(getDoc(doc(asHead(), "results_release", RID)));
   });
 });

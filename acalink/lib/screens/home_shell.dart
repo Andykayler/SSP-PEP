@@ -228,8 +228,15 @@ class _HomeShellState extends State<HomeShell> with SingleTickerProviderStateMix
     try {
       switch (section) {
         case DashboardSection.fees:
+          // A payment can lift the hold on results, so the grades refresh too.
           final v = await _feesService.fetchStudentFees(student);
-          if (mounted) setState(() => _fees = v);
+          final p = await _performanceService.fetchPerformance(student);
+          if (mounted) {
+            setState(() {
+              _fees = v;
+              _performance = p;
+            });
+          }
         case DashboardSection.attendance:
           final v = await _attendanceService.fetchRecentAttendance(student);
           if (mounted) setState(() => _attendance = v);
@@ -1081,7 +1088,15 @@ class _RecentGradesCard extends StatelessWidget {
       children: [
         const _SectionHeader(title: 'Recent Grades'),
         _cardWrap(context,
-          children: grades.isEmpty
+          children: performance.withheld
+              ? [
+                  _EmptyRow(
+                    message: performance.withheldMessage.isNotEmpty
+                        ? performance.withheldMessage
+                        : 'Results are held until fees are cleared.',
+                  ),
+                ]
+              : grades.isEmpty
               ? const [_EmptyRow(message: 'No marks entered for this term yet.')]
               : [
                   for (int i = 0; i < grades.length; i++) ...[

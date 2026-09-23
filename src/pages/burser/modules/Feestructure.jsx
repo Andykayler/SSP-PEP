@@ -3,8 +3,11 @@ import { useState, useEffect } from "react";
 import { db } from "../../../firebase";
 import {
   collection, query, where, getDocs, addDoc, updateDoc,
-  deleteDoc, doc, serverTimestamp, orderBy,
+  deleteDoc, doc, serverTimestamp,
 } from "firebase/firestore";
+import { subscribeSchoolSettings, nextTerm, previousTerm, formatTerm } from "../../../services/academicTerm";
+import { structuresForTerm, yearOfTerm } from "../../../services/termFeesCore";
+import { syncTermFees } from "../../../services/termFees";
 import {
   Plus, Edit2, Trash2, X, AlertTriangle, Check,
   Receipt, Loader2,
@@ -69,8 +72,6 @@ const Btn = ({ children, variant = "accent", size = "md", loading, className = "
 const fmt = (n) => `MWK ${Number(n || 0).toLocaleString()}`;
 
 const FEE_CATEGORIES = ["Tuition", "Development Levy", "Exam Fee", "Sports Fee", "Library Fee", "Boarding", "Uniform", "Books & Stationery", "Other"];
-const TERMS = ["Term 1", "Term 2", "Term 3", "Full Year"];
-const ACADEMIC_YEARS = ["2024/2025", "2025/2026", "2026/2027"];
 
 // ─── Skeleton loading (mirrors real layout — no pop-in, no reflow) ─────────
 function SkeletonBlock({ w = "100%", h = 14, radius = 8, style = {} }) {
@@ -139,8 +140,28 @@ export default function FeeStructure({ schoolCode, schoolName }) {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [filterYear, setFilterYear] = useState("2025/2026");
   const [selectedClassFilter, setSelectedClassFilter] = useState("all");
+  // The term the head teacher has opened. Fees are set, and students billed,
+  // against it; `viewTerm` lets the bursar look back, or prepare next term.
+  const [currentTerm, setCurrentTerm] = useState(undefined);
+  const [viewTerm, setViewTerm] = useState("");
+
+  useEffect(() => {
+    if (!schoolCode) return undefined;
+    return subscribeSchoolSettings(schoolCode, (s) => {
+      const t = s?.currentTerm || "";
+      setCurrentTerm(t);
+      setViewTerm((prev) => prev || t);
+    });
+  }, [schoolCode]);
+
+  // previousTerm/nextTerm return { number, year }; the picker wants labels.
+  const label = (t) => (t ? formatTerm(t.number, t.year) : "");
+  const lastTerm = currentTerm ? label(previousTerm(currentTerm)) : "";
+  const termChoices = currentTerm
+    ? [label(previousTerm(lastTerm)), lastTerm, currentTerm, label(nextTerm(currentTerm))].filter(Boolean)
+    : [];
+  const isCurrent = Boolean(currentTerm) && viewTerm === currentTerm;
 
   const EMPTY = {
     name: "",
@@ -148,8 +169,6 @@ export default function FeeStructure({ schoolCode, schoolName }) {
     className: "",
     category: "",
     amount: "",
-    term: "Full Year",
-    academicYear: "2025/2026",
     description: "",
     mandatory: true,
   };
@@ -158,9 +177,22 @@ export default function FeeStructure({ schoolCode, schoolName }) {
   const [formErrors, setFormErrors] = useState({});
 
   useEffect(() => {
-    fetchAll();
+    if (viewTerm) fetchAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterYear]);
+  }, [viewTerm]);
+
+  // Every change to the running term's fees bills (or re-bills) the students
+  // straight away, so nobody has to assign fees by hand.
+  async function billStudents(verb) {
+    if (!isCurrent) return verb;
+    try {
+      const r = await syncTermFees({ schoolCode, term: currentTerm });
+      return `${verb} ${r.billed} student${r.billed === 1 ? "" : "s"} billed for ${currentTerm}.`;
+    } catch (err) {
+      console.error("[fees] billing sync failed:", err);
+      return `${verb} Students couldn't be billed just now — open Student Fees to retry.`;
+    }
+  }
 
   // auto-dismiss success toast
   useEffect(() => {
@@ -173,16 +205,15 @@ export default function FeeStructure({ schoolCode, schoolName }) {
     setLoading(true);
     try {
       const [fsSnap, clSnap] = await Promise.all([
-        getDocs(query(
-          collection(db, "fee_structures"),
-          where("schoolCode", "==", schoolCode),
-          where("academicYear", "==", filterYear),
-          orderBy("createdAt", "desc")
-        )),
+        getDocs(query(collection(db, "fee_structures"), where("schoolCode", "==", schoolCode))),
         getDocs(query(collection(db, "school_classes"), where("schoolCode", "==", schoolCode))),
       ]);
 
-      setStructures(fsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const all = fsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // Fee lines for the term on view — including ones saved before fees
+      // followed the term ("Term 2" + an academic year, or "Full Year").
+      setStructures(structuresForTerm(all, viewTerm)
+        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
       setClasses(clSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
     } catch (e) {
       console.error(e);
@@ -215,11 +246,13 @@ export default function FeeStructure({ schoolCode, schoolName }) {
         ...form,
         amount: Number(form.amount),
         className: cls?.name || "",
+        term: viewTerm,
+        academicYear: yearOfTerm(viewTerm),
         schoolCode,
         schoolName,
         createdAt: serverTimestamp(),
       });
-      setSuccess("Fee structure added successfully.");
+      setSuccess(await billStudents("Fee added."));
       setShowAdd(false);
       setForm(EMPTY);
       fetchAll();
@@ -244,9 +277,11 @@ export default function FeeStructure({ schoolCode, schoolName }) {
         ...form,
         amount: Number(form.amount),
         className: cls?.name || "",
+        term: viewTerm,
+        academicYear: yearOfTerm(viewTerm),
         updatedAt: serverTimestamp(),
       });
-      setSuccess("Fee structure updated successfully.");
+      setSuccess(await billStudents("Fee updated."));
       setShowEdit(null);
       fetchAll();
     } catch (err) {
@@ -259,10 +294,10 @@ export default function FeeStructure({ schoolCode, schoolName }) {
     setActionLoading(true);
     try {
       await deleteDoc(doc(db, "fee_structures", showDelete.id));
-      setSuccess("Fee structure deleted.");
+      setSuccess(await billStudents("Fee removed."));
       setShowDelete(null);
       fetchAll();
-    } catch (err) {
+    } catch {
       setError("Delete failed.");
     }
     setActionLoading(false);
@@ -275,8 +310,6 @@ export default function FeeStructure({ schoolCode, schoolName }) {
       className: s.className,
       category: s.category,
       amount: String(s.amount),
-      term: s.term,
-      academicYear: s.academicYear,
       description: s.description || "",
       mandatory: s.mandatory !== false,
     });
@@ -322,13 +355,12 @@ export default function FeeStructure({ schoolCode, schoolName }) {
 
         <Input label="Amount (MWK)" required type="number" min="0" prefix="MWK" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} placeholder="0" error={formErrors.amount} />
 
-        <Select label="Term / Period" value={form.term} onChange={(e) => setForm((p) => ({ ...p, term: e.target.value }))}>
-          {TERMS.map((t) => <option key={t} value={t}>{t}</option>)}
-        </Select>
-
-        <Select label="Academic Year" value={form.academicYear} onChange={(e) => setForm((p) => ({ ...p, academicYear: e.target.value }))}>
-          {ACADEMIC_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
-        </Select>
+        <div className="col-span-2 alert alert--info" style={{ fontSize: 12.5 }}>
+          For <strong>{viewTerm}</strong> ({yearOfTerm(viewTerm)}).
+          {isCurrent
+            ? " Every student in the class is billed as soon as you save."
+            : " Students are billed when the head teacher opens this term."}
+        </div>
 
         <div className="col-span-2 filter-bar">
           <input type="checkbox" id="mandatory" checked={form.mandatory} onChange={(e) => setForm((p) => ({ ...p, mandatory: e.target.checked }))} />
@@ -354,12 +386,18 @@ export default function FeeStructure({ schoolCode, schoolName }) {
       <div className="flex-between flex-wrap">
         <div>
           <h2>Fee Structures</h2>
-          <p className="text-muted">Define fee templates based on classes created in School Settings</p>
+          <p className="text-muted">
+            {currentTerm
+              ? <>Fees per class for each term. The head teacher has opened <strong>{currentTerm}</strong>; students are billed from it automatically.</>
+              : "Fees per class for each term."}
+          </p>
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="form-input form-input--compact">
-            {ACADEMIC_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+          <select value={viewTerm} onChange={(e) => setViewTerm(e.target.value)} className="form-input form-input--compact" aria-label="Term" disabled={!currentTerm}>
+            {termChoices.map((t) => (
+              <option key={t} value={t}>{t}{t === currentTerm ? " (current)" : ""}</option>
+            ))}
           </select>
 
           <select value={selectedClassFilter} onChange={(e) => setSelectedClassFilter(e.target.value)} className="form-input form-input--compact">
@@ -367,12 +405,17 @@ export default function FeeStructure({ schoolCode, schoolName }) {
             {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
 
-          <Btn onClick={() => { setForm({ ...EMPTY, academicYear: filterYear }); setFormErrors({}); setShowAdd(true); }} variant="accent">
+          <Btn onClick={() => { setForm(EMPTY); setFormErrors({}); setShowAdd(true); }} variant="accent" disabled={!viewTerm}>
             <Plus size={15} /> Add Fee
           </Btn>
         </div>
       </div>
 
+      {currentTerm === "" && (
+        <div className="alert alert--warning">
+          <AlertTriangle size={14} /> The head teacher hasn&apos;t opened a term yet. Fees are set per term, so this starts once a term is set.
+        </div>
+      )}
       {success && <div className="alert alert--success"><Check size={14} /> {success}</div>}
       {error && !loading && <div className="alert alert--error">{error}</div>}
 

@@ -165,6 +165,9 @@ html.skin-paper :is(h1, h2, h3, .h1, .h2, .h3, .topbar__title, .module-title,
   letter-spacing: -0.012em;
 }
 html.skin-paper .module-title { font-size: clamp(1.25rem, 3vw, 1.65rem); line-height: 1.2; }
+html.skin-paper .data-table :is(.tag, .status-pill) { white-space: nowrap; }
+/* Older module stat cards: money like "MWK 1,500,000" must fit its card. */
+html.skin-paper .stat-card__value { font-size: clamp(1.35rem, 2vw, 1.85rem); line-height: 1.15; overflow-wrap: anywhere; }
 html.skin-paper .module-sub,
 html.skin-paper .stat-card__sub,
 html.skin-paper .cc-row__meta,

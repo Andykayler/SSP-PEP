@@ -1,11 +1,17 @@
 // pages/bursar/modules/StudentFees.jsx
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { db } from "../../../firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { subscribeSchoolSettings } from "../../../services/academicTerm";
+import { yearOfTerm } from "../../../services/termFeesCore";
+import { syncTermFees } from "../../../services/termFees";
+import { buildArrears } from "../../../services/feeAllocationCore";
+import { fetchClearances } from "../../../services/feeClearance";
 import {
-  collection, query, where, getDocs, writeBatch, doc, serverTimestamp,
-} from "firebase/firestore";
+  fetchReleases, setResultsRelease, resultsAccess, releaseActive,
+} from "../../../services/resultsRelease";
 import {
-  Search, X, Check, Users, Info, AlertTriangle, RefreshCw,
+  Search, X, Check, Users, Info, AlertTriangle, RefreshCw, Unlock,
   GraduationCap, Wallet, AlertCircle, CheckCircle2,
 } from "lucide-react";
 import "./staff-management.css";
@@ -96,78 +102,6 @@ function SummaryCard({ label, value, sub, accent = "blue" }) {
 }
 
 // ─── Fee Preview in Modal ───────────────────────────────────────────────────
-function FeePreviewRows({ studentIds, students, feeStructures, studentFees, assignTerm }) {
-  const previews = useMemo(() => {
-    return studentIds.map((sid) => {
-      const student = students.find((s) => s.id === sid);
-      if (!student?.classId) return { student, fees: [], skipped: 0 };
-      const relevant = feeStructures.filter((f) => f.classId === student.classId && f.term === assignTerm);
-      const newFees = relevant.filter((fee) => !studentFees.some((sf) => sf.studentId === sid && sf.feeStructureId === fee.id));
-      const skipped = relevant.length - newFees.length;
-      return { student, fees: newFees, skipped };
-    });
-  }, [studentIds, students, feeStructures, studentFees, assignTerm]);
-
-  if (studentIds.length === 0) return null;
-
-  const totalNew = previews.reduce((s, p) => s + p.fees.length, 0);
-  const totalAmt = previews.reduce((s, p) => s + p.fees.reduce((a, f) => a + (f.amount || 0), 0), 0);
-  const totalSkipped = previews.reduce((s, p) => s + p.skipped, 0);
-
-  return (
-    <div className="space-y-4">
-      <div className="alert alert--info">
-        <Info size={18} />
-        <div className="flex-between flex-wrap" style={{ flex: 1 }}>
-          <span className="font-semibold">{totalNew} new fee record(s)</span>
-          <span className="font-bold">{fmt(totalAmt)}</span>
-          {totalSkipped > 0 && <span className="text-warning">{totalSkipped} skipped (already assigned)</span>}
-        </div>
-      </div>
-
-      {studentIds.length <= 6 && previews.map(({ student, fees, skipped }) => (
-        <div key={student?.id} className="card">
-          <div className="assignment-card__header">
-            <div className="font-semibold">{student?.fullName}</div>
-            {skipped > 0 && <span className="text-warning">{skipped} skipped</span>}
-          </div>
-          {fees.length === 0 ? (
-            <div className="empty-assignments">All fees already assigned for this term.</div>
-          ) : (
-            <div className="data-table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Fee</th>
-                    <th>Category</th>
-                    <th className="text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {fees.map((fee) => (
-                    <tr key={fee.id}>
-                      <td>{fee.name}</td>
-                      <td><span className="tag">{fee.category}</span></td>
-                      <td className="text-right font-semibold">{fmt(fee.amount)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      ))}
-
-      {studentIds.length > 6 && (
-        <p className="empty-assignments">
-          Bulk preview hidden ({studentIds.length} students). Fees applied per class.
-        </p>
-      )}
-    </div>
-  );
-}
-
-// ─── Skeletons (aligned with FeeStructure) ──────────────────────────────────
 function SkeletonSummaryCards() {
   return (
     <div className="stats-grid">
@@ -220,14 +154,21 @@ function SkeletonStudentTable({ rows = 6 }) {
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
-const TERMS = ["Term 1", "Term 2", "Term 3", "Full Year"];
-const ACADEMIC_YEARS = ["2024/2025", "2025/2026", "2026/2027"];
+/** Money the school has: a parent-app claim or a rejected payment is not. */
+const counted = (p) => p.status !== "unverified" && p.status !== "rejected";
 
-// ═════════════════════════════════════════════════════════════════════════════
-export default function StudentFees({ schoolCode, schoolName }) {
+function ResultsPill({ access, release, balance }) {
+  if (access.visible && releaseActive(release)) {
+    return <span className="status-pill" style={{ background: "var(--primary-pale)", color: "var(--primary-light)" }}>Released</span>;
+  }
+  if (access.visible) return <span className="status-pill status-pill--active">Visible</span>;
+  if (access.reason === "clearance") return <span className="status-pill status-pill--suspended">Withheld by head</span>;
+  return <span className="status-pill status-pill--suspended" title={`Owes ${fmt(balance)}`}>Held — fees owed</span>;
+}
+
+export default function StudentFees({ schoolCode, currentUser }) {
   const [students, setStudents] = useState([]);
   const [classes, setClasses] = useState([]);
-  const [feeStructures, setFeeStructures] = useState([]);
   const [studentFees, setStudentFees] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -235,42 +176,97 @@ export default function StudentFees({ schoolCode, schoolName }) {
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [academicYear, setAcademicYear] = useState("2025/2026");
+  const [academicYear, setAcademicYear] = useState("");
   const [sortKey, setSortKey] = useState("name");
-
   const [selectedIds, setSelectedIds] = useState(new Set());
 
-  const [showAssignModal, setShowAssignModal] = useState(false);
-  const [assignTerm, setAssignTerm] = useState("Term 1");
-  const [bulkMode, setBulkMode] = useState("all");
+  // The term the head teacher has opened. Billing and the results gate both
+  // follow it.
+  const [currentTerm, setCurrentTerm] = useState(undefined);
+  const [billingNote, setBillingNote] = useState("");
+  // All-time balance per student — what the results gate uses — plus this
+  // term's release and clearance decisions.
+  const [owed, setOwed] = useState(new Map());
+  const [releases, setReleases] = useState(new Map());
+  const [clearances, setClearances] = useState(new Map());
+  const [releaseFor, setReleaseFor] = useState(null);   // { students, approve }
+  const [releaseNote, setReleaseNote] = useState("");
 
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState(null);
 
-  const fetchAll = useCallback(async () => {
+  useEffect(() => {
+    if (!schoolCode) return undefined;
+    return subscribeSchoolSettings(schoolCode, (s) => {
+      const t = s?.currentTerm || "";
+      setCurrentTerm(t);
+      setAcademicYear((prev) => prev || yearOfTerm(t) || "2025/2026");
+    });
+  }, [schoolCode]);
+
+  const yearChoices = useMemo(() => {
+    const now = yearOfTerm(currentTerm || "");
+    const base = now ? Number(now.slice(5)) : new Date().getFullYear();
+    return [base - 2, base - 1, base, base + 1].map((y) => `${y - 1}/${y}`);
+  }, [currentTerm]);
+
+  const fetchAll = useCallback(async ({ sync = false } = {}) => {
+    if (!academicYear) return;
     setLoading(true);
     try {
-      const [stSnap, clSnap, fsSnap, faSnap, pySnap] = await Promise.all([
-        getDocs(query(collection(db, "students"), where("schoolCode", "==", schoolCode))),
-        getDocs(query(collection(db, "school_classes"), where("schoolCode", "==", schoolCode))),
-        getDocs(query(collection(db, "fee_structures"), where("schoolCode", "==", schoolCode), where("academicYear", "==", academicYear))),
-        getDocs(query(collection(db, "fee_assignments"), where("schoolCode", "==", schoolCode), where("academicYear", "==", academicYear))),
-        getDocs(query(collection(db, "payments"), where("schoolCode", "==", schoolCode), where("academicYear", "==", academicYear))),
+      // Bring this term's billing up to date first, so the table below is
+      // never showing a student who simply hasn't been billed yet.
+      if (sync && currentTerm) {
+        const r = await syncTermFees({ schoolCode, term: currentTerm });
+        setBillingNote(r.created || r.updated || r.removed
+          ? `${currentTerm} billing updated: ${r.created} new charge${r.created === 1 ? "" : "s"}${r.updated ? `, ${r.updated} corrected` : ""}${r.removed ? `, ${r.removed} removed` : ""}.`
+          : `${currentTerm} billing is up to date — ${r.billed} student${r.billed === 1 ? "" : "s"} billed.`);
+      }
+
+      const q = (name, extra = []) => getDocs(query(collection(db, name), where("schoolCode", "==", schoolCode), ...extra));
+      const year = [where("academicYear", "==", academicYear)];
+      const [stSnap, clSnap, faSnap, pySnap, allFa, allPy, rel, clr] = await Promise.all([
+        q("students"),
+        q("school_classes"),
+        q("fee_assignments", year),
+        q("payments", year),
+        q("fee_assignments"),
+        q("payments"),
+        currentTerm ? fetchReleases(schoolCode, currentTerm) : Promise.resolve(new Map()),
+        currentTerm ? fetchClearances(schoolCode, currentTerm) : Promise.resolve(new Map()),
       ]);
 
-      setStudents(stSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const studentRows = stSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setStudents(studentRows);
       setClasses(clSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
-      setFeeStructures(fsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setStudentFees(faSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setPayments(pySnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setReleases(rel);
+      setClearances(clr);
+
+      // The same balance the parent app's results check uses (all terms,
+      // confirmed money only, oldest charge paid first).
+      const arrears = currentTerm
+        ? buildArrears({
+          students: studentRows,
+          charges: allFa.docs.map((d) => d.data()),
+          payments: allPy.docs.map((d) => d.data()).filter((p) => p.status === "verified"),
+          currentTerm,
+        })
+        : [];
+      setOwed(new Map(arrears.map((r) => [r.id, r.balance || 0])));
     } catch (e) {
       showToast("error", "Failed to load data.");
       console.error(e);
     }
     setLoading(false);
-  }, [schoolCode, academicYear]);
+  }, [schoolCode, academicYear, currentTerm]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  // Billing is brought up to date every time the page opens on the running year.
+  useEffect(() => {
+    if (currentTerm === undefined || !academicYear) return;
+    fetchAll({ sync: Boolean(currentTerm) && academicYear === yearOfTerm(currentTerm) });
+  }, [fetchAll, currentTerm, academicYear]);
 
   function showToast(type, message) {
     setToast({ type, message });
@@ -280,13 +276,23 @@ export default function StudentFees({ schoolCode, schoolName }) {
   function getFinancials(studentId) {
     const assigned = studentFees.filter((fa) => fa.studentId === studentId);
     const totalCharged = assigned.reduce((s, fa) => s + (fa.amount || 0), 0);
-    const totalPaid = payments.filter((p) => p.studentId === studentId).reduce((s, p) => s + (p.amount || 0), 0);
+    const totalPaid = payments.filter((p) => p.studentId === studentId && counted(p)).reduce((s, p) => s + (p.amount || 0), 0);
     const balance = totalCharged - totalPaid;
     const percentage = totalCharged > 0 ? Math.round((totalPaid / totalCharged) * 100) : 0;
     return { totalCharged, totalPaid, balance, percentage, assignedTerms: [...new Set(assigned.map((a) => a.term))] };
   }
 
-  const enriched = useMemo(() => students.map((s) => ({ ...s, ...getFinancials(s.id) })), [students, studentFees, payments]);
+  const enriched = useMemo(() => students
+    .filter((s) => (s.status || "active") === "active" || studentFees.some((f) => f.studentId === s.id))
+    .map((s) => {
+      const f = getFinancials(s.id);
+      const owedAll = owed.get(s.id) || 0;
+      const release = releases.get(s.id) || null;
+      const access = resultsAccess({ balance: owedAll, release, clearance: clearances.get(s.id), term: currentTerm });
+      return { ...s, ...f, owedAll, release, access };
+    }),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [students, studentFees, payments, owed, releases, clearances, currentTerm]);
 
   const filtered = useMemo(() => {
     let list = enriched.filter((s) => {
@@ -298,7 +304,9 @@ export default function StudentFees({ schoolCode, schoolName }) {
         (statusFilter === "paid" && s.totalCharged > 0 && s.balance <= 0) ||
         (statusFilter === "partial" && s.percentage > 0 && s.balance > 0) ||
         (statusFilter === "unpaid" && s.totalCharged > 0 && s.percentage === 0) ||
-        (statusFilter === "none" && s.totalCharged === 0);
+        (statusFilter === "none" && s.totalCharged === 0) ||
+        (statusFilter === "held" && !s.access.visible) ||
+        (statusFilter === "released" && releaseActive(s.release, currentTerm));
       return matchSearch && matchClass && matchStatus;
     });
 
@@ -309,18 +317,20 @@ export default function StudentFees({ schoolCode, schoolName }) {
     });
 
     return list;
-  }, [enriched, search, classFilter, statusFilter, sortKey]);
+  }, [enriched, search, classFilter, statusFilter, sortKey, currentTerm]);
 
   const summary = useMemo(() => {
     const totalCharged = enriched.reduce((s, x) => s + x.totalCharged, 0);
     const totalPaid = enriched.reduce((s, x) => s + x.totalPaid, 0);
     const outstanding = enriched.reduce((s, x) => s + Math.max(x.balance, 0), 0);
     const fullyPaid = enriched.filter((x) => x.totalCharged > 0 && x.balance <= 0).length;
-    return { totalCharged, totalPaid, outstanding, fullyPaid, total: enriched.length };
+    const held = enriched.filter((x) => !x.access.visible && x.access.reason === "balance").length;
+    return { totalCharged, totalPaid, outstanding, fullyPaid, held, total: enriched.length };
   }, [enriched]);
 
   const allFilteredSelected = filtered.length > 0 && filtered.every((s) => selectedIds.has(s.id));
   const someSelected = selectedIds.size > 0;
+  const selectedHeld = enriched.filter((s) => selectedIds.has(s.id) && !s.access.visible && s.access.reason === "balance");
 
   function toggleAll() {
     if (allFilteredSelected) {
@@ -334,69 +344,31 @@ export default function StudentFees({ schoolCode, schoolName }) {
     setSelectedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   }
 
-  function openAssignModal() {
-    setBulkMode(someSelected ? "selected" : "all");
-    setAssignTerm("Term 1");
-    setShowAssignModal(true);
-  }
-
-  const modalStudentIds = useMemo(() => {
-    if (!showAssignModal) return [];
-    return bulkMode === "selected" ? [...selectedIds] : filtered.map((s) => s.id);
-  }, [showAssignModal, bulkMode, selectedIds, filtered]);
-
-  async function handleAssignTerm() {
-    if (modalStudentIds.length === 0 || !assignTerm) return;
-
+  async function confirmRelease() {
+    if (!releaseFor || !currentTerm) return;
     setActionLoading(true);
     try {
-      const batch = writeBatch(db);
-      let assigned = 0;
-      let skipped = 0;
-
-      for (const studentId of modalStudentIds) {
-        const student = students.find((s) => s.id === studentId);
-        if (!student?.classId) continue;
-
-        const relevantFees = feeStructures.filter((f) => f.classId === student.classId && f.term === assignTerm);
-
-        for (const fee of relevantFees) {
-          const alreadyAssigned = studentFees.some((sf) => sf.studentId === studentId && sf.feeStructureId === fee.id);
-          if (alreadyAssigned) { skipped++; continue; }
-
-          const ref = doc(collection(db, "fee_assignments"));
-          batch.set(ref, {
-            studentId: student.id,
-            studentName: student.fullName,
-            studentCode: student.studentCode,
-            classId: student.classId,
-            className: student.className,
-            feeStructureId: fee.id,
-            feeName: fee.name,
-            category: fee.category || "",
-            amount: fee.amount,
-            term: assignTerm,
-            academicYear,
-            schoolCode,
-            createdAt: serverTimestamp(),
-          });
-          assigned++;
-        }
+      for (const student of releaseFor.students) {
+        await setResultsRelease({
+          schoolCode,
+          student: { ...student, balance: student.owedAll },
+          term: currentTerm,
+          approve: releaseFor.approve,
+          actor: currentUser,
+          note: releaseNote,
+        });
       }
-
-      await batch.commit();
-
-      const msg = assigned > 0
-        ? `${assignTerm} fees assigned to ${modalStudentIds.length} student(s).`
-        : "No new fees assigned.";
-
-      showToast(assigned > 0 ? "success" : "error", msg);
-      setShowAssignModal(false);
+      const n = releaseFor.students.length;
+      showToast("success", releaseFor.approve
+        ? `${currentTerm} results released for ${n} student${n === 1 ? "" : "s"}. Guardians have been told.`
+        : `Release withdrawn for ${n} student${n === 1 ? "" : "s"}. Their results are hidden until fees are cleared.`);
+      setReleaseFor(null);
+      setReleaseNote("");
       setSelectedIds(new Set());
       await fetchAll();
     } catch (err) {
-      showToast("error", "Failed to assign fees.");
       console.error(err);
+      showToast("error", `Couldn't save: ${err.message}`);
     }
     setActionLoading(false);
   }
@@ -406,22 +378,41 @@ export default function StudentFees({ schoolCode, schoolName }) {
       {/* Header */}
       <div className="flex-between flex-wrap">
         <div>
-          <h2>Student Fee Enrollment</h2>
-          <p className="text-muted">Assign terms and track fee status across all students.</p>
+          <h2>Student Fees</h2>
+          <p className="text-muted">
+            Balances per student, and whether their families can see results.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <select
             value={academicYear}
             onChange={(e) => setAcademicYear(e.target.value)}
             className="form-input form-input--compact"
+            aria-label="Academic year"
           >
-            {ACADEMIC_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+            {yearChoices.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
-          <Btn variant="secondary" onClick={fetchAll} loading={loading}>
+          <Btn variant="secondary" onClick={() => fetchAll({ sync: Boolean(currentTerm) && academicYear === yearOfTerm(currentTerm) })} loading={loading} title="Refresh and update billing">
             <RefreshCw size={16} />
           </Btn>
         </div>
       </div>
+
+      {currentTerm === "" ? (
+        <div className="alert alert--warning">
+          <AlertTriangle size={16} />
+          <div>The head teacher hasn&apos;t opened a term yet. Students are billed automatically once a term is open and its fee structure is set.</div>
+        </div>
+      ) : currentTerm && (
+        <div className="alert alert--info">
+          <Info size={16} />
+          <div>
+            <strong>{currentTerm}</strong> is open. Every active student is billed automatically from their class&apos;s fee structure — no manual assigning.
+            {" "}Results are hidden from families who owe fees unless you release them.
+            {billingNote && <div style={{ marginTop: 4, fontWeight: 600 }}>{billingNote}</div>}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <>
@@ -434,9 +425,9 @@ export default function StudentFees({ schoolCode, schoolName }) {
           {/* Summary Cards */}
           <div className="stats-grid">
             <SummaryCard label="Total Charged" value={fmt(summary.totalCharged)} accent="blue" sub={`${summary.total} students`} />
-            <SummaryCard label="Total Collected" value={fmt(summary.totalPaid)} accent="emerald" />
+            <SummaryCard label="Total Collected" value={fmt(summary.totalPaid)} accent="emerald" sub="Confirmed payments" />
             <SummaryCard label="Outstanding" value={fmt(summary.outstanding)} accent="red" />
-            <SummaryCard label="Fully Paid" value={summary.fullyPaid} accent="gold" sub={`of ${summary.total}`} />
+            <SummaryCard label="Results Held" value={summary.held} accent="gold" sub="Owe fees, not released" />
           </div>
 
           {/* Filter Bar */}
@@ -471,6 +462,8 @@ export default function StudentFees({ schoolCode, schoolName }) {
               <option value="partial">Partial</option>
               <option value="unpaid">Unpaid</option>
               <option value="none">No Fees</option>
+              <option value="held">Results held</option>
+              <option value="released">Results released</option>
             </select>
 
             <select value={sortKey} onChange={(e) => setSortKey(e.target.value)} className="form-input form-input--compact">
@@ -479,8 +472,13 @@ export default function StudentFees({ schoolCode, schoolName }) {
               <option value="percentage">Sort: % Paid</option>
             </select>
 
-            <Btn variant="accent" onClick={openAssignModal} disabled={filtered.length === 0}>
-              <Users size={16} /> Assign Term
+            <Btn
+              variant="accent"
+              onClick={() => { setReleaseNote(""); setReleaseFor({ students: selectedHeld, approve: true }); }}
+              disabled={!currentTerm || selectedHeld.length === 0}
+              title="Select students whose results are held"
+            >
+              <Unlock size={16} /> Release results{selectedHeld.length ? ` (${selectedHeld.length})` : ""}
             </Btn>
           </div>
 
@@ -498,11 +496,7 @@ export default function StudentFees({ schoolCode, schoolName }) {
                   <thead>
                     <tr>
                       <th>
-                        <input
-                          type="checkbox"
-                          checked={allFilteredSelected}
-                          onChange={toggleAll}
-                        />
+                        <input type="checkbox" checked={allFilteredSelected} onChange={toggleAll} aria-label="Select all" />
                       </th>
                       <th>Student</th>
                       <th>Class</th>
@@ -511,25 +505,22 @@ export default function StudentFees({ schoolCode, schoolName }) {
                       <th className="text-right">Paid</th>
                       <th className="text-right">Balance</th>
                       <th>Status</th>
+                      <th>Results {currentTerm ? `· ${currentTerm}` : ""}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.map((s) => {
                       const isSelected = selectedIds.has(s.id);
+                      const held = !s.access.visible && s.access.reason === "balance";
+                      const released = releaseActive(s.release, currentTerm);
                       return (
                         <tr key={s.id} style={isSelected ? { background: "var(--primary-pale)" } : undefined}>
                           <td>
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggleOne(s.id)}
-                            />
+                            <input type="checkbox" checked={isSelected} onChange={() => toggleOne(s.id)} aria-label={`Select ${s.fullName}`} />
                           </td>
                           <td>
                             <div className="flex gap-2 items-center">
-                              <div className="assignment-avatar">
-                                {initials(s.fullName)}
-                              </div>
+                              <div className="assignment-avatar">{initials(s.fullName)}</div>
                               <div>
                                 <div className="data-table__primary">{s.fullName}</div>
                                 <div className="data-table__meta">{s.studentCode}</div>
@@ -542,9 +533,7 @@ export default function StudentFees({ schoolCode, schoolName }) {
                               {s.assignedTerms.length === 0 ? (
                                 <span className="text-muted">None</span>
                               ) : (
-                                s.assignedTerms.map((t, i) => (
-                                  <span key={i} className="tag tag--blue">{t}</span>
-                                ))
+                                s.assignedTerms.map((t, i) => <span key={i} className="tag tag--blue">{t}</span>)
                               )}
                             </div>
                           </td>
@@ -555,13 +544,28 @@ export default function StudentFees({ schoolCode, schoolName }) {
                           </td>
                           <td>
                             <div className="space-y-2">
-                              <StatusPill
-                                balance={s.balance}
-                                percentage={s.percentage}
-                                totalCharged={s.totalCharged}
-                              />
+                              <StatusPill balance={s.balance} percentage={s.percentage} totalCharged={s.totalCharged} />
                               {s.totalCharged > 0 && <ProgressBar percentage={s.percentage} />}
                             </div>
+                          </td>
+                          <td>
+                            {currentTerm ? (
+                              <div className="flex gap-2 items-center flex-wrap">
+                                <ResultsPill access={s.access} release={s.release} balance={s.owedAll} />
+                                {held && (
+                                  <button type="button" className="icon-btn" style={{ width: "auto", padding: "4px 8px", fontSize: 12 }}
+                                    onClick={() => { setReleaseNote(""); setReleaseFor({ students: [s], approve: true }); }}>
+                                    Release
+                                  </button>
+                                )}
+                                {released && s.owedAll > 0 && (
+                                  <button type="button" className="icon-btn" style={{ width: "auto", padding: "4px 8px", fontSize: 12 }}
+                                    onClick={() => { setReleaseNote(""); setReleaseFor({ students: [s], approve: false }); }}>
+                                    Withdraw
+                                  </button>
+                                )}
+                              </div>
+                            ) : <span className="text-muted">—</span>}
                           </td>
                         </tr>
                       );
@@ -585,69 +589,33 @@ export default function StudentFees({ schoolCode, schoolName }) {
         </>
       )}
 
-      {/* Assign Modal */}
-      {showAssignModal && (
+      {/* Release / withdraw confirmation */}
+      {releaseFor && (
         <Modal
-          title={bulkMode === "selected"
-            ? `Assign ${assignTerm} to ${selectedIds.size} Students`
-            : `Assign ${assignTerm} to All Students`}
-          subtitle="Fees will be applied based on each student's class"
-          onClose={() => setShowAssignModal(false)}
-          wide
+          title={releaseFor.approve ? `Release ${currentTerm} results` : "Withdraw the release"}
+          subtitle={releaseFor.students.length === 1
+            ? `${releaseFor.students[0].fullName} · owes ${fmt(releaseFor.students[0].owedAll)}`
+            : `${releaseFor.students.length} students with fees owed`}
+          onClose={() => setReleaseFor(null)}
         >
-          <div className="space-y-6">
-            {someSelected && (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setBulkMode("all")}
-                  className={`flex-1 choice-btn ${bulkMode === "all" ? "choice-btn--active" : ""}`}
-                >
-                  All filtered ({filtered.length})
-                </button>
-                <button
-                  onClick={() => setBulkMode("selected")}
-                  className={`flex-1 choice-btn ${bulkMode === "selected" ? "choice-btn--active" : ""}`}
-                >
-                  Selected only ({selectedIds.size})
-                </button>
-              </div>
-            )}
-
-            <div>
-              <label className="field__label">Term to Assign</label>
-              <div className="grid grid-cols-2 mt-2">
-                {TERMS.map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setAssignTerm(t)}
-                    className={`choice-btn ${assignTerm === t ? "choice-btn--active" : ""}`}
-                  >
-                    {t}
-                  </button>
-                ))}
+          <div className="space-y-4">
+            <div className={`alert ${releaseFor.approve ? "alert--info" : "alert--warning"}`}>
+              <Info size={16} />
+              <div>
+                {releaseFor.approve
+                  ? "The family will see this term's marks and report card in ACALink even though fees are still owed, and will be told they're available. The balance itself is unchanged."
+                  : "The family's view of this term's results will be hidden again until the balance is cleared."}
               </div>
             </div>
-
-            <div>
-              <label className="field__label block mb-2">Preview for {assignTerm}</label>
-              <FeePreviewRows
-                studentIds={modalStudentIds}
-                students={students}
-                feeStructures={feeStructures}
-                studentFees={studentFees}
-                assignTerm={assignTerm}
-              />
+            <div className="field">
+              <label className="field__label" htmlFor="release-note">Note (optional, kept on record)</label>
+              <input id="release-note" className="field__input" value={releaseNote} onChange={(e) => setReleaseNote(e.target.value)}
+                placeholder={releaseFor.approve ? "e.g. Payment plan agreed" : "Reason"} />
             </div>
-
-            <div className="alert alert--info">
-              <Info size={18} />
-              <div>Only new fees will be created. Duplicates are automatically skipped.</div>
-            </div>
-
             <div className="flex gap-4 mt-4">
-              <Btn variant="secondary" onClick={() => setShowAssignModal(false)} className="flex-1">Cancel</Btn>
-              <Btn variant="accent" onClick={handleAssignTerm} loading={actionLoading} className="flex-1">
-                Confirm Assignment
+              <Btn variant="secondary" onClick={() => setReleaseFor(null)} className="flex-1">Cancel</Btn>
+              <Btn variant="accent" onClick={confirmRelease} loading={actionLoading} className="flex-1">
+                {releaseFor.approve ? "Release results" : "Withdraw release"}
               </Btn>
             </div>
           </div>

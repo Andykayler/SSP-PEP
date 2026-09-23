@@ -583,9 +583,11 @@ service cloud.firestore {
   // without this branch resource.data.teacherId throws inside the rule
   // itself, which the client sees as "Missing or insufficient permissions"
   // instead of a clean not-found. This mirrors the /attendance rule above.
-  // PerformanceService reads the child's class marks (schoolCode + classId +
-  // term) to build the grades card and class ranking.
-  allow read: if isAnonParent() ||
+  // The parent app no longer reads these. A sheet holds every child in the
+  // class, so it can't be shown to one family and hidden from another; the
+  // app asks api/parent/results.js instead, which withholds results from a
+  // family that owes fees unless the bursar has released them.
+  allow read: if !isAnonParent() &&
               (request.auth != null &&
               (resource == null ||
                (sameSchool(resource.data.schoolCode) &&
@@ -767,9 +769,9 @@ service cloud.firestore {
     // The parent app fetches it by id (a `get`, not a list), so gating on the
     // document's own studentId is provable here in a way a list would not be.
     match /report_cards/{cardId} {
-      allow read: if isAnonParent()
-                     ? isGuardianOfStudent(resource.data.studentId)
-                     : isStaffOfSchool(resource.data.schoolCode);
+      // Staff only. Families get their child's card through
+      // api/parent/results.js, which checks the fee position first.
+      allow read: if !isAnonParent() && isStaffOfSchool(resource.data.schoolCode);
 
       // Issuing and re-issuing is a leadership act; a class teacher publishing
       // their own component does not release the combined result.
@@ -1229,6 +1231,19 @@ service cloud.firestore {
       allow delete: if isStaff() && isHeadTeacher() &&
         sameSchool(resource.data.schoolCode) &&
         schoolIsActive(resource.data.schoolCode);
+    }
+
+    // The bursar's decision to show a family their child's results for a term
+    // even though fees are still owed. Id `${schoolCode}__${studentId}__${term}`
+    // (spaces as underscores). Never deleted: revoking sets status "revoked",
+    // so there is always a record of who released what, and when.
+    match /results_release/{releaseId} {
+      allow read: if isStaff() && sameSchool(resource.data.schoolCode);
+      allow create, update: if isStaff() && isFinance() &&
+        sameSchool(request.resource.data.schoolCode) &&
+        schoolIsActive(request.resource.data.schoolCode) &&
+        request.resource.data.status in ['approved', 'revoked'];
+      allow delete: if false;
     }
 
     // The log of what has been sent, so the office is not guessing whether a

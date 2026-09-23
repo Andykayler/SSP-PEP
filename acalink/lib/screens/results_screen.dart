@@ -74,6 +74,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
               message: 'The school has not opened a term yet. Results appear here once it does.',
             );
           }
+          if (data.withheld) {
+            return _Empty(
+              icon: Icons.lock_outline_rounded,
+              title: '${data.term} results are held',
+              message: data.withheldMessage.isNotEmpty
+                  ? data.withheldMessage
+                  : 'Results show here once fees are cleared. Please contact the school\'s finance office.',
+            );
+          }
           if (data.subjects.isEmpty) {
             return _Empty(
               icon: Icons.hourglass_empty_rounded,

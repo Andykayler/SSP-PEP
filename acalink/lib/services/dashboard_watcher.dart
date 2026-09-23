@@ -109,16 +109,10 @@ class DashboardWatcher {
             .where('classId', isEqualTo: classId),
         DashboardSection.homework,
       );
-      // Not filtered on term: the term can change under us, and a listener
-      // pinned to the old one would go silent exactly when marks start
-      // arriving for the new one. The fetch it triggers does the filtering.
-      watch(
-        _firestore
-            .collection('ca_marks')
-            .where('schoolCode', isEqualTo: school)
-            .where('classId', isEqualTo: classId),
-        DashboardSection.performance,
-      );
+      // Marks are no longer watched here: the class mark sheets can't be read
+      // by the app (results come from api/parent/results.js, which withholds
+      // them while fees are owed). The grades card refreshes on open, on pull
+      // to refresh, and whenever the fees change.
     }
 
     if (school.isNotEmpty) {

@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../core/api.dart';
 import '../models/student.dart';
-import 'academic_term_service.dart';
 
 /// The four assessment components, in the order a term runs. Mirrors
 /// ASSESSMENT_TYPES in the web portal's PerformanceModule — the ids are the
@@ -104,8 +104,12 @@ class ReportCard {
   static String docId(String schoolCode, String studentId, String term) =>
       '${schoolCode}__${studentId}__${term.replaceAll(RegExp(r'\s+'), '_')}';
 
-  factory ReportCard.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
+  factory ReportCard.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) =>
+      ReportCard.fromMap(doc.data() ?? {});
+
+  /// From a Firestore document or the results endpoint's JSON (where
+  /// `generatedAt` is an ISO string).
+  factory ReportCard.fromMap(Map<String, dynamic> d) {
     final subjects = ((d['subjects'] as List?) ?? []).map((raw) {
       final m = (raw as Map).cast<String, dynamic>();
       final comps = ((m['components'] as Map?) ?? {}).cast<String, dynamic>();
@@ -124,11 +128,13 @@ class ReportCard {
       className: d['className'] as String? ?? '',
       subjects: subjects,
       overallAverage: (d['overallAverage'] as num?)?.toDouble(),
-      position: d['position'] as int?,
-      classSize: d['classSize'] as int?,
+      position: (d['position'] as num?)?.toInt(),
+      classSize: (d['classSize'] as num?)?.toInt(),
       headTeacherRemark: d['headTeacherRemark'] as String?,
       insight: d['insight'] as String?,
-      generatedAt: ts is Timestamp ? ts.toDate() : null,
+      generatedAt: ts is Timestamp
+          ? ts.toDate()
+          : (ts is String ? DateTime.tryParse(ts) : null),
     );
   }
 }
@@ -142,11 +148,20 @@ class ResultsData {
   /// so a parent is never offered a tab that is empty.
   final Set<String> availableComponents;
 
+  /// True when the school is holding this term's results back — usually
+  /// because fees are owed and the bursar has not released them.
+  final bool withheld;
+
+  /// What to tell the family when [withheld] — written by the server.
+  final String withheldMessage;
+
   const ResultsData({
     required this.term,
     required this.subjects,
     required this.reportCard,
     required this.availableComponents,
+    this.withheld = false,
+    this.withheldMessage = '',
   });
 
   static const empty = ResultsData(
@@ -154,88 +169,65 @@ class ResultsData {
   );
 }
 
-class ResultsService {
-  final FirebaseFirestore _firestore;
-  ResultsService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+/// A child's results come from the server (api/parent/results.js), not from
+/// Firestore: the school's mark sheets hold the whole class, and the server is
+/// what withholds results from a family that owes fees unless the bursar has
+/// released them. It returns only this child's marks.
+class ResultsApi {
+  final AcalinkApi _api;
+  ResultsApi({AcalinkApi? api}) : _api = api ?? AcalinkApi();
 
-  final _terms = AcademicTermService();
+  Future<Map<String, dynamic>> fetch(Student student) => _api.post(
+        '/api/parent/results',
+        {'studentId': student.id, 'phone': student.guardianPhone},
+      );
+}
+
+class ResultsService {
+  final ResultsApi _api;
+  ResultsService({ResultsApi? api}) : _api = api ?? ResultsApi();
 
   Future<ResultsData> fetchResults(Student student) async {
     if (student.classId.isEmpty) return ResultsData.empty;
 
-    final term = await _terms.currentTerm(student.schoolCode);
+    final data = await _api.fetch(student);
+    final term = (data['term'] as String?) ?? '';
     if (term.isEmpty) return ResultsData.empty;
 
-    final results = await Future.wait([
-      _fetchPublishedSubjects(student, term),
-      _fetchReportCard(student, term),
-    ]);
+    if (data['withheld'] == true) {
+      return ResultsData(
+        term: term,
+        subjects: const [],
+        reportCard: null,
+        availableComponents: const {},
+        withheld: true,
+        withheldMessage: (data['message'] as String?) ?? '',
+      );
+    }
 
-    final subjects = results[0] as List<SubjectResult>;
+    final subjects = ((data['subjects'] as List?) ?? []).map((raw) {
+      final m = (raw as Map).cast<String, dynamic>();
+      final comps = ((m['components'] as Map?) ?? {}).cast<String, dynamic>();
+      return SubjectResult(
+        subject: m['subject'] as String? ?? '',
+        components: {
+          for (final e in comps.entries)
+            if (e.value is num) e.key: e.value as num,
+        },
+      );
+    }).toList();
+
     final available = <String>{};
     for (final s in subjects) {
       available.addAll(s.components.keys);
     }
 
+    final card = data['reportCard'];
     return ResultsData(
       term: term,
       subjects: subjects,
-      reportCard: results[1] as ReportCard?,
+      reportCard: card is Map ? ReportCard.fromMap(card.cast<String, dynamic>()) : null,
       availableComponents: available,
     );
-  }
-
-  /// Per-subject, per-component scores — but ONLY from documents the teacher
-  /// has published. An unpublished document is a working draft; showing it
-  /// would mean a parent sees a mark before the teacher has finished entering
-  /// the class.
-  Future<List<SubjectResult>> _fetchPublishedSubjects(
-      Student student, String term) async {
-    final snap = await _firestore
-        .collection('ca_marks')
-        .where('schoolCode', isEqualTo: student.schoolCode)
-        .where('classId', isEqualTo: student.classId)
-        .where('term', isEqualTo: term)
-        .get();
-
-    // subject -> componentId -> score
-    final bySubject = <String, Map<String, num>>{};
-
-    for (final doc in snap.docs) {
-      final data = doc.data();
-      if (data['publishedAt'] == null) continue; // draft
-
-      final component = (data['assessmentType'] as String?) ?? 'EndTerm';
-      final marks = (data['marks'] as Map<String, dynamic>?) ?? {};
-      final mine = marks[student.id];
-      if (mine is! Map) continue;
-
-      mine.forEach((subject, score) {
-        if (score is num) {
-          bySubject.putIfAbsent(subject as String, () => {})[component] = score;
-        }
-      });
-    }
-
-    final out = bySubject.entries
-        .map((e) => SubjectResult(subject: e.key, components: e.value))
-        .toList()
-      ..sort((a, b) => a.subject.compareTo(b.subject));
-    return out;
-  }
-
-  Future<ReportCard?> _fetchReportCard(Student student, String term) async {
-    try {
-      final snap = await _firestore
-          .collection('report_cards')
-          .doc(ReportCard.docId(student.schoolCode, student.id, term))
-          .get();
-      return snap.exists ? ReportCard.fromDoc(snap) : null;
-    } catch (e) {
-      // ignore: avoid_print
-      print('[results] could not read report card: $e');
-      return null;
-    }
   }
 }

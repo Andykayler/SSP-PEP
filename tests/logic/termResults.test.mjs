@@ -1,0 +1,143 @@
+// Term-driven billing, the fee gate on results, and one child's results from
+// the class mark sheets.
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import { planTermFees, structuresForTerm, termFeeId, yearOfTerm } from "../../src/services/termFeesCore.js";
+import { resultsAccess, releaseActive, withheldMessage } from "../../src/services/resultsAccessCore.js";
+import { childResults } from "../../src/services/resultsCore.js";
+
+const TERM = "Term 2 2026";
+const S = "SCH";
+
+describe("structuresForTerm", () => {
+  const lines = [
+    { id: "new", term: "Term 2 2026", classId: "c1" },
+    { id: "old-short", term: "Term 2", academicYear: "2025/2026", classId: "c1" },
+    { id: "other-year", term: "Term 2", academicYear: "2024/2025", classId: "c1" },
+    { id: "next-term", term: "Term 3 2026", classId: "c1" },
+    { id: "full-year", term: "Full Year", academicYear: "2025/2026", classId: "c1" },
+  ];
+  it("keeps this term's lines, new and old spelling, and nothing else", () => {
+    assert.deepEqual(structuresForTerm(lines, TERM).map((l) => l.id), ["new", "old-short"]);
+  });
+  it("bills Full Year lines in Term 1", () => {
+    assert.deepEqual(structuresForTerm(lines, "Term 1 2026").map((l) => l.id), ["full-year"]);
+  });
+  it("derives the academic year the way the rest of the product does", () => {
+    assert.equal(yearOfTerm(TERM), "2025/2026");
+  });
+});
+
+describe("planTermFees", () => {
+  const structures = [
+    { id: "tuition1", term: TERM, classId: "c1", name: "Tuition", amount: 100 },
+    { id: "exam1", term: TERM, classId: "c1", name: "Exam", amount: 20 },
+    { id: "tuition2", term: TERM, classId: "c2", name: "Tuition", amount: 120 },
+  ];
+  const students = [
+    { id: "a", classId: "c1", fullName: "A" },
+    { id: "b", classId: "c2", fullName: "B" },
+    { id: "left", classId: "c1", status: "withdrawn" },
+    { id: "noclass" },
+  ];
+
+  it("bills every active student from their own class, and only them", () => {
+    const plan = planTermFees({ schoolCode: S, term: TERM, students, structures, assignments: [] });
+    assert.deepEqual(plan.create.map((c) => c.id).sort(), [
+      termFeeId(S, "a", "exam1", TERM), termFeeId(S, "a", "tuition1", TERM), termFeeId(S, "b", "tuition2", TERM),
+    ].sort());
+    const one = plan.create.find((c) => c.data.studentId === "b").data;
+    assert.equal(one.amount, 120);
+    assert.equal(one.term, TERM);
+    assert.equal(one.academicYear, "2025/2026");
+    assert.equal(one.auto, true);
+  });
+
+  it("is idempotent — already billed means nothing to do", () => {
+    const first = planTermFees({ schoolCode: S, term: TERM, students, structures, assignments: [] });
+    const assignments = first.create.map((c) => ({ id: c.id, ...c.data }));
+    const again = planTermFees({ schoolCode: S, term: TERM, students, structures, assignments });
+    assert.deepEqual(again, { create: [], update: [], remove: [] });
+  });
+
+  it("does not double-bill a fee the bursar assigned by hand", () => {
+    const manual = [{ id: "m1", studentId: "a", feeStructureId: "tuition1", term: "Term 2", amount: 100 }];
+    const plan = planTermFees({ schoolCode: S, term: TERM, students, structures, assignments: manual });
+    assert.equal(plan.create.some((c) => c.data.studentId === "a" && c.data.feeStructureId === "tuition1"), false);
+  });
+
+  it("follows a corrected fee on automatic charges", () => {
+    const assignments = [{ id: "x", studentId: "a", feeStructureId: "tuition1", term: TERM, amount: 90, feeName: "Tuition", auto: true }];
+    const plan = planTermFees({ schoolCode: S, term: TERM, students, structures, assignments });
+    assert.deepEqual(plan.update, [{ id: "x", data: { amount: 100, feeName: "Tuition", category: "" } }]);
+  });
+
+  it("removes automatic charges for a deleted fee or a class the student left", () => {
+    const assignments = [
+      { id: "gone-line", studentId: "a", feeStructureId: "deleted", term: TERM, amount: 5, auto: true },
+      { id: "old-class", studentId: "b", feeStructureId: "tuition1", term: TERM, amount: 100, auto: true },
+      { id: "hand", studentId: "b", feeStructureId: "deleted", term: TERM, amount: 5 },
+    ];
+    const plan = planTermFees({ schoolCode: S, term: TERM, students, structures, assignments });
+    assert.deepEqual(plan.remove.sort(), ["gone-line", "old-class"]);
+  });
+
+  it("keeps what a student who has left was already billed", () => {
+    const assignments = [{ id: "kept", studentId: "left", feeStructureId: "tuition1", term: TERM, amount: 100, auto: true }];
+    const plan = planTermFees({ schoolCode: S, term: TERM, students, structures, assignments });
+    assert.deepEqual(plan.remove, []);
+  });
+
+  it("does nothing without a real term", () => {
+    assert.deepEqual(planTermFees({ schoolCode: S, term: "", students, structures }), { create: [], update: [], remove: [] });
+  });
+});
+
+describe("resultsAccess", () => {
+  it("shows results when nothing is owed", () => {
+    assert.deepEqual(resultsAccess({ balance: 0, term: TERM }), { visible: true, reason: null });
+  });
+  it("hides them while a balance is owed", () => {
+    assert.deepEqual(resultsAccess({ balance: 5000, term: TERM }), { visible: false, reason: "balance" });
+  });
+  it("shows them when the bursar released them for this term", () => {
+    const release = { status: "approved", term: TERM };
+    assert.equal(resultsAccess({ balance: 5000, release, term: TERM }).visible, true);
+  });
+  it("a release for another term, or a revoked one, doesn't count", () => {
+    assert.equal(releaseActive({ status: "approved", term: "Term 1 2026" }, TERM), false);
+    assert.equal(releaseActive({ status: "revoked", term: TERM }, TERM), false);
+  });
+  it("a head teacher's withholding wins even when fees are paid", () => {
+    assert.deepEqual(resultsAccess({ balance: 0, clearance: { status: "blocked" } }), { visible: false, reason: "clearance" });
+    assert.equal(resultsAccess({ balance: 0, clearance: { status: "cleared" } }).visible, true);
+  });
+  it("tells the family what is owed", () => {
+    assert.match(withheldMessage({ reason: "balance", balance: 45000, term: TERM }), /MK 45,000/);
+  });
+});
+
+describe("childResults", () => {
+  const docs = [
+    { assessmentType: "EndTerm", publishedAt: 1, marks: { a: { Maths: 80, English: 60 }, b: { Maths: 50, English: 50 } } },
+    { assessmentType: "CA1", publishedAt: 1, marks: { a: { Maths: 60 } } },
+    { assessmentType: "MidTerm", marks: { a: { Maths: 0 } } }, // draft — ignored
+  ];
+  const r = childResults(docs, "a");
+
+  it("returns only this child's subjects, weighted", () => {
+    assert.deepEqual(r.subjects.map((s) => s.subject), ["English", "Maths"]);
+    // Maths: (80*.6 + 60*.1) / .7 = 77.14… → 77.1
+    assert.equal(r.subjects.find((s) => s.subject === "Maths").weighted, 77.1);
+  });
+  it("ignores unpublished sheets", () => {
+    assert.equal(r.subjects.find((s) => s.subject === "Maths").components.MidTerm, undefined);
+  });
+  it("ranks against the class", () => {
+    assert.equal(r.rank, 1);
+    assert.equal(childResults(docs, "b").rank, 2);
+  });
+  it("has nothing for a child with no marks", () => {
+    assert.deepEqual(childResults(docs, "zzz"), { subjects: [], overallAverage: null, rank: null });
+  });
+});

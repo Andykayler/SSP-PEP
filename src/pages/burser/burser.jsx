@@ -18,6 +18,7 @@ import {
 import useDashboardSkin from "../../hooks/useDashboardSkin";
 import { subscribeSchoolSettings, academicYearFor } from "../../services/academicTerm";
 import { loadFinancePulse } from "../../services/financePulse";
+import { syncTermFees } from "../../services/termFees";
 import { money } from "../../components/ui/format";
 import { plural } from "../../components/overview/overviewText";
 import {
@@ -75,7 +76,12 @@ function BursarOverview({ displayName, schoolName, schoolCode, navItems, setTab 
   useEffect(() => {
     if (!schoolCode || settings === undefined) return undefined;
     let alive = true;
-    loadFinancePulse({ schoolCode, academicYear })
+    // Billing follows the head teacher's term: bring it up to date before
+    // counting, so a newly opened term or a new student is billed the moment
+    // the bursar signs in.
+    const term = settings?.currentTerm || "";
+    (term ? syncTermFees({ schoolCode, term }).catch((err) => console.error("[bursar] billing sync failed:", err)) : Promise.resolve())
+      .then(() => loadFinancePulse({ schoolCode, academicYear }))
       .then((p) => { if (alive) { setPulse(p); setError(""); } })
       .catch((err) => {
         console.error("[bursar] overview failed:", err);
@@ -123,9 +129,11 @@ function BursarOverview({ displayName, schoolName, schoolCode, navItems, setTab 
       text: p.unverified === 0 ? "No parent-app payments to confirm" : `Confirm ${plural(p.unverified, "parent-app payment")}`,
     },
     {
-      key: "unbilled", tab: "student-fees",
+      // Billing is automatic, so a student with no fees means their class has
+      // no fee structure for the term yet.
+      key: "unbilled", tab: "fee-structure",
       done: p.unbilled === 0,
-      text: p.unbilled === 0 ? "Every student has fees assigned" : `Assign fees to ${plural(p.unbilled, "student")}`,
+      text: p.unbilled === 0 ? "Every student is billed this term" : `${plural(p.unbilled, "student")} not billed — set their class's fees`,
     },
     {
       key: "owing", tab: "arrears",
@@ -287,7 +295,9 @@ export default function BursarDashboard() {
         />
       )}
       {currentTab === "fee-structure" && <FeeStructure schoolCode={schoolCode} schoolName={schoolName} />}
-      {currentTab === "student-fees" && <StudentFees schoolCode={schoolCode} schoolName={schoolName} />}
+      {currentTab === "student-fees" && (
+        <StudentFees schoolCode={schoolCode} currentUser={{ id: uid, name: displayName, role: "bursar" }} />
+      )}
       {currentTab === "payments" && <Payments schoolCode={schoolCode} schoolName={schoolName} bursarName={displayName} />}
       {currentTab === "receipts" && <Receipts schoolCode={schoolCode} schoolName={schoolName} />}
       {currentTab === "arrears" && (
