@@ -109,6 +109,39 @@ export function allocate(charges, paid, currentTerm) {
   };
 }
 
+/**
+ * A student's position in the ONE term they are in — the school's current
+ * term. Earlier terms are not a second enrolment: whatever is still unpaid
+ * from them is carried forward as a single figure. Uses the same oldest-first
+ * allocation as `allocate`, so a payment clears old debt before this term's.
+ *
+ * @returns {{ term, charged, paid, owed, broughtForward, balance, credit, percentage }}
+ *   charged  — this term's fees
+ *   paid     — how much of this term's fees has been covered
+ *   owed     — this term's fees still unpaid
+ *   broughtForward — unpaid fees from any other term
+ */
+export function termPosition(charges, paid, currentTerm) {
+  const a = allocate(charges, paid, currentTerm);
+  const charged = (charges || [])
+    .filter((c) => (resolveTerm(c.term, currentTerm) || c.term) === currentTerm)
+    .reduce((s, c) => s + (Number(c.amount) || 0), 0);
+  const owed = a.outstandingByTerm.find((o) => o.term === currentTerm)?.amount || 0;
+  const broughtForward = a.outstandingByTerm
+    .filter((o) => o.term !== currentTerm)
+    .reduce((s, o) => s + o.amount, 0);
+  return {
+    term: currentTerm,
+    charged,
+    paid: charged - owed,
+    owed,
+    broughtForward,
+    balance: a.balance,
+    credit: a.credit,
+    percentage: charged > 0 ? Math.round(((charged - owed) / charged) * 100) : 0,
+  };
+}
+
 /** Runs `allocate` across a whole school in one pass. */
 export function buildArrears({ students, charges, payments, currentTerm }) {
   const chargesBy = new Map();

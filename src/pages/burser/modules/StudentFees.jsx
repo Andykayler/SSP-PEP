@@ -3,9 +3,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { db } from "../../../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { subscribeSchoolSettings } from "../../../services/academicTerm";
-import { yearOfTerm } from "../../../services/termFeesCore";
 import { syncTermFees } from "../../../services/termFees";
-import { buildArrears } from "../../../services/feeAllocationCore";
+import { termPosition } from "../../../services/feeAllocationCore";
 import { fetchClearances } from "../../../services/feeClearance";
 import {
   fetchReleases, setResultsRelease, resultsAccess, releaseActive,
@@ -154,9 +153,6 @@ function SkeletonStudentTable({ rows = 6 }) {
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
-/** Money the school has: a parent-app claim or a rejected payment is not. */
-const counted = (p) => p.status !== "unverified" && p.status !== "rejected";
-
 function ResultsPill({ access, release, balance }) {
   if (access.visible && releaseActive(release)) {
     return <span className="status-pill" style={{ background: "var(--primary-pale)", color: "var(--primary-light)" }}>Released</span>;
@@ -170,13 +166,11 @@ export default function StudentFees({ schoolCode, currentUser }) {
   const [students, setStudents] = useState([]);
   const [classes, setClasses] = useState([]);
   const [studentFees, setStudentFees] = useState([]);
-  const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [academicYear, setAcademicYear] = useState("");
   const [sortKey, setSortKey] = useState("name");
   const [selectedIds, setSelectedIds] = useState(new Set());
 
@@ -184,9 +178,11 @@ export default function StudentFees({ schoolCode, currentUser }) {
   // follow it.
   const [currentTerm, setCurrentTerm] = useState(undefined);
   const [billingNote, setBillingNote] = useState("");
-  // All-time balance per student — what the results gate uses — plus this
-  // term's release and clearance decisions.
-  const [owed, setOwed] = useState(new Map());
+  // Each student's position in the current term (termPosition): this term's
+  // fees, what's paid toward them, and anything carried forward from earlier
+  // terms. A student is in one term at a time — older unpaid fees are a
+  // brought-forward balance, not a second enrolment.
+  const [positions, setPositions] = useState(new Map());
   const [releases, setReleases] = useState(new Map());
   const [clearances, setClearances] = useState(new Map());
   const [releaseFor, setReleaseFor] = useState(null);   // { students, approve }
@@ -200,19 +196,17 @@ export default function StudentFees({ schoolCode, currentUser }) {
     return subscribeSchoolSettings(schoolCode, (s) => {
       const t = s?.currentTerm || "";
       setCurrentTerm(t);
-      setAcademicYear((prev) => prev || yearOfTerm(t) || "2025/2026");
     });
   }, [schoolCode]);
 
-  const yearChoices = useMemo(() => {
-    const now = yearOfTerm(currentTerm || "");
-    const base = now ? Number(now.slice(5)) : new Date().getFullYear();
-    return [base - 2, base - 1, base, base + 1].map((y) => `${y - 1}/${y}`);
-  }, [currentTerm]);
+  function showToast(type, message) {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 4500);
+  }
 
+  // The page starts in its loading state; the refresh button sets it again
+  // before calling this, so nothing here has to set state before the first await.
   const fetchAll = useCallback(async ({ sync = false } = {}) => {
-    if (!academicYear) return;
-    setLoading(true);
     try {
       // Bring this term's billing up to date first, so the table below is
       // never showing a student who simply hasn't been billed yet.
@@ -223,13 +217,10 @@ export default function StudentFees({ schoolCode, currentUser }) {
           : `${currentTerm} billing is up to date — ${r.billed} student${r.billed === 1 ? "" : "s"} billed.`);
       }
 
-      const q = (name, extra = []) => getDocs(query(collection(db, name), where("schoolCode", "==", schoolCode), ...extra));
-      const year = [where("academicYear", "==", academicYear)];
-      const [stSnap, clSnap, faSnap, pySnap, allFa, allPy, rel, clr] = await Promise.all([
+      const q = (name) => getDocs(query(collection(db, name), where("schoolCode", "==", schoolCode)));
+      const [stSnap, clSnap, faSnap, pySnap, rel, clr] = await Promise.all([
         q("students"),
         q("school_classes"),
-        q("fee_assignments", year),
-        q("payments", year),
         q("fee_assignments"),
         q("payments"),
         currentTerm ? fetchReleases(schoolCode, currentTerm) : Promise.resolve(new Map()),
@@ -239,60 +230,60 @@ export default function StudentFees({ schoolCode, currentUser }) {
       const studentRows = stSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setStudents(studentRows);
       setClasses(clSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
-      setStudentFees(faSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setPayments(pySnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const charges = faSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // Confirmed money only — the same rule the parent app's results check
+      // and the Arrears screen use, so all three agree on what is owed.
+      const confirmed = pySnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((p) => p.status === "verified");
+      setStudentFees(charges);
       setReleases(rel);
       setClearances(clr);
 
-      // The same balance the parent app's results check uses (all terms,
-      // confirmed money only, oldest charge paid first).
-      const arrears = currentTerm
-        ? buildArrears({
-          students: studentRows,
-          charges: allFa.docs.map((d) => d.data()),
-          payments: allPy.docs.map((d) => d.data()).filter((p) => p.status === "verified"),
-          currentTerm,
-        })
-        : [];
-      setOwed(new Map(arrears.map((r) => [r.id, r.balance || 0])));
+      const chargesBy = new Map();
+      charges.forEach((c) => { if (!chargesBy.has(c.studentId)) chargesBy.set(c.studentId, []); chargesBy.get(c.studentId).push(c); });
+      const paidBy = new Map();
+      confirmed.forEach((p) => { if (!paidBy.has(p.studentId)) paidBy.set(p.studentId, []); paidBy.get(p.studentId).push(p); });
+      setPositions(new Map(studentRows.map((st) => [
+        st.id,
+        termPosition(chargesBy.get(st.id) || [], paidBy.get(st.id) || [], currentTerm || ""),
+      ])));
     } catch (e) {
       showToast("error", "Failed to load data.");
       console.error(e);
     }
     setLoading(false);
-  }, [schoolCode, academicYear, currentTerm]);
+  }, [schoolCode, currentTerm]);
 
-  // Billing is brought up to date every time the page opens on the running year.
+  // Billing is brought up to date every time the page opens.
+  // Deferred a tick (as admin_dashboard does) so the load's state updates
+  // don't run synchronously inside the effect.
   useEffect(() => {
-    if (currentTerm === undefined || !academicYear) return;
-    fetchAll({ sync: Boolean(currentTerm) && academicYear === yearOfTerm(currentTerm) });
-  }, [fetchAll, currentTerm, academicYear]);
-
-  function showToast(type, message) {
-    setToast({ type, message });
-    setTimeout(() => setToast(null), 4500);
-  }
-
-  function getFinancials(studentId) {
-    const assigned = studentFees.filter((fa) => fa.studentId === studentId);
-    const totalCharged = assigned.reduce((s, fa) => s + (fa.amount || 0), 0);
-    const totalPaid = payments.filter((p) => p.studentId === studentId && counted(p)).reduce((s, p) => s + (p.amount || 0), 0);
-    const balance = totalCharged - totalPaid;
-    const percentage = totalCharged > 0 ? Math.round((totalPaid / totalCharged) * 100) : 0;
-    return { totalCharged, totalPaid, balance, percentage, assignedTerms: [...new Set(assigned.map((a) => a.term))] };
-  }
+    if (currentTerm === undefined) return undefined;
+    const id = setTimeout(() => fetchAll({ sync: Boolean(currentTerm) }), 0);
+    return () => clearTimeout(id);
+  }, [fetchAll, currentTerm]);
 
   const enriched = useMemo(() => students
     .filter((s) => (s.status || "active") === "active" || studentFees.some((f) => f.studentId === s.id))
     .map((s) => {
-      const f = getFinancials(s.id);
-      const owedAll = owed.get(s.id) || 0;
+      const pos = positions.get(s.id) || { charged: 0, paid: 0, owed: 0, broughtForward: 0, balance: 0, percentage: 0 };
       const release = releases.get(s.id) || null;
-      const access = resultsAccess({ balance: owedAll, release, clearance: clearances.get(s.id), term: currentTerm });
-      return { ...s, ...f, owedAll, release, access };
+      const access = resultsAccess({ balance: pos.balance, release, clearance: clearances.get(s.id), term: currentTerm });
+      return {
+        ...s,
+        // This term only — the one term the student is in.
+        totalCharged: pos.charged,
+        totalPaid: pos.paid,
+        termOwed: pos.owed,
+        percentage: pos.percentage,
+        broughtForward: pos.broughtForward,
+        // Everything owed, this term and brought forward.
+        balance: pos.balance,
+        owedAll: pos.balance,
+        release,
+        access,
+      };
     }),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  [students, studentFees, payments, owed, releases, clearances, currentTerm]);
+  [students, studentFees, positions, releases, clearances, currentTerm]);
 
   const filtered = useMemo(() => {
     let list = enriched.filter((s) => {
@@ -301,10 +292,11 @@ export default function StudentFees({ schoolCode, currentUser }) {
         s.studentCode?.toLowerCase().includes(search.toLowerCase());
       const matchClass = classFilter === "all" || s.classId === classFilter;
       const matchStatus = statusFilter === "all" ||
-        (statusFilter === "paid" && s.totalCharged > 0 && s.balance <= 0) ||
-        (statusFilter === "partial" && s.percentage > 0 && s.balance > 0) ||
+        (statusFilter === "paid" && s.totalCharged > 0 && s.termOwed <= 0) ||
+        (statusFilter === "partial" && s.percentage > 0 && s.termOwed > 0) ||
         (statusFilter === "unpaid" && s.totalCharged > 0 && s.percentage === 0) ||
         (statusFilter === "none" && s.totalCharged === 0) ||
+        (statusFilter === "arrears" && s.broughtForward > 0) ||
         (statusFilter === "held" && !s.access.visible) ||
         (statusFilter === "released" && releaseActive(s.release, currentTerm));
       return matchSearch && matchClass && matchStatus;
@@ -323,9 +315,10 @@ export default function StudentFees({ schoolCode, currentUser }) {
     const totalCharged = enriched.reduce((s, x) => s + x.totalCharged, 0);
     const totalPaid = enriched.reduce((s, x) => s + x.totalPaid, 0);
     const outstanding = enriched.reduce((s, x) => s + Math.max(x.balance, 0), 0);
-    const fullyPaid = enriched.filter((x) => x.totalCharged > 0 && x.balance <= 0).length;
+    const broughtForward = enriched.reduce((s, x) => s + x.broughtForward, 0);
+    const fullyPaid = enriched.filter((x) => x.totalCharged > 0 && x.termOwed <= 0).length;
     const held = enriched.filter((x) => !x.access.visible && x.access.reason === "balance").length;
-    return { totalCharged, totalPaid, outstanding, fullyPaid, held, total: enriched.length };
+    return { totalCharged, totalPaid, outstanding, broughtForward, fullyPaid, held, total: enriched.length };
   }, [enriched]);
 
   const allFilteredSelected = filtered.length > 0 && filtered.every((s) => selectedIds.has(s.id));
@@ -365,6 +358,7 @@ export default function StudentFees({ schoolCode, currentUser }) {
       setReleaseFor(null);
       setReleaseNote("");
       setSelectedIds(new Set());
+      setLoading(true);
       await fetchAll();
     } catch (err) {
       console.error(err);
@@ -384,15 +378,8 @@ export default function StudentFees({ schoolCode, currentUser }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <select
-            value={academicYear}
-            onChange={(e) => setAcademicYear(e.target.value)}
-            className="form-input form-input--compact"
-            aria-label="Academic year"
-          >
-            {yearChoices.map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
-          <Btn variant="secondary" onClick={() => fetchAll({ sync: Boolean(currentTerm) && academicYear === yearOfTerm(currentTerm) })} loading={loading} title="Refresh and update billing">
+          {currentTerm && <span className="tag tag--blue" style={{ alignSelf: "center" }}>{currentTerm}</span>}
+          <Btn variant="secondary" onClick={() => { setLoading(true); fetchAll({ sync: Boolean(currentTerm) }); }} loading={loading} title="Refresh and update billing">
             <RefreshCw size={16} />
           </Btn>
         </div>
@@ -424,9 +411,10 @@ export default function StudentFees({ schoolCode, currentUser }) {
         <>
           {/* Summary Cards */}
           <div className="stats-grid">
-            <SummaryCard label="Total Charged" value={fmt(summary.totalCharged)} accent="blue" sub={`${summary.total} students`} />
-            <SummaryCard label="Total Collected" value={fmt(summary.totalPaid)} accent="emerald" sub="Confirmed payments" />
-            <SummaryCard label="Outstanding" value={fmt(summary.outstanding)} accent="red" />
+            <SummaryCard label="Billed This Term" value={fmt(summary.totalCharged)} accent="blue" sub={`${currentTerm || "No term open"} · ${summary.total} students`} />
+            <SummaryCard label="Paid This Term" value={fmt(summary.totalPaid)} accent="emerald" sub="Confirmed payments" />
+            <SummaryCard label="Outstanding" value={fmt(summary.outstanding)} accent="red"
+              sub={summary.broughtForward > 0 ? `incl. ${fmt(summary.broughtForward)} brought forward` : "All from this term"} />
             <SummaryCard label="Results Held" value={summary.held} accent="gold" sub="Owe fees, not released" />
           </div>
 
@@ -461,7 +449,8 @@ export default function StudentFees({ schoolCode, currentUser }) {
               <option value="paid">Fully Paid</option>
               <option value="partial">Partial</option>
               <option value="unpaid">Unpaid</option>
-              <option value="none">No Fees</option>
+              <option value="none">Not billed this term</option>
+              <option value="arrears">Brought forward</option>
               <option value="held">Results held</option>
               <option value="released">Results released</option>
             </select>
@@ -500,9 +489,10 @@ export default function StudentFees({ schoolCode, currentUser }) {
                       </th>
                       <th>Student</th>
                       <th>Class</th>
-                      <th>Terms</th>
-                      <th className="text-right">Charged</th>
+                      <th>Term</th>
+                      <th className="text-right">This term</th>
                       <th className="text-right">Paid</th>
+                      <th className="text-right">Brought forward</th>
                       <th className="text-right">Balance</th>
                       <th>Status</th>
                       <th>Results {currentTerm ? `· ${currentTerm}` : ""}</th>
@@ -529,22 +519,21 @@ export default function StudentFees({ schoolCode, currentUser }) {
                           </td>
                           <td>{s.className || "—"}</td>
                           <td>
-                            <div className="flex flex-wrap gap-2">
-                              {s.assignedTerms.length === 0 ? (
-                                <span className="text-muted">None</span>
-                              ) : (
-                                s.assignedTerms.map((t, i) => <span key={i} className="tag tag--blue">{t}</span>)
-                              )}
-                            </div>
+                            {s.totalCharged > 0
+                              ? <span className="tag tag--blue">{currentTerm}</span>
+                              : <span className="text-muted">Not billed</span>}
                           </td>
                           <td className="text-right">{fmt(s.totalCharged)}</td>
                           <td className="text-right font-semibold text-success">{fmt(s.totalPaid)}</td>
+                          <td className={`text-right ${s.broughtForward > 0 ? "text-danger" : "text-muted"}`}>
+                            {s.broughtForward > 0 ? fmt(s.broughtForward) : "—"}
+                          </td>
                           <td className={`text-right font-bold ${s.balance > 0 ? "text-danger" : "text-success"}`}>
                             {fmt(s.balance)}
                           </td>
                           <td>
                             <div className="space-y-2">
-                              <StatusPill balance={s.balance} percentage={s.percentage} totalCharged={s.totalCharged} />
+                              <StatusPill balance={s.termOwed} percentage={s.percentage} totalCharged={s.totalCharged} />
                               {s.totalCharged > 0 && <ProgressBar percentage={s.percentage} />}
                             </div>
                           </td>

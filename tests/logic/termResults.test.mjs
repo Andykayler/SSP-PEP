@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { planTermFees, structuresForTerm, termFeeId, yearOfTerm } from "../../src/services/termFeesCore.js";
 import { resultsAccess, releaseActive, withheldMessage } from "../../src/services/resultsAccessCore.js";
 import { childResults } from "../../src/services/resultsCore.js";
+import { termPosition } from "../../src/services/feeAllocationCore.js";
 
 const TERM = "Term 2 2026";
 const S = "SCH";
@@ -139,5 +140,41 @@ describe("childResults", () => {
   });
   it("has nothing for a child with no marks", () => {
     assert.deepEqual(childResults(docs, "zzz"), { subjects: [], overallAverage: null, rank: null });
+  });
+});
+
+// One term at a time: a student is in the current term only; anything unpaid
+// from earlier terms is carried forward, not shown as a second enrolment.
+
+describe("termPosition", () => {
+  const T3 = "Term 3 2026";
+  it("shows only this term's fees as the term, with older debt brought forward", () => {
+    // The real case that prompted this: manual "Term 1" and "Term 2" charges,
+    // current term Term 3 2026.
+    const charges = [
+      { term: "Term 1", academicYear: "2025/2026", amount: 800000 },
+      { term: "Term 2", academicYear: "2025/2026", amount: 666666 },
+    ];
+    const p = termPosition(charges, [], T3);
+    assert.equal(p.charged, 0);
+    assert.equal(p.broughtForward, 1466666);
+    assert.equal(p.balance, 1466666);
+  });
+  it("a payment clears the oldest term first", () => {
+    const charges = [
+      { term: "Term 1 2026", amount: 600000 },
+      { term: T3, amount: 600000, auto: true },
+    ];
+    const p = termPosition(charges, [{ amount: 700000 }], T3);
+    assert.equal(p.broughtForward, 0);
+    assert.equal(p.charged, 600000);
+    assert.equal(p.paid, 100000);
+    assert.equal(p.owed, 500000);
+    assert.equal(p.percentage, 17);
+    assert.equal(p.balance, 500000);
+  });
+  it("fully paid means nothing owed anywhere", () => {
+    const p = termPosition([{ term: T3, amount: 100 }], [{ amount: 100 }], T3);
+    assert.deepEqual([p.owed, p.broughtForward, p.balance, p.percentage], [0, 0, 0, 100]);
   });
 });
