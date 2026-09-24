@@ -24,8 +24,59 @@ import { SCHOOL_TYPES, setSchoolType } from "../../services/schoolProfile";
 import { setCurrentTerm, termOptions, defaultTerm } from "../../services/academicTerm";
 import { createCampus, setCampusMode } from "../../services/campuses";
 import { Btn, Select, Input, Notice } from "../ui/ModuleKit";
+import { isSetUp } from "../../services/schoolProfile";
+import SetupSchoolDetails from "./SetupSchoolDetails";
 
-export default function SchoolSetupGate({ schoolCode, schoolName, actorId, onDone }) {
+/** "Step 1 of 2" — which part of setup this is, and what's still to come. */
+function SetupSteps({ step }) {
+  const steps = ["School basics", "Classes & settings"];
+  return (
+    <ol style={{ display: "flex", gap: 10, justifyContent: "center", listStyle: "none", margin: "0 0 4px", padding: 0, flexWrap: "wrap" }}>
+      {steps.map((label, i) => {
+        const n = i + 1;
+        const state = n < step ? "done" : n === step ? "now" : "next";
+        return (
+          <li key={label} aria-current={state === "now" ? "step" : undefined}
+            style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 999,
+              border: "1px solid var(--border-color)", fontSize: 12.5, fontWeight: state === "now" ? 700 : 500,
+              background: state === "now" ? "var(--card-bg)" : "transparent",
+              color: state === "next" ? "var(--text-muted)" : "var(--text-primary)" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: "50%",
+              background: state === "next" ? "var(--bg-secondary)" : "var(--primary)", color: state === "next" ? "var(--text-muted)" : "#fff", fontSize: 11 }}>
+              {state === "done" ? <Check size={12} /> : n}
+            </span>
+            {label}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/**
+ * Two steps, in order: the basics below (type, term, campuses), then classes,
+ * subjects, contact details, how families are reached and where fee payments
+ * go (SetupSchoolDetails). The dashboard opens only when both are done —
+ * `setupCompletedAt` on school_settings, written at the very end.
+ */
+export default function SchoolSetupGate({ schoolCode, schoolName, actorId, settings, school, onDone }) {
+  if (isSetUp(settings)) {
+    return (
+      <div className="space-y-6" style={{ maxWidth: 720, margin: "0 auto", paddingTop: 24 }}>
+        <div style={{ textAlign: "center" }}>
+          <SetupSteps step={2} />
+          <h2 className="module-title" style={{ marginTop: 14 }}>Classes and school settings</h2>
+          <p className="module-sub">The last step. Your dashboard opens as soon as this is saved.</p>
+        </div>
+        <SetupSchoolDetails schoolCode={schoolCode} schoolName={schoolName} school={school}
+          settings={settings} actorId={actorId} onDone={onDone} />
+      </div>
+    );
+  }
+  return <SetupBasics schoolCode={schoolCode} schoolName={schoolName} actorId={actorId} onDone={onDone} />;
+}
+
+function SetupBasics({ schoolCode, schoolName, actorId, onDone }) {
   const [type, setType] = useState("");
   const [term, setTerm] = useState(defaultTerm());
   const [multi, setMulti] = useState(null);          // null until answered
@@ -81,9 +132,10 @@ export default function SchoolSetupGate({ schoolCode, schoolName, actorId, onDon
         <div className="empty-state__icon" style={{ margin: "0 auto 16px" }}>
           <School size={30} />
         </div>
-        <h2 className="module-title">Set up {schoolName || "your school"}</h2>
+        <SetupSteps step={1} />
+        <h2 className="module-title" style={{ marginTop: 14 }}>Set up {schoolName || "your school"}</h2>
         <p className="module-sub">
-          Three answers, once. They decide what the rest of the school sees.
+          Three answers, once. They decide what the rest of the school sees. Next: your classes and settings.
         </p>
       </div>
 
@@ -226,7 +278,7 @@ export default function SchoolSetupGate({ schoolCode, schoolName, actorId, onDon
             icon={<ArrowRight size={15} />}
             onClick={save}
           >
-            Finish setup
+            Continue to step 2
           </Btn>
         </div>
       </div>

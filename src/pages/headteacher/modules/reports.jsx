@@ -8,6 +8,7 @@ import { notifyGuardians } from "../../../services/notifications";
 import { fetchClearances, reportCardAllowed } from "../../../services/feeClearance";
 import { buildArrears } from "../../../services/feeAllocationCore";
 import { fetchReleases, resultsAccess } from "../../../services/resultsRelease";
+import { schoolLevelOf } from "../../../services/schoolProfile";
 import { sendSmsToMany } from "../../../services/sms";
 import { smsFallbackCategories } from "../../../services/smsFallback";
 import { isModuleOn } from "../../../services/modules";
@@ -845,9 +846,16 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
       // app cannot act on "open ACALink to see the result", and telling a
       // parent a report exists without saying what is in it just sends them to
       // the school to ask — the trip this is supposed to save.
+      // SMS when the school has SMS on and chose it for report cards;
+      // otherwise WhatsApp, which costs the school nothing per message — so a
+      // school with SMS off still reaches families who don't use the app.
       let smsNote = "";
-      if (isModuleOn(schoolSettings, "sms")
-          && smsFallbackCategories(schoolSettings).includes("report")) {
+      const smsOn = isModuleOn(schoolSettings, "sms");
+      const channel = smsOn ? "sms" : "whatsapp";
+      const sendToPhones = smsOn
+        ? smsFallbackCategories(schoolSettings).includes("report")
+        : schoolSettings?.whatsappEnabled !== false;
+      if (sendToPhones) {
 
         const recipients = notifyTargets
           .filter((s) => s.guardianPhone)
@@ -862,15 +870,17 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
           // separately — so the count is reported rather than left for the
           // school to discover on the Twilio invoice.
           const segments = recipients.reduce((sum, r) => sum + smsSegments(r.message), 0);
+          const label = smsOn ? "SMS" : "WhatsApp";
 
-          setReleaseNote({ type: "ok", text: `Sending SMS 0/${recipients.length}…` });
+          setReleaseNote({ type: "ok", text: `Sending ${label} 0/${recipients.length}…` });
           const res = await sendSmsToMany(recipients, {
+            channel,
             onProgress: (done, total) =>
-              setReleaseNote({ type: "ok", text: `Sending SMS ${done}/${total}…` }),
+              setReleaseNote({ type: "ok", text: `Sending ${label} ${done}/${total}…` }),
           });
           smsNote = res.failed === 0
-            ? ` ${res.sent} SMS sent (~${segments} billable parts).`
-            : ` ${res.sent} SMS sent, ${res.failed} failed`
+            ? ` ${res.sent} ${label} sent${smsOn ? ` (~${segments} billable parts)` : ""}.`
+            : ` ${res.sent} ${label} sent, ${res.failed} failed`
               + `${res.failures[0]?.reason ? ` (${res.failures[0].reason})` : ""}.`;
         }
       }
@@ -899,7 +909,7 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
   // the term (usually the last one of the year) the same way they already
   // do for every other tab in this module.
   const promotionThreshold = schoolSettings?.promotionThreshold ?? 40;
-  const maxLevel = SCHOOL_TYPE_MAX_LEVEL[schoolSettings?.schoolType] || 6;
+  const maxLevel = SCHOOL_TYPE_MAX_LEVEL[schoolLevelOf(schoolSettings)] || 6;
   const [thresholdDraft, setThresholdDraft] = useState(null);
   const [savingThreshold, setSavingThreshold] = useState(false);
   const [promotingLevel, setPromotingLevel] = useState(null);

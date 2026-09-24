@@ -4,6 +4,7 @@ import {
   collection, getDocs, deleteDoc, doc, query, where, orderBy, serverTimestamp, addDoc,
 } from "firebase/firestore";
 import { notifyAnnouncement } from "../../../services/notificationHooks";
+import AiNoticeWriter from "../../../components/ai/AiNoticeWriter";
 
 import { IC } from "./icons";
 import { fmtDate } from "./helpers";
@@ -275,6 +276,8 @@ export default function Announcements({ schoolCode, userName }) {
             {error && <div className="alert alert--error">{IC.warning}<span>{error}</span></div>}
             <Input label="Title" required value={form.title} onChange={e => setForm(p => ({...p, title: e.target.value}))} />
             <Textarea label="Message" value={form.body} onChange={e => setForm(p => ({...p, body: e.target.value}))} rows={4} />
+            <AiNoticeWriter notes={form.body} title={form.title} audience={form.audience === "all" ? "parents, guardians and staff" : form.audience}
+              onDraft={({ title, message }) => setForm(p => ({ ...p, title: p.title.trim() ? p.title : title, body: message }))} />
             <div className="grid-2">
               <Select label="Audience" value={form.audience} onChange={e => setForm(p => ({...p, audience: e.target.value}))}>
                 <option value="all">Everyone</option>

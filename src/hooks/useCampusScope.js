@@ -52,13 +52,13 @@ export default function useCampusScope(schoolCode, viewer) {
       // Records written before campuses existed carry no campusId; they belong
       // to the primary site, which is what every other screen assumes too.
       const tagged = rows.map((r) => (r.campusId ? r : { ...r, campusId: primaryId }));
-      return scopeToCampus(tagged, viewer, effectiveFilter === "all" ? null : effectiveFilter);
+      return scopeToCampus(tagged, viewer, effectiveFilter === "all" ? null : effectiveFilter, primaryId);
     },
     [viewer, effectiveFilter, primaryId],
   );
 
   const canSee = useCallback(
-    (campusId) => canAccessCampus(viewer, campusId || primaryId),
+    (campusId) => canAccessCampus(viewer, campusId || primaryId, primaryId),
     [viewer, primaryId],
   );
 

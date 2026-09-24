@@ -20,6 +20,7 @@ const LibrarianDashboard = lazy(() => import("../pages/library/dashboard"));
 // to read the landing page. Loaded when someone actually heads for them.
 const SignIn = lazy(() => import("../pages/signin"));
 const Registration = lazy(() => import("../pages/registration"));
+const VerifyEmail = lazy(() => import("../pages/verifyEmail"));
 
 // Where PayChangu returns the payer's browser. Split out too: it is reached
 // once per payment, from an external redirect, and has nothing to do with the
@@ -61,6 +62,11 @@ const router = createBrowserRouter([
   {
     path: "/signin",
     element: publicPage(<SignIn />),
+  },
+  {
+    // The "Confirm my email" link in Acalink's verification email.
+    path: "/verify-email",
+    element: publicPage(<VerifyEmail />),
   },
   {
     path: "/terms",

@@ -13,6 +13,7 @@ import {
   BookOpen, FileText, X, Save, Search, RefreshCw,
   Loader2, ChevronDown, Users,
 } from "lucide-react";
+import AiQuestionMaker from "../../../components/ai/AiQuestionMaker";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -348,6 +349,12 @@ function HomeworkFormModal({ hw, myClasses, mySubjects, schoolCode, schoolClasse
           <div>
             <label style={labelStyle}>Description / Instructions</label>
             <textarea rows={3} placeholder="Detailed instructions, page numbers, requirements…" value={form.description} onChange={(e) => set("description", e.target.value)} style={{ ...inputStyle, resize: "vertical" }} />
+            <div style={{ marginTop: 8 }}>
+              <AiQuestionMaker className={form.className} subject={form.subject} topic={form.title}
+                onQuestions={(text) => set("description", form.description.trim() ? `${form.description.trim()}
+
+${text}` : text)} />
+            </div>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>

@@ -17,7 +17,7 @@ export const APP_URL                      = import.meta.env.APP_URL || window.lo
 // without importing from the admin portal. Re-exported here so the enrolment
 // and staff screens keep working off their existing import — the same
 // arrangement helpers.js uses for normalisePhone.
-export { sendSms, sendSmsToMany } from "../../../services/sms";
+export { sendSms, sendSmsToMany, messageChannel, channelLabel } from "../../../services/sms";
 
 // ─── EMAIL helper ─────────────────────────────────────────────────────────────
 export async function sendEmail({ templateId, toEmail, toName, params }) {

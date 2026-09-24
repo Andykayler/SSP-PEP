@@ -4,6 +4,7 @@ import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
 import { normalisePhone } from "../services/phone";
 import { LEGAL_VERSION } from "../services/legal";
+import { apiPost } from "../services/api";
 import { Link } from "react-router-dom";
 import { Check } from "lucide-react";
 import AuthLayout from "../components/auth/AuthLayout";
@@ -147,13 +148,26 @@ export default function SchoolRegistration() {
 
       // A typo'd email would otherwise create an account nobody can recover.
       // Failing to send must not fail the registration that already succeeded.
+      // The branded Acalink email first (api/auth/otp.js); Firebase's plain
+      // one only if that isn't available, so a founder is never left without
+      // a way to confirm their address.
       let verificationSent = false;
       try {
-        await sendEmailVerification(userCredential.user);
+        await apiPost("/api/auth/otp", { action: "send-verification-email" });
         verificationSent = true;
-      } catch (mailErr) {
-        console.warn("[registration] verification email not sent:", mailErr);
+      } catch (brandedErr) {
+        console.warn("[registration] branded verification unavailable:", brandedErr.message);
+        try {
+          await sendEmailVerification(userCredential.user);
+          verificationSent = true;
+        } catch (mailErr) {
+          console.warn("[registration] verification email not sent:", mailErr);
+        }
       }
+
+      // Let the platform owner know there's a school waiting for approval.
+      apiPost("/api/auth/otp", { action: "registered" })
+        .catch((err) => console.warn("[registration] owner not notified:", err.message));
 
       setSuccessData({ name: form.schoolName.trim(), code, email: form.email.trim(), verificationSent });
       setSuccess(true);
@@ -192,8 +206,8 @@ export default function SchoolRegistration() {
           <div className="la-done__label">Your school code</div>
 
           <p className="la-done__body">
-            Your school is registered and waiting for approval. We review every new school, and you will get a
-            WhatsApp message on the number you gave as soon as it is approved.
+            Your school is registered and waiting for approval. We review every new school, and you'll get an
+            email and a WhatsApp message as soon as it is approved.
             {successData.verificationSent && <> We also emailed <strong>{successData.email}</strong>. Please open the link in it to confirm your address.</>}
           </p>
 

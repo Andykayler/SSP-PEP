@@ -6,8 +6,9 @@ import {
 } from "firebase/firestore";
 import {
   Calendar, Clock, MapPin, Users, X, Save, Trash2,
-  RefreshCw, AlertCircle, CheckCircle, Loader2, Plus,
+  RefreshCw, AlertCircle, CheckCircle, Loader2, Plus, Wand2,
 } from "lucide-react";
+import AutoTimetable from "../../../components/timetable/AutoTimetable";
 import { findClashes, conflictsFor, describeClash } from "../../../services/timetableClash";
 import "./staff-management.css";
 import { isDeactivated } from "../../../services/staffAccountCore";
@@ -178,6 +179,7 @@ export default function TimetableModule({ schoolCode }) {
   const [classesReady, setClassesReady] = useState(false);
   const [slotsReady, setSlotsReady] = useState(false);
   const [editing, setEditing] = useState(null); // { day, period, existing }
+  const [autoOpen, setAutoOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const [error, setError] = useState("");
 
@@ -325,9 +327,14 @@ export default function TimetableModule({ schoolCode }) {
           <h2 style={{ fontFamily: "'Playfair Display', serif" }}>Timetable</h2>
           <p className="text-muted">Assign a subject, teacher and venue to every class period.</p>
         </div>
-        <button onClick={fetchSlots} disabled={isLoading} className="icon-btn" title="Refresh">
-          <RefreshCw size={16} className={isLoading ? "spin" : ""} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setAutoOpen(true)} disabled={!classesReady || noClasses} className="btn-save" title="Build the week for every class automatically">
+            <Wand2 size={16} /> Auto-generate
+          </button>
+          <button onClick={fetchSlots} disabled={isLoading} className="icon-btn" title="Refresh">
+            <RefreshCw size={16} className={isLoading ? "spin" : ""} />
+          </button>
+        </div>
       </div>
 
       {clashes.length > 0 && (
@@ -452,6 +459,24 @@ export default function TimetableModule({ schoolCode }) {
           onSave={(data) => saveSlot(editing.day, editing.period, data)}
           onDelete={() => deleteSlot(editing.day, editing.period)}
           onClose={() => setEditing(null)}
+        />
+      )}
+      {autoOpen && (
+        <AutoTimetable
+          schoolCode={schoolCode}
+          classes={classes}
+          staff={staff}
+          allSlots={allSlots}
+          days={DAYS}
+          periods={PERIODS}
+          slotId={slotId}
+          onClose={() => setAutoOpen(false)}
+          onSaved={(next) => {
+            setAllSlots(next);
+            setSlots(next.filter((s) => s.classId === selectedClassId));
+            setAutoOpen(false);
+            showToast("Timetable generated. Click any period to adjust it.");
+          }}
         />
       )}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}

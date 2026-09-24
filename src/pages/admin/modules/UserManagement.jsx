@@ -11,7 +11,7 @@ import { ROLES, roleMap } from "./constants";
 import { generatePassword, normalisePhone, fmtDate, initials } from "./helpers";
 import { notifyStaffAdded } from "../../../services/notificationHooks";
 import { pushNotification } from "../../../services/notifications";
-import { sendSms, sendEmail, EMAILJS_STAFF_TEMPLATE_ID, APP_URL } from "./notifications";
+import { sendSms, sendEmail, EMAILJS_STAFF_TEMPLATE_ID, APP_URL, messageChannel, channelLabel } from "./notifications";
 import {
   RoleBadge, StatusPill, Modal, Input, Select, Btn, Spinner, EmptyState, ActionBtn,
 } from "./ui";
@@ -169,18 +169,21 @@ export default function UserManagement({ schoolCode, schoolName }) {
         user_role:   roleMap[role]?.label || role,
         login_email: email,
         password,
-        login_url:   `${APP_URL}/login`,
+        login_url:   `${APP_URL}/signin`,
       },
     });
-    let smsSent = false;
+    // SMS if the school has switched SMS on, otherwise WhatsApp.
+    const channel = messageChannel(settings);
+    let phoneSent = false;
     if (phone) {
-      const smsResult = await sendSms(
+      const result = await sendSms(
         phone,
-        `Welcome to ${schoolName}!\nYour account has been created.\nRole: ${roleMap[role]?.label || role}\nEmail: ${email}\nPassword: ${password}\nLogin: ${APP_URL}/login\n\nChange your password after first login.`
+        `Welcome to ${schoolName}!\nYour account has been created.\nRole: ${roleMap[role]?.label || role}\nEmail: ${email}\nPassword: ${password}\nLogin: ${APP_URL}/signin\n\nChange your password after first login.`,
+        { channel },
       );
-      smsSent = smsResult.success;
+      phoneSent = result.success;
     }
-    return [emailSent && "email", smsSent && "SMS"].filter(Boolean).join(" & ");
+    return [emailSent && "email", phoneSent && channelLabel(channel)].filter(Boolean).join(" & ");
   }
 
   // The email already has a login: someone who worked at a school on Acalink
@@ -601,7 +604,8 @@ export default function UserManagement({ schoolCode, schoolName }) {
             importStaff({
               rows: validated,
               schoolCode, schoolName,
-              sendSms, sendEmail,
+              sendSms: (to, message) => sendSms(to, message, { channel: messageChannel(settings) }),
+              sendEmail,
               emailTemplateId: EMAILJS_STAFF_TEMPLATE_ID,
               appUrl: APP_URL,
               onProgress,

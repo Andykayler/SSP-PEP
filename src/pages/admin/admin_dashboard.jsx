@@ -97,7 +97,9 @@ export default function AdminDashboard() {
   // Until the school has said whether it boards and which term is running,
   // the modules would be configured against nothing — so setup comes first
   // rather than as a prompt to dismiss.
-  const needsSetup = schoolCode && settings !== undefined && !isSetUp(settings);
+  // Both steps: the basics (isSetUp) and then classes & settings, which stamps
+  // setupCompletedAt last.
+  const needsSetup = schoolCode && settings !== undefined && !(isSetUp(settings) && settings?.setupCompletedAt);
 
   return (
     <DashboardShell
@@ -123,6 +125,8 @@ export default function AdminDashboard() {
           schoolCode={schoolCode}
           schoolName={schoolName}
           actorId={uid}
+          settings={settings}
+          school={schoolData}
           onDone={(next) => setSettings((prev) => ({ ...(prev || {}), ...next }))}
         />
       ) : (

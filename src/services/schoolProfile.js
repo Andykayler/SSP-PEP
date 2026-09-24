@@ -39,6 +39,20 @@ export function schoolTypeLabel(type) {
   return SCHOOL_TYPES.find((t) => t.id === type)?.label || "Not set";
 }
 
+/**
+ * Primary ("Standard 1–8") or Secondary ("Form 1–6") — which classes a school
+ * has. Its own field, `schoolLevel`: it used to share `schoolType` with the
+ * day/boarding answer, so setting up classes quietly overwrote "boarding" with
+ * "Secondary" and hid every boarding tool. Older documents that only have the
+ * level in `schoolType` are still read correctly.
+ */
+export const SCHOOL_LEVELS = ["Secondary", "Primary"];
+export function schoolLevelOf(settings) {
+  if (SCHOOL_LEVELS.includes(settings?.schoolLevel)) return settings.schoolLevel;
+  if (SCHOOL_LEVELS.includes(settings?.schoolType)) return settings.schoolType;
+  return "Secondary";
+}
+
 /** True when the school keeps students overnight, so boarding tools apply. */
 export function boards(settings) {
   return settings?.schoolType === "boarding" || settings?.schoolType === "both";

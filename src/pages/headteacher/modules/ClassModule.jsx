@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { auth, db } from "../../../firebase";
 import { syncAssignmentsWithClasses } from "../../../services/staffAssignments";
+import { schoolLevelOf } from "../../../services/schoolProfile";
 import {
   collection, query, where, getDocs, doc, getDoc, writeBatch, serverTimestamp,
 } from "firebase/firestore";
@@ -72,7 +73,8 @@ function UtilBar({ pct }) {
 
 // ─── Set up classes (school type → forms/standards → streams) ───────────────
 function ClassSetupModal({ schoolCode, existingClasses, existingSettings, onClose, onSaved }) {
-  const [schoolType, setSchoolType] = useState(existingSettings?.schoolType || "Secondary");
+  // Primary or Secondary — `schoolLevel`, not `schoolType` (that is day/boarding).
+  const [schoolType, setSchoolType] = useState(schoolLevelOf(existingSettings));
   const [selectedForms, setSelectedForms] = useState(() => {
     const forms = new Set();
     existingClasses.forEach((c) => { if (c.formLevel) forms.add(c.formLevel); });
@@ -122,7 +124,7 @@ function ClassSetupModal({ schoolCode, existingClasses, existingSettings, onClos
 
       batch.set(doc(db, "school_settings", schoolCode), {
         schoolCode,
-        schoolType,
+        schoolLevel: schoolType,
         promotionThreshold: existingSettings?.promotionThreshold ?? 40,
         updatedAt: serverTimestamp(),
         updatedBy: uid,
@@ -351,7 +353,7 @@ export default function ClassAndStreamModule({ schoolCode, currentUser }) {
           <h2 style={{ fontFamily: "'Playfair Display', serif" }}>Classes & Streams</h2>
           <p className="text-muted">
             Class management dashboard · enrollment & capacity
-            {schoolSettings?.schoolType && ` · ${schoolSettings.schoolType}`}
+            {schoolSettings && ` · ${schoolLevelOf(schoolSettings)}`}
           </p>
         </div>
         <div className="flex gap-2">

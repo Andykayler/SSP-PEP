@@ -26,4 +26,9 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  // Serverless functions and admin scripts run on Node, not in the browser.
+  {
+    files: ['api/**/*.js', 'scripts/**/*.{js,mjs}', 'server.js', 'functions/**/*.js'],
+    languageOptions: { globals: { ...globals.node } },
+  },
 ])

@@ -93,7 +93,9 @@ export default function AccountPanel({ open, onClose, name, roleLabel }) {
 
   const resendVerification = async () => {
     try {
-      await sendEmailVerification(auth.currentUser);
+      // The branded Acalink email; Firebase's plain one if that's unavailable.
+      await apiPost("/api/auth/otp", { action: "send-verification-email" })
+        .catch(() => sendEmailVerification(auth.currentUser));
       setNote("Verification email sent. Check your inbox.");
     } catch (err) {
       setError(err.message || "Couldn't send the email.");

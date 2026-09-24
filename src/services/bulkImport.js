@@ -453,14 +453,14 @@ export async function importStaff({
           user_role: c.role,
           login_email: c.email,
           password: c.password,
-          login_url: `${appUrl}/login`,
+          login_url: `${appUrl}/signin`,
         },
       }).catch(() => {});
     }
     if (sendSms && c.phone) {
       await sendSms(
         c.phone,
-        `Welcome to ${schoolName}!\nYour ACALink account is ready.\nEmail: ${c.email}\nPassword: ${c.password}\nLogin: ${appUrl}/login\n\nChange your password after first login.`
+        `Welcome to ${schoolName}!\nYour ACALink account is ready.\nEmail: ${c.email}\nPassword: ${c.password}\nLogin: ${appUrl}/signin\n\nChange your password after first login.`
       ).catch(() => {});
     }
   }

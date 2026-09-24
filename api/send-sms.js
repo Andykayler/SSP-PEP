@@ -1,6 +1,15 @@
 // api/send-sms.js
 // ─────────────────────────────────────────────────────────────────────────────
-// Sends one SMS through Twilio, as a Vercel serverless function.
+// Sends one message to a phone — by SMS through Twilio, or by WhatsApp through
+// WaAPI when the body says { channel: "whatsapp" }. The portal picks WhatsApp
+// whenever a school has its SMS module switched off (src/services/sms.js), so
+// families still hear about logins and results without the school paying for
+// SMS. One function for both channels keeps the deployment inside Vercel's
+// 12-function limit (see tests/logic/vercelFunctions.test.mjs).
+//
+// Callers must be signed-in staff. This endpoint used to accept anyone, which
+// made it an open relay: anybody who found the URL could send texts, billed to
+// the school's Twilio account, to any number.
 //
 // This replaces the equivalent route in server.js for anything deployed. The
 // Express server was only ever reachable at http://localhost:3001, so every
@@ -30,6 +39,9 @@
 //   TWILIO_API_KEY        API Key secret
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { requireStaff } from "./_lib/auth.js";
+import { isConfigured as whatsappConfigured, sendWhatsAppText } from "./_lib/waapi.js";
+
 /** Twilio accepts E.164 only: a leading + and 7–15 digits, no spaces. */
 const E164 = /^\+\d{7,15}$/;
 
@@ -50,8 +62,12 @@ export default async function handler(req, res) {
     }
   }
 
+  const caller = await requireStaff(req);
+  if (!caller.ok) return res.status(caller.status).json({ error: caller.error });
+
   const to = String(body?.to ?? "").replace(/\s/g, "");
   const message = body?.message;
+  const channel = body?.channel === "whatsapp" ? "whatsapp" : "sms";
 
   if (!to || !message) {
     return res.status(400).json({ error: "Missing 'to' or 'message'." });
@@ -60,6 +76,20 @@ export default async function handler(req, res) {
     return res.status(400).json({
       error: "Invalid phone number. Use international format, e.g. +265991234567",
     });
+  }
+
+  if (channel === "whatsapp") {
+    if (!whatsappConfigured()) {
+      console.error("WhatsApp not configured — missing WAAPI_API_TOKEN or WAAPI_INSTANCE_ID.");
+      return res.status(500).json({ error: "WhatsApp service not configured." });
+    }
+    try {
+      await sendWhatsAppText(to, message);
+      return res.status(200).json({ success: true, channel: "whatsapp" });
+    } catch (err) {
+      console.error("WhatsApp send failed:", err.status, err.message);
+      return res.status(502).json({ error: err.message || "WhatsApp send failed." });
+    }
   }
 
   const accountSid = process.env.TWILIO_ACC_SID;
@@ -109,7 +139,7 @@ export default async function handler(req, res) {
       });
     }
 
-    return res.status(200).json({ success: true, sid: data.sid });
+    return res.status(200).json({ success: true, channel: "sms", sid: data.sid });
   } catch (err) {
     console.error("SMS send failed:", err);
     return res.status(500).json({ error: "Internal error sending SMS." });

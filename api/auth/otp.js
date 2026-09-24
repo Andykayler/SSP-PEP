@@ -24,7 +24,9 @@
 // docs/whatsapp-first-notifications.md.
 // ─────────────────────────────────────────────────────────────────────────────
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
-import { adminDb, FieldValue } from "../_lib/firebaseAdmin.js";
+import { adminAuth, adminDb, FieldValue } from "../_lib/firebaseAdmin.js";
+import { sendEmail, appUrl } from "../_lib/email.js";
+import { verificationEmail, newRegistrationEmail } from "../_lib/emailTemplates.js";
 import { readBody, requireStaff } from "../_lib/auth.js";
 import { sendWhatsAppText, isConfigured as waConfigured } from "../_lib/waapi.js";
 import { normalisePhone } from "../../src/services/phone.js";
@@ -140,6 +142,59 @@ async function verify({ uid, purpose, body }, res) {
   return res.status(200).json({ ok: true, purpose });
 }
 
+// ─── Email: verification, and telling the platform owner about a new school ──
+// These live here, beside the phone-verification codes, because both are
+// "prove who you are" steps of an account — and because Vercel's Hobby plan
+// allows 12 functions, so new server work joins an existing one.
+
+/**
+ * Sends the caller a branded "confirm your email" message. The link opens our
+ * own /verify-email page (not Firebase's generic handler), which applies the
+ * code and says so in Acalink's look.
+ */
+async function sendVerification({ uid, user }, res) {
+  const record = await adminAuth.getUser(uid);
+  if (!record.email) return res.status(400).json({ error: "This account has no email address." });
+  if (record.emailVerified) return res.status(200).json({ ok: true, alreadyVerified: true });
+
+  const firebaseLink = await adminAuth.generateEmailVerificationLink(record.email);
+  const code = new URL(firebaseLink).searchParams.get("oobCode");
+  const link = `${appUrl()}/verify-email?code=${encodeURIComponent(code)}`;
+
+  const mail = verificationEmail({ name: user.name || record.displayName || "", link, appUrl: appUrl() });
+  const sent = await sendEmail({ to: record.email, ...mail, tag: "verify_email" });
+  if (!sent.ok) return res.status(503).json({ error: "Email isn't available right now.", reason: sent.error });
+  return res.status(200).json({ ok: true });
+}
+
+/**
+ * Called once by the registration page: emails every platform owner that a
+ * school is waiting for approval. Only the school's own founder can trigger it,
+ * and only while the school is pending; `registrationNotifiedAt` stops repeats.
+ */
+async function announceRegistration({ uid, user }, res) {
+  if (user.role !== "admin" || !user.schoolCode) return res.status(403).json({ error: "Only a school's founder can do this." });
+  const ref = adminDb.collection("schools").doc(user.schoolCode);
+  const snap = await ref.get();
+  const school = snap.exists ? { code: snap.id, ...snap.data() } : null;
+  if (!school || school.authUid !== uid) return res.status(403).json({ error: "That isn't your school." });
+  if (school.status !== "pending" || school.registrationNotifiedAt) return res.status(200).json({ ok: true, skipped: true });
+
+  const owners = await adminDb.collection("users").where("role", "==", "superadmin").get();
+  const to = owners.docs.map((d) => d.data().email).filter(Boolean);
+  if (to.length === 0) return res.status(200).json({ ok: true, skipped: "no_owner" });
+
+  const mail = newRegistrationEmail({
+    school,
+    adminEmail: user.email || "",
+    consoleUrl: `${appUrl()}/platform`,
+    appUrl: appUrl(),
+  });
+  const sent = await sendEmail({ to, ...mail, tag: "new_school" });
+  if (sent.ok) await ref.update({ registrationNotifiedAt: FieldValue.serverTimestamp() });
+  return res.status(200).json({ ok: sent.ok });
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
@@ -151,6 +206,15 @@ export default async function handler(req, res) {
 
   const body = readBody(req);
   if (!body) return res.status(400).json({ error: "Body is not valid JSON." });
+
+  try {
+    if (body.action === "send-verification-email") return await sendVerification(auth, res);
+    if (body.action === "registered") return await announceRegistration(auth, res);
+  } catch (err) {
+    console.error(`[otp] ${body.action} failed:`, err);
+    return res.status(500).json({ error: "Something went wrong. Please try again." });
+  }
+
   if (!PURPOSES.includes(body.purpose)) return res.status(400).json({ error: "Unknown purpose." });
 
   const ctx = { uid: auth.uid, user: auth.user, purpose: body.purpose, body };

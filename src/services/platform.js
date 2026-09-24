@@ -17,6 +17,7 @@ import {
   collection, doc, updateDoc, addDoc, onSnapshot, query, orderBy, limit,
   serverTimestamp, deleteField,
 } from "firebase/firestore";
+import { apiPost } from "./api";
 import { TRIAL_DAYS, toMs, trialEndFrom } from "./subscriptionState";
 
 const DAY = 86_400_000;
@@ -77,11 +78,23 @@ export async function approveSchool(school, actor, { trialDays = TRIAL_DAYS } = 
     lastReminderKey: deleteField(),
   });
   await audit(actor, "approve", school, { trialDays });
+  emailDecision(school);
 }
 
 export async function rejectSchool(school, actor, reason) {
   await updateDoc(schoolRef(school), { status: "rejected", rejectedReason: reason || "" });
   await audit(actor, "reject", school, { reason });
+  emailDecision(school);
+}
+
+/**
+ * Emails the founder the decision just recorded (api/platform/email-status.js).
+ * Fire-and-forget: the decision is saved either way, and the in-app/WhatsApp
+ * notice from the Cloud Function still goes out if email isn't set up yet.
+ */
+function emailDecision(school) {
+  apiPost("/api/platform/email-status", { action: "school-decision", schoolCode: school.code || school.id })
+    .catch((err) => console.warn("[platform] decision email not sent:", err.message));
 }
 
 export async function suspendSchool(school, actor, reason) {

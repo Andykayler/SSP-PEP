@@ -10,7 +10,37 @@
 //
 // Platform owner only.
 // ─────────────────────────────────────────────────────────────────────────────
-import { adminAuth } from "../_lib/firebaseAdmin.js";
+import { adminAuth, adminDb, FieldValue } from "../_lib/firebaseAdmin.js";
+import { sendEmail, appUrl } from "../_lib/email.js";
+import { approvedEmail, rejectedEmail } from "../_lib/emailTemplates.js";
+
+const toMs = (v) => (v?.toMillis ? v.toMillis() : v?.seconds ? v.seconds * 1000 : typeof v === "number" ? v : null);
+
+/**
+ * Emails a school's founder the platform owner's decision: approved (with the
+ * trial end date) or not approved (with the reason). Called by the back office
+ * right after it records the decision. `decisionEmailedFor` stops the same
+ * decision being emailed twice if the button is pressed again.
+ */
+async function emailDecision(schoolCode, res) {
+  const ref = adminDb.collection("schools").doc(String(schoolCode || ""));
+  const snap = await ref.get();
+  if (!snap.exists) return res.status(404).json({ error: "No such school." });
+  const school = { code: snap.id, ...snap.data() };
+  if (!["active", "rejected"].includes(school.status)) return res.status(200).json({ ok: true, skipped: "no_decision" });
+  if (school.decisionEmailedFor === school.status) return res.status(200).json({ ok: true, skipped: "already_sent" });
+
+  const founder = school.authUid ? await adminAuth.getUser(school.authUid).catch(() => null) : null;
+  const to = founder?.email || school.email;
+  if (!to) return res.status(200).json({ ok: true, skipped: "no_email" });
+
+  const mail = school.status === "active"
+    ? approvedEmail({ school, trialEndsMs: toMs(school.trialEndsAt), signinUrl: `${appUrl()}/signin`, appUrl: appUrl() })
+    : rejectedEmail({ school, reason: school.rejectedReason || "", appUrl: appUrl() });
+  const sent = await sendEmail({ to, ...mail, tag: school.status === "active" ? "school_approved" : "school_rejected" });
+  if (sent.ok) await ref.update({ decisionEmailedFor: school.status, decisionEmailedAt: FieldValue.serverTimestamp() });
+  return res.status(200).json({ ok: sent.ok, error: sent.error });
+}
 import { readBody, requireStaff } from "../_lib/auth.js";
 
 const MAX_UIDS = 100;
@@ -26,6 +56,15 @@ export default async function handler(req, res) {
 
   const body = readBody(req);
   if (!body) return res.status(400).json({ error: "Body is not valid JSON." });
+
+  if (body.action === "school-decision") {
+    try {
+      return await emailDecision(body.schoolCode, res);
+    } catch (err) {
+      console.error("[platform] decision email failed:", err);
+      return res.status(500).json({ error: "Couldn't send the email." });
+    }
+  }
 
   const uids = [...new Set((Array.isArray(body.authUids) ? body.authUids : []).filter((u) => typeof u === "string" && u))]
     .slice(0, MAX_UIDS);

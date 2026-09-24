@@ -334,7 +334,10 @@ export default function FeeStructure({ schoolCode, schoolName }) {
     count: fees.length,
   }));
 
-  const FormBody = ({ onSubmit, isEdit }) => (
+  // Called as a function, not rendered as <FormBody />: a component defined
+  // inside this one is a new component on every render, so React would throw
+  // the form away after each keystroke and the field would lose focus.
+  const renderForm = ({ onSubmit, isEdit }) => (
     <form onSubmit={onSubmit} className="space-y-4">
       {error && <div className="alert alert--error">{error}</div>}
 
@@ -507,14 +510,14 @@ export default function FeeStructure({ schoolCode, schoolName }) {
       {/* Add Modal */}
       {showAdd && (
         <Modal title="Add Fee Structure" onClose={() => setShowAdd(false)} wide>
-          <FormBody onSubmit={handleAdd} isEdit={false} />
+          {renderForm({ onSubmit: handleAdd, isEdit: false })}
         </Modal>
       )}
 
       {/* Edit Modal */}
       {showEdit && (
         <Modal title="Edit Fee Structure" onClose={() => setShowEdit(null)} wide>
-          <FormBody onSubmit={handleEdit} isEdit={true} />
+          {renderForm({ onSubmit: handleEdit, isEdit: true })}
         </Modal>
       )}
 

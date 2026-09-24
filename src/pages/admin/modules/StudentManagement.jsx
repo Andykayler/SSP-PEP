@@ -7,7 +7,8 @@ import {
 import { IC } from "./icons";
 import { GENDERS, DISTRICTS } from "./constants";
 import { generateStudentCode, normalisePhone, initials, fmtDate } from "./helpers";
-import { sendSms, sendEmail, EMAILJS_GUARDIAN_TEMPLATE_ID, APP_URL } from "./notifications";
+import { sendSms, sendEmail, EMAILJS_GUARDIAN_TEMPLATE_ID, APP_URL, messageChannel } from "./notifications";
+import { subscribeSchoolSettings } from "../../../services/academicTerm";
 import {
   StatusPill, Modal, Input, Select, Btn, Spinner, EmptyState, ActionBtn, StudentCodeBadge, NotifStatus,
 } from "./ui";
@@ -81,6 +82,9 @@ export default function StudentManagement({ schoolCode, schoolName }) {
 
   useEffect(() => { fetchStudents(); fetchClasses(); fetchTransferRequests(); }, []);
   useEffect(() => subscribeCampuses(schoolCode, setCampuses), [schoolCode]);
+  // For the guardian's login message: SMS if the school has SMS on, else WhatsApp.
+  const [schoolSettings, setSchoolSettings] = useState(null);
+  useEffect(() => subscribeSchoolSettings(schoolCode, setSchoolSettings), [schoolCode]);
 
   const activeCampuses = campuses.filter(c => c.status !== "archived");
   // The picker only earns its space once a school actually runs two sites.
@@ -255,7 +259,8 @@ export default function StudentManagement({ schoolCode, schoolName }) {
             className: cls?.name || "",
             studentCode,
             appUrl: APP_URL,
-          })
+          }),
+          { channel: messageChannel(schoolSettings) },
         );
         smsSent = smsResult.success;
       }
@@ -1016,7 +1021,8 @@ export default function StudentManagement({ schoolCode, schoolName }) {
             importStudents({
               rows: validated,
               schoolCode, schoolName,
-              sendSms, appUrl: APP_URL, onProgress,
+              sendSms: (to, message) => sendSms(to, message, { channel: messageChannel(schoolSettings) }),
+              appUrl: APP_URL, onProgress,
             })
           }
           renderResult={(res) => (

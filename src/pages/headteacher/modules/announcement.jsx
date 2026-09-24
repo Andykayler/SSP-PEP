@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { notifyAnnouncement } from "../../../services/notificationHooks";
 import "./staff-management.css";
+import AiNoticeWriter from "../../../components/ai/AiNoticeWriter";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const TYPES = ["Academic", "Boarding", "Finance", "Events", "General"];
@@ -214,6 +215,10 @@ function ComposeModal({ onClose, onSend, postedBy, saving }) {
             <div className="flex justify-between mt-1">
               {errors.message && <p className="text-danger text-xs">{errors.message}</p>}
               <p className={`text-[10px] ${charCount > 500 ? "text-warning" : "text-muted"} ml-auto`}>{charCount} chars</p>
+            </div>
+            <div className="mt-2">
+              <AiNoticeWriter notes={form.message} title={form.title} audience={form.audience}
+                onDraft={({ title, message }) => setForm(f => ({ ...f, title: f.title.trim() ? f.title : title, message }))} />
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -387,6 +387,15 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
                   </button>
                 </div>
 
+                {/* With SMS off, the portal's direct messages (logins, report
+                    cards) go by WhatsApp instead — say so, so switching SMS
+                    off doesn't look like switching families off. */}
+                {m.id === "sms" && !on && (
+                  <div style={{ padding: "10px 16px 2px 19px", fontSize: 11.5, color: "var(--text2)" }}>
+                    SMS is off, so families get logins, report cards and alerts on <strong>WhatsApp</strong> instead, at no cost per message.
+                  </div>
+                )}
+
                 {/* The SMS module's own configuration — which notifications go
                     out. Only shown once SMS is on, because choosing categories
                     for a switched-off module is a decision with no effect. */}

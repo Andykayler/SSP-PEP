@@ -209,11 +209,19 @@ export async function restoreCampus(campusId) {
 // against three campus ids should NOT silently gain the new one.
 
 /** True when this user may see and act on `campusId`. */
-export function canAccessCampus(user, campusId) {
+export function canAccessCampus(user, campusId, primaryId = "") {
   if (!user) return false;
   if (user.allCampuses) return true;
   if (!campusId) return true;              // unscoped legacy records stay visible
-  return (user.campusIds || []).includes(campusId);
+  const ids = user.campusIds || [];
+  // Nobody assigned a campus yet works at the primary site — the same rule as
+  // visibleCampuses() below. Without this, a head teacher created before
+  // campuses existed saw a student COUNT on their dashboard but an empty
+  // Student Management list, because every record is tagged with the primary
+  // campus and their (empty) campus list matched none of them. A school with
+  // no campuses set up at all has no primary, and everyone sees everything.
+  if (ids.length === 0) return !primaryId || campusId === primaryId;
+  return ids.includes(campusId);
 }
 
 /** The campuses this user may work in, as full campus objects. */
@@ -240,10 +248,10 @@ export function visibleCampuses(user, campuses = []) {
  * query, and would silently break every list the moment a campus is
  * reassigned. See the CAMPUS SCOPING note in firestore.rules.
  */
-export function scopeToCampus(rows, user, campusId = null) {
+export function scopeToCampus(rows, user, campusId = null, primaryId = "") {
   return rows.filter((r) => {
     if (campusId) return r.campusId === campusId;
-    return canAccessCampus(user, r.campusId);
+    return canAccessCampus(user, r.campusId, primaryId);
   });
 }
 
