@@ -21,6 +21,25 @@ export default defineConfig({
   // secrets belong in api/*.js, which reads process.env and is not bundled.
   envPrefix: ['VITE_', 'EMAILJS_', 'APP_URL'],
 
+  build: {
+    rollupOptions: {
+      output: {
+        // Libraries in their own files: they change far less often than the
+        // app, so a family's phone keeps them cached across deploys instead of
+        // re-downloading ~250 KB every time we ship. Firebase goes in one file
+        // that only sign-in, registration and the dashboards load — the
+        // landing page never pays for it.
+        manualChunks(id) {
+          const path = id.split('\\').join('/')
+          if (!path.includes('/node_modules/')) return undefined
+          if (/\/node_modules\/(firebase|@firebase|idb)\//.test(path)) return 'firebase'
+          if (/\/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(path)) return 'react-vendor'
+          return undefined
+        },
+      },
+    },
+  },
+
   server: {
     proxy: {
       '/api': {

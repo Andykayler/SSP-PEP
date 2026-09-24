@@ -1,4 +1,4 @@
-// api/ai-insight.js
+// api/_lib/aiInsight.js — served by api/ai.js (task=insight)
 // ─────────────────────────────────────────────────────────────────────────────
 // Turns one pupil's term — marks, attendance, conduct — into two sentences a
 // parent can act on, using Groq.
@@ -26,7 +26,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Vercel: allow the function longer than the default for model latency. */
-export const maxDuration = 60;
+// maxDuration is set on api/ai.js, the function that serves this.
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 

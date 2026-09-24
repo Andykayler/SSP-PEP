@@ -1,7 +1,5 @@
 import { createBrowserRouter } from "react-router-dom";
 import { lazy, Suspense } from "react";
-import Registration from "../pages/registration";
-import SignIn from "../pages/signin";
 import AcademixLanding from "../pages/landing";
 import { Terms, Privacy } from "../pages/legal";
 
@@ -16,6 +14,12 @@ const BursarDashboard = lazy(() => import("../pages/burser/burser"));
 const DirectorDashboard = lazy(() => import("../pages/director/dashboard"));
 const PlatformDashboard = lazy(() => import("../pages/platform/dashboard"));
 const LibrarianDashboard = lazy(() => import("../pages/library/dashboard"));
+
+// Sign-in and registration are the only public pages that talk to Firebase,
+// and Firebase is most of the weight a visitor would otherwise download just
+// to read the landing page. Loaded when someone actually heads for them.
+const SignIn = lazy(() => import("../pages/signin"));
+const Registration = lazy(() => import("../pages/registration"));
 
 // Where PayChangu returns the payer's browser. Split out too: it is reached
 // once per payment, from an external redirect, and has nothing to do with the
@@ -38,6 +42,13 @@ const portal = (element) => (
   <Suspense fallback={<PortalFallback />}>{element}</Suspense>
 );
 
+// Sign-in and registration fetch their code on first visit. A blank page in
+// the landing page's paper colour, rather than a dashboard spinner, so the
+// hand-off from the landing page doesn't flash.
+const publicPage = (element) => (
+  <Suspense fallback={<div className="lp-auth" aria-busy="true" />}>{element}</Suspense>
+);
+
 const router = createBrowserRouter([
   {
     path: "/",
@@ -45,11 +56,11 @@ const router = createBrowserRouter([
   },
   {
     path: "/register",
-    element: <Registration />,
+    element: publicPage(<Registration />),
   },
   {
     path: "/signin",
-    element: <SignIn />,
+    element: publicPage(<SignIn />),
   },
   {
     path: "/terms",

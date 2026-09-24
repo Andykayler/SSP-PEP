@@ -1088,7 +1088,9 @@ class _RecentGradesCard extends StatelessWidget {
       children: [
         const _SectionHeader(title: 'Recent Grades'),
         _cardWrap(context,
-          children: performance.withheld
+          children: performance.loadError.isNotEmpty
+              ? [_EmptyRow(message: 'Grades couldn\'t be loaded right now. ${performance.loadError}')]
+              : performance.withheld
               ? [
                   _EmptyRow(
                     message: performance.withheldMessage.isNotEmpty

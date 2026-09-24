@@ -1,8 +1,8 @@
-// api/ai-lesson-plan.js
+// api/_lib/aiLessonPlan.js — served by api/ai.js (task=lesson-plan)
 // ─────────────────────────────────────────────────────────────────────────────
 // Drafts the free-text parts of a lesson plan — objectives, activities,
 // resources, assessment — from just class, subject and topic, using Groq.
-// Same provider and shape of trade-off as api/ai-insight.js: server-side
+// Same provider and shape of trade-off as api/_lib/aiInsight.js: server-side
 // because the key must not ship to the browser, and cheap because this runs
 // once per button click, not once per pupil.
 //
@@ -22,7 +22,7 @@
 // budget a model reliably keeps to.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const maxDuration = 30;
+// maxDuration is set on api/ai.js, the function that serves this.
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
@@ -30,7 +30,7 @@ const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL =
   process.env.ACALINK_AI_LESSON_MODEL || process.env.ACALINK_AI_MODEL || "llama-3.1-8b-instant";
 
-/** See api/ai-insight.js for why these exist and when a deployment needs them. */
+/** See api/_lib/aiInsight.js for why these exist and when a deployment needs them. */
 const REASONING_EFFORT = process.env.ACALINK_AI_REASONING_EFFORT || "";
 const REASONING_FORMAT = process.env.ACALINK_AI_REASONING_FORMAT || "";
 
@@ -79,7 +79,7 @@ function describe({ className, subject, topic, week, term }) {
     .join("\n");
 }
 
-/** Same tolerant extraction as api/ai-insight.js — models don't reliably honour "only JSON". */
+/** Same tolerant extraction as api/_lib/aiInsight.js — models don't reliably honour "only JSON". */
 function parsePlan(text) {
   const fenced = text.replace(/```(?:json)?/gi, " ");
   const start = fenced.indexOf("{");
@@ -101,7 +101,7 @@ function parsePlan(text) {
   }
 }
 
-/** See api/ai-insight.js — strips a reasoning model's <think> block, if present. */
+/** See api/_lib/aiInsight.js — strips a reasoning model's <think> block, if present. */
 function stripReasoning(raw) {
   let text = String(raw || "").replace(/<think>[\s\S]*?<\/think>/gi, " ");
   const unclosed = text.search(/<think>/i);

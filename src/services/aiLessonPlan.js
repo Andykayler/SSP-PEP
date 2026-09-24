@@ -1,6 +1,6 @@
 // src/services/aiLessonPlan.js
 // ─────────────────────────────────────────────────────────────────────────────
-// Client side of the AI lesson-plan draft. Talks to `api/ai-lesson-plan.js`,
+// Client side of the AI lesson-plan draft. Talks to `api/ai.js` (task=lesson-plan; handler in api/_lib/aiLessonPlan.js),
 // which holds the Groq key. See src/services/aiInsight.js for the sibling
 // feature this mirrors.
 //
@@ -10,7 +10,7 @@
 // teacher keeps typing the form by hand, exactly as before this existed.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ENDPOINT = "/api/ai-lesson-plan";
+const ENDPOINT = "/api/ai?task=lesson-plan";
 
 /**
  * Drafts the free-text fields of a lesson plan.

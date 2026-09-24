@@ -1,6 +1,6 @@
 // src/services/aiInsight.js
 // ─────────────────────────────────────────────────────────────────────────────
-// Client side of the AI term insight. Talks to `api/ai-insight.js`, which
+// Client side of the AI term insight. Talks to `api/ai.js` (task=insight; handler in api/_lib/aiInsight.js), which
 // holds the Groq key.
 //
 // The whole surface is one function, and it is written so the caller can
@@ -9,7 +9,7 @@
 // throws.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ENDPOINT = "/api/ai-insight";
+const ENDPOINT = "/api/ai?task=insight";
 
 /** Must not exceed MAX_BATCH in the route, which rejects anything larger. */
 const BATCH_SIZE = 8;

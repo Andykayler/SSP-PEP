@@ -12,6 +12,17 @@
     }
   },
   "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/" }
+    {
+      "source": "/api/ai-insight",
+      "destination": "/api/ai?task=insight"
+    },
+    {
+      "source": "/api/ai-lesson-plan",
+      "destination": "/api/ai?task=lesson-plan"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/"
+    }
   ]
 }

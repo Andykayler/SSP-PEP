@@ -1,3 +1,4 @@
+import '../core/api.dart';
 import '../models/student.dart';
 import 'results_service.dart';
 
@@ -17,6 +18,10 @@ class PerformanceSummary {
   final bool withheld;
   final String withheldMessage;
 
+  /// Set when the results couldn't be fetched at all (no connection, server
+  /// unavailable). Distinct from "no marks yet" so the card says what's wrong.
+  final String loadError;
+
   const PerformanceSummary({
     required this.subjectGrades,
     required this.overallAverage,
@@ -24,7 +29,17 @@ class PerformanceSummary {
     required this.classSize,
     this.withheld = false,
     this.withheldMessage = '',
+    this.loadError = '',
   });
+
+  const PerformanceSummary.failed(String message)
+      : subjectGrades = const [],
+        overallAverage = null,
+        rank = null,
+        classSize = 0,
+        withheld = false,
+        withheldMessage = '',
+        loadError = message;
 
   bool get hasData => subjectGrades.isNotEmpty;
 
@@ -70,7 +85,16 @@ class PerformanceService {
   Future<PerformanceSummary> fetchPerformance(Student student) async {
     if (student.classId.isEmpty) return PerformanceSummary.empty;
 
-    final data = await _api.fetch(student);
+    final Map<String, dynamic> data;
+    try {
+      data = await _api.fetch(student);
+    } catch (e) {
+      // ignore: avoid_print
+      print('[performance] results unavailable: $e');
+      return PerformanceSummary.failed(e is ApiException
+          ? e.message
+          : 'Results could not be loaded. Check your connection and try again.');
+    }
     if (((data['term'] as String?) ?? '').isEmpty) return PerformanceSummary.empty;
 
     if (data['withheld'] == true) {

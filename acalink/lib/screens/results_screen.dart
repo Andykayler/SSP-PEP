@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/api.dart';
 import '../theme/app_colors.dart';
 import '../services/results_service.dart';
 import '../state/session_provider.dart';
@@ -64,6 +65,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator(strokeWidth: 2.4));
+          }
+          if (snap.hasError) {
+            final err = snap.error;
+            return _Empty(
+              icon: Icons.cloud_off_rounded,
+              title: 'Results couldn\'t be loaded',
+              message: err is ApiException ? err.message : 'Check your connection and try again.',
+              onRetry: () => setState(() => _loadedFor = null),
+            );
           }
           final data = snap.data ?? ResultsData.empty;
 
@@ -539,7 +549,8 @@ class _Empty extends StatelessWidget {
   final IconData icon;
   final String title;
   final String message;
-  const _Empty({required this.icon, required this.title, required this.message});
+  final VoidCallback? onRetry;
+  const _Empty({required this.icon, required this.title, required this.message, this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -566,6 +577,14 @@ class _Empty extends StatelessWidget {
             Text(message,
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 13, color: context.colors.textMuted, height: 1.5)),
+            if (onRetry != null) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Try again'),
+              ),
+            ],
           ],
         ),
       ),

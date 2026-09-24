@@ -586,7 +586,7 @@ function PlanModal({ plan, myClasses, mySubjects, onSave, onClose }) {
   const [aiError,   setAiError]   = useState(null);
 
   // Drafts objectives/resources/assessment from just class+subject+topic —
-  // see api/ai-lesson-plan.js. Fills blanks only, so a teacher who already
+  // see api/_lib/aiLessonPlan.js. Fills blanks only, so a teacher who already
   // typed something here (or is editing a saved plan) never has it overwritten.
   const handleGenerate = async () => {
     setAiError(null);
