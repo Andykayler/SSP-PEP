@@ -414,6 +414,51 @@ export default function AttendanceModule({ userId, schoolCode, userName, userRol
   return (
     <div className="space-y-6">
 
+      {/* ── Mobile roll-call styles ───────────────────────────────────────────
+          Table stays as-is at tablet/desktop widths. Below 640px it's swapped
+          for a stacked card per student — bigger tap targets for the mark
+          buttons, and no more horizontal scrolling to see a status pill. */}
+      <style>{`
+        .att-table-desktop { display: block; }
+        .att-mobile-list { display: none; }
+        .att-bulk-actions { flex-wrap: wrap; }
+        @media (max-width: 640px) {
+          .att-table-desktop { display: none; }
+          .att-mobile-list {
+            display: flex; flex-direction: column; gap: 10px; padding: 12px;
+          }
+          .att-mobile-card {
+            border: 1px solid var(--border-color); border-radius: var(--radius-md);
+            padding: 12px; background: var(--surface);
+          }
+          .att-mobile-card__top {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+          }
+          .att-mobile-card__info { flex: 1; min-width: 0; }
+          .att-mobile-card__name {
+            font-size: 14px; font-weight: 600; color: var(--text-primary);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+          }
+          .att-mobile-card__meta {
+            font-size: 11px; color: var(--text-muted); margin-top: 2px;
+            display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+          }
+          .att-mobile-card__marks {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px;
+          }
+          .att-mobile-card__markbtn {
+            padding: 11px 4px; font-size: 12px; text-align: center;
+          }
+          .att-mobile-card__remark {
+            width: 100%; box-sizing: border-box; padding: 9px 10px;
+            border-radius: var(--radius-md); border: 1px solid var(--border-color);
+            background: var(--input-bg); color: var(--text-primary); font-size: 12.5px;
+            font-family: var(--font-body); outline: none;
+          }
+          .att-bulk-actions button { flex: 1 1 auto; }
+        }
+      `}</style>
+
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -575,12 +620,12 @@ export default function AttendanceModule({ userId, schoolCode, userName, userRol
             </div>
 
             {/* Bulk actions */}
-            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            <div className="att-bulk-actions" style={{ display: "flex", gap: 8, flexShrink: 0, width: "100%", maxWidth: 320 }}>
               <button
                 onClick={() => markAll("Present")}
                 disabled={students.length === 0 || isLoading}
                 style={{
-                  display: "flex", alignItems: "center", gap: 6, padding: "11px 16px",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "11px 16px",
                   borderRadius: "var(--radius-md)", border: "none", fontSize: 11.5, fontWeight: 700,
                   background: STATUS_CONFIG.Present.solid, color: "#fff", cursor: "pointer",
                   opacity: (students.length === 0 || isLoading) ? 0.4 : 1,
@@ -592,7 +637,7 @@ export default function AttendanceModule({ userId, schoolCode, userName, userRol
                 onClick={() => markAll("Absent")}
                 disabled={students.length === 0 || isLoading}
                 style={{
-                  display: "flex", alignItems: "center", gap: 6, padding: "11px 16px",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "11px 16px",
                   borderRadius: "var(--radius-md)", border: "none", fontSize: 11.5, fontWeight: 700,
                   background: STATUS_CONFIG.Absent.solid, color: "#fff", cursor: "pointer",
                   opacity: (students.length === 0 || isLoading) ? 0.4 : 1,
@@ -605,7 +650,9 @@ export default function AttendanceModule({ userId, schoolCode, userName, userRol
         </div>
       )}
 
-      {/* ── Attendance table ─────────────────────────────────────────────────── */}
+      {/* ── Attendance list ───────────────────────────────────────────────────
+          Same data, two renderings: a table for tablet/desktop, cards for
+          phones. Only one is visible at a time (see the media query above). */}
       <div className="cc">
         <div className="cc__head">
           <div className="cc__head-left">
@@ -641,112 +688,174 @@ export default function AttendanceModule({ userId, schoolCode, userName, userRol
             </p>
           </div>
         ) : (
-          <div className="data-table-wrap">
-            <table className="data-table data-table--stack">
-              <thead style={{ background: "var(--surface)", borderBottom: "1px solid var(--border-color)" }}>
-                <tr>
-                  <th style={thStyle}>Student</th>
-                  <th style={thStyle} className="hidden md:table-cell">Student Code</th>
-                  <th style={{ ...thStyle, textAlign: "center" }}>Status</th>
-                  <th style={{ ...thStyle, textAlign: "center" }} className="hidden sm:table-cell">Time</th>
-                  <th style={thStyle} className="hidden lg:table-cell">Remark</th>
-                  <th style={{ ...thStyle, textAlign: "center" }}>Mark</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((student, i) => {
-                  const record    = attendance[student.id] || {};
-                  const status    = record.status || "";
-                  const isFemale  = student.gender === "Female";
-                  const name      = fullName(student);
-                  const cfg       = STATUS_CONFIG[status];
+          <>
+            {/* Desktop / tablet table */}
+            <div className="data-table-wrap att-table-desktop">
+              <table className="data-table data-table--stack">
+                <thead style={{ background: "var(--surface)", borderBottom: "1px solid var(--border-color)" }}>
+                  <tr>
+                    <th style={thStyle}>Student</th>
+                    <th style={thStyle} className="hidden md:table-cell">Student Code</th>
+                    <th style={{ ...thStyle, textAlign: "center" }}>Status</th>
+                    <th style={{ ...thStyle, textAlign: "center" }} className="hidden sm:table-cell">Time</th>
+                    <th style={thStyle} className="hidden lg:table-cell">Remark</th>
+                    <th style={{ ...thStyle, textAlign: "center" }}>Mark</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((student, i) => {
+                    const record    = attendance[student.id] || {};
+                    const status    = record.status || "";
+                    const isFemale  = student.gender === "Female";
+                    const name      = fullName(student);
+                    const cfg       = STATUS_CONFIG[status];
 
-                  return (
-                    <tr
-                      key={student.id}
-                      style={{
-                        borderBottom: i < filtered.length - 1 ? "1px solid var(--primary-dim)" : "none",
-                        transition: "background 0.15s",
-                      }}
-                    >
-                      {/* Name + avatar */}
-                      <td style={tdStyle} data-label="Student">
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <div className={`avatar ${isFemale ? "avatar--pink" : "avatar--blue"}`} style={{ width: 34, height: 34, fontSize: 11 }}>
-                            {initials(name)}
+                    return (
+                      <tr
+                        key={student.id}
+                        style={{
+                          borderBottom: i < filtered.length - 1 ? "1px solid var(--primary-dim)" : "none",
+                          transition: "background 0.15s",
+                        }}
+                      >
+                        {/* Name + avatar */}
+                        <td style={tdStyle} data-label="Student">
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div className={`avatar ${isFemale ? "avatar--pink" : "avatar--blue"}`} style={{ width: 34, height: 34, fontSize: 11 }}>
+                              {initials(name)}
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{name}</div>
+                              <div style={{ fontSize: 10.5, color: "var(--text-muted)" }}>{student.dob || ""}</div>
+                            </div>
                           </div>
-                          <div>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{name}</div>
-                            <div style={{ fontSize: 10.5, color: "var(--text-muted)" }}>{student.dob || ""}</div>
-                          </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Student code */}
-                      <td style={tdStyle} className="hidden md:table-cell" data-label="Student Code">
-                        <span className="student-code-badge">
+                        {/* Student code */}
+                        <td style={tdStyle} className="hidden md:table-cell" data-label="Student Code">
+                          <span className="student-code-badge">
+                            <span className="student-code-badge__text">{student.studentCode}</span>
+                          </span>
+                        </td>
+
+                        {/* Status badge */}
+                        <td style={{ ...tdStyle, textAlign: "center" }} data-label="Status">
+                          {status ? (
+                            <span className="status-pill" style={{ background: cfg.pale, color: cfg.text, border: cfg.border }}>
+                              <span className="status-pill__dot" />
+                              {status}
+                            </span>
+                          ) : (
+                            <span className="status-pill" style={{ background: "var(--surface)", color: "var(--text-muted)", border: "1px solid var(--border-color)" }}>
+                              Unmarked
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Time */}
+                        <td style={{ ...tdStyle, textAlign: "center" }} className="hidden sm:table-cell" data-label="Time">
+                          <span style={{ fontSize: 12, color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>
+                            {record.time || "—"}
+                          </span>
+                        </td>
+
+                        {/* Remark */}
+                        <td style={tdStyle} className="hidden lg:table-cell" data-label="Remark">
+                          <input
+                            type="text"
+                            placeholder="Add remark…"
+                            value={record.remark || ""}
+                            onChange={(e) => updateRemark(student.id, e.target.value)}
+                            style={{
+                              width: "100%", background: "transparent", border: "1px solid transparent",
+                              borderRadius: "var(--radius-md)", padding: "6px 10px", fontSize: 12, outline: "none",
+                              color: "var(--text-secondary)",
+                            }}
+                            onFocus={(e) => { e.target.style.border = "1px solid var(--border-color)"; e.target.style.background = "var(--surface)"; }}
+                            onBlur={(e) => { e.target.style.border = "1px solid transparent"; e.target.style.background = "transparent"; }}
+                          />
+                        </td>
+
+                        {/* Mark buttons */}
+                        <td style={tdStyle} data-label="Mark">
+                          <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>
+                            {["Present", "Late", "Absent"].map((s) => (
+                              <button
+                                key={s}
+                                onClick={() => markStudent(student.id, s)}
+                                style={markBtnStyle(status === s, STATUS_CONFIG[s])}
+                              >
+                                {s}
+                              </button>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile card list */}
+            <div className="att-mobile-list">
+              {filtered.map((student) => {
+                const record   = attendance[student.id] || {};
+                const status   = record.status || "";
+                const isFemale = student.gender === "Female";
+                const name     = fullName(student);
+                const cfg      = STATUS_CONFIG[status];
+
+                return (
+                  <div key={student.id} className="att-mobile-card">
+                    <div className="att-mobile-card__top">
+                      <div className={`avatar ${isFemale ? "avatar--pink" : "avatar--blue"}`} style={{ width: 36, height: 36, fontSize: 12, flexShrink: 0 }}>
+                        {initials(name)}
+                      </div>
+                      <div className="att-mobile-card__info">
+                        <div className="att-mobile-card__name">{name}</div>
+                        <div className="att-mobile-card__meta">
                           <span className="student-code-badge__text">{student.studentCode}</span>
-                        </span>
-                      </td>
-
-                      {/* Status badge */}
-                      <td style={{ ...tdStyle, textAlign: "center" }} data-label="Status">
-                        {status ? (
-                          <span className="status-pill" style={{ background: cfg.pale, color: cfg.text, border: cfg.border }}>
-                            <span className="status-pill__dot" />
-                            {status}
-                          </span>
-                        ) : (
-                          <span className="status-pill" style={{ background: "var(--surface)", color: "var(--text-muted)", border: "1px solid var(--border-color)" }}>
-                            Unmarked
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Time */}
-                      <td style={{ ...tdStyle, textAlign: "center" }} className="hidden sm:table-cell" data-label="Time">
-                        <span style={{ fontSize: 12, color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>
-                          {record.time || "—"}
-                        </span>
-                      </td>
-
-                      {/* Remark */}
-                      <td style={tdStyle} className="hidden lg:table-cell" data-label="Remark">
-                        <input
-                          type="text"
-                          placeholder="Add remark…"
-                          value={record.remark || ""}
-                          onChange={(e) => updateRemark(student.id, e.target.value)}
-                          style={{
-                            width: "100%", background: "transparent", border: "1px solid transparent",
-                            borderRadius: "var(--radius-md)", padding: "6px 10px", fontSize: 12, outline: "none",
-                            color: "var(--text-secondary)",
-                          }}
-                          onFocus={(e) => { e.target.style.border = "1px solid var(--border-color)"; e.target.style.background = "var(--surface)"; }}
-                          onBlur={(e) => { e.target.style.border = "1px solid transparent"; e.target.style.background = "transparent"; }}
-                        />
-                      </td>
-
-                      {/* Mark buttons */}
-                      <td style={tdStyle} data-label="Mark">
-                        <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>
-                          {["Present", "Late", "Absent"].map((s) => (
-                            <button
-                              key={s}
-                              onClick={() => markStudent(student.id, s)}
-                              style={markBtnStyle(status === s, STATUS_CONFIG[s])}
-                            >
-                              {s}
-                            </button>
-                          ))}
+                          {record.time && <span>· {record.time}</span>}
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                      {status ? (
+                        <span className="status-pill" style={{ background: cfg.pale, color: cfg.text, border: cfg.border, flexShrink: 0 }}>
+                          <span className="status-pill__dot" />
+                          {status}
+                        </span>
+                      ) : (
+                        <span className="status-pill" style={{ background: "var(--surface)", color: "var(--text-muted)", border: "1px solid var(--border-color)", flexShrink: 0 }}>
+                          Unmarked
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="att-mobile-card__marks">
+                      {["Present", "Late", "Absent"].map((s) => (
+                        <button
+                          key={s}
+                          className="att-mobile-card__markbtn"
+                          onClick={() => markStudent(student.id, s)}
+                          style={markBtnStyle(status === s, STATUS_CONFIG[s])}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+
+                    <input
+                      type="text"
+                      placeholder="Add remark…"
+                      value={record.remark || ""}
+                      onChange={(e) => updateRemark(student.id, e.target.value)}
+                      className="att-mobile-card__remark"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 
