@@ -7,7 +7,7 @@ import {
 import { notifyAttendanceSaved } from "../../../services/notificationHooks";
 import {
   CheckCircle, XCircle, Clock, Save, Users, Search,
-  RefreshCw, AlertCircle, Loader2, ChevronDown, Download, CloudOff,
+  RefreshCw, AlertCircle, Loader2, ChevronDown, Download, CloudOff, MessageSquare,
 } from "lucide-react";
 import useOnlineStatus from "../../../hooks/useOnlineStatus";
 import { commitWithGrace } from "../../../services/offlineWrite";
@@ -147,6 +147,7 @@ export default function AttendanceModule({ userId, schoolCode, userName, userRol
   const [saving,           setSaving]           = useState(false);
   const [saveStatus,       setSaveStatus]       = useState(""); // "saved" | "queued" | "error" | ""
   const [error,            setError]            = useState("");
+  const [expandedRemark,   setExpandedRemark]   = useState(null); // studentId whose remark row is open (mobile)
   const online = useOnlineStatus();
 
   const isLoading    = !classesReady || !studentsReady || !attendanceReady;
@@ -424,33 +425,42 @@ export default function AttendanceModule({ userId, schoolCode, userName, userRol
         .att-bulk-actions { flex-wrap: wrap; }
         @media (max-width: 640px) {
           .att-table-desktop { display: none; }
-          .att-mobile-list {
-            display: flex; flex-direction: column; gap: 10px; padding: 12px;
+          .att-mobile-list { display: block; }
+          .att-mobile-row {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 12px; border-bottom: 1px solid var(--border-color);
           }
-          .att-mobile-card {
-            border: 1px solid var(--border-color); border-radius: var(--radius-md);
-            padding: 12px; background: var(--surface);
-          }
-          .att-mobile-card__top {
-            display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
-          }
-          .att-mobile-card__info { flex: 1; min-width: 0; }
-          .att-mobile-card__name {
-            font-size: 14px; font-weight: 600; color: var(--text-primary);
+          .att-mobile-row__avatar { width: 30px; height: 30px; font-size: 10.5px; flex-shrink: 0; }
+          .att-mobile-row__info { flex: 1; min-width: 0; }
+          .att-mobile-row__name {
+            font-size: 13px; font-weight: 600; color: var(--text-primary);
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
           }
-          .att-mobile-card__meta {
-            font-size: 11px; color: var(--text-muted); margin-top: 2px;
-            display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+          .att-mobile-row__meta {
+            font-size: 10.5px; color: var(--text-muted); margin-top: 1px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
           }
-          .att-mobile-card__marks {
-            display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px;
+          .att-mobile-row__marks { display: flex; gap: 4px; flex-shrink: 0; }
+          .att-mobile-row__markbtn {
+            width: 28px; height: 28px; padding: 0; border-radius: 999px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 700; line-height: 1;
           }
-          .att-mobile-card__markbtn {
-            padding: 11px 4px; font-size: 12px; text-align: center;
+          .att-mobile-row__remarkbtn {
+            width: 28px; height: 28px; border-radius: 999px; border: none;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+            background: var(--surface); color: var(--text-muted); position: relative;
           }
-          .att-mobile-card__remark {
-            width: 100%; box-sizing: border-box; padding: 9px 10px;
+          .att-mobile-row__remarkbtn--filled { color: var(--primary); }
+          .att-mobile-row__remarkbtn-dot {
+            position: absolute; top: 3px; right: 3px; width: 6px; height: 6px;
+            border-radius: 999px; background: var(--primary);
+          }
+          .att-mobile-remark-row {
+            padding: 0 12px 10px 50px; border-bottom: 1px solid var(--border-color);
+          }
+          .att-mobile-remark-row input {
+            width: 100%; box-sizing: border-box; padding: 8px 10px;
             border-radius: var(--radius-md); border: 1px solid var(--border-color);
             background: var(--input-bg); color: var(--text-primary); font-size: 12.5px;
             font-family: var(--font-body); outline: none;
@@ -797,60 +807,64 @@ export default function AttendanceModule({ userId, schoolCode, userName, userRol
               </table>
             </div>
 
-            {/* Mobile card list */}
+            {/* Mobile list — one compact row per student, so a class of 40+
+                still fits without endless scrolling. The remark field is
+                hidden behind a small icon and only drops down when tapped;
+                a filled dot on that icon flags a remark that's already set. */}
             <div className="att-mobile-list">
               {filtered.map((student) => {
                 const record   = attendance[student.id] || {};
                 const status   = record.status || "";
                 const isFemale = student.gender === "Female";
                 const name     = fullName(student);
-                const cfg      = STATUS_CONFIG[status];
+                const hasRemark = !!record.remark;
+                const remarkOpen = expandedRemark === student.id;
 
                 return (
-                  <div key={student.id} className="att-mobile-card">
-                    <div className="att-mobile-card__top">
-                      <div className={`avatar ${isFemale ? "avatar--pink" : "avatar--blue"}`} style={{ width: 36, height: 36, fontSize: 12, flexShrink: 0 }}>
+                  <div key={student.id}>
+                    <div className="att-mobile-row">
+                      <div className={`avatar ${isFemale ? "avatar--pink" : "avatar--blue"} att-mobile-row__avatar`}>
                         {initials(name)}
                       </div>
-                      <div className="att-mobile-card__info">
-                        <div className="att-mobile-card__name">{name}</div>
-                        <div className="att-mobile-card__meta">
-                          <span className="student-code-badge__text">{student.studentCode}</span>
-                          {record.time && <span>· {record.time}</span>}
+                      <div className="att-mobile-row__info">
+                        <div className="att-mobile-row__name">{name}</div>
+                        <div className="att-mobile-row__meta">
+                          {student.studentCode}{record.time ? ` · ${record.time}` : ""}
                         </div>
                       </div>
-                      {status ? (
-                        <span className="status-pill" style={{ background: cfg.pale, color: cfg.text, border: cfg.border, flexShrink: 0 }}>
-                          <span className="status-pill__dot" />
-                          {status}
-                        </span>
-                      ) : (
-                        <span className="status-pill" style={{ background: "var(--surface)", color: "var(--text-muted)", border: "1px solid var(--border-color)", flexShrink: 0 }}>
-                          Unmarked
-                        </span>
-                      )}
+                      <div className="att-mobile-row__marks">
+                        {["Present", "Late", "Absent"].map((s) => (
+                          <button
+                            key={s}
+                            className="att-mobile-row__markbtn"
+                            onClick={() => markStudent(student.id, s)}
+                            title={s}
+                            style={markBtnStyle(status === s, STATUS_CONFIG[s])}
+                          >
+                            {s[0]}
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        className={`att-mobile-row__remarkbtn${hasRemark ? " att-mobile-row__remarkbtn--filled" : ""}`}
+                        onClick={() => setExpandedRemark(remarkOpen ? null : student.id)}
+                        title="Remark"
+                      >
+                        <MessageSquare size={14} />
+                        {hasRemark && <span className="att-mobile-row__remarkbtn-dot" />}
+                      </button>
                     </div>
-
-                    <div className="att-mobile-card__marks">
-                      {["Present", "Late", "Absent"].map((s) => (
-                        <button
-                          key={s}
-                          className="att-mobile-card__markbtn"
-                          onClick={() => markStudent(student.id, s)}
-                          style={markBtnStyle(status === s, STATUS_CONFIG[s])}
-                        >
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-
-                    <input
-                      type="text"
-                      placeholder="Add remark…"
-                      value={record.remark || ""}
-                      onChange={(e) => updateRemark(student.id, e.target.value)}
-                      className="att-mobile-card__remark"
-                    />
+                    {remarkOpen && (
+                      <div className="att-mobile-remark-row">
+                        <input
+                          type="text"
+                          autoFocus
+                          placeholder="Add remark…"
+                          value={record.remark || ""}
+                          onChange={(e) => updateRemark(student.id, e.target.value)}
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })}
