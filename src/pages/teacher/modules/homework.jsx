@@ -555,6 +555,12 @@ export default function HomeworkModule({ userId, schoolCode, userName, userRole 
   const saveHomework = async (formData, existingId = null) => {
     const payload = {
       ...formData,
+      // The id of the class in `school_classes`, not just its display name —
+      // stored so guardians are notified by the same identity the roster uses
+      // (see notifyHomeworkPosted / notifyGuardiansOfClass). Falls back to ""
+      // if the class was somehow removed from the map since the form opened;
+      // notifyGuardiansOfClass then falls back to matching on className.
+      classId:    schoolClassesMap[formData.className] || "",
       teacherId:  userId,
       schoolCode,
       updatedAt:  serverTimestamp(),
@@ -571,8 +577,11 @@ export default function HomeworkModule({ userId, schoolCode, userName, userRole 
       payload.submitted    = 0;
       const ref = await addDoc(collection(db, "homework"), payload);
       setHomework((prev) => [{ id: ref.id, ...payload }, ...prev]);
+      // Every guardian of every student in this exact class (matched by
+      // classId, so a same-named class on another campus is never included).
       await notifyHomeworkPosted({
         schoolCode,
+        classId: payload.classId,
         className: payload.className,
         subject: payload.subject,
         title: payload.title,

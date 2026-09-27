@@ -7,7 +7,10 @@
 // far smaller problem than the mark failing to save.
 import { db } from "../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
-import { notifyGuardians, notifyRoles, notifyUsers, pushNotifications, parentRecipientId } from "./notifications";
+import {
+  notifyGuardians, notifyGuardiansOfClass, notifyRoles, notifyUsers,
+  pushNotifications, parentRecipientId,
+} from "./notifications";
 import { tpl, learnerName } from "./messageTemplates";
 
 /**
@@ -205,20 +208,24 @@ export async function notifyMarksPublished({
 }
 
 // ─── Homework ────────────────────────────────────────────────────────────────
+/**
+ * Notifies the guardians of every student taking the class the homework was
+ * assigned to. Matched on `classId` (the id of the class in `school_classes`,
+ * not just its display name) so a same-named class on a different campus
+ * never gets pulled in — see notifyGuardiansOfClass. `className` is kept as a
+ * fallback for any homework doc that predates classId being stored.
+ */
 export async function notifyHomeworkPosted({
-  schoolCode, className, subject, title, dueDate, homeworkId, actor,
+  schoolCode, classId, className, subject, title, dueDate, homeworkId, actor,
 }) {
   try {
-    const students = (await loadStudents(schoolCode))
-      .filter((s) => !className || s.className === className);
-    if (students.length === 0) return;
-
     const due = dueDate
       ? new Date(`${dueDate}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
       : "";
-    await notifyGuardians({
-      students,
+    await notifyGuardiansOfClass({
       schoolCode,
+      classId,
+      className,
       ...bilingual(() => tpl.homework({ subject, title, dueLabel: due })),
       category: "homework",
       actorId: actor?.id,

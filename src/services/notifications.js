@@ -235,14 +235,21 @@ export async function notifyGuardians({ students, ...payload }) {
 }
 
 /**
- * Looks up the students in a class (or the whole school when `className` is
- * omitted) then notifies their guardians.
+ * Looks up the students in a class (or the whole school when neither `classId`
+ * nor `className` is given) then notifies their guardians.
+ *
+ * `classId` is preferred over `className` whenever the caller has it: class
+ * names are not unique across campuses (see the multi-campus support in
+ * StudentManagement), so a name-only match can pull in — or miss — students
+ * enrolled under the same class name on a different campus. `className` stays
+ * supported as a fallback for callers that predate `classId` being tracked.
  */
-export async function notifyGuardiansOfClass({ schoolCode, className, ...payload }) {
+export async function notifyGuardiansOfClass({ schoolCode, classId, className, ...payload }) {
   if (!schoolCode) return false;
   try {
     const filters = [where("schoolCode", "==", schoolCode)];
-    if (className) filters.push(where("className", "==", className));
+    if (classId) filters.push(where("classId", "==", classId));
+    else if (className) filters.push(where("className", "==", className));
     const snap = await getDocs(query(collection(db, "students"), ...filters));
     const students = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     return notifyGuardians({ students, schoolCode, ...payload });
