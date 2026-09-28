@@ -1,5 +1,3 @@
-
-Notificationhooks · JS
 // src/services/notificationHooks.js
 // One function per thing that happens in the school, so the modules that
 // trigger them stay a single call long and the wording of a notification lives
