@@ -61,6 +61,7 @@ import { getSession, setSession, clearSession } from "../_lib/waSession.js";
 import { openWhatsAppDirectCharge, openWhatsAppFeeCheckout } from "../_lib/waFeeCheckout.js";
 import { settleTransaction, TX_COLLECTION } from "../_lib/settle.js";
 import { normalisePhone } from "../../src/services/phone.js";
+import { handleSendAttendance } from "../_lib/attendanceSend.js";
 import { calculateTransactionFee } from "../../src/services/transactionFeeCore.js";
 
 const ATTEMPTS = "wa_payment_attempts";
@@ -475,11 +476,19 @@ async function route(senderPhone, text) {
   return undefined;
 }
 
+// Attendance sends can take a while (about two messages a second).
+export const config = { maxDuration: 60 };
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
   }
+
+  // The teacher-facing attendance send shares this function so the project
+  // stays under the Hobby plan's 12-function limit. It authenticates with the
+  // teacher's Firebase login, not the webhook token.
+  if (req.query?.action === "send") return handleSendAttendance(req, res);
 
   const expected = process.env.WAAPI_WEBHOOK_TOKEN;
   const given = String(req.query?.token || "");

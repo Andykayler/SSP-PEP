@@ -202,7 +202,7 @@ async function sendAttendanceWhatsApp({ className, date, items }) {
     const idToken = await user.getIdToken();
     // One request per 60 learners keeps each call inside the server's time limit.
     for (let i = 0; i < items.length; i += 60) {
-      const res = await fetch("/api/whatsapp/send", {
+      const res = await fetch("/api/whatsapp/webhook?action=send", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({ className, date, items: items.slice(i, i + 60) }),
