@@ -147,22 +147,15 @@ export default function SchoolRegistration() {
       });
 
       // A typo'd email would otherwise create an account nobody can recover.
-      // Failing to send must not fail the registration that already succeeded.
-      // The branded Acalink email first (api/auth/otp.js); Firebase's plain
-      // one only if that isn't available, so a founder is never left without
-      // a way to confirm their address.
+      // Firebase sends the verification link directly. Failing to send must
+      // not fail the registration that already succeeded, so the outcome is
+      // kept as a value and shown on the success screen.
       let verificationSent = false;
       try {
-        await apiPost("/api/auth/otp", { action: "send-verification-email" });
+        await sendEmailVerification(userCredential.user);
         verificationSent = true;
-      } catch (brandedErr) {
-        console.warn("[registration] branded verification unavailable:", brandedErr.message);
-        try {
-          await sendEmailVerification(userCredential.user);
-          verificationSent = true;
-        } catch (mailErr) {
-          console.warn("[registration] verification email not sent:", mailErr);
-        }
+      } catch (mailErr) {
+        console.warn("[registration] verification email not sent:", mailErr);
       }
 
       // Let the platform owner know there's a school waiting for approval.
@@ -207,8 +200,18 @@ export default function SchoolRegistration() {
 
           <p className="la-done__body">
             Your school is registered and waiting for approval. We review every new school, and you'll get an
-            email and a WhatsApp message as soon as it is approved.
-            {successData.verificationSent && <> We also emailed <strong>{successData.email}</strong>. Please open the link in it to confirm your address.</>}
+            email and a WhatsApp message as soon as it is approved.{" "}
+            {successData.verificationSent ? (
+              <>
+                We also emailed <strong>{successData.email}</strong>. Open the link in it to confirm
+                your address, and check your spam folder if you don't see it.
+              </>
+            ) : (
+              <>
+                We couldn't send the verification email to <strong>{successData.email}</strong>. Sign in
+                to request it again.
+              </>
+            )}
           </p>
 
           <div className="la-done__actions">
