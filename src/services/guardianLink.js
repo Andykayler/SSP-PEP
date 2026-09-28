@@ -127,7 +127,7 @@ export async function notifyGuardianOfPendingLink({
       recipientId: parentRecipientId(normalisePhone(phone)),
       title: `Confirm ${studentName}`,
       body: `${schoolName} has added ${studentName} to your ACALink account. `
-          + `Open the app and enter your password to see their records. `
+          + `Open parents.acalinks.com and enter your password to see their records. `
           + `If you were not expecting this, contact the school.`,
       category: "system",
       priority: "high",
@@ -155,7 +155,7 @@ export function enrolmentSms({ link, schoolName, studentName, className, student
   return `${schoolName}: ${studentName} has been enrolled in ${className || "school"}.\n`
        + `Student Code: ${studentCode}\n`
        + `${studentName} has been added to your existing ACALink account. `
-       + `Open the app and confirm with your password to see their records. `
+       + `Open parents.acalinks.com and confirm with your password to see their records. `
        + `You do NOT need a new password.\n`
        + `If you were not expecting this, contact the school.`;
 }
