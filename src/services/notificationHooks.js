@@ -1,3 +1,5 @@
+
+Notificationhooks · JS
 // src/services/notificationHooks.js
 // One function per thing that happens in the school, so the modules that
 // trigger them stay a single call long and the wording of a notification lives
@@ -7,6 +9,7 @@
 // far smaller problem than the mark failing to save.
 import { db } from "../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 import {
   notifyGuardians, notifyGuardiansOfClass, notifyRoles, notifyUsers,
   pushNotifications, parentRecipientId,
@@ -180,8 +183,36 @@ export async function notifyAttendanceSaved({
       entityType: "attendance",
       entityId: date,
     });
+
+    // WhatsApp goes through a server endpoint: the WaAPI token cannot live in
+    // the browser. The endpoint takes phone numbers from the student records
+    // and builds the message itself, so only ids and statuses are sent here.
+    await sendAttendanceWhatsApp({
+      className,
+      date,
+      items: flagged.map((s) => ({ studentId: s.id, status: records[s.id].status })),
+    });
   } catch (err) {
     console.error("[hooks] attendance notify failed:", err);
+  }
+}
+
+async function sendAttendanceWhatsApp({ className, date, items }) {
+  try {
+    const user = getAuth().currentUser;
+    if (!user || items.length === 0) return;
+    const idToken = await user.getIdToken();
+    // One request per 60 learners keeps each call inside the server's time limit.
+    for (let i = 0; i < items.length; i += 60) {
+      const res = await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ className, date, items: items.slice(i, i + 60) }),
+      });
+      if (!res.ok) console.error("[hooks] attendance WhatsApp failed:", res.status, await res.text());
+    }
+  } catch (err) {
+    console.error("[hooks] attendance WhatsApp failed:", err);
   }
 }
 
