@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Acalink advert, vertical 9:16</title>
+<meta name="viewport" content="width=1080">
+<style>
+@font-face{font-family:'Fraunces';font-weight:700;src:url(fonts/fraunces.ttf) format('truetype')}
+@font-face{font-family:'Caveat';font-weight:700;src:url(fonts/caveat.ttf) format('truetype')}
+@font-face{font-family:'DM Sans';font-weight:400;src:url(fonts/dmsans-400.ttf) format('truetype')}
+@font-face{font-family:'DM Sans';font-weight:500 700;src:url(fonts/dmsans-700.ttf) format('truetype')}
+/* 1080x1920 vertical advert. Same brand tokens as the landing page (src/pages/landing.css). */
+:root{--paper:#faf6ec;--alt:#f2ead8;--card:#fffdf8;--ink:#16213e;--muted:#4d5670;--blue:#3b56d9;
+--pencil:#f2b705;--red:#cf4029;--green:#1e8a5a;--wa:#dcf8c6;--wa-bg:#e9e1d3;
+--display:'Fraunces',Georgia,serif;--hand:'Caveat',cursive;--body:'DM Sans',system-ui,sans-serif}
+*{box-sizing:border-box;margin:0}
+html,body{width:1080px;height:1920px;overflow:hidden;background:var(--paper);font-family:var(--body);color:var(--ink)}
+.stage{position:relative;width:1080px;height:1920px;
+ background:repeating-linear-gradient(to bottom,transparent 0 63px,rgba(59,86,217,.09) 63px 64px),var(--paper)}
+.stage::before{content:"";position:absolute;left:96px;top:0;bottom:0;width:3px;background:rgba(207,64,41,.45)}
+.scene{position:absolute;inset:0;padding:150px 90px 120px 150px;display:flex;flex-direction:column;justify-content:center;gap:56px;
+ opacity:0;transform:translateY(30px);transition:opacity .5s ease,transform .5s ease;pointer-events:none}
+.scene.on{opacity:1;transform:none}
+.scene.out{opacity:0;transform:translateY(-30px)}
+.eyebrow{font:700 34px/1 var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--red)}
+h1,h2{font-family:var(--display);font-weight:700;line-height:1.08}
+h1{font-size:132px}h2{font-size:92px}
+.hand{font-family:var(--hand);font-weight:700;font-size:70px;color:var(--red);line-height:1}
+mark{background:linear-gradient(transparent 58%,rgba(242,183,5,.5) 58%);color:inherit}
+.cap{font-size:46px;line-height:1.35;color:var(--muted);max-width:820px}
+.cap b{color:var(--ink)}
+.sample{position:absolute;left:150px;bottom:64px;font:500 28px var(--body);color:var(--muted);opacity:.8}
+.pop{opacity:0;transform:translateY(40px) scale(.97);transition:opacity .5s ease,transform .5s cubic-bezier(.2,.9,.3,1.2)}
+.on .pop.s1{opacity:1;transform:none;transition-delay:.3s}
+.on .pop.s2{opacity:1;transform:none;transition-delay:1.4s}
+.on .pop.s3{opacity:1;transform:none;transition-delay:2.6s}
+.on .pop.s4{opacity:1;transform:none;transition-delay:3.8s}
+
+/* register */
+.sheet{background:var(--card);border:3px solid rgba(22,33,62,.18);border-radius:10px;padding:36px 44px;box-shadow:0 30px 60px -30px rgba(22,33,62,.4)}
+.sheet .hd{display:flex;justify-content:space-between;font:700 40px var(--display);padding-bottom:22px;border-bottom:3px solid rgba(22,33,62,.14);margin-bottom:12px}
+.row{display:flex;align-items:center;gap:30px;font-size:52px;padding:22px 0;border-bottom:2px dashed rgba(22,33,62,.14)}
+.row:last-child{border:0}
+.box{width:64px;height:64px;border-radius:12px;display:grid;place-items:center;background:var(--green);color:#fff;font:700 44px var(--body);transition:background .3s}
+.row.abs .box{background:#cfcabd}
+.on .row.abs.flip .box{background:var(--red)}
+.row.abs.flip{color:var(--red);font-weight:700}
+/* phone */
+.phone{width:760px;height:1000px;background:var(--wa-bg);border:14px solid #1b2440;border-radius:70px;padding:0;overflow:hidden;align-self:center;box-shadow:0 40px 80px -30px rgba(22,33,62,.55);display:flex;flex-direction:column}
+.phone .bar{background:#1f7a5a;color:#fff;padding:34px 36px;font:700 40px var(--body);display:flex;align-items:center;gap:22px}
+.phone .av{width:62px;height:62px;border-radius:50%;background:#fff;color:#1f7a5a;display:grid;place-items:center;font:700 34px var(--display)}
+.phone .chat{padding:36px 30px;display:flex;flex-direction:column;gap:26px;flex:1;background:linear-gradient(rgba(233,225,211,.6),rgba(233,225,211,.6))}
+.msg{background:#fff;border-radius:6px 26px 26px 26px;padding:28px 32px;font-size:40px;line-height:1.35;max-width:640px;box-shadow:0 2px 0 rgba(0,0,0,.08)}
+.msg small{display:block;text-align:right;color:#8a8f9c;font-size:26px;margin-top:8px}
+.msg.ok{background:var(--wa);border-radius:26px 6px 26px 26px;align-self:flex-end}
+.tick{color:#2a9df4}
+/* report */
+.marks{width:100%;border-collapse:collapse;font-size:50px}
+.marks td{padding:24px 0;border-bottom:2px dashed rgba(22,33,62,.16)}
+.marks td:nth-child(2){text-align:right;font-weight:700;font-variant-numeric:tabular-nums;padding-right:34px}
+.marks td:nth-child(3){text-align:right;color:var(--green);font-weight:700;font-size:40px}
+.stamp{position:absolute;right:40px;top:-96px;width:132px;height:132px;border-radius:50%;background:var(--pencil);display:grid;place-items:center;transform:rotate(12deg);font:700 60px var(--display);color:var(--ink)}
+/* lesson plan */
+.field{font-size:44px;line-height:1.4}
+.field .lab{font:700 30px var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--blue);display:block;margin-bottom:10px}
+.type{display:inline-block;overflow:hidden;white-space:nowrap;vertical-align:bottom;width:0;border-right:4px solid var(--blue)}
+.on .type{animation:typing 1.6s steps(24) .5s forwards}
+@keyframes typing{to{width:11.5em;border-color:transparent}}
+.gen{justify-self:start;background:var(--blue);color:#fff;border-radius:16px;font:700 42px var(--body);padding:24px 44px;display:inline-block;align-self:flex-start}
+ul.plan{list-style:none;padding:0;display:grid;gap:20px;font-size:44px;line-height:1.3}
+ul.plan li::before{content:"✓";color:var(--green);font-weight:700;margin-right:18px}
+/* cta */
+.logo{font:700 150px/1 var(--display);color:var(--blue)}
+.pills{display:flex;flex-wrap:wrap;gap:20px}
+.pill{border:3px solid var(--ink);border-radius:999px;padding:16px 34px;font:700 40px var(--body)}
+.btn{background:var(--blue);color:#fff;font:700 62px var(--body);padding:36px 56px;border-radius:26px;align-self:flex-start;box-shadow:0 20px 0 -8px #2f47bd}
+.url{font:700 84px var(--display)}
+</style></head>
+<body><div class="stage" id="stage">
+
+<!-- 0 hook -->
+<section class="scene" data-s="0">
+  <p class="eyebrow pop s1">Monday · 7:45am</p>
+  <h1 class="pop s1">Memory is <mark>not in class.</mark></h1>
+  <div class="sheet pop s2">
+    <div class="hd"><span>Form 3A register</span><span>Monday</span></div>
+    <div class="row"><span class="box">✓</span>Chikondi Mwale</div>
+    <div class="row"><span class="box">✓</span>Tiyamike Phiri</div>
+    <div class="row abs flip"><span class="box">✕</span>Memory Banda</div>
+    <div class="row"><span class="box">✓</span>Yamikani Kachale</div>
+  </div>
+  <p class="hand pop s3">a few taps. that's the register.</p>
+  <p class="sample">Sample data</p>
+</section>
+
+<!-- 1 whatsapp absence -->
+<section class="scene" data-s="1">
+  <p class="eyebrow pop s1">7:47am</p>
+  <div class="phone pop s1">
+    <div class="bar"><span class="av">S</span>Your school</div>
+    <div class="chat">
+      <div class="msg pop s2">Good morning. Memory Banda (Form 3A) was marked absent today. Please let the school know if she is unwell.<small>07:47</small></div>
+      <div class="msg ok pop s3">She has malaria. Back on Wednesday, thank you.<small>07:52 <span class="tick">✓✓</span></small></div>
+    </div>
+  </div>
+  <h2 class="pop s2">Parents hear it <mark>from the school first.</mark></h2>
+  <p class="sample">Sample data</p>
+</section>
+
+<!-- 2 fees -->
+<section class="scene" data-s="2">
+  <p class="eyebrow pop s1">Fees</p>
+  <div class="phone pop s1">
+    <div class="bar"><span class="av">A</span>Acalink · school fees</div>
+    <div class="chat">
+      <div class="msg pop s2">Term 2 fees: a reminder that the balance of MK 85,000 is due on 14 October.<small>08:00</small></div>
+      <div class="msg ok pop s3">Paid by mobile money.<small>08:14 <span class="tick">✓✓</span></small></div>
+      <div class="msg pop s4">Payment received. Receipt sent to the bursar and to you. Thank you.<small>08:15</small></div>
+    </div>
+  </div>
+  <h2 class="pop s2">Reminded on WhatsApp. <mark>Paid on the phone.</mark></h2>
+  <p class="sample">Sample data</p>
+</section>
+
+<!-- 3 marks -->
+<section class="scene" data-s="3">
+  <p class="eyebrow pop s1">Term end</p>
+  <h2 class="pop s1">Marks go onto the <mark>MANEB scale.</mark></h2>
+  <div class="sheet pop s2" style="position:relative">
+    <span class="stamp">★</span>
+    <div class="hd"><span>Term 2 report</span><span>Form 3A</span></div>
+    <p style="font:700 50px var(--display);margin-bottom:8px">Memory Banda</p>
+    <table class="marks">
+      <tr><td>Mathematics</td><td>82</td><td>G1 · Distinction</td></tr>
+      <tr><td>English</td><td>74</td><td>G2 · Distinction</td></tr>
+      <tr><td>Biology</td><td>68</td><td>G3 · Credit</td></tr>
+    </table>
+  </div>
+  <p class="hand pop s3">enter once. the grades work themselves out.</p>
+  <p class="sample">Sample data</p>
+</section>
+
+<!-- 4 teacher + head teacher -->
+<section class="scene" data-s="4">
+  <p class="eyebrow pop s1">Teachers &amp; head teachers</p>
+  <div class="sheet pop s1" style="display:grid;gap:34px">
+    <div class="field"><span class="lab">Lesson topic</span><span class="type">Quadratic equations</span></div>
+    <span class="gen pop s2">Generate with AI</span>
+    <ul class="plan pop s3">
+      <li>Objectives drafted</li>
+      <li>Resources listed</li>
+      <li>Assessment suggested</li>
+    </ul>
+  </div>
+  <h2 class="pop s3">Plan from a topic. The head teacher <mark>reads every plan.</mark></h2>
+  <p class="cap pop s4">And Class Monitor shows which lessons are actually being taken.</p>
+  <p class="sample">Sample data</p>
+</section>
+
+<!-- 5 cta -->
+<section class="scene" data-s="5">
+  <p class="logo pop s1">Acalink</p>
+  <h2 class="pop s1">From the <mark>first bell</mark> to the last report card.</h2>
+  <div class="pills pop s2">
+    <span class="pill">Built for Malawi</span>
+    <span class="pill">Every module included</span>
+    <span class="pill">Priced per learner, in kwacha</span>
+  </div>
+  <span class="btn pop s3">Register your school</span>
+  <p class="url pop s4">acalink.mw</p>
+</section>
+
+</div>
+<script>
+/* Scene timeline in seconds. Total length is END. */
+window.TIMELINE=[0,5,11,17,23,29]; window.END=37;
+window.startAd=function(){
+  var scenes=[].slice.call(document.querySelectorAll('.scene'));
+  TIMELINE.forEach(function(t,i){
+    setTimeout(function(){
+      if(i>0){scenes[i-1].classList.remove('on');scenes[i-1].classList.add('out')}
+      scenes[i].classList.add('on');
+    },t*1000);
+  });
+};
+</script>
+</body></html>
