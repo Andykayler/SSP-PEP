@@ -14,17 +14,20 @@ messages and amounts on screen are sample data and are labelled as such.
 ```bash
 pip install kokoro-onnx soundfile numpy imageio-ffmpeg     # imageio-ffmpeg ships a full ffmpeg
 npm i -g playwright                                        # or any install that `require("playwright")` finds
-# Voice: the Kokoro model and voice packs are bundled in the `expo-kokoro` npm package.
-npm pack expo-kokoro && tar xzf expo-kokoro-*.tgz package/build/kokoro-quantized.onnx package/build/voices
+# Voice model: full-precision Kokoro-82M ships as three npm packages of shards; voice packs come from expo-kokoro.
+# (Do not use expo-kokoro's int8 model: it sounds robotic.)
+for p in kokoro-fp32a-shards kokoro-fp32b-shards kokoro-fp32c-shards expo-kokoro; do npm pack $p; done
+for f in *.tgz; do tar xzf $f; done      # shards land in package/ (extract each into its own dir if names clash)
+cat $(ls package/kokoro-fp32.part*.bin | sort -V) > kokoro-fp32.onnx
 python3 - <<'PY'   # pack the raw voice files into the npz that kokoro-onnx reads
 import numpy as np, glob, os
 np.savez("voices.npz", **{os.path.basename(f)[:-4]: np.fromfile(f, np.float32).reshape(-1, 1, 256)
                           for f in glob.glob("package/build/voices/*.bin")})
 PY
-export KOKORO_MODEL=$PWD/package/build/kokoro-quantized.onnx KOKORO_VOICES=$PWD/voices.npz
+export KOKORO_MODEL=$PWD/kokoro-fp32.onnx KOKORO_VOICES=$PWD/voices.npz
 ln -sf "$(python3 -c 'import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())')" /usr/local/bin/ffmpeg
 ./build.sh
 ```
 
-Change the narrator with `"voice"` in `script.json` (`bf_emma`, `bf_isabella`, `bm_george`, `bm_lewis`, `af_heart`, ...).
+Change the narrator with `"voice"` in `script.json` (`af_heart` is Kokoro's best-rated voice; `bf_emma`, `bf_isabella`, `bm_george`, `am_michael`, ...).
 Kokoro speaks English only, so there is no Chichewa voiceover.

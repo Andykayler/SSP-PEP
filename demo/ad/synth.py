@@ -1,13 +1,13 @@
 """Synthesises the voiceover from script.json with Kokoro (offline ONNX) and writes
 build/voiceover.wav plus build/timeline.js (scene start/duration, driven by the audio).
-Model and voices: the Kokoro int8 model and voice packs shipped in the `expo-kokoro` npm
-package (see README). Set KOKORO_MODEL and KOKORO_VOICES to override the paths."""
+Model: full-precision Kokoro-82M from the `kokoro-fp32a/b/c-shards` npm packages; voices from
+`expo-kokoro` (see README). The int8 model in expo-kokoro sounds noticeably robotic; avoid it. Set KOKORO_MODEL and KOKORO_VOICES to override the paths."""
 import json, os, sys, numpy as np, soundfile as sf
 from kokoro_onnx import Kokoro
 
 here = os.path.dirname(os.path.abspath(__file__))
 cfg = json.load(open(os.path.join(here, "script.json")))
-model = os.environ.get("KOKORO_MODEL", "/tmp/tts/package/build/kokoro-quantized.onnx")
+model = os.environ.get("KOKORO_MODEL", "/tmp/tts/fp32/kokoro-fp32.onnx")
 voices = os.environ.get("KOKORO_VOICES", "/tmp/tts/voices.npz")
 k = Kokoro(model, voices)
 SR = 24000
