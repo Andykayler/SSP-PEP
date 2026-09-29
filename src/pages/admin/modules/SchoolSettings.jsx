@@ -12,7 +12,7 @@ import { SCHOOL_TYPES, setSchoolType, schoolTypeLabel } from "../../../services/
 import { subscribeSchoolSettings } from "../../../services/academicTerm";
 import { syncAssignmentsWithClasses } from "../../../services/staffAssignments";
 import {
-  sectionsOf, sectionOfClass, sectionKeyOfClass, sectionName, sectionOrder, renameClass, ladderFor, classDocIdFor,
+  SECTIONS, CURRICULA, sectionsOf, sectionOfClass, sectionKeyOfClass, sectionName, sectionOrder, renameClass, ladderFor, classDocIdFor,
 } from "../../../services/curriculum";
 import CurriculumSettings from "../../../components/setup/CurriculumSettings";
 import {
@@ -651,9 +651,18 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
         <Modal title={editingClass ? "Edit Class" : "Add New Class"} onClose={() => setShowClassModal(false)} size="lg">
           <div className="space-y-5">
             {classError && <div className="alert alert--error">{IC.warning}<span>{classError}</span></div>}
-            <Select label="Section" required value={classForm.sectionKey} onChange={e => chooseSection(e.target.value)}>
-              {sections.map((x) => <option key={x.key} value={x.key}>{sectionName(x)}</option>)}
-            </Select>
+            <div className="grid-2">
+              {/* The level, then which of its ticked curricula this class follows. */}
+              <Select label="Section" required value={formSection?.id || ""}
+                onChange={e => chooseSection(sections.find((x) => x.id === e.target.value)?.key)}>
+                {SECTIONS.filter((l) => sections.some((x) => x.id === l.id)).map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+              </Select>
+              <Select label="Curriculum" required value={classForm.sectionKey} onChange={e => chooseSection(e.target.value)}>
+                {sections.filter((x) => x.id === formSection?.id).map((x) => (
+                  <option key={x.key} value={x.key}>{CURRICULA.find((c) => c.id === x.curriculum)?.label}</option>
+                ))}
+              </Select>
+            </div>
             <div className="grid-2">
               <Select label="Class" required value={classForm.rung}
                 onChange={e => setClassForm(p => ({ ...p, rung: e.target.value === CUSTOM ? CUSTOM : Number(e.target.value) }))}>

@@ -164,7 +164,6 @@ export default function CurriculumSettings({ schoolCode, settings, actorId }) {
   const draft = edits ?? saved;
   const dirty = edits !== null;
   const [open, setOpen] = useState(() => saved[0]?.key || "");
-  const [adding, setAdding] = useState({ level: "primary", curriculum: "malawi" });
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState(null); // { tone, text }
   const [classes, setClasses] = useState([]);
@@ -183,23 +182,20 @@ export default function CurriculumSettings({ schoolCode, settings, actorId }) {
   const edit = (next) => { setEdits(clone(next)); setNote(null); };
   const update = (key, patch) => edit(draft.map((s) => (s.key === key ? { ...s, ...patch } : s)));
 
-  const newKey = sectionKey(adding.level, adding.curriculum);
-  const alreadyRun = draft.some((s) => s.key === newKey);
-
-  function addSection() {
-    if (alreadyRun) return;
-    const added = defaultSection(adding.level, adding.curriculum);
-    edit([...draft, added].sort((a, b) => sectionOrder(a) - sectionOrder(b)));
-    setOpen(added.key);
-  }
-
-  function removeSection(section) {
-    if (draft.length === 1) { setNote({ tone: "danger", text: "A school needs at least one section." }); return; }
-    const inUse = classesIn(section.key).length;
-    if (!window.confirm(inUse
-      ? `${inUse} class${inUse === 1 ? " is" : "es are"} in ${sectionName(section)}. Remove the section anyway? The classes stay, but they'll be graded as another section until you move them.`
-      : `Remove ${sectionName(section)}?`)) return;
-    edit(draft.filter((s) => s.key !== section.key));
+  /** Ticking a curriculum under a level adds that section; unticking removes it. */
+  function toggle(level, curriculum) {
+    const key = sectionKey(level, curriculum);
+    const existing = draft.find((s) => s.key === key);
+    if (!existing) {
+      const added = defaultSection(level, curriculum);
+      edit([...draft, added].sort((a, b) => sectionOrder(a) - sectionOrder(b)));
+      setOpen(added.key);
+      return;
+    }
+    if (draft.length === 1) { setNote({ tone: "danger", text: "A school needs at least one curriculum ticked." }); return; }
+    const inUse = classesIn(key).length;
+    if (inUse && !window.confirm(`${inUse} class${inUse === 1 ? " is" : "es are"} in ${sectionName(existing)}. Untick it anyway? The classes stay, but they'll be graded as another section until you move them.`)) return;
+    edit(draft.filter((s) => s.key !== key));
   }
 
   async function rename(from, to) {
@@ -258,46 +254,48 @@ export default function CurriculumSettings({ schoolCode, settings, actorId }) {
     <div className="space-y-4">
       {note && <Notice tone={note.tone} onDismiss={() => setNote(null)}>{note.text}</Notice>}
 
-      {/* The sections the school runs, one tab each. */}
-      <div className="flex gap-2" style={{ flexWrap: "wrap" }} role="tablist">
-        {draft.map((s) => (
-          <button key={s.key} type="button" role="tab" aria-selected={activeKey === s.key}
-            className={`filter-btn ${activeKey === s.key ? "filter-btn--active" : ""}`} onClick={() => setOpen(s.key)}>
-            {sectionName(s)}
-            <span className="text-muted" style={{ fontSize: 11, marginLeft: 6 }}>{classesIn(s.key).length}</span>
-          </button>
+      {/* Which curricula each level is taught to — tick as many as the school runs. */}
+      <div style={{ border: "1px solid var(--border-color, var(--border))", borderRadius: 12, overflow: "hidden" }}>
+        {SECTIONS.map((level, i) => (
+          <div key={level.id} className="flex items-center" style={{
+            gap: 16, flexWrap: "wrap", padding: "12px 16px",
+            borderTop: i ? "1px solid var(--border-color, var(--border))" : "none",
+          }}>
+            <strong style={{ minWidth: 120 }}>{level.label}</strong>
+            {CURRICULA.map((c) => (
+              <label key={c.id} className="flex items-center gap-2" style={{ cursor: "pointer", fontSize: 13.5 }}>
+                <input type="checkbox" checked={draft.some((s) => s.key === sectionKey(level.id, c.id))}
+                  onChange={() => toggle(level.id, c.id)} />
+                {c.label}
+              </label>
+            ))}
+          </div>
         ))}
       </div>
 
-      {/* Add another: any level, any curriculum — including a second curriculum at a level already run. */}
-      <div className="flex gap-2" style={{ flexWrap: "wrap", alignItems: "center" }}>
-        <span className="field__label" style={{ margin: 0 }}>Add a section</span>
-        <select className="field__select" style={{ width: 160 }} value={adding.level}
-          onChange={(e) => setAdding((p) => ({ ...p, level: e.target.value }))} aria-label="Level">
-          {SECTIONS.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
-        </select>
-        <select className="field__select" style={{ width: 190 }} value={adding.curriculum}
-          onChange={(e) => setAdding((p) => ({ ...p, curriculum: e.target.value }))} aria-label="Curriculum">
-          {CURRICULA.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-        </select>
-        <Btn variant="ghost" size="sm" icon={<Plus size={13} />} onClick={addSection} disabled={alreadyRun}>
-          {alreadyRun ? "Already added" : "Add"}
-        </Btn>
-      </div>
+      {/* Subjects and grading for each ticked one. */}
+      {draft.length > 1 && (
+        <div className="flex gap-2" style={{ flexWrap: "wrap" }} role="tablist">
+          {draft.map((s) => (
+            <button key={s.key} type="button" role="tab" aria-selected={activeKey === s.key}
+              className={`filter-btn ${activeKey === s.key ? "filter-btn--active" : ""}`} onClick={() => setOpen(s.key)}>
+              {sectionName(s)}
+              <span className="text-muted" style={{ fontSize: 11, marginLeft: 6 }}>{classesIn(s.key).length}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {draft.filter((s) => s.key === activeKey).map((section) => {
         const ladder = ladderFor(section.id, section.curriculum);
         const count = classesIn(section.key).length;
         return (
           <div key={section.key} className="space-y-5" style={{ border: "1px solid var(--border-color, var(--border))", borderRadius: 12, padding: 18 }}>
-            <div className="flex items-center justify-between" style={{ gap: 12, flexWrap: "wrap" }}>
-              <div>
-                <p style={{ fontWeight: 700 }}>{sectionName(section)}</p>
-                <p className="text-muted" style={{ fontSize: 12, marginTop: 2 }}>
-                  Classes: {ladder.join(", ")}. {count} class{count === 1 ? "" : "es"} set up — add them under Classes.
-                </p>
-              </div>
-              <Btn variant="ghost" size="sm" icon={<Trash2 size={13} />} onClick={() => removeSection(section)}>Remove section</Btn>
+            <div>
+              <p style={{ fontWeight: 700 }}>{sectionName(section)}</p>
+              <p className="text-muted" style={{ fontSize: 12, marginTop: 2 }}>
+                Classes: {ladder.join(", ")}. {count} class{count === 1 ? "" : "es"} set up — add them under Classes.
+              </p>
             </div>
 
             <div>
