@@ -20,25 +20,86 @@ const kComponents = <AssessmentComponent>[
   AssessmentComponent('EndTerm', 'End of Term', 0.60),
 ];
 
-/// MANEB (MSCE) grade scale, mirroring MANEB_GRADES in PerformanceModule.
-class ManebGrade {
-  final int grade;
+/// One grade on a school's scale: "A*", "B", or MANEB's "1".."9".
+class Grade {
+  final String label;
   final String remark;
   final String tone; // success | primary | warning | danger
-  const ManebGrade(this.grade, this.remark, this.tone);
+  final bool pass;
+  const Grade(this.label, this.remark, this.tone, this.pass);
+
+  /// "G1" for MANEB's numbered grades, the grade itself otherwise.
+  String get code => RegExp(r'^\d+$').hasMatch(label) ? 'G$label' : label;
 }
 
-ManebGrade gradeFor(num score) {
-  if (score >= 80) return const ManebGrade(1, 'Distinction', 'success');
-  if (score >= 70) return const ManebGrade(2, 'Distinction', 'success');
-  if (score >= 65) return const ManebGrade(3, 'Credit', 'primary');
-  if (score >= 60) return const ManebGrade(4, 'Credit', 'primary');
-  if (score >= 55) return const ManebGrade(5, 'Credit', 'primary');
-  if (score >= 50) return const ManebGrade(6, 'Credit', 'primary');
-  if (score >= 45) return const ManebGrade(7, 'Pass', 'warning');
-  if (score >= 40) return const ManebGrade(8, 'Pass', 'warning');
-  return const ManebGrade(9, 'Fail', 'danger');
+class GradeBand {
+  final String label;
+  final num min;
+  final String remark;
+  final bool pass;
+  const GradeBand(this.label, this.min, this.remark, this.pass);
 }
+
+/// The grading scale for the child's class — set by the school in the portal
+/// (School Settings → Sections, Curriculum & Grading) and sent with the
+/// results. Mirrors gradeFor/toneFor in src/services/curriculumCore.js.
+class GradingScale {
+  final String name;
+  final List<GradeBand> bands; // highest first
+  const GradingScale(this.name, this.bands);
+
+  static const maneb = GradingScale('MANEB 1–9', [
+    GradeBand('1', 80, 'Distinction', true),
+    GradeBand('2', 70, 'Distinction', true),
+    GradeBand('3', 65, 'Credit', true),
+    GradeBand('4', 60, 'Credit', true),
+    GradeBand('5', 55, 'Credit', true),
+    GradeBand('6', 50, 'Credit', true),
+    GradeBand('7', 45, 'Pass', true),
+    GradeBand('8', 40, 'Pass', true),
+    GradeBand('9', 0, 'Fail', false),
+  ]);
+
+  /// From the results endpoint's `grading`; MANEB when absent or malformed,
+  /// which is what an older server (or an older school) means.
+  factory GradingScale.fromJson(Object? raw) {
+    if (raw is! Map) return maneb;
+    final bands = <GradeBand>[];
+    for (final b in (raw['bands'] as List?) ?? const []) {
+      if (b is! Map || b['min'] is! num) continue;
+      bands.add(GradeBand(
+        '${b['label'] ?? ''}',
+        b['min'] as num,
+        '${b['remark'] ?? ''}',
+        b['pass'] != false,
+      ));
+    }
+    if (bands.length < 2) return maneb;
+    bands.sort((a, b) => b.min.compareTo(a.min));
+    return GradingScale('${raw['name'] ?? 'School scale'}', bands);
+  }
+
+  String _tone(int i) {
+    final band = bands[i];
+    if (!band.pass) return 'danger';
+    final passing = bands.where((b) => b.pass).length;
+    if (passing <= 1) return 'success';
+    final pos = i / (passing - 1);
+    if (pos < 0.34) return 'success';
+    if (pos < 0.75) return 'primary';
+    return 'warning';
+  }
+
+  Grade gradeFor(num score) {
+    var i = bands.indexWhere((b) => score >= b.min);
+    if (i == -1) i = bands.length - 1;
+    final b = bands[i];
+    return Grade(b.label, b.remark, _tone(i), b.pass);
+  }
+}
+
+/// The grade for a score — on the child's school scale when given, MANEB otherwise.
+Grade gradeFor(num score, [GradingScale scale = GradingScale.maneb]) => scale.gradeFor(score);
 
 /// One subject, with whatever components have been published so far.
 class SubjectResult {
@@ -155,6 +216,9 @@ class ResultsData {
   /// What to tell the family when [withheld] — written by the server.
   final String withheldMessage;
 
+  /// How this child's class turns a mark into a grade.
+  final GradingScale scale;
+
   const ResultsData({
     required this.term,
     required this.subjects,
@@ -162,6 +226,7 @@ class ResultsData {
     required this.availableComponents,
     this.withheld = false,
     this.withheldMessage = '',
+    this.scale = GradingScale.maneb,
   });
 
   static const empty = ResultsData(
@@ -228,6 +293,7 @@ class ResultsService {
       subjects: subjects,
       reportCard: card is Map ? ReportCard.fromMap(card.cast<String, dynamic>()) : null,
       availableComponents: available,
+      scale: GradingScale.fromJson(data['grading']),
     );
   }
 }

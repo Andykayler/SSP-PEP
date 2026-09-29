@@ -1,5 +1,5 @@
 // modules/PerformanceModule.jsx  (Headteacher dashboard)
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { db } from "../../../firebase";
 import {
   collection, query, where, getDocs, doc, getDoc,
@@ -11,6 +11,8 @@ import {
 import {
   subscribeSchoolSettings, pastTermOptions, isPastTerm,
 } from "../../../services/academicTerm";
+import { sectionsOf, sectionIdOfClass, MANEB_SCALE } from "../../../services/curriculumCore";
+import { gradeInfo, scaleRows, rangeLabel } from "../../../components/ui/grades";
 
 // ─── Assessment components & their weight toward the overall term grade ──────
 // Mirrors the teacher-side Performance module exactly — same ids are used as
@@ -42,26 +44,6 @@ function computeWeighted(perComponentScores) {
 
 const round1 = (n) => Math.round(n * 10) / 10;
 
-// ─── MANEB Grade Scale ────────────────────────────────────────────────────────
-const MANEB_GRADES = [
-  { grade: 1, min: 80, max: 100, remark: "Distinction", color: "text-emerald-700", bg: "bg-emerald-100", border: "border-emerald-200" },
-  { grade: 2, min: 70, max: 79,  remark: "Distinction", color: "text-emerald-600", bg: "bg-emerald-50",  border: "border-emerald-200" },
-  { grade: 3, min: 65, max: 69,  remark: "Credit",      color: "text-blue-700",    bg: "bg-blue-100",    border: "border-blue-200" },
-  { grade: 4, min: 60, max: 64,  remark: "Credit",      color: "text-blue-600",    bg: "bg-blue-50",     border: "border-blue-200" },
-  { grade: 5, min: 55, max: 59,  remark: "Credit",      color: "text-sky-600",     bg: "bg-sky-50",      border: "border-sky-200" },
-  { grade: 6, min: 50, max: 54,  remark: "Credit",      color: "text-sky-500",     bg: "bg-sky-50",      border: "border-sky-200" },
-  { grade: 7, min: 45, max: 49,  remark: "Pass",        color: "text-amber-600",   bg: "bg-amber-50",    border: "border-amber-200" },
-  { grade: 8, min: 40, max: 44,  remark: "Pass",        color: "text-amber-500",   bg: "bg-amber-50",    border: "border-amber-200" },
-  { grade: 9, min: 0,  max: 39,  remark: "Fail",        color: "text-red-600",     bg: "bg-red-50",      border: "border-red-200" },
-];
-
-function getGradeInfo(score) {
-  if (score === null || score === undefined || score === "") return null;
-  const n = Number(score);
-  if (isNaN(n)) return null;
-  return MANEB_GRADES.find(g => n >= g.min && n <= g.max) || MANEB_GRADES[MANEB_GRADES.length - 1];
-}
-
 function Spinner({ size = 20 }) {
   return <div className="spinner" style={{ width: size, height: size }} />;
 }
@@ -75,6 +57,7 @@ function fullName(s) {
 // single-assessment view `complete` is just `true` whenever a score exists;
 // for the Overall view it reflects whether all four components were entered.
 function StudentModal({ student, subjectRows, assessmentLabel, isOverall, onClose }) {
+  const getGradeInfo = (score) => gradeInfo(score, student.scale);
   const g = getGradeInfo(student.average);
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -105,7 +88,7 @@ function StudentModal({ student, subjectRows, assessmentLabel, isOverall, onClos
             </div>
             {g && (
               <div className="text-right">
-                <p className={`text-2xl font-bold ${g.color}`}>G{g.grade}</p>
+                <p className={`text-2xl font-bold ${g.color}`}>{g.code}</p>
                 <p className={`text-xs font-semibold ${g.color}`}>{g.remark}</p>
               </div>
             )}
@@ -134,7 +117,7 @@ function StudentModal({ student, subjectRows, assessmentLabel, isOverall, onClos
                     </div>
                     {hasScore ? (
                       <span className={`text-xs font-bold w-24 text-right ${sg?.color || "text-app-text"}`}>
-                        {score}% {sg ? `· G${sg.grade}` : ""}{isOverall && !complete ? " *" : ""}
+                        {score}% {sg ? `· ${sg.code}` : ""}{isOverall && !complete ? " *" : ""}
                       </span>
                     ) : (
                       <span className="text-xs text-app-text/30 w-24 text-right">No data</span>
@@ -197,12 +180,14 @@ export default function PerformanceModule({ schoolCode }) {
   const [search,         setSearch]         = useState("");
   const [viewingStudent, setViewingStudent] = useState(null);
   const [error,          setError]          = useState("");
+  const [schoolSettings, setSchoolSettings] = useState(null);
 
   // The school's current term is the default and the only one shown until the
   // head teacher deliberately looks back.
   useEffect(() => {
     if (!schoolCode) return undefined;
     const unsub = subscribeSchoolSettings(schoolCode, (settings) => {
+      setSchoolSettings(settings);
       const term = settings?.currentTerm || "";
       setSchoolTerm(term);
       setSelectedTerm((chosen) => chosen || term);
@@ -320,6 +305,24 @@ export default function PerformanceModule({ schoolCode }) {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Each class is graded on its own section's scale (School Settings →
+  // Sections, Curriculum & Grading). Looked up once per section so the same
+  // scale is the same object, which the distribution chart compares on.
+  const sections = useMemo(() => sectionsOf(schoolSettings), [schoolSettings]);
+  const scaleOf = (classId) => {
+    const cls = classes.find((c) => c.id === classId);
+    const id = sectionIdOfClass(cls, sections);
+    return (sections.find((x) => x.id === id) || sections[0])?.grading || MANEB_SCALE;
+  };
+  // The scale for the whole view: the chosen class's, or the one every class
+  // shares. With "All classes" across differently graded sections there is no
+  // single scale, so the legend and chart use the first and say so.
+  const classScales = [...new Set(classes.map((c) => scaleOf(c.id)))];
+  const mixedScales = selectedClassId === "all" && classScales.length > 1;
+  const viewScale = selectedClassId === "all" ? (classScales[0] || MANEB_SCALE) : scaleOf(selectedClassId);
+  const GRADES = scaleRows(viewScale);
+  const getGradeInfo = (score, scale = viewScale) => gradeInfo(score, scale);
+
   const getBucket = (classId, assessmentType) =>
     marksByClassAssessment[classId]?.[assessmentType] || { subjects: [], marks: {}, teacherIds: [] };
 
@@ -338,7 +341,7 @@ export default function PerformanceModule({ schoolCode }) {
       const average   = scores.length ? round1(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
       const teacherName = [...new Set(bucket.teacherIds)].map(uid => teacherNames[uid]).filter(Boolean).join(", ") || "—";
 
-      return { ...student, className: classObj?.name || "—", subjectMarks, subjects, average, teacherName };
+      return { ...student, className: classObj?.name || "—", subjectMarks, subjects, average, teacherName, scale: scaleOf(cid) };
     });
   })();
 
@@ -369,7 +372,7 @@ export default function PerformanceModule({ schoolCode }) {
       const complete = subjects.length > 0 && subjects.every(s => subjMap[s]?.complete);
       const average  = scores.length ? round1(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
 
-      return { ...student, className: classObj?.name || "—", subjects, subjMap, average, complete };
+      return { ...student, className: classObj?.name || "—", subjects, subjMap, average, complete, scale: scaleOf(cid) };
     });
   })();
 
@@ -404,10 +407,11 @@ export default function PerformanceModule({ schoolCode }) {
   const classAvg = studentsWithMarks.length
     ? round1(studentsWithMarks.reduce((a, b) => a + b.average, 0) / studentsWithMarks.length)
     : null;
-  const distinctions = studentsWithMarks.filter(s => s.average >= 70).length;
-  const failing      = studentsWithMarks.filter(s => s.average < 40).length;
+  // Top grades and passes by each learner's own scale, not fixed percentages.
+  const distinctions = studentsWithMarks.filter(s => getGradeInfo(s.average, s.scale)?.tone === "success").length;
+  const failing      = studentsWithMarks.filter(s => getGradeInfo(s.average, s.scale)?.pass === false).length;
   const passRate     = studentsWithMarks.length
-    ? Math.round((studentsWithMarks.filter(s => s.average >= 40).length / studentsWithMarks.length) * 100)
+    ? Math.round((studentsWithMarks.filter(s => getGradeInfo(s.average, s.scale)?.pass !== false).length / studentsWithMarks.length) * 100)
     : null;
   const noData = dataReady && studentsWithMarks.length === 0;
 
@@ -434,7 +438,7 @@ export default function PerformanceModule({ schoolCode }) {
         <div>
           <h2 style={{ fontFamily: "'Playfair Display', serif" }}>Student Performance</h2>
           <p className="text-muted">
-            Continuous Assessment · MANEB grade scale (1–9) · {selectedTerm} ·{" "}
+            Continuous Assessment · {mixedScales ? "each section's own grading" : `${viewScale.name || "School"} grading`} · {selectedTerm} ·{" "}
             {isOverall ? "Overall (weighted)" : selectedAssessmentLabel}
           </p>
           {/* Named explicitly, because a past term looks identical to the
@@ -469,13 +473,13 @@ export default function PerformanceModule({ schoolCode }) {
         </div>
         <div className="stat-card">
           <div className="stat-card__value stat-card__value--success">{isLoading ? <Spinner size={20} /> : distinctions}</div>
-          <div className="stat-card__label">Distinctions (≥70%)</div>
-          <div className="text-muted text-[10px] mt-1">Grade 1 or 2</div>
+          <div className="stat-card__label">Top grades</div>
+          <div className="text-muted text-[10px] mt-1">{mixedScales ? "Each section's top grades" : GRADES.filter(g => g.tone === "success").map(g => g.code).join(" or ")}</div>
         </div>
         <div className="stat-card">
           <div className="stat-card__value stat-card__value--accent">{isLoading ? <Spinner size={20} /> : passRate !== null ? `${passRate}%` : "—"}</div>
           <div className="stat-card__label">School pass rate</div>
-          <div className="text-muted text-[10px] mt-1">Scoring ≥40%</div>
+          <div className="text-muted text-[10px] mt-1">{mixedScales ? "A passing grade on their scale" : `Scoring ≥${Math.min(...GRADES.filter(g => g.pass !== false).map(g => g.min))}%`}</div>
         </div>
         <div className="stat-card">
           <div className="stat-card__value stat-card__value--warning">{isLoading ? <Spinner size={20} /> : failing}</div>
@@ -590,17 +594,17 @@ export default function PerformanceModule({ schoolCode }) {
         </div>
       )}
 
-      {/* MANEB scale reference */}
+      {/* Grading scale reference */}
       <details className="group">
         <summary className="text-[11px] text-muted cursor-pointer select-none hover:text-app-text/70 transition-colors flex items-center gap-1.5">
           <ChevronDown size={12} className="group-open:rotate-180 transition-transform" />
-          MANEB Grade Scale Reference
+          Grading Scale Reference{mixedScales ? " (first section — pick a class to see its own)" : ""}
         </summary>
         <div className="mt-2 flex flex-wrap gap-1.5 pl-4">
-          {MANEB_GRADES.map(g => (
+          {GRADES.map(g => (
             <span key={g.grade}
               className={`text-[10px] px-2.5 py-1 rounded-lg border font-semibold ${g.bg} ${g.color} ${g.border}`}>
-              G{g.grade}: {g.min}{g.grade < 9 ? `–${g.max}` : "+"}% · {g.remark}
+              {g.code}: {rangeLabel(g)}% · {g.remark}
             </span>
           ))}
         </div>
@@ -649,7 +653,7 @@ export default function PerformanceModule({ schoolCode }) {
               ) : (
                 <div className="divide-y divide-app-border">
                   {ranked.map((student, idx) => {
-                    const g = getGradeInfo(student.average);
+                    const g = getGradeInfo(student.average, student.scale);
                     const overallRank = idx + 1;
                     return (
                       <div
@@ -675,7 +679,7 @@ export default function PerformanceModule({ schoolCode }) {
                         <div className="hidden md:flex flex-wrap gap-1 max-w-xs">
                           {student.subjects.map(subj => {
                             const score = isOverall ? student.subjMap[subj]?.score : student.subjectMarks[subj];
-                            const sg = getGradeInfo(score);
+                            const sg = getGradeInfo(score, student.scale);
                             return score !== null && score !== undefined ? (
                               <span key={subj} className={`text-[9px] px-1.5 py-0.5 rounded border font-medium
                                 ${sg ? `${sg.bg} ${sg.color} ${sg.border}` : "bg-app-bg text-muted border-app-border"}`}>
@@ -686,7 +690,7 @@ export default function PerformanceModule({ schoolCode }) {
                         </div>
                         <div className="text-right shrink-0">
                           <p className={`text-xl font-bold ${g?.color || "text-app-text"}`}>{student.average}%</p>
-                          {g && <p className={`text-[10px] font-semibold ${g.color}`}>G{g.grade} · {g.remark}</p>}
+                          {g && <p className={`text-[10px] font-semibold ${g.color}`}>{g.code} · {g.remark}</p>}
                         </div>
                         <button
                           onClick={() => setViewingStudent(student)}
@@ -711,18 +715,18 @@ export default function PerformanceModule({ schoolCode }) {
                   Grade Distribution — {selectedClassId === "all" ? "All Classes" : classes.find(c => c.id === selectedClassId)?.name || ""} · {selectedAssessmentLabel}
                 </h3>
                 <div className="space-y-2.5">
-                  {MANEB_GRADES.map(g => {
-                    const count = studentsWithMarks.filter(s => getGradeInfo(s.average)?.grade === g.grade).length;
+                  {GRADES.map(g => {
+                    const count = studentsWithMarks.filter(s => s.scale === viewScale && getGradeInfo(s.average, s.scale)?.grade === g.grade).length;
                     const pct   = studentsWithMarks.length ? Math.round((count / studentsWithMarks.length) * 100) : 0;
                     return (
                       <div key={g.grade} className="flex items-center gap-3">
-                        <span className={`text-[10px] font-bold w-24 shrink-0 ${g.color}`}>G{g.grade} {g.remark}</span>
+                        <span className={`text-[10px] font-bold w-24 shrink-0 ${g.color}`}>{g.code} {g.remark}</span>
                         <div className="flex-1 bg-app-bg rounded-full h-2.5">
                           <div
                             className="h-2.5 rounded-full transition-all duration-500"
                             style={{
                               width: `${pct}%`,
-                              backgroundColor: g.grade <= 2 ? "#10b981" : g.grade <= 6 ? "#3b82f6" : g.grade <= 8 ? "#f59e0b" : "#ef4444",
+                              backgroundColor: g.hex,
                             }}
                           />
                         </div>
@@ -745,7 +749,7 @@ export default function PerformanceModule({ schoolCode }) {
                       const avg = clsStudents.length
                         ? round1(clsStudents.reduce((a, b) => a + b.average, 0) / clsStudents.length)
                         : null;
-                      const g = getGradeInfo(avg);
+                      const g = getGradeInfo(avg, scaleOf(cls.id));
                       return (
                         <div key={cls.id} className="flex items-center gap-3">
                           <span className="text-xs font-semibold text-muted w-24 shrink-0">{cls.name}</span>
@@ -755,7 +759,7 @@ export default function PerformanceModule({ schoolCode }) {
                                 className="h-3 rounded-full transition-all duration-700"
                                 style={{
                                   width: `${avg}%`,
-                                  backgroundColor: avg >= 70 ? "#10b981" : avg >= 50 ? "#3b82f6" : avg >= 40 ? "#f59e0b" : "#ef4444",
+                                  backgroundColor: g?.hex,
                                 }}
                               />
                             )}
@@ -763,7 +767,7 @@ export default function PerformanceModule({ schoolCode }) {
                           {avg !== null ? (
                             <div className="flex items-center gap-1.5 shrink-0">
                               <span className={`text-sm font-bold ${g?.color || "text-app-text"}`}>{avg}%</span>
-                              {g && <span className={`text-[9px] font-semibold ${g.color}`}>G{g.grade}</span>}
+                              {g && <span className={`text-[9px] font-semibold ${g.color}`}>{g.code}</span>}
                               <span className="text-[10px] text-muted">({clsStudents.length} students)</span>
                             </div>
                           ) : (
@@ -800,7 +804,7 @@ export default function PerformanceModule({ schoolCode }) {
                                 className="h-2.5 rounded-full transition-all duration-700"
                                 style={{
                                   width: `${avg}%`,
-                                  backgroundColor: avg >= 70 ? "#10b981" : avg >= 50 ? "#3b82f6" : avg >= 40 ? "#f59e0b" : "#ef4444",
+                                  backgroundColor: g?.hex,
                                 }}
                               />
                             )}
@@ -808,7 +812,7 @@ export default function PerformanceModule({ schoolCode }) {
                           {avg !== null ? (
                             <div className="flex items-center gap-2 shrink-0">
                               <span className={`text-sm font-bold ${g?.color || "text-app-text"}`}>{avg}%</span>
-                              {g && <span className={`text-[9px] font-semibold ${g.color}`}>G{g.grade}</span>}
+                              {g && <span className={`text-[9px] font-semibold ${g.color}`}>{g.code}</span>}
                               <span className="text-[10px] text-muted">({scores.length} entries)</span>
                             </div>
                           ) : (
@@ -836,7 +840,7 @@ export default function PerformanceModule({ schoolCode }) {
                     </div>
                     <div className="space-y-2">
                       {atRisk.map(s => {
-                        const g = getGradeInfo(s.average);
+                        const g = getGradeInfo(s.average, s.scale);
                         const weakSubjects = s.subjects.filter(subj => {
                           const sc = s.subjectMarks?.[subj];
                           return sc !== null && sc !== undefined && Number(sc) < 50;
@@ -858,7 +862,7 @@ export default function PerformanceModule({ schoolCode }) {
                             </div>
                             <div className="text-right">
                               <p className={`font-bold text-base ${g?.color}`}>{s.average}%</p>
-                              <p className={`text-[10px] font-semibold ${g?.color}`}>G{g?.grade} · {g?.remark}</p>
+                              <p className={`text-[10px] font-semibold ${g?.color}`}>{g?.code} · {g?.remark}</p>
                             </div>
                           </div>
                         );

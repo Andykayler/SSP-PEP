@@ -12,7 +12,8 @@
 // without a database — and re-run, which matters: the first draft of a seating
 // plan is never the last.
 // ─────────────────────────────────────────────────────────────────────────────
-import { gradeFor, isCredit, MANEB } from "./maneb.js";
+import { isCredit } from "./maneb.js";
+import { gradeFor, isManebScale, MANEB_SCALE } from "./curriculumCore.js";
 
 export const EXAM_TYPES = ["Continuous assessment", "Mid-term", "End of term", "Mock", "MSCE / national"];
 
@@ -186,8 +187,10 @@ export function dutyLines(exam, staffId) {
 /**
  * How each subject did, from students' merged scores (see mergeMarks).
  * `rows` is buildReadiness()'s output: each carries `subjects: { name: { score } }`.
+ * `scale` is the school's grading scale; the grade spread is keyed by its
+ * grade labels, and the MSCE credit rate is only given on the MANEB scale.
  */
-export function analyseSubjects(rows) {
+export function analyseSubjects(rows, scale = MANEB_SCALE) {
   const by = new Map();
   rows.forEach((row) => {
     Object.entries(row.subjects || {}).forEach(([subject, v]) => {
@@ -199,8 +202,8 @@ export function analyseSubjects(rows) {
   return [...by.entries()].map(([subject, list]) => {
     const scores = list.map((x) => x.score);
     const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
-    const dist = Object.fromEntries(MANEB.map((g) => [g.grade, 0]));
-    list.forEach((x) => { dist[gradeFor(x.score).grade] += 1; });
+    const dist = Object.fromEntries(scale.bands.map((g) => [g.label, 0]));
+    list.forEach((x) => { dist[gradeFor(x.score, scale).label] += 1; });
     const sorted = [...list].sort((a, b) => b.score - a.score);
     return {
       subject,
@@ -208,8 +211,10 @@ export function analyseSubjects(rows) {
       mean: Math.round(mean * 10) / 10,
       high: Math.max(...scores),
       low: Math.min(...scores),
-      creditRate: Math.round((list.filter((x) => isCredit(x.score)).length / list.length) * 100),
-      passRate: Math.round((list.filter((x) => gradeFor(x.score).grade <= 8).length / list.length) * 100),
+      creditRate: isManebScale(scale)
+        ? Math.round((list.filter((x) => isCredit(x.score)).length / list.length) * 100)
+        : null,
+      passRate: Math.round((list.filter((x) => gradeFor(x.score, scale).pass !== false).length / list.length) * 100),
       dist,
       top: sorted.slice(0, 3),
       bottom: sorted.slice(-3).reverse(),

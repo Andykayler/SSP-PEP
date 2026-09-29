@@ -5,12 +5,16 @@ import {
 } from "firebase/firestore";
 
 import { IC } from "./icons";
-import { DISTRICTS, PRIMARY_SUBJECTS, SECONDARY_SUBJECTS } from "./constants";
+import { DISTRICTS } from "./constants";
 import { normalisePhone } from "./helpers";
 import { Modal, Input, Select, Textarea, Btn, EmptyState, ActionBtn } from "./ui";
 import { SCHOOL_TYPES, setSchoolType, schoolTypeLabel } from "../../../services/schoolProfile";
 import { subscribeSchoolSettings } from "../../../services/academicTerm";
 import { syncAssignmentsWithClasses } from "../../../services/staffAssignments";
+import {
+  SECTIONS, sectionsOf, sectionIdOfClass, sectionLabel, curriculumLabel, renameClass, ladderFor,
+} from "../../../services/curriculum";
+import CurriculumSettings from "../../../components/setup/CurriculumSettings";
 import {
   SMS_ALWAYS_CATEGORIES, SMS_FALLBACK_CATEGORIES,
   smsFallbackCategories, setSmsFallbackCategories,
@@ -18,6 +22,14 @@ import {
 import {
   MODULES, moduleById, enabledModules, nextModuleState, setEnabledModules,
 } from "../../../services/modules";
+
+const SECTION_COLOR = { kindergarten: "#f472b6", primary: "#3b82f6", secondary: "#14b8a6" };
+
+/** "e.g. Year 2" — a placeholder from the section's own class names. */
+function ladderHint(section) {
+  const names = section ? ladderFor(section.id, section.curriculum) : [];
+  return names[1] || names[0] || "Class name";
+}
 
 // ─── MODULE 3: School Settings ────────────────────────────────────────────────
 export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
@@ -28,7 +40,7 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
   const [error, setError]           = useState("");
   const [showClassModal, setShowClassModal] = useState(false);
   const [editingClass, setEditingClass]     = useState(null);
-  const [classForm, setClassForm]   = useState({ name: "", level: "primary", subjects: [] });
+  const [classForm, setClassForm]   = useState({ name: "", section: "primary", subjects: [] });
   const [levelFilter, setLevelFilter] = useState("all");
   // Held here as well as in the setup gate, because a school that starts as
   // day and opens a hostel two years later needs to be able to say so.
@@ -53,6 +65,10 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
   }, [schoolCode]);
 
   const [savingSms, setSavingSms] = useState(false);
+
+  // The sections the school runs, each with its curriculum and subjects.
+  const sections = useMemo(() => sectionsOf(settings), [settings]);
+  const sectionOf = (id) => sections.find((x) => x.id === id) || sections[0];
 
   /**
    * Toggling one category writes the whole list, because the setting is stored
@@ -129,8 +145,8 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
   }
 
   function openClassModal(cls = null) {
-    if (cls) { setClassForm({ name: cls.name||"", level: cls.level||"primary", subjects: cls.subjects||[] }); setEditingClass(cls); }
-    else { setClassForm({ name: "", level: "primary", subjects: [] }); setEditingClass(null); }
+    if (cls) { setClassForm({ name: cls.name||"", section: sectionIdOfClass(cls, sections), subjects: cls.subjects||[] }); setEditingClass(cls); }
+    else { setClassForm({ name: "", section: sections[0]?.id || "primary", subjects: [] }); setEditingClass(null); }
     setShowClassModal(true);
   }
 
@@ -138,19 +154,30 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
     if (!classForm.name.trim()) { alert("Class name required"); return; }
     setLoading(true);
     try {
+      const section = sectionOf(classForm.section);
+      const name = classForm.name.trim();
       const data = {
-        name: classForm.name.trim(), level: classForm.level,
-        subjects: classForm.subjects.length > 0 ? classForm.subjects : (classForm.level === "primary" ? PRIMARY_SUBJECTS : SECONDARY_SUBJECTS),
-        schoolCode, order: classes.length + 1, updatedAt: serverTimestamp(),
+        section: section.id, curriculum: section.curriculum,
+        // `level` is what older screens read.
+        level: section.id,
+        subjects: classForm.subjects.length > 0 ? classForm.subjects : section.subjects,
+        schoolCode, updatedAt: serverTimestamp(),
       };
-      if (editingClass) await updateDoc(doc(db, "school_classes", editingClass.id), data);
-      else await addDoc(collection(db, "school_classes"), data);
-      // Keep teachers' assignments in step with the register: a rename moves
-      // them to the new name, a dropped subject comes off their list.
-      const renames = editingClass && editingClass.name !== data.name ? { [editingClass.name]: data.name } : {};
-      await syncAssignmentsWithClasses(schoolCode, renames).catch((e) => console.error("assignment sync failed:", e));
+      if (editingClass) {
+        // A rename goes through the server so every learner, timetable period,
+        // mark sheet and teacher assignment carrying the old name follows it.
+        if (editingClass.name !== name) {
+          const res = await renameClass(editingClass.id, name);
+          if (!res.ok) { setError(res.error); setLoading(false); return; }
+        }
+        await updateDoc(doc(db, "school_classes", editingClass.id), data);
+      } else {
+        await addDoc(collection(db, "school_classes"), { ...data, name, order: classes.length + 1 });
+      }
+      // A dropped subject comes off its teachers' lists.
+      await syncAssignmentsWithClasses(schoolCode).catch((e) => console.error("assignment sync failed:", e));
       setShowClassModal(false); fetchClasses();
-    } catch (err) { alert("Failed to save class"); }
+    } catch (err) { console.error(err); setError("Failed to save class: " + err.message); }
     setLoading(false);
   }
 
@@ -171,24 +198,21 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
   }
 
   const stats = useMemo(() => {
-    const primary = classes.filter(c => c.level === "primary");
-    const secondary = classes.filter(c => c.level === "secondary");
     const uniqueSubjects = new Set(classes.flatMap(c => c.subjects || []));
     return {
       total: classes.length,
-      primary: primary.length,
-      secondary: secondary.length,
+      bySection: SECTIONS.map((x) => ({ ...x, count: classes.filter((c) => sectionIdOfClass(c, sections) === x.id).length })),
       subjects: uniqueSubjects.size,
     };
-  }, [classes]);
+  }, [classes, sections]);
 
   const filteredClasses = useMemo(() => {
     return classes.filter(c => {
-      if (levelFilter !== "all" && c.level !== levelFilter) return false;
+      if (levelFilter !== "all" && sectionIdOfClass(c, sections) !== levelFilter) return false;
       if (classSearch.trim() && !c.name?.toLowerCase().includes(classSearch.trim().toLowerCase())) return false;
       return true;
     });
-  }, [classes, levelFilter, classSearch]);
+  }, [classes, levelFilter, classSearch, sections]);
 
   return (
     <div className="space-y-8">
@@ -315,6 +339,18 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="card" style={{ padding: 28 }}>
+        <p style={{ fontFamily: "var(--font-display)", fontSize: 16, color: "var(--text)", letterSpacing: 0.5 }}>
+          Sections, Curriculum &amp; Grading
+        </p>
+        <p style={{ fontSize: 12, color: "var(--text3)", marginTop: 2, marginBottom: 16 }}>
+          Which sections the school runs — Kindergarten, Primary, Secondary — and whether each
+          follows the Malawian (MANEB), Cambridge or Abeka curriculum. Each section has its own
+          subjects and grading scale.
+        </p>
+        <CurriculumSettings schoolCode={schoolCode} settings={settings} actorId="" />
       </div>
 
       {/* ── Modules ──
@@ -479,16 +515,13 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
             <div className="ss-stat__num">{stats.total}</div>
             <div className="ss-stat__label">Total Classes</div>
           </div>
-          <div className="ss-stat">
-            <div className="ss-stat__accent" style={{ background: "#3b82f6" }} />
-            <div className="ss-stat__num">{stats.primary}</div>
-            <div className="ss-stat__label">Primary</div>
-          </div>
-          <div className="ss-stat">
-            <div className="ss-stat__accent" style={{ background: "#14b8a6" }} />
-            <div className="ss-stat__num">{stats.secondary}</div>
-            <div className="ss-stat__label">Secondary</div>
-          </div>
+          {stats.bySection.filter((x) => x.count > 0 || sections.some((y) => y.id === x.id)).map((x) => (
+            <div key={x.id} className="ss-stat">
+              <div className="ss-stat__accent" style={{ background: SECTION_COLOR[x.id] }} />
+              <div className="ss-stat__num">{x.count}</div>
+              <div className="ss-stat__label">{x.label}</div>
+            </div>
+          ))}
           <div className="ss-stat">
             <div className="ss-stat__accent" style={{ background: "#a855f7" }} />
             <div className="ss-stat__num">{stats.subjects}</div>
@@ -501,7 +534,9 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
         <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border)", background: "var(--bg2)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <div>
             <p style={{ fontFamily: "var(--font-display)", fontSize: 16, color: "var(--text)", letterSpacing: 0.5 }}>Classes &amp; Subjects</p>
-            <p style={{ fontSize: 12, color: "var(--text3)", marginTop: 2 }}>Based on Malawi National Curriculum (Primary: Std 1–8 | Secondary: Form 1–4)</p>
+            <p style={{ fontSize: 12, color: "var(--text3)", marginTop: 2 }}>
+              {sections.map((x) => `${sectionLabel(x.id)}: ${curriculumLabel(x.curriculum)}`).join(" · ")}. Edit a class to rename it or change its subjects.
+            </p>
           </div>
           <Btn onClick={() => openClassModal()} variant="gold" size="sm">{IC.plus} Add Class</Btn>
         </div>
@@ -516,13 +551,13 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
                 onChange={e => setClassSearch(e.target.value)}
               />
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {["all", "primary", "secondary"].map(key => (
+                {["all", ...stats.bySection.filter((x) => x.count > 0).map((x) => x.id)].map(key => (
                   <span
                     key={key}
                     className={`ss-pill ${levelFilter === key ? "ss-pill--active" : ""}`}
                     onClick={() => setLevelFilter(key)}
                   >
-                    {key === "all" ? "All Levels" : key === "primary" ? "Primary" : "Secondary"}
+                    {key === "all" ? "All Sections" : sectionLabel(key)}
                   </span>
                 ))}
               </div>
@@ -532,7 +567,7 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
 
         <div style={{ padding: 24 }}>
           {classes.length === 0 ? (
-            <EmptyState icon={IC.school} title="No classes defined yet" sub="Add classes per Malawian curriculum"
+            <EmptyState icon={IC.school} title="No classes defined yet" sub="Add a class for each section the school runs"
               action={<Btn onClick={() => openClassModal()} variant="gold">{IC.plus} Add First Class</Btn>}
             />
           ) : filteredClasses.length === 0 ? (
@@ -541,10 +576,10 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 16 }}>
               {filteredClasses.map(cls => (
                 <div key={cls.id} className="ss-class-card">
-                  <div className="ss-class-card__bar" style={{ background: cls.level === "primary" ? "#3b82f6" : "#14b8a6" }} />
+                  <div className="ss-class-card__bar" style={{ background: SECTION_COLOR[sectionIdOfClass(cls, sections)] }} />
                   <div className="flex-between" style={{ marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
                     <div className="flex-gap-3">
-                      <span style={{ background: "var(--accent-pale)", color: "var(--accent-lt)", border: "1px solid var(--border)", fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 6, letterSpacing: 1, textTransform: "uppercase" }}>{cls.level}</span>
+                      <span style={{ background: "var(--accent-pale)", color: "var(--accent-lt)", border: "1px solid var(--border)", fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 6, letterSpacing: 1, textTransform: "uppercase" }}>{sectionLabel(sectionIdOfClass(cls, sections))}</span>
                       <span style={{ fontFamily: "var(--font-display)", fontSize: 16, color: "var(--text)" }}>{cls.name}</span>
                       <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "var(--text3)" }}>· {(cls.subjects || []).length} subjects</span>
                     </div>
@@ -567,23 +602,25 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
         <Modal title={editingClass ? "Edit Class" : "Add New Class"} onClose={() => setShowClassModal(false)} size="lg">
           <div className="space-y-5">
             <div className="grid-2">
-              <Input label="Class Name" required value={classForm.name} onChange={e => setClassForm(p => ({...p, name: e.target.value}))} placeholder={classForm.level === "primary" ? "Standard 5" : "Form 2"} />
-              <Select label="Level" required value={classForm.level} onChange={e => setClassForm(p => ({...p, level: e.target.value, subjects: []}))}>
-                <option value="primary">Primary</option>
-                <option value="secondary">Secondary</option>
+              <Input label="Class Name" required value={classForm.name} onChange={e => setClassForm(p => ({...p, name: e.target.value}))} placeholder={ladderHint(sectionOf(classForm.section))} />
+              <Select label="Section" required value={classForm.section} onChange={e => setClassForm(p => ({...p, section: e.target.value, subjects: []}))}>
+                {sections.map((x) => <option key={x.id} value={x.id}>{sectionLabel(x.id)} ({curriculumLabel(x.curriculum)})</option>)}
               </Select>
             </div>
             <div>
               <label className="field__label">Subjects</label>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, maxHeight: 220, overflowY: "auto", padding: 12, border: "1px solid var(--border)", borderRadius: 12, background: "var(--bg)", marginTop: 6 }}>
-                {(classForm.level === "primary" ? PRIMARY_SUBJECTS : SECONDARY_SUBJECTS).map((subject, idx) => (
+                {[...new Set([...sectionOf(classForm.section).subjects, ...classForm.subjects])].map((subject, idx) => (
                   <label key={idx} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", padding: "7px 10px", borderRadius: 8, color: "var(--text2)" }}>
                     <input type="checkbox" checked={classForm.subjects.includes(subject)} onChange={() => toggleSubject(subject)} style={{ accentColor: "var(--accent)" }} />
                     <span>{subject}</span>
                   </label>
                 ))}
               </div>
-              <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 5 }}>Defaults applied if none selected.</p>
+              <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 5 }}>
+                The section&rsquo;s subjects are used if none are ticked. Add or rename subjects under Sections, Curriculum &amp; Grading.
+                {editingClass && " Renaming the class updates its learners, timetable, marks and teachers too."}
+              </p>
             </div>
             <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
               <Btn variant="ghost" onClick={() => setShowClassModal(false)}>Cancel</Btn>

@@ -6,9 +6,10 @@ import {
 } from "firebase/firestore";
 import {
   Calendar, Clock, MapPin, Users, X, Save, Trash2,
-  RefreshCw, AlertCircle, CheckCircle, Loader2, Plus, Wand2,
+  RefreshCw, AlertCircle, CheckCircle, Loader2, Plus, Wand2, Upload,
 } from "lucide-react";
 import AutoTimetable from "../../../components/timetable/AutoTimetable";
+import TimetableUpload from "../../../components/timetable/TimetableUpload";
 import { findClashes, conflictsFor, describeClash } from "../../../services/timetableClash";
 import "./staff-management.css";
 import { isDeactivated } from "../../../services/staffAccountCore";
@@ -180,6 +181,7 @@ export default function TimetableModule({ schoolCode }) {
   const [slotsReady, setSlotsReady] = useState(false);
   const [editing, setEditing] = useState(null); // { day, period, existing }
   const [autoOpen, setAutoOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const [error, setError] = useState("");
 
@@ -328,6 +330,9 @@ export default function TimetableModule({ schoolCode }) {
           <p className="text-muted">Assign a subject, teacher and venue to every class period.</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setUploadOpen(true)} disabled={!classesReady || noClasses} className="btn-refresh" title="Fill the grid from a photo, PDF or spreadsheet of the timetable">
+            <Upload size={16} /> Upload
+          </button>
           <button onClick={() => setAutoOpen(true)} disabled={!classesReady || noClasses} className="btn-save" title="Build the week for every class automatically">
             <Wand2 size={16} /> Auto-generate
           </button>
@@ -477,6 +482,24 @@ export default function TimetableModule({ schoolCode }) {
             setAutoOpen(false);
             showToast("Timetable generated. Click any period to adjust it.");
           }}
+        />
+      )}
+      {uploadOpen && (
+        <TimetableUpload
+          schoolCode={schoolCode}
+          classes={classes}
+          staff={staff}
+          days={DAYS}
+          periods={PERIODS}
+          allSlots={allSlots}
+          slotId={slotId}
+          onImported={(next, message) => {
+            setAllSlots(next);
+            setSlots(next.filter((s) => s.classId === selectedClassId));
+            setUploadOpen(false);
+            showToast(message);
+          }}
+          onClose={() => setUploadOpen(false)}
         />
       )}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}

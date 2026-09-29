@@ -89,7 +89,7 @@ export const TOUR_CONTENT = {
       press: "to spot classes or learners with a pattern of absence.",
     },
     performance: {
-      body: "Marks and grades by class and subject, on the MANEB grade scale.",
+      body: "Marks and grades by class and subject, on each section's own grading scale.",
       press: "when you want to see how a class or subject is performing.",
     },
     discipline: {
@@ -152,7 +152,7 @@ export const TOUR_CONTENT = {
       press: "at the start of every lesson.",
     },
     marks: {
-      body: "Enter learners' assessment scores. Grades follow the MANEB scale.",
+      body: "Enter learners' assessment scores. Grades follow the school's grading scale for the class.",
       press: "after a test, assignment or exam.",
     },
     discipline: {

@@ -33,6 +33,7 @@ import {
   decideHire, buildHiredProfile, formerStaffId, isDeactivated, HIREABLE_ROLES,
 } from "../../src/services/staffAccountCore.js";
 import { normalisePhone } from "../../src/services/phone.js";
+import { handleRename } from "../_lib/schoolRename.js";
 
 /** Readable temporary password, same shape as the one the admin page makes. */
 function tempPassword() {
@@ -179,6 +180,10 @@ async function hire(res, caller, body) {
 }
 
 export default async function handler(req, res) {
+  // Class and subject renames share this function to stay inside the Hobby
+  // plan's 12-function limit: POST /api/staff/account?op=rename.
+  if (req.query?.op === "rename") return handleRename(req, res);
+
   if (req.method !== "POST") return fail(res, 405, "Use POST.");
   const caller = await requireStaff(req, { roles: ["admin"] });
   if (!caller.ok) return fail(res, caller.status, caller.error);

@@ -20,7 +20,8 @@ import {
   analyseSubjects, analyseClasses,
 } from "../../../services/exams";
 import { fetchMarkSheets, buildReadiness, formNumber, bandMeta, RISK_BANDS } from "../../../services/examReadiness";
-import { MANEB } from "../../../services/maneb";
+import { sectionsOf, isManebScale } from "../../../services/curriculumCore";
+import { scaleRows } from "../../../components/ui/grades";
 import { fetchSchoolLeave } from "../../../services/leave";
 import { subscribeSchoolSettings, pastTermOptions } from "../../../services/academicTerm";
 import { downloadCsv } from "../../../services/csv";
@@ -45,6 +46,7 @@ export default function ExamsModule({ schoolCode, currentUser }) {
   const [classes, setClasses] = useState([]);
   const [leaves, setLeaves] = useState([]);
   const [currentTerm, setCurrentTerm] = useState("");
+  const [settings, setSettings] = useState(null);
   const [notice, setNotice] = useState(null);
   const [showNew, setShowNew] = useState(false);
 
@@ -71,7 +73,7 @@ export default function ExamsModule({ schoolCode, currentUser }) {
   }, [schoolCode]);
 
   useLoader(load);
-  useEffect(() => (schoolCode ? subscribeSchoolSettings(schoolCode, (s) => setCurrentTerm(s?.currentTerm || "")) : undefined), [schoolCode]);
+  useEffect(() => (schoolCode ? subscribeSchoolSettings(schoolCode, (s) => { setCurrentTerm(s?.currentTerm || ""); setSettings(s); }) : undefined), [schoolCode]);
 
   const selected = exams?.find((e) => e.id === selectedId) || null;
 
@@ -139,7 +141,7 @@ export default function ExamsModule({ schoolCode, currentUser }) {
             )
           )}
 
-          {view === "analysis" && <Analysis schoolCode={schoolCode} students={students} currentTerm={currentTerm} classes={classes} />}
+          {view === "analysis" && <Analysis schoolCode={schoolCode} students={students} currentTerm={currentTerm} classes={classes} settings={settings} />}
         </>
       )}
 
@@ -529,7 +531,13 @@ function PublishTab({ exam, sitting, ready, problems, seated, onPublish, busy })
 }
 
 // ─── Results analysis ────────────────────────────────────────────────────────
-function Analysis({ schoolCode, students, currentTerm, classes }) {
+function Analysis({ schoolCode, students, currentTerm, classes, settings }) {
+  // Exams are graded on the secondary section's scale (or the school's only
+  // section). MSCE readiness — credits, "on track" — applies on MANEB only.
+  const sections = useMemo(() => sectionsOf(settings), [settings]);
+  const scale = (sections.find((x) => x.id === "secondary") || sections[0]).grading;
+  const maneb = isManebScale(scale);
+  const GRADES = scaleRows(scale);
   const [pickedTerm, setTerm] = useState("");
   const [form, setForm] = useState("all");
   // The term defaults to the school's current one until the user picks another.
@@ -549,13 +557,13 @@ function Analysis({ schoolCode, students, currentTerm, classes }) {
   }, [schoolCode, term, form, students, key]);
 
   const forms = useMemo(() => [...new Set(classes.map((c) => formNumber(c.name)).filter(Boolean))].sort(), [classes]);
-  const subjects = useMemo(() => (rows ? analyseSubjects(rows) : []), [rows]);
+  const subjects = useMemo(() => (rows ? analyseSubjects(rows, scale) : []), [rows, scale]);
   const byClass = useMemo(() => (rows ? analyseClasses(rows) : []), [rows]);
   const bands = useMemo(() => Object.fromEntries(RISK_BANDS.map((b) => [b.id, (rows || []).filter((r) => r.band === b.id).length])), [rows]);
 
   const exportSubjects = () => downloadCsv(`results-${term.replace(/\W+/g, "-")}.csv`,
-    ["Subject", "Entered", "Mean", "High", "Low", "Credit %", "Pass %", ...MANEB.map((g) => `G${g.grade}`)],
-    subjects.map((s) => [s.subject, s.entered, s.mean, s.high, s.low, s.creditRate, s.passRate, ...MANEB.map((g) => s.dist[g.grade])]));
+    ["Subject", "Entered", "Mean", "High", "Low", ...(maneb ? ["Credit %"] : []), "Pass %", ...GRADES.map((g) => g.code)],
+    subjects.map((s) => [s.subject, s.entered, s.mean, s.high, s.low, ...(maneb ? [s.creditRate] : []), s.passRate, ...GRADES.map((g) => s.dist[g.grade])]));
   const exportCandidates = () => downloadCsv(`msce-candidates-${term.replace(/\W+/g, "-")}.csv`,
     ["Name", "Class", "Credits", "English credit", "Standing", "Weakest subjects"],
     (rows || []).map((r) => [r.fullName || "", r.className || "", r.credits, r.englishCredit ? "Yes" : "No", bandMeta(r.band).label, (r.weakest || []).map((w) => `${w.subject} ${w.score}`).join("; ")]));
@@ -579,15 +587,17 @@ function Analysis({ schoolCode, students, currentTerm, classes }) {
         <>
           <StatGrid>
             <StatCard label="Learners with marks" value={rows.filter((r) => r.band !== "noData").length} />
-            <StatCard label="On track for MSCE" value={bands.onTrack} tone="success" sub="6+ credits incl. English" />
-            <StatCard label="Borderline" value={bands.borderline} tone="warning" />
-            <StatCard label="At risk" value={bands.atRisk} tone={bands.atRisk ? "danger" : undefined} />
+            {maneb && <>
+              <StatCard label="On track for MSCE" value={bands.onTrack} tone="success" sub="6+ credits incl. English" />
+              <StatCard label="Borderline" value={bands.borderline} tone="warning" />
+              <StatCard label="At risk" value={bands.atRisk} tone={bands.atRisk ? "danger" : undefined} />
+            </>}
           </StatGrid>
 
           <h3 style={{ margin: "18px 0 8px", fontSize: "1rem" }}>By subject</h3>
           <TableWrap>
             <table className="data-table">
-              <thead><tr><th>Subject</th><th>Entered</th><th>Mean</th><th>Credit rate</th><th>Pass rate</th><th>Grade spread (G1 to G9)</th><th>Top</th></tr></thead>
+              <thead><tr><th>Subject</th><th>Entered</th><th>Mean</th>{maneb && <th>Credit rate</th>}<th>Pass rate</th><th>Grade spread ({GRADES[0]?.code} to {GRADES[GRADES.length - 1]?.code})</th><th>Top</th></tr></thead>
               <tbody>
                 {subjects.map((s) => {
                   const max = Math.max(...Object.values(s.dist), 1);
@@ -596,11 +606,11 @@ function Analysis({ schoolCode, students, currentTerm, classes }) {
                       <td><strong>{s.subject}</strong></td>
                       <td>{s.entered}</td>
                       <td>{s.mean}</td>
-                      <td><Pill tone={s.creditRate >= 60 ? "success" : s.creditRate >= 35 ? "warning" : "danger"}>{s.creditRate}%</Pill></td>
+                      {maneb && <td><Pill tone={s.creditRate >= 60 ? "success" : s.creditRate >= 35 ? "warning" : "danger"}>{s.creditRate}%</Pill></td>}
                       <td>{s.passRate}%</td>
                       <td>
-                        <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 30 }} title={MANEB.map((g) => `G${g.grade}: ${s.dist[g.grade]}`).join("  ")}>
-                          {MANEB.map((g) => <div key={g.grade} style={{ width: 10, height: `${Math.max(2, (s.dist[g.grade] / max) * 30)}px`, background: g.grade <= 6 ? "var(--success-light)" : g.grade <= 8 ? "var(--warning-light)" : "var(--danger-light)", borderRadius: 2 }} />)}
+                        <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 30 }} title={GRADES.map((g) => `${g.code}: ${s.dist[g.grade]}`).join("  ")}>
+                          {GRADES.map((g) => <div key={g.grade} style={{ width: 10, height: `${Math.max(2, (s.dist[g.grade] / max) * 30)}px`, background: g.hex, borderRadius: 2 }} />)}
                         </div>
                       </td>
                       <td style={{ fontSize: 12.5 }}>{s.top.map((t) => `${t.name} (${t.score})`).slice(0, 2).join(", ")}</td>
@@ -616,8 +626,8 @@ function Analysis({ schoolCode, students, currentTerm, classes }) {
               <h3 style={{ margin: "18px 0 8px", fontSize: "1rem" }}>By class</h3>
               <TableWrap>
                 <table className="data-table">
-                  <thead><tr><th>Class</th><th>Learners</th><th>Mean score</th><th>On track for MSCE</th></tr></thead>
-                  <tbody>{byClass.map((c) => <tr key={c.className}><td><strong>{c.className}</strong></td><td>{c.learners}</td><td>{c.mean}</td><td>{c.onTrack}</td></tr>)}</tbody>
+                  <thead><tr><th>Class</th><th>Learners</th><th>Mean score</th>{maneb && <th>On track for MSCE</th>}</tr></thead>
+                  <tbody>{byClass.map((c) => <tr key={c.className}><td><strong>{c.className}</strong></td><td>{c.learners}</td><td>{c.mean}</td>{maneb && <td>{c.onTrack}</td>}</tr>)}</tbody>
                 </table>
               </TableWrap>
             </>

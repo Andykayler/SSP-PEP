@@ -8,7 +8,8 @@ import { notifyGuardians } from "../../../services/notifications";
 import { fetchClearances, reportCardAllowed } from "../../../services/feeClearance";
 import { buildArrears } from "../../../services/feeAllocationCore";
 import { fetchReleases, resultsAccess } from "../../../services/resultsRelease";
-import { schoolLevelOf } from "../../../services/schoolProfile";
+import { sectionsOf, sectionIdOfClass, ladderFor, isManebScale, MANEB_SCALE } from "../../../services/curriculumCore";
+import { gradeInfo, scaleRows } from "../../../components/ui/grades";
 import { sendSmsToMany } from "../../../services/sms";
 import { smsFallbackCategories } from "../../../services/smsFallback";
 import { isModuleOn } from "../../../services/modules";
@@ -28,7 +29,6 @@ import {
 // School type → highest form/standard that type goes up to — mirrors the
 // options offered in ClassModule.jsx's "Set up classes" flow. A student in
 // the top level has nothing to promote into, so they graduate instead.
-const SCHOOL_TYPE_MAX_LEVEL = { Secondary: 6, Primary: 8 };
 
 // Assessment components & weights — mirrors PerformanceModule.jsx (both
 // teacher and headteacher copies) exactly, since promotion eligibility has
@@ -55,28 +55,9 @@ function computeWeightedAverage(perComponentScores) {
   return Math.round((weightedSum / weightUsed) * 10) / 10;
 }
 
-// ─── MANEB Grade Scale ────────────────────────────────────────────────────────
-const MANEB_GRADES = [
-  { grade: 1, min: 80, max: 100, remark: "Distinction", color: "text-emerald-700", bg: "bg-emerald-100", border: "border-emerald-200" },
-  { grade: 2, min: 70, max: 79,  remark: "Distinction", color: "text-emerald-600", bg: "bg-emerald-50",  border: "border-emerald-200" },
-  { grade: 3, min: 65, max: 69,  remark: "Credit",      color: "text-blue-700",    bg: "bg-blue-100",    border: "border-blue-200" },
-  { grade: 4, min: 60, max: 64,  remark: "Credit",      color: "text-blue-600",    bg: "bg-blue-50",     border: "border-blue-200" },
-  { grade: 5, min: 55, max: 59,  remark: "Credit",      color: "text-sky-600",     bg: "bg-sky-50",      border: "border-sky-200" },
-  { grade: 6, min: 50, max: 54,  remark: "Credit",      color: "text-sky-500",     bg: "bg-sky-50",      border: "border-sky-200" },
-  { grade: 7, min: 45, max: 49,  remark: "Pass",        color: "text-amber-600",   bg: "bg-amber-50",    border: "border-amber-200" },
-  { grade: 8, min: 40, max: 44,  remark: "Pass",        color: "text-amber-500",   bg: "bg-amber-50",    border: "border-amber-200" },
-  { grade: 9, min: 0,  max: 39,  remark: "Fail",        color: "text-red-600",     bg: "bg-red-50",      border: "border-red-200" },
-];
-
 // Term options are derived from whatever the school has set as current, so
 // this module can never offer a term the rest of the system does not use.
 
-function getGradeInfo(score) {
-  if (score === null || score === undefined || score === "") return null;
-  const n = Number(score);
-  if (isNaN(n)) return null;
-  return MANEB_GRADES.find(g => n >= g.min && n <= g.max) || MANEB_GRADES[MANEB_GRADES.length - 1];
-}
 
 function fullName(s) {
   return s.fullName || `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() || s.name || "—";
@@ -122,6 +103,7 @@ function scoreColor(score) {
 
 // ─── Report Card Modal (printable) ──────────────────────────────────────────
 function ReportCardModal({ student, schoolCode, term, onClose }) {
+  const getGradeInfo = (score) => gradeInfo(score, student.scale);
   const g = getGradeInfo(student.average);
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -199,7 +181,7 @@ function ReportCardModal({ student, schoolCode, term, onClose }) {
                         <td data-label="Grade">
                           {sg ? (
                             <span className={`tag ${sg.bg} ${sg.color} ${sg.border}`}>
-                              G{sg.grade} · {sg.remark}
+                              {sg.code} · {sg.remark}
                             </span>
                           ) : <span className="text-muted">—</span>}
                         </td>
@@ -221,7 +203,7 @@ function ReportCardModal({ student, schoolCode, term, onClose }) {
             </div>
             {g && (
               <div className="text-right">
-                <p className={`text-3xl font-bold ${g.color}`}>G{g.grade}</p>
+                <p className={`text-3xl font-bold ${g.color}`}>{g.code}</p>
                 <p className={`text-xs font-semibold ${g.color}`}>{g.remark}</p>
               </div>
             )}
@@ -237,7 +219,9 @@ function ReportCardModal({ student, schoolCode, term, onClose }) {
               <p className="font-bold text-app-text/60 mb-4">Head Teacher's Signature</p>
               <div className="border-b border-app-border w-32 ml-auto" />
             </div>
-            <p className="col-span-2 text-center">CA contributes 40% to final MSCE grade. This is a school record.</p>
+            <p className="col-span-2 text-center">
+              {isManebScale(student.scale) ? "CA contributes 40% to final MSCE grade. " : ""}This is a school record.
+            </p>
           </div>
         </div>
       </div>
@@ -270,6 +254,15 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
   const [byAssessmentMap, setByAssessmentMap] = useState({}); // classId -> assessmentType -> { marks }
   const [teacherNames, setTeacherNames] = useState({});
   const [schoolSettings, setSchoolSettings] = useState(null);
+
+  // Each class is graded on its own section's scale; see curriculumCore.js.
+  // One object per section, so learners on the same scale compare equal.
+  const sections = useMemo(() => sectionsOf(schoolSettings), [schoolSettings]);
+  const scaleOf = (classId) => {
+    const cls = classes.find((c) => c.id === classId);
+    const id = sectionIdOfClass(cls, sections);
+    return (sections.find((x) => x.id === id) || sections[0])?.grading || MANEB_SCALE;
+  };
 
   const [classesReady, setClassesReady] = useState(false);
   const [dataReady, setDataReady] = useState(false);
@@ -435,7 +428,7 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
       .map(Number);
     const average = avg(scores);
     const teacherName = (classData.teacherIds || []).map(uid => teacherNames[uid]).filter(Boolean).join(", ") || "—";
-    return { ...student, className: classObj?.name || "—", subjectMarks, subjects, average, teacherName };
+    return { ...student, className: classObj?.name || "—", subjectMarks, subjects, average, teacherName, scale: scaleOf(cid) };
   };
 
   let enrichedStudents = allStudents.map(enrich(allMarksMap));
@@ -487,12 +480,27 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
     return sortDir === "asc" ? va - vb : vb - va;
   });
 
+  // The scale for the whole view: the chosen class's, or the one every class
+  // shares. "All classes" across differently graded sections has no single
+  // scale, so the chart and legend use the first section's and say so.
+  const classScales = [...new Set(classes.map((c) => scaleOf(c.id)))];
+  const mixedScales = selectedClassId === "all" && classScales.length > 1;
+  const viewScale = selectedClassId === "all" ? (classScales[0] || MANEB_SCALE) : scaleOf(selectedClassId);
+  const GRADES = scaleRows(viewScale);
+  const getGradeInfo = (score, scale = viewScale) => gradeInfo(score, scale);
+
   const schoolAvg   = avg(studentsWithMarks.map(s => s.average));
-  const distinctions = studentsWithMarks.filter(s => s.average >= 70).length;
+  const distinctions = studentsWithMarks.filter(s => getGradeInfo(s.average, s.scale)?.tone === "success").length;
   const passRate     = studentsWithMarks.length
-    ? Math.round((studentsWithMarks.filter(s => s.average >= 40).length / studentsWithMarks.length) * 100)
+    ? Math.round((studentsWithMarks.filter(s => getGradeInfo(s.average, s.scale)?.pass !== false).length / studentsWithMarks.length) * 100)
     : null;
-  const failing      = studentsWithMarks.filter(s => s.average < 40).length;
+  const failing      = studentsWithMarks.filter(s => getGradeInfo(s.average, s.scale)?.pass === false).length;
+  // Passing, but on the lowest passing grades — the "needs support" group.
+  const isFailing = (s) => getGradeInfo(s.average, s.scale)?.pass === false;
+  const needsSupport = (s) => {
+    const g = getGradeInfo(s.average, s.scale);
+    return Boolean(g) && g.pass !== false && g.tone === "warning";
+  };
 
   const prevStudentsWithMarks = allStudents.map(enrich(compareMarksMap)).filter(s => s.average !== null);
   const prevSchoolAvg = avg(prevStudentsWithMarks.map(s => s.average));
@@ -909,7 +917,6 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
   // the term (usually the last one of the year) the same way they already
   // do for every other tab in this module.
   const promotionThreshold = schoolSettings?.promotionThreshold ?? 40;
-  const maxLevel = SCHOOL_TYPE_MAX_LEVEL[schoolLevelOf(schoolSettings)] || 6;
   const [thresholdDraft, setThresholdDraft] = useState(null);
   const [savingThreshold, setSavingThreshold] = useState(false);
   const [promotingLevel, setPromotingLevel] = useState(null);
@@ -919,13 +926,25 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
     const configured = classes.filter((c) => c.formLevel);
     if (configured.length === 0) return [];
 
+    // Grouped by section and year: Standard 1 and Form 1 are both year 1.
+    const sectionOrder = (id) => ["kindergarten", "primary", "secondary"].indexOf(id);
     const byLevel = {};
     configured.forEach((c) => {
-      if (!byLevel[c.formLevel]) byLevel[c.formLevel] = [];
-      byLevel[c.formLevel].push(c);
+      const key = `${sectionIdOfClass(c, sections)}:${c.formLevel}`;
+      if (!byLevel[key]) byLevel[key] = [];
+      byLevel[key].push(c);
     });
+    const inYear = (sectionId, year) => classes
+      .filter((c) => c.formLevel === year && sectionIdOfClass(c, sections) === sectionId)
+      .sort((a, b) => (a.stream || "").localeCompare(b.stream || ""));
 
-    return Object.keys(byLevel).map(Number).sort((a, b) => a - b).map((level) => {
+    return Object.keys(byLevel).sort((a, b) => {
+      const [sa, la] = a.split(":");
+      const [sb, lb] = b.split(":");
+      return sectionOrder(sa) - sectionOrder(sb) || Number(la) - Number(lb);
+    }).map((level) => {
+      const [sectionId, yearText] = level.split(":");
+      const year = Number(yearText);
       const levelClasses = byLevel[level];
       const levelClassIds = new Set(levelClasses.map((c) => c.id));
       const first = levelClasses[0];
@@ -954,10 +973,15 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
       const repeating = withMarks.filter((s) => s.average < promotionThreshold);
       const noMarks = withAverage.filter((s) => s.average === null);
 
-      const isFinalLevel = level >= maxLevel;
+      // The top of kindergarten moves up into the first primary year when the
+      // school has one; the top of any other section is the final year.
+      const section = sections.find((x) => x.id === sectionId) || sections[0];
+      const lastYear = ladderFor(section.id, section.curriculum).length;
+      const intoPrimary = sectionId === "kindergarten" && year >= lastYear && sections.some((x) => x.id === "primary");
+      const isFinalLevel = year >= lastYear && !intoPrimary;
       const targetClasses = isFinalLevel
         ? []
-        : classes.filter((c) => c.formLevel === level + 1).sort((a, b) => (a.stream || "").localeCompare(b.stream || ""));
+        : intoPrimary ? inYear("primary", 1) : inYear(sectionId, year + 1);
       const targetConfigured = isFinalLevel || targetClasses.length > 0;
 
       // Rank-based tiering: split passing students (already sorted by average
@@ -978,7 +1002,7 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
 
       return { level, levelLabel, levelClasses, passing, repeating, noMarks, isFinalLevel, targetClasses, targetConfigured, assignments };
     });
-  }, [classes, allStudents, byAssessmentMap, promotionThreshold, maxLevel]);
+  }, [classes, allStudents, byAssessmentMap, promotionThreshold, sections]);
 
   const saveThreshold = async () => {
     const n = Number(thresholdDraft);
@@ -1075,7 +1099,7 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
       <div className="flex justify-between items-center">
         <div>
           <h2 style={{ fontFamily: "'Playfair Display', serif" }}>Reports &amp; Analytics</h2>
-          <p className="text-muted">{selectedTerm} · MANEB grade scale (1–9) · Continuous Assessment</p>
+          <p className="text-muted">{selectedTerm} · {mixedScales ? "each section's own grading" : `${viewScale.name || "School"} grading`} · Continuous Assessment</p>
           {/* A past term's report looks exactly like the current one once
               rendered. Issuing last term's cards by mistake is not a recoverable
               error — guardians have already been told — so the state is named. */}
@@ -1118,18 +1142,18 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
         </div>
         <div className="stat-card">
           <div className="stat-card__value stat-card__value--success">{isLoading ? <Spinner size={20} /> : distinctions}</div>
-          <div className="stat-card__label">Distinctions (≥70%)</div>
-          <div className="text-muted text-[10px] mt-1">Grade 1 or 2</div>
+          <div className="stat-card__label">Top grades</div>
+          <div className="text-muted text-[10px] mt-1">{mixedScales ? "Each section's top grades" : GRADES.filter(g => g.tone === "success").map(g => g.code).join(" or ")}</div>
         </div>
         <div className="stat-card">
           <div className="stat-card__value stat-card__value--accent">{isLoading ? <Spinner size={20} /> : passRate !== null ? `${passRate}%` : "—"}</div>
           <div className="stat-card__label">School Pass Rate</div>
-          <div className="text-muted text-[10px] mt-1">Scoring ≥40%</div>
+          <div className="text-muted text-[10px] mt-1">{mixedScales ? "A passing grade on their scale" : `Scoring ≥${Math.min(...GRADES.filter(g => g.pass !== false).map(g => g.min))}%`}</div>
         </div>
         <div className="stat-card">
           <div className="stat-card__value stat-card__value--warning">{isLoading ? <Spinner size={20} /> : failing}</div>
           <div className="stat-card__label">Failing Students</div>
-          <div className="text-muted text-[10px] mt-1">Grade 9 (&lt;40%)</div>
+          <div className="text-muted text-[10px] mt-1">{mixedScales ? "Below a pass on their scale" : GRADES.filter(g => g.pass === false).map(g => `${g.code} (<${g.max + 1}%)`).join(", ")}</div>
         </div>
       </div>
 
@@ -1261,7 +1285,7 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
                   </thead>
                   <tbody>
                     {sorted.map(student => {
-                      const g = getGradeInfo(student.average);
+                      const g = getGradeInfo(student.average, student.scale);
                       return (
                         <tr key={student.id} onClick={() => setViewingStudent(student)} style={{ cursor: "pointer" }}>
                           <td data-label="ADM. NO." className="text-muted font-mono text-[10px]">{student.studentCode || student.id.slice(0, 8)}</td>
@@ -1274,7 +1298,7 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
                           </td>
                           <td data-label="GRADE" className="text-center">
                             {g ? (
-                              <span className={`tag ${g.bg} ${g.color} ${g.border}`}>G{g.grade} · {g.remark}</span>
+                              <span className={`tag ${g.bg} ${g.color} ${g.border}`}>{g.code} · {g.remark}</span>
                             ) : <span className="text-muted">—</span>}
                           </td>
                           <td data-label="POSITION" className="text-center">
@@ -1308,7 +1332,7 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
                 </table>
               </div>
               <div className="cc__head border-t">
-                <p className="text-muted text-[10px]">{studentsWithMarks.length} students with marks · CA contributes 40% to final MSCE grade</p>
+                <p className="text-muted text-[10px]">{studentsWithMarks.length} students with marks{isManebScale(viewScale) && !mixedScales ? " · CA contributes 40% to final MSCE grade" : ""}</p>
                 <button onClick={() => window.print()} className="btn-refresh"><Printer size={12} /> Print All</button>
               </div>
             </div>
@@ -1334,7 +1358,7 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
                           {value !== null ? (
                             <>
                               <span className={`text-base font-bold ${g?.color || "text-app-text"}`}>{value}%</span>
-                              {g && <span className={`text-[9px] font-semibold ${g.color}`}>G{g.grade}</span>}
+                              {g && <span className={`text-[9px] font-semibold ${g.color}`}>{g.code}</span>}
                             </>
                           ) : <span className="text-xs text-muted">No data</span>}
                           <span className="text-[10px] text-muted">({students} students)</span>
@@ -1365,8 +1389,8 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
                       const currAvg = avg(currStudents.map(s => s.average));
                       const prevAvg = avg(prevStudents.map(s => s.average));
                       const delta   = currAvg !== null && prevAvg !== null ? Math.round((currAvg - prevAvg) * 10) / 10 : null;
-                      const gc = getGradeInfo(currAvg);
-                      const gp = getGradeInfo(prevAvg);
+                      const gc = getGradeInfo(currAvg, scaleOf(cls.id));
+                      const gp = getGradeInfo(prevAvg, scaleOf(cls.id));
                       return (
                         <div key={cls.id} className="border border-app-border rounded-2xl p-4">
                           <div className="flex items-center justify-between mb-3">
@@ -1424,8 +1448,8 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
                     </thead>
                     <tbody>
                       {sorted.filter(s => s.average !== null || s.prevAverage !== null).map(s => {
-                        const gc = getGradeInfo(s.average);
-                        const gp = getGradeInfo(s.prevAverage);
+                        const gc = getGradeInfo(s.average, s.scale);
+                        const gp = getGradeInfo(s.prevAverage, s.scale);
                         return (
                           <tr key={s.id}>
                             <td data-label="STUDENT">
@@ -1471,12 +1495,12 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
                   Grade Distribution — {selectedClassId === "all" ? "All Classes" : classes.find(c => c.id === selectedClassId)?.name}
                 </h3>
                 <div className="space-y-2.5">
-                  {MANEB_GRADES.map(g => {
-                    const count = studentsWithMarks.filter(s => getGradeInfo(s.average)?.grade === g.grade).length;
+                  {GRADES.map(g => {
+                    const count = studentsWithMarks.filter(s => s.scale === viewScale && getGradeInfo(s.average, s.scale)?.grade === g.grade).length;
                     const pct   = studentsWithMarks.length ? Math.round((count / studentsWithMarks.length) * 100) : 0;
                     return (
                       <div key={g.grade} className="flex items-center gap-3">
-                        <span className={`text-[10px] font-bold w-24 shrink-0 ${g.color}`}>G{g.grade} {g.remark}</span>
+                        <span className={`text-[10px] font-bold w-24 shrink-0 ${g.color}`}>{g.code} {g.remark}</span>
                         <MiniBar value={pct} color={g.grade <= 2 ? "#10b981" : g.grade <= 6 ? "#3b82f6" : g.grade <= 8 ? "#f59e0b" : "#ef4444"} />
                         <span className="text-[11px] font-semibold text-muted w-16 text-right">
                           {count} <span className="text-muted">({pct}%)</span>
@@ -1495,7 +1519,7 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
                     {classes.map(cls => {
                       const clsStudents = studentsWithMarks.filter(s => s.classId === cls.id);
                       const clsAvg = avg(clsStudents.map(s => s.average));
-                      const g = getGradeInfo(clsAvg);
+                      const g = getGradeInfo(clsAvg, scaleOf(cls.id));
                       return (
                         <div key={cls.id} className="flex items-center gap-3">
                           <span className="text-xs font-semibold text-muted w-24 shrink-0">{cls.name}</span>
@@ -1503,7 +1527,7 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
                           {clsAvg !== null ? (
                             <div className="flex items-center gap-1.5 shrink-0">
                               <span className={`text-sm font-bold ${g?.color || "text-app-text"}`}>{clsAvg}%</span>
-                              {g && <span className={`text-[9px] font-semibold ${g.color}`}>G{g.grade}</span>}
+                              {g && <span className={`text-[9px] font-semibold ${g.color}`}>{g.code}</span>}
                               <span className="text-[10px] text-muted">({clsStudents.length})</span>
                             </div>
                           ) : <span className="text-xs text-muted shrink-0">No data</span>}
@@ -1533,7 +1557,7 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
                           {subjAvg !== null ? (
                             <div className="flex items-center gap-2 shrink-0">
                               <span className={`text-sm font-bold ${g?.color || "text-app-text"}`}>{subjAvg}%</span>
-                              {g && <span className={`text-[9px] font-semibold ${g.color}`}>G{g.grade}</span>}
+                              {g && <span className={`text-[9px] font-semibold ${g.color}`}>{g.code}</span>}
                               <span className="text-[10px] text-muted">({scores.length})</span>
                             </div>
                           ) : <span className="text-xs text-muted shrink-0">No data</span>}
@@ -1582,21 +1606,18 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
           {/* AT-RISK STUDENTS TAB */}
           {reportType === "atRisk" && (
             <div className="space-y-5">
-              {studentsWithMarks.filter(s => s.average < 40).length > 0 && (
+              {studentsWithMarks.filter(isFailing).length > 0 && (
                 <div className="bg-danger/10 border border-danger/30 rounded-2xl p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <AlertTriangle size={16} className="text-danger" />
                     <h3 className="font-semibold text-danger text-sm">
-                      Failing Students — G9 · below 40% ({studentsWithMarks.filter(s => s.average < 40).length})
+                      Failing Students — below a passing grade ({studentsWithMarks.filter(isFailing).length})
                     </h3>
                   </div>
                   <div className="space-y-2">
-                    {studentsWithMarks.filter(s => s.average < 40).sort((a, b) => a.average - b.average).map(s => {
-                      const g = getGradeInfo(s.average);
-                      const weak = s.subjects.filter(subj => {
-                        const sc = s.subjectMarks[subj];
-                        return sc !== null && sc !== undefined && Number(sc) < 40;
-                      });
+                    {studentsWithMarks.filter(isFailing).sort((a, b) => a.average - b.average).map(s => {
+                      const g = getGradeInfo(s.average, s.scale);
+                      const weak = s.subjects.filter(subj => getGradeInfo(s.subjectMarks[subj], s.scale)?.pass === false);
                       return (
                         <div key={s.id} className="flex items-center justify-between bg-card-bg border border-danger/20 rounded-xl px-4 py-3 cursor-pointer hover:bg-danger/5 transition-colors"
                           onClick={() => setViewingStudent(s)}>
@@ -1620,20 +1641,20 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
                 </div>
               )}
 
-              {studentsWithMarks.filter(s => s.average >= 40 && s.average < 50).length > 0 && (
+              {studentsWithMarks.filter(needsSupport).length > 0 && (
                 <div className="bg-warning/10 border border-warning/30 rounded-2xl p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <AlertTriangle size={16} className="text-warning" />
                     <h3 className="font-semibold text-warning-dark text-sm">
-                      Needs Support — G7–G8 · 40–49% ({studentsWithMarks.filter(s => s.average >= 40 && s.average < 50).length})
+                      Needs Support — lowest passing grades ({studentsWithMarks.filter(needsSupport).length})
                     </h3>
                   </div>
                   <div className="space-y-2">
-                    {studentsWithMarks.filter(s => s.average >= 40 && s.average < 50).sort((a, b) => a.average - b.average).map(s => {
-                      const g = getGradeInfo(s.average);
+                    {studentsWithMarks.filter(needsSupport).sort((a, b) => a.average - b.average).map(s => {
+                      const g = getGradeInfo(s.average, s.scale);
                       const weak = s.subjects.filter(subj => {
-                        const sc = s.subjectMarks[subj];
-                        return sc !== null && sc !== undefined && Number(sc) < 50;
+                        const sg = getGradeInfo(s.subjectMarks[subj], s.scale);
+                        return Boolean(sg) && (sg.pass === false || sg.tone === "warning");
                       });
                       return (
                         <div key={s.id} className="flex items-center justify-between bg-card-bg border border-warning/20 rounded-xl px-4 py-3 cursor-pointer hover:bg-warning/5 transition-colors"
@@ -1658,7 +1679,7 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
                 </div>
               )}
 
-              {studentsWithMarks.filter(s => s.average < 50).length === 0 && (
+              {studentsWithMarks.filter((s) => isFailing(s) || needsSupport(s)).length === 0 && (
                 <div className="bg-success/10 border border-success/30 rounded-2xl py-16 flex flex-col items-center gap-3 text-center">
                   <CheckCircle size={32} className="text-success" />
                   <p className="text-sm font-semibold text-success-dark">No students currently below 50%!</p>

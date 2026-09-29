@@ -2,9 +2,14 @@
 import { useState, useEffect, useMemo } from "react";
 import { auth, db } from "../../../firebase";
 import { syncAssignmentsWithClasses } from "../../../services/staffAssignments";
-import { schoolLevelOf } from "../../../services/schoolProfile";
 import {
-  collection, query, where, getDocs, doc, getDoc, writeBatch, serverTimestamp,
+  sectionsOf, sectionIdOfClass, sectionForClass, sectionLabel, curriculumLabel,
+  ladderFor, planSectionClasses, renameClass,
+} from "../../../services/curriculum";
+import CurriculumSettings from "../../../components/setup/CurriculumSettings";
+import { subscribeSchoolSettings } from "../../../services/academicTerm";
+import {
+  collection, query, where, getDocs, doc, writeBatch, serverTimestamp,
 } from "firebase/firestore";
 import {
   Users, BookOpen, GraduationCap, LayoutGrid, RefreshCw,
@@ -16,21 +21,6 @@ import "./staff-management.css";
 import { isDeactivated } from "../../../services/staffAccountCore";
 
 const DEFAULT_CAPACITY = 45;
-
-// School type → the full range of forms/standards that type can offer. A
-// school doesn't have to use every one — Set up classes lets the head
-// teacher pick a subset (e.g. a secondary school with only Form 1–4).
-const SCHOOL_TYPE_FORMS = {
-  Secondary: ["Form 1", "Form 2", "Form 3", "Form 4", "Form 5", "Form 6"],
-  Primary: ["Standard 1", "Standard 2", "Standard 3", "Standard 4", "Standard 5", "Standard 6", "Standard 7", "Standard 8"],
-};
-
-// Deterministic doc id so re-running Set up classes is idempotent (upserts
-// instead of creating duplicates) — same pattern as timesheet/attendance
-// entries elsewhere in this codebase.
-function classDocId(schoolCode, formLevel, stream) {
-  return `${schoolCode}_form${formLevel}${stream || ""}`;
-}
 
 function Spinner({ size = 20 }) {
   return <div className="spinner" style={{ width: size, height: size }} />;
@@ -71,87 +61,65 @@ function UtilBar({ pct }) {
   );
 }
 
-// ─── Set up classes (school type → forms/standards → streams) ───────────────
+// ─── Set up classes (section → classes → streams) ───────────────────────────
+// Generates class records from the school's sections (Kindergarten / Primary /
+// Secondary) and the curriculum each follows — see services/curriculumCore.js.
 function ClassSetupModal({ schoolCode, existingClasses, existingSettings, onClose, onSaved }) {
-  // Primary or Secondary — `schoolLevel`, not `schoolType` (that is day/boarding).
-  const [schoolType, setSchoolType] = useState(schoolLevelOf(existingSettings));
-  const [selectedForms, setSelectedForms] = useState(() => {
-    const forms = new Set();
-    existingClasses.forEach((c) => { if (c.formLevel) forms.add(c.formLevel); });
-    return forms;
-  });
-  const [streamCounts, setStreamCounts] = useState(() => {
-    const counts = {};
+  const sections = useMemo(() => sectionsOf(existingSettings), [existingSettings]);
+  const [activeId, setActiveId] = useState(sections[0]?.id);
+  // section id → { ladder position → stream count }, from the classes that exist.
+  const [rungs, setRungs] = useState(() => {
+    const out = Object.fromEntries(sections.map((x) => [x.id, {}]));
     existingClasses.forEach((c) => {
       if (!c.formLevel) return;
+      const id = sectionIdOfClass(c, sections);
+      if (!out[id]) return;
       const streamIndex = c.stream ? c.stream.charCodeAt(0) - 64 : 0; // "A" -> 1
-      counts[c.formLevel] = Math.max(counts[c.formLevel] || 0, streamIndex);
+      out[id][c.formLevel] = Math.max(out[id][c.formLevel] || 0, streamIndex);
     });
-    return counts;
+    return out;
   });
-  const [subjectsInput, setSubjectsInput] = useState(
-    "Mathematics, English, Chichewa, Biology, Physical Science, Geography, History, Agriculture"
-  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const formList = SCHOOL_TYPE_FORMS[schoolType];
-  const existingKeys = useMemo(
-    () => new Set(existingClasses.filter((c) => c.formLevel).map((c) => `${c.formLevel}_${c.stream || ""}`)),
-    [existingClasses]
-  );
+  const section = sections.find((x) => x.id === activeId) || sections[0];
+  const ladder = ladderFor(section.id, section.curriculum);
+  const mine = rungs[section.id] || {};
 
-  const toggleForm = (level) => {
-    setSelectedForms((prev) => {
-      const next = new Set(prev);
-      if (next.has(level)) next.delete(level); else next.add(level);
-      return next;
-    });
-  };
-
-  const setStreams = (level, count) => {
-    setStreamCounts((prev) => ({ ...prev, [level]: Math.max(0, Math.min(6, count)) }));
-  };
+  const toggle = (n) => setRungs((prev) => {
+    const next = { ...(prev[section.id] || {}) };
+    if (n in next) delete next[n]; else next[n] = 0;
+    return { ...prev, [section.id]: next };
+  });
+  const setStreams = (n, count) => setRungs((prev) => ({
+    ...prev, [section.id]: { ...(prev[section.id] || {}), [n]: Math.max(0, Math.min(6, count)) },
+  }));
 
   const handleSave = async () => {
-    if (selectedForms.size === 0) { setError("Select at least one form/standard."); return; }
+    const plan = sections.flatMap((x) => planSectionClasses({ schoolCode, section: x, rungs: rungs[x.id] || {}, capacity: DEFAULT_CAPACITY }));
+    if (plan.length === 0) { setError("Select at least one class."); return; }
     setSaving(true);
     setError("");
     try {
-      const subjects = subjectsInput.split(",").map((s) => s.trim()).filter(Boolean);
       const batch = writeBatch(db);
       const uid = auth.currentUser?.uid || null;
-
-      batch.set(doc(db, "school_settings", schoolCode), {
-        schoolCode,
-        schoolLevel: schoolType,
-        promotionThreshold: existingSettings?.promotionThreshold ?? 40,
-        updatedAt: serverTimestamp(),
-        updatedBy: uid,
-      }, { merge: true });
-
-      [...selectedForms].sort((a, b) => a - b).forEach((level) => {
-        const label = formList[level - 1];
-        const streamCount = streamCounts[level] || 0;
-        const slots = streamCount === 0
-          ? [{ stream: null, name: label, order: level * 10 }]
-          : Array.from({ length: streamCount }, (_, i) => {
-              const letter = String.fromCharCode(65 + i);
-              return { stream: letter, name: `${label}${letter}`, order: level * 10 + i };
-            });
-
-        slots.forEach(({ stream, name, order }) => {
-          const id = classDocId(schoolCode, level, stream);
-          const alreadyExists = existingKeys.has(`${level}_${stream || ""}`);
-          const payload = alreadyExists
-            // Existing class: only keep the structural fields in sync, never
-            // clobber subjects/capacity a head teacher may have since edited.
-            ? { schoolCode, name, formLevel: level, stream, order, level: schoolType, updatedAt: serverTimestamp(), updatedBy: uid }
-            : { schoolCode, name, formLevel: level, stream, order, level: schoolType, subjects, capacity: DEFAULT_CAPACITY, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: uid };
-          batch.set(doc(db, "school_classes", id), payload, { merge: true });
-        });
+      // An existing class in the same section, year and stream keeps its id,
+      // name, subjects and capacity — re-running this never clobbers edits.
+      const existingKey = (c) => `${sectionIdOfClass(c, sections)}_${c.formLevel}_${c.stream || ""}`;
+      const existing = new Map(existingClasses.filter((c) => c.formLevel).map((c) => [existingKey(c), c]));
+      plan.forEach(({ id, data }) => {
+        const match = existing.get(`${data.section}_${data.formLevel}_${data.stream || ""}`);
+        if (match) {
+          batch.set(doc(db, "school_classes", match.id), {
+            section: data.section, curriculum: data.curriculum, formLevel: data.formLevel, stream: data.stream,
+            order: data.order, updatedAt: serverTimestamp(), updatedBy: uid,
+          }, { merge: true });
+        } else {
+          batch.set(doc(db, "school_classes", id), {
+            ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: uid,
+          }, { merge: true });
+        }
       });
-
       await batch.commit();
       await syncAssignmentsWithClasses(schoolCode).catch((e) => console.error("assignment sync failed:", e));
       onSaved();
@@ -169,7 +137,7 @@ function ClassSetupModal({ schoolCode, existingClasses, existingSettings, onClos
         <div className="modal-header">
           <div>
             <h3>Set up classes</h3>
-            <p>Generates class records from your school type. Safe to re-run — existing classes are updated, not duplicated.</p>
+            <p>Creates classes for each section the school runs. Safe to re-run — existing classes are kept, not duplicated.</p>
           </div>
           <button onClick={onClose} className="modal-close"><X size={22} /></button>
         </div>
@@ -177,70 +145,48 @@ function ClassSetupModal({ schoolCode, existingClasses, existingSettings, onClos
         <div className="modal-body space-y-5">
           {error && <div className="error-message">{error}</div>}
 
-          <div>
-            <label className="field__label">School type</label>
-            <div className="flex gap-2 mt-2">
-              {Object.keys(SCHOOL_TYPE_FORMS).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => { setSchoolType(t); setSelectedForms(new Set()); setStreamCounts({}); }}
-                  className={`filter-btn ${schoolType === t ? "filter-btn--active" : ""}`}
-                >
-                  {t}
+          {sections.length > 1 && (
+            <div className="flex gap-2 flex-wrap">
+              {sections.map((x) => (
+                <button key={x.id} type="button" onClick={() => setActiveId(x.id)}
+                  className={`filter-btn ${section.id === x.id ? "filter-btn--active" : ""}`}>
+                  {sectionLabel(x.id)}
                 </button>
               ))}
             </div>
-          </div>
+          )}
+          <p className="text-xs text-muted">
+            {sectionLabel(section.id)} · {curriculumLabel(section.curriculum)}. New classes start with this section&rsquo;s{" "}
+            {section.subjects.length} subjects. Change sections, curriculum or subjects under &ldquo;Curriculum &amp; grading&rdquo;.
+          </p>
 
-          <div>
-            <label className="field__label">{schoolType === "Secondary" ? "Forms" : "Standards"} this school has</label>
-            <div className="space-y-2 mt-2">
-              {formList.map((label, idx) => {
-                const level = idx + 1;
-                const checked = selectedForms.has(level);
-                return (
-                  <div key={level} className="flex items-center gap-3 p-3 rounded-xl border border-app-border">
-                    <label className="flex items-center gap-2 flex-1 cursor-pointer">
-                      <input type="checkbox" checked={checked} onChange={() => toggleForm(level)} className="field__checkbox" />
-                      <span className="text-sm font-medium">{label}</span>
-                    </label>
-                    {checked && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted uppercase tracking-wide">Streams</span>
-                        <select
-                          value={streamCounts[level] || 0}
-                          onChange={(e) => setStreams(level, Number(e.target.value))}
-                          className="field__select"
-                          style={{ width: 130 }}
-                        >
-                          <option value={0}>None (single class)</option>
-                          {[1, 2, 3, 4, 5, 6].map((n) => (
-                            <option key={n} value={n}>
-                              {n} ({Array.from({ length: n }, (_, i) => String.fromCharCode(65 + i)).join("/")})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <label className="field__label">Default subjects for newly created classes</label>
-            <textarea
-              rows={2}
-              value={subjectsInput}
-              onChange={(e) => setSubjectsInput(e.target.value)}
-              className="field__textarea"
-              placeholder="Comma-separated subject names"
-            />
-            <p className="text-[11px] text-muted mt-1">
-              Only applied when a class is created for the first time — existing classes keep whatever subjects they already have.
-            </p>
+          <div className="space-y-2">
+            {ladder.map((label, idx) => {
+              const n = idx + 1;
+              const checked = n in mine;
+              return (
+                <div key={label} className="flex items-center gap-3 p-3 rounded-xl border border-app-border">
+                  <label className="flex items-center gap-2 flex-1 cursor-pointer">
+                    <input type="checkbox" checked={checked} onChange={() => toggle(n)} className="field__checkbox" />
+                    <span className="text-sm font-medium">{label}</span>
+                  </label>
+                  {checked && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-muted uppercase tracking-wide">Streams</span>
+                      <select value={mine[n] || 0} onChange={(e) => setStreams(n, Number(e.target.value))}
+                        className="field__select" style={{ width: 130 }}>
+                        <option value={0}>None (single class)</option>
+                        {[1, 2, 3, 4, 5, 6].map((k) => (
+                          <option key={k} value={k}>
+                            {k} ({Array.from({ length: k }, (_, i) => String.fromCharCode(65 + i)).join("/")})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -248,6 +194,90 @@ function ClassSetupModal({ schoolCode, existingClasses, existingSettings, onClos
           <button onClick={onClose} className="btn-cancel">Cancel</button>
           <button onClick={handleSave} disabled={saving} className="btn-save">
             {saving ? <Spinner size={16} /> : <LayoutGrid size={16} />} Create classes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Edit one class: name, subjects, capacity ───────────────────────────────
+function EditClassModal({ cls, settings, schoolCode, onClose, onSaved }) {
+  const section = sectionForClass(settings, cls);
+  const [name, setName] = useState(cls.name || "");
+  const [subjects, setSubjects] = useState(cls.subjects || []);
+  const [capacity, setCapacity] = useState(cls.capacity || DEFAULT_CAPACITY);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const offered = [...new Set([...(section?.subjects || []), ...(cls.subjects || [])])];
+
+  const save = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) { setError("Give the class a name."); return; }
+    if (subjects.length === 0) { setError("Tick at least one subject."); return; }
+    setSaving(true);
+    setError("");
+    try {
+      // The server renames it on every learner, timetable period, mark sheet
+      // and teacher assignment too, so nothing is left under the old name.
+      if (trimmed !== cls.name) {
+        const res = await renameClass(cls.id, trimmed);
+        if (!res.ok) { setError(res.error); setSaving(false); return; }
+      }
+      const batch = writeBatch(db);
+      batch.update(doc(db, "school_classes", cls.id), {
+        subjects, capacity: Math.max(1, Number(capacity) || DEFAULT_CAPACITY), updatedAt: serverTimestamp(),
+      });
+      await batch.commit();
+      await syncAssignmentsWithClasses(schoolCode).catch((e) => console.error("assignment sync failed:", e));
+      onSaved();
+      onClose();
+    } catch (err) {
+      console.error("Edit class failed:", err);
+      setError(`Couldn't save the class: ${err.message}`);
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-container" style={{ maxWidth: 560 }}>
+        <div className="modal-header">
+          <div>
+            <h3>Edit {cls.name}</h3>
+            <p>{sectionLabel(section?.id)} · {curriculumLabel(section?.curriculum)}</p>
+          </div>
+          <button onClick={onClose} className="modal-close"><X size={22} /></button>
+        </div>
+        <div className="modal-body space-y-4">
+          {error && <div className="error-message">{error}</div>}
+          <div>
+            <label className="field__label">Class name</label>
+            <input className="field__input" value={name} onChange={(e) => setName(e.target.value)} />
+            <p className="text-[11px] text-muted mt-1">Renaming updates the class&rsquo;s learners, timetable, marks and teachers too.</p>
+          </div>
+          <div>
+            <label className="field__label">Capacity</label>
+            <input className="field__input" type="number" min={1} value={capacity} onChange={(e) => setCapacity(e.target.value)} style={{ maxWidth: 140 }} />
+          </div>
+          <div>
+            <label className="field__label">Subjects</label>
+            <div className="grid grid-cols-2 gap-1 mt-1">
+              {offered.map((sub) => (
+                <label key={sub} className="flex items-center gap-2 text-sm cursor-pointer p-1">
+                  <input type="checkbox" checked={subjects.includes(sub)}
+                    onChange={() => setSubjects((prev) => (prev.includes(sub) ? prev.filter((x) => x !== sub) : [...prev, sub]))} />
+                  {sub}
+                </label>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted mt-1">Add or rename subjects under &ldquo;Curriculum &amp; grading&rdquo;.</p>
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button onClick={onClose} className="btn-cancel">Cancel</button>
+          <button onClick={save} disabled={saving} className="btn-save">
+            {saving ? <Spinner size={16} /> : <Edit2 size={16} />} Save class
           </button>
         </div>
       </div>
@@ -264,6 +294,8 @@ export default function ClassAndStreamModule({ schoolCode, currentUser }) {
   const [search, setSearch] = useState("");
   const [viewClass, setViewClass] = useState(null);
   const [showSetup, setShowSetup] = useState(false);
+  const [showCurriculum, setShowCurriculum] = useState(false);
+  const [editClass, setEditClass] = useState(null);
   const [view, setView] = useState("classes");          // classes | activity
   const [activityScope, setActivityScope] = useState(SCHOOL_SCOPE);
   const [threadCounts, setThreadCounts] = useState({});
@@ -272,11 +304,10 @@ export default function ClassAndStreamModule({ schoolCode, currentUser }) {
     if (!schoolCode) return;
     setLoading(true);
     try {
-      const [classSnap, studentSnap, staffSnap, settingsSnap] = await Promise.all([
+      const [classSnap, studentSnap, staffSnap] = await Promise.all([
         getDocs(query(collection(db, "school_classes"), where("schoolCode", "==", schoolCode))),
         getDocs(query(collection(db, "students"), where("schoolCode", "==", schoolCode))),
         getDocs(query(collection(db, "users"), where("schoolCode", "==", schoolCode))),
-        getDoc(doc(db, "school_settings", schoolCode)),
       ]);
       setClasses(
         classSnap.docs
@@ -294,7 +325,6 @@ export default function ClassAndStreamModule({ schoolCode, currentUser }) {
             assignedClasses: d.data().assignedClasses || [],
           }))
       );
-      setSchoolSettings(settingsSnap.exists() ? settingsSnap.data() : null);
       setThreadCounts(await fetchThreadCounts(schoolCode));
     } catch (err) {
       console.error("ClassModule fetch:", err);
@@ -306,6 +336,9 @@ export default function ClassAndStreamModule({ schoolCode, currentUser }) {
   useEffect(() => {
     fetchData();
   }, [schoolCode]);
+
+  // Live, so a curriculum or grading change shows as soon as it is saved.
+  useEffect(() => subscribeSchoolSettings(schoolCode, setSchoolSettings), [schoolCode]);
 
   const openActivity = (scopeId) => {
     setActivityScope(scopeId);
@@ -353,10 +386,13 @@ export default function ClassAndStreamModule({ schoolCode, currentUser }) {
           <h2 style={{ fontFamily: "'Playfair Display', serif" }}>Classes & Streams</h2>
           <p className="text-muted">
             Class management dashboard · enrollment & capacity
-            {schoolSettings && ` · ${schoolLevelOf(schoolSettings)}`}
+            {schoolSettings && ` · ${sectionsOf(schoolSettings).map((x) => `${sectionLabel(x.id)} (${curriculumLabel(x.curriculum)})`).join(", ")}`}
           </p>
         </div>
         <div className="flex gap-2">
+          <button onClick={() => setShowCurriculum(true)} disabled={loading} className="btn-refresh">
+            <BookOpen size={14} /> Curriculum &amp; grading
+          </button>
           <button onClick={() => setShowSetup(true)} disabled={loading} className="btn-refresh">
             <Settings size={14} /> Set up classes
           </button>
@@ -448,7 +484,7 @@ export default function ClassAndStreamModule({ schoolCode, currentUser }) {
               <div className="flex items-start justify-between gap-3">
                 <div style={{ minWidth: 0 }}>
                   <h3 className="text-xl font-bold text-app-text truncate">{cls.name}</h3>
-                  <p className="text-xs text-muted mt-0.5 capitalize">{cls.level || "Secondary"} · {cls.subjectCount} subjects</p>
+                  <p className="text-xs text-muted mt-0.5">{sectionLabel(sectionIdOfClass(cls, sectionsOf(schoolSettings)))} · {cls.subjectCount} subjects</p>
                 </div>
                 <span className="status-pill status-pill--success" style={{ flexShrink: 0 }}>{cls.status}</span>
               </div>
@@ -481,7 +517,7 @@ export default function ClassAndStreamModule({ schoolCode, currentUser }) {
                     <span className="cls-scope__n">{threadCounts[cls.id].threads}</span>
                   )}
                 </button>
-                <button className="btn btn--secondary" title="Contact administrator to edit classes" style={{ flexShrink: 0 }}>
+                <button onClick={() => setEditClass(cls)} className="btn btn--secondary" title="Rename or change subjects" aria-label={`Edit ${cls.name}`} style={{ flexShrink: 0 }}>
                   <Edit2 size={13} />
                 </button>
                 <button className="btn btn--secondary" title="Assign via Staff Management" style={{ flexShrink: 0 }}>
@@ -539,6 +575,33 @@ export default function ClassAndStreamModule({ schoolCode, currentUser }) {
         <p className="text-center text-xs text-muted pt-1">
           Use "Set up classes" to generate classes for your school, or Staff Management to assign class teachers.
         </p>
+      )}
+
+      {editClass && (
+        <EditClassModal
+          cls={editClass}
+          settings={schoolSettings}
+          schoolCode={schoolCode}
+          onClose={() => setEditClass(null)}
+          onSaved={fetchData}
+        />
+      )}
+
+      {showCurriculum && (
+        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowCurriculum(false)}>
+          <div className="modal-container" style={{ maxWidth: 820 }}>
+            <div className="modal-header">
+              <div>
+                <h3>Curriculum &amp; grading</h3>
+                <p>Sections the school runs, the curriculum each follows, its subjects and grading scale.</p>
+              </div>
+              <button onClick={() => setShowCurriculum(false)} className="modal-close"><X size={22} /></button>
+            </div>
+            <div className="modal-body">
+              <CurriculumSettings schoolCode={schoolCode} settings={schoolSettings} actorId={currentUser?.uid || ""} />
+            </div>
+          </div>
+        </div>
       )}
 
       {showSetup && (

@@ -1,6 +1,7 @@
 // src/components/setup/SetupSchoolDetails.jsx
 // Step 2 of setting a school up: everything School Settings holds that step 1
-// doesn't — the classes and their subjects, the school's contact details, how
+// doesn't — the sections and curriculum, the classes and their subjects (see
+// services/curriculumCore.js), the school's contact details, how
 // families are reached, and where online fee payments go. Nobody uses the
 // dashboard until this is done, because a school with no classes can't enrol
 // a student, bill a fee or take a register.
@@ -9,13 +10,16 @@ import { doc, setDoc, updateDoc, writeBatch, serverTimestamp } from "firebase/fi
 import { Check, ArrowRight, Plus, X, MessageCircle, MessageSquare, Sparkles } from "lucide-react";
 import { db } from "../../firebase";
 import { Btn, Input, Select, Notice } from "../ui/ModuleKit";
-import { PRIMARY_SUBJECTS, SECONDARY_SUBJECTS } from "../../pages/admin/modules/constants";
 import { normalisePhone } from "../../services/phone";
-import { completeSetup, schoolLevelOf } from "../../services/schoolProfile";
+import { completeSetup } from "../../services/schoolProfile";
 import { setEnabledModules } from "../../services/modules";
-import { planClasses, LEVEL_CLASSES, DEFAULT_SELECTION } from "../../services/classSetupCore";
+import {
+  SECTIONS, CURRICULA, DEFAULT_RUNGS, sectionsOf, defaultSection, ladderFor,
+  planSectionClasses, sectionLabel, saveSections,
+} from "../../services/curriculum";
 
-const DEFAULT_SUBJECTS = { Secondary: SECONDARY_SUBJECTS, Primary: PRIMARY_SUBJECTS };
+/** Pre-ticked classes for a section: ladder position → stream count. */
+const defaultRungs = (section) => Object.fromEntries(DEFAULT_RUNGS[section.id][section.curriculum].map((n) => [n, 0]));
 
 function Section({ n, title, hint, children }) {
   return (
@@ -30,11 +34,11 @@ function Section({ n, title, hint, children }) {
 }
 
 export default function SetupSchoolDetails({ schoolCode, schoolName, school, settings, actorId, onDone }) {
-  const [level, setLevel] = useState(schoolLevelOf(settings));
-  // form number → stream count; a form missing from the map isn't offered.
-  const [forms, setForms] = useState(() => Object.fromEntries(DEFAULT_SELECTION[schoolLevelOf(settings)].map((n) => [n, 0])));
-  const [subjects, setSubjects] = useState(() => [...DEFAULT_SUBJECTS[schoolLevelOf(settings)]]);
-  const [newSubject, setNewSubject] = useState("");
+  // The sections the school runs, each with its curriculum and subjects.
+  const [sections, setSections] = useState(() => sectionsOf(settings));
+  // section id → { ladder position → stream count }; a missing position isn't offered.
+  const [rungs, setRungs] = useState(() => Object.fromEntries(sectionsOf(settings).map((s) => [s.id, defaultRungs(s)])));
+  const [newSubject, setNewSubject] = useState({});
 
   const [address, setAddress] = useState(school?.address || "");
   const [phone, setPhone] = useState(school?.phone || "");
@@ -48,27 +52,44 @@ export default function SetupSchoolDetails({ schoolCode, schoolName, school, set
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const plan = useMemo(() => planClasses({ schoolCode, level, forms, subjects }), [schoolCode, level, forms, subjects]);
-  const ready = plan.length > 0 && subjects.length > 0;
+  const plan = useMemo(
+    () => sections.flatMap((section) => planSectionClasses({ schoolCode, section, rungs: rungs[section.id] || {} })),
+    [schoolCode, sections, rungs],
+  );
+  const ready = plan.length > 0 && sections.every((s) => s.subjects.length > 0);
 
-  function switchLevel(next) {
-    setLevel(next);
-    setForms(Object.fromEntries(DEFAULT_SELECTION[next].map((n) => [n, 0])));
-    setSubjects([...DEFAULT_SUBJECTS[next]]);
+  function toggleSection(id) {
+    if (sections.some((s) => s.id === id)) {
+      if (sections.length === 1) return;
+      setSections(sections.filter((s) => s.id !== id));
+    } else {
+      const added = defaultSection(id, sections[0]?.curriculum || "malawi");
+      setSections(SECTIONS.map((s) => (s.id === id ? added : sections.find((x) => x.id === s.id))).filter(Boolean));
+      setRungs((prev) => ({ ...prev, [id]: defaultRungs(added) }));
+    }
   }
 
-  function toggleForm(n) {
-    setForms((prev) => {
-      const next = { ...prev };
-      if (n in next) delete next[n]; else next[n] = 0;
-      return next;
+  function setCurriculum(id, curriculum) {
+    const next = defaultSection(id, curriculum);
+    setSections(sections.map((s) => (s.id === id ? next : s)));
+    setRungs((prev) => ({ ...prev, [id]: defaultRungs(next) }));
+  }
+
+  function toggleRung(id, n) {
+    setRungs((prev) => {
+      const mine = { ...(prev[id] || {}) };
+      if (n in mine) delete mine[n]; else mine[n] = 0;
+      return { ...prev, [id]: mine };
     });
   }
 
-  function addSubject() {
-    const s = newSubject.trim();
-    if (s && !subjects.some((x) => x.toLowerCase() === s.toLowerCase())) setSubjects([...subjects, s]);
-    setNewSubject("");
+  const setSubjects = (id, subjects) => setSections(sections.map((s) => (s.id === id ? { ...s, subjects } : s)));
+
+  function addSubject(id) {
+    const s = (newSubject[id] || "").trim();
+    const list = sections.find((x) => x.id === id)?.subjects || [];
+    if (s && !list.some((x) => x.toLowerCase() === s.toLowerCase())) setSubjects(id, [...list, s]);
+    setNewSubject((prev) => ({ ...prev, [id]: "" }));
   }
 
   const save = async () => {
@@ -101,15 +122,17 @@ export default function SetupSchoolDetails({ schoolCode, schoolName, school, set
       const m = await setEnabledModules({ schoolCode, modules, actorId });
       if (m && m.ok === false) throw new Error(m.error);
 
-      // 4. The level lives beside the term and school type.
+      // 4. The sections, their curriculum, subjects and grading.
+      const saved = await saveSections({ schoolCode, sections, actorId });
+      if (!saved.ok) throw new Error(saved.error);
       await setDoc(doc(db, "school_settings", schoolCode), {
-        schoolCode, schoolLevel: level, whatsappEnabled: true, updatedAt: serverTimestamp(),
+        schoolCode, whatsappEnabled: true, updatedAt: serverTimestamp(),
       }, { merge: true });
 
       // Last, so the dashboard only opens once everything above exists.
       const done = await completeSetup({ schoolCode, actorId });
       if (!done.ok) throw new Error(done.error);
-      onDone?.({ schoolLevel: level, setupCompletedAt: new Date() });
+      onDone?.({ sections: saved.sections, setupCompletedAt: new Date() });
     } catch (err) {
       console.error("[setup] step 2 failed:", err);
       setError(err.message || "Setup couldn't be saved. Please try again.");
@@ -121,62 +144,86 @@ export default function SetupSchoolDetails({ schoolCode, schoolName, school, set
     <div className="space-y-5">
       {error && <Notice tone="danger">{error}</Notice>}
 
-      <Section n={1} title="Classes" hint="Tick the classes the school runs. Add streams where a class is split (Form 1A, Form 1B…).">
-        <div className="flex gap-2" style={{ flexWrap: "wrap" }}>
-          {["Secondary", "Primary"].map((l) => (
-            <button key={l} type="button" className={`choice-btn ${level === l ? "choice-btn--active" : ""}`} onClick={() => switchLevel(l)}>
-              {l} {l === "Secondary" ? "(Forms)" : "(Standards)"}
-            </button>
-          ))}
-        </div>
-        <div className="space-y-2">
-          {LEVEL_CLASSES[level].map((label, i) => {
-            const n = i + 1;
-            const on = n in forms;
+      <Section n={1} title="Sections and curriculum" hint="Tick every section the school runs and the curriculum each one follows. Grading scales and subjects can be changed later in School Settings.">
+        <div className="grid grid-cols-3" style={{ gap: 10 }}>
+          {SECTIONS.map((s) => {
+            const on = sections.some((x) => x.id === s.id);
             return (
-              <div key={label} className="flex items-center justify-between" style={{ gap: 12, padding: "6px 0", borderBottom: "1px dashed var(--border-color)" }}>
-                <label className="flex items-center gap-2" style={{ cursor: "pointer", fontWeight: 600 }}>
-                  <input type="checkbox" checked={on} onChange={() => toggleForm(n)} />
-                  {label}
-                </label>
-                {on && (
-                  <label className="flex items-center gap-2 text-muted" style={{ fontSize: 12.5 }}>
-                    Streams
-                    <select className="field__select" style={{ width: 90 }} value={forms[n]}
-                      onChange={(e) => setForms((prev) => ({ ...prev, [n]: Number(e.target.value) }))}>
-                      <option value={0}>None</option>
-                      {[2, 3, 4, 5, 6].map((k) => <option key={k} value={k}>{k} (A–{String.fromCharCode(64 + k)})</option>)}
-                    </select>
-                  </label>
-                )}
-              </div>
+              <button key={s.id} type="button" onClick={() => toggleSection(s.id)} aria-pressed={on}
+                className={`choice-btn ${on ? "choice-btn--active" : ""}`} style={{ textAlign: "left" }}>
+                <div className="flex items-center justify-between"><strong>{s.label}</strong>{on && <Check size={16} />}</div>
+              </button>
             );
           })}
         </div>
+        {sections.map((section) => (
+          <div key={section.id} className="flex items-center gap-2" style={{ flexWrap: "wrap" }}>
+            <span style={{ fontWeight: 600, minWidth: 110 }}>{sectionLabel(section.id)}</span>
+            {CURRICULA.map((c) => (
+              <button key={c.id} type="button" onClick={() => setCurriculum(section.id, c.id)}
+                className={`choice-btn ${section.curriculum === c.id ? "choice-btn--active" : ""}`} style={{ padding: "6px 12px" }}>
+                {c.label}
+              </button>
+            ))}
+          </div>
+        ))}
+      </Section>
+
+      <Section n={2} title="Classes and subjects" hint="Tick the classes each section runs. Add streams where a class is split (Form 1A, Form 1B…). Every class starts with its section's subjects; the head teacher can adjust any class later.">
+        {sections.map((section) => {
+          const mine = rungs[section.id] || {};
+          return (
+            <div key={section.id} className="space-y-3" style={{ borderTop: "1px solid var(--border-color)", paddingTop: 12 }}>
+              <p style={{ fontWeight: 700 }}>{sectionLabel(section.id)}</p>
+              <div className="space-y-2">
+                {ladderFor(section.id, section.curriculum).map((label, i) => {
+                  const n = i + 1;
+                  const on = n in mine;
+                  return (
+                    <div key={label} className="flex items-center justify-between" style={{ gap: 12, padding: "6px 0", borderBottom: "1px dashed var(--border-color)" }}>
+                      <label className="flex items-center gap-2" style={{ cursor: "pointer", fontWeight: 600 }}>
+                        <input type="checkbox" checked={on} onChange={() => toggleRung(section.id, n)} />
+                        {label}
+                      </label>
+                      {on && (
+                        <label className="flex items-center gap-2 text-muted" style={{ fontSize: 12.5 }}>
+                          Streams
+                          <select className="field__select" style={{ width: 90 }} value={mine[n]}
+                            onChange={(e) => setRungs((prev) => ({ ...prev, [section.id]: { ...mine, [n]: Number(e.target.value) } }))}>
+                            <option value={0}>None</option>
+                            {[2, 3, 4, 5, 6].map((k) => <option key={k} value={k}>{k} (A–{String.fromCharCode(64 + k)})</option>)}
+                          </select>
+                        </label>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex gap-2" style={{ flexWrap: "wrap" }}>
+                {section.subjects.map((s) => (
+                  <span key={s} className="tag tag--blue" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    {s}
+                    <button type="button" aria-label={`Remove ${s}`} onClick={() => setSubjects(section.id, section.subjects.filter((x) => x !== s))}
+                      style={{ border: "none", background: "none", cursor: "pointer", color: "inherit", padding: 0, display: "inline-flex" }}>
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2" style={{ alignItems: "flex-end" }}>
+                <div style={{ flex: 1 }}>
+                  <Input label={`Add a ${sectionLabel(section.id).toLowerCase()} subject`} value={newSubject[section.id] || ""}
+                    onChange={(e) => setNewSubject((prev) => ({ ...prev, [section.id]: e.target.value }))}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSubject(section.id); } }} placeholder="e.g. Computer Studies" />
+                </div>
+                <Btn variant="ghost" icon={<Plus size={14} />} onClick={() => addSubject(section.id)} disabled={!(newSubject[section.id] || "").trim()}>Add</Btn>
+              </div>
+            </div>
+          );
+        })}
         <p className="text-muted" style={{ fontSize: 12.5 }}>
           {plan.length ? <>Creates <strong>{plan.length}</strong> class{plan.length === 1 ? "" : "es"}: {plan.map((c) => c.data.name).join(", ")}.</> : "Pick at least one class."}
         </p>
-      </Section>
-
-      <Section n={2} title="Subjects" hint="Every class starts with these. The head teacher can adjust any class's subjects later.">
-        <div className="flex gap-2" style={{ flexWrap: "wrap" }}>
-          {subjects.map((s) => (
-            <span key={s} className="tag tag--blue" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              {s}
-              <button type="button" aria-label={`Remove ${s}`} onClick={() => setSubjects(subjects.filter((x) => x !== s))}
-                style={{ border: "none", background: "none", cursor: "pointer", color: "inherit", padding: 0, display: "inline-flex" }}>
-                <X size={12} />
-              </button>
-            </span>
-          ))}
-        </div>
-        <div className="flex gap-2" style={{ alignItems: "flex-end" }}>
-          <div style={{ flex: 1 }}>
-            <Input label="Add a subject" value={newSubject} onChange={(e) => setNewSubject(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSubject(); } }} placeholder="e.g. Computer Studies" />
-          </div>
-          <Btn variant="ghost" icon={<Plus size={14} />} onClick={addSubject} disabled={!newSubject.trim()}>Add</Btn>
-        </div>
       </Section>
 
       <Section n={3} title="School contact details" hint="Shown on receipts and report cards, and used when families contact the school.">

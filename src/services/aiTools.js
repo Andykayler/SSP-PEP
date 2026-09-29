@@ -19,6 +19,14 @@ async function run(task, body) {
 export const suggestTimetableLoad = ({ classes, periodsPerWeek }) =>
   run("timetable-load", { classes, periodsPerWeek });
 
+/**
+ * Reads a printed timetable. images: JPEG/PNG data URLs (a photo, or PDF pages
+ * rendered in the browser). → { lessons: [{ class, day, period, subject,
+ * teacher, venue, __line }], truncated }. Nothing is stored on the way.
+ */
+export const extractTimetable = ({ images, classes, days, periods, teachers }) =>
+  run("timetable-extract", { images, classes, days, periods, teachers });
+
 /** → { title, english, chichewa } */
 export const draftAnnouncement = ({ notes, language, audience, schoolName }) =>
   run("announcement", { notes, language, audience, schoolName });

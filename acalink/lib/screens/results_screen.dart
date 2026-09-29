@@ -112,10 +112,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 onChange: (v) => setState(() => _filter = v),
               ),
               const SizedBox(height: 12),
-              ...data.subjects.map((s) => _SubjectTile(result: s, filter: _filter)),
+              ...data.subjects.map((s) => _SubjectTile(result: s, filter: _filter, scale: data.scale)),
               if (data.reportCard != null) ...[
                 const SizedBox(height: 20),
-                _ReportCardPanel(card: data.reportCard!),
+                _ReportCardPanel(card: data.reportCard!, scale: data.scale),
               ],
             ],
           );
@@ -259,11 +259,12 @@ Color _toneColor(AppColors c, String tone) {
 
 class _GradePill extends StatelessWidget {
   final num score;
-  const _GradePill({required this.score});
+  final GradingScale scale;
+  const _GradePill({required this.score, required this.scale});
 
   @override
   Widget build(BuildContext context) {
-    final g = gradeFor(score);
+    final g = gradeFor(score, scale);
     final c = _toneColor(context.colors, g.tone);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
@@ -271,7 +272,7 @@ class _GradePill extends StatelessWidget {
         color: c.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Text('${score % 1 == 0 ? score.toInt() : score}  ·  G${g.grade}',
+      child: Text('${score % 1 == 0 ? score.toInt() : score}  ·  ${g.code}',
           style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: c)),
     );
   }
@@ -280,7 +281,8 @@ class _GradePill extends StatelessWidget {
 class _SubjectTile extends StatelessWidget {
   final SubjectResult result;
   final String filter;
-  const _SubjectTile({required this.result, required this.filter});
+  final GradingScale scale;
+  const _SubjectTile({required this.result, required this.filter, required this.scale});
 
   @override
   Widget build(BuildContext context) {
@@ -312,7 +314,7 @@ class _SubjectTile extends StatelessWidget {
                     style: TextStyle(
                         fontSize: 14, fontWeight: FontWeight.w600, color: context.colors.textPrimary)),
               ),
-              if (filter == 'ALL' && weighted != null) _GradePill(score: weighted),
+              if (filter == 'ALL' && weighted != null) _GradePill(score: weighted, scale: scale),
             ],
           ),
           if (filter == 'ALL' && weighted != null && !result.complete)
@@ -324,7 +326,7 @@ class _SubjectTile extends StatelessWidget {
           const SizedBox(height: 10),
           ...showing.map((c) {
             final score = result.components[c.id]!;
-            final g = gradeFor(score);
+            final g = gradeFor(score, scale);
             return Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Row(
@@ -348,7 +350,7 @@ class _SubjectTile extends StatelessWidget {
                   const SizedBox(width: 10),
                   SizedBox(
                     width: 62,
-                    child: Text('${score % 1 == 0 ? score.toInt() : score} · G${g.grade}',
+                    child: Text('${score % 1 == 0 ? score.toInt() : score} · ${g.code}',
                         textAlign: TextAlign.right,
                         style: TextStyle(
                             fontSize: 11.5,
@@ -367,12 +369,13 @@ class _SubjectTile extends StatelessWidget {
 
 class _ReportCardPanel extends StatelessWidget {
   final ReportCard card;
-  const _ReportCardPanel({required this.card});
+  final GradingScale scale;
+  const _ReportCardPanel({required this.card, required this.scale});
 
   @override
   Widget build(BuildContext context) {
     final avg = card.overallAverage;
-    final g = avg == null ? null : gradeFor(avg);
+    final g = avg == null ? null : gradeFor(avg, scale);
 
     return Container(
       decoration: BoxDecoration(
@@ -408,7 +411,7 @@ class _ReportCardPanel extends StatelessWidget {
                     _Stat(
                       label: 'Overall',
                       value: avg == null ? '—' : avg.toStringAsFixed(1),
-                      sub: g == null ? '' : 'Grade ${g.grade} · ${g.remark}',
+                      sub: g == null ? '' : 'Grade ${g.code} · ${g.remark}',
                     ),
                     if (card.position != null)
                       _Stat(
@@ -497,7 +500,7 @@ class _ReportCardPanel extends StatelessWidget {
                         child: Text(s.subject,
                             style: TextStyle(fontSize: 12.5, color: context.colors.textPrimary)),
                       ),
-                      if (w != null) _GradePill(score: w),
+                      if (w != null) _GradePill(score: w, scale: scale),
                     ],
                   ),
                 );

@@ -6,6 +6,8 @@ import {
   setDoc, serverTimestamp,
 } from "firebase/firestore";
 import { notifyMarksPublished } from "../../../services/notificationHooks";
+import { scaleForClass } from "../../../services/curriculumCore";
+import { gradeInfo, scaleRows, rangeLabel } from "../../../components/ui/grades";
 import {
   subscribeSchoolSettings, pastTermOptions, isPastTerm, canEditTerm,
 } from "../../../services/academicTerm";
@@ -43,20 +45,9 @@ function computeWeighted(perComponentScores) {
   };
 }
 
-// ─── MANEB Grade Scale (MSCE) — bucketed onto the shared success/primary/
-// warning/danger palette instead of nine bespoke colors ──────────────────────
-const MANEB_GRADES = [
-  { grade: 1, min: 80, max: 100, remark: "Distinction", tone: "success" },
-  { grade: 2, min: 70, max: 79,  remark: "Distinction", tone: "success" },
-  { grade: 3, min: 65, max: 69,  remark: "Credit",      tone: "primary" },
-  { grade: 4, min: 60, max: 64,  remark: "Credit",      tone: "primary" },
-  { grade: 5, min: 55, max: 59,  remark: "Credit",      tone: "primary" },
-  { grade: 6, min: 50, max: 54,  remark: "Credit",      tone: "primary" },
-  { grade: 7, min: 45, max: 49,  remark: "Pass",        tone: "warning" },
-  { grade: 8, min: 40, max: 44,  remark: "Pass",        tone: "warning" },
-  { grade: 9, min: 0,  max: 39,  remark: "Fail",        tone: "danger" },
-];
-
+// ─── Grading ──────────────────────────────────────────────────────────────────
+// The class's own scale (School Settings → Sections, Curriculum & Grading),
+// coloured with the shared success/primary/warning/danger tokens.
 const TONE = {
   success: { bg: "var(--success-pale)", color: "var(--success-light)", border: "1px solid rgba(34,197,94,0.22)" },
   primary: { bg: "var(--primary-pale)", color: "var(--primary-light)", border: "1px solid var(--border-color)" },
@@ -64,12 +55,9 @@ const TONE = {
   danger:  { bg: "var(--danger-pale)",  color: "var(--danger-light)",  border: "1px solid rgba(239,68,68,0.2)" },
 };
 
-function getGradeInfo(score) {
-  if (score === null || score === undefined || score === "") return null;
-  const n = Number(score);
-  if (isNaN(n)) return null;
-  const g = MANEB_GRADES.find(g => n >= g.min && n <= g.max) || MANEB_GRADES[MANEB_GRADES.length - 1];
-  return { ...g, ...TONE[g.tone] };
+function getGradeInfo(score, scale) {
+  const g = gradeInfo(score, scale);
+  return g ? { ...g, ...TONE[g.tone] } : null;
 }
 
 // ─── shared inline style helpers (same set used across Homework / Lesson
@@ -141,18 +129,18 @@ function Toast({ message, type = "success", onClose }) {
   );
 }
 
-function GradeBadge({ score }) {
-  const g = getGradeInfo(score);
+function GradeBadge({ score, scale }) {
+  const g = getGradeInfo(score, scale);
   if (!g) return <span style={{ color: "var(--text-muted)", opacity: 0.4, fontSize: 12 }}>—</span>;
   return (
     <span className="status-pill" style={{ background: g.bg, color: g.color, border: g.border }}>
-      <span className="status-pill__dot" /> G{g.grade} · {g.remark}
+      <span className="status-pill__dot" /> {g.code} · {g.remark}
     </span>
   );
 }
 
 // ─── Score input cell ─────────────────────────────────────────────────────────
-function ScoreCell({ value, onCommit, disabled }) {
+function ScoreCell({ value, onCommit, disabled, scale }) {
   const [local, setLocal] = useState(value ?? "");
   const [editing, setEditing] = useState(false);
 
@@ -165,7 +153,7 @@ function ScoreCell({ value, onCommit, disabled }) {
     if (n !== value) onCommit(n);
   };
 
-  const g = getGradeInfo(value);
+  const g = getGradeInfo(value, scale);
   return (
     <td style={{ padding: "10px 12px", textAlign: "center", verticalAlign: "middle", minWidth: 88 }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
@@ -189,7 +177,7 @@ function ScoreCell({ value, onCommit, disabled }) {
         />
         {!editing && g && (
           <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.3px", color: g.color }}>
-            G{g.grade} · {g.remark}
+            {g.code} · {g.remark}
           </span>
         )}
       </div>
@@ -200,6 +188,7 @@ function ScoreCell({ value, onCommit, disabled }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function PerformanceModule({ userId, schoolCode, userName, userRole }) {
   const [classes,       setClasses]       = useState([]);
+  const [schoolSettings, setSchoolSettings] = useState(null);
   const [mySubjects,    setMySubjects]    = useState([]);
   const [selectedClassId,   setSelectedClassId]   = useState("");
   const [classesReady,  setClassesReady]  = useState(false);
@@ -238,6 +227,7 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
   useEffect(() => {
     if (!schoolCode) return undefined;
     const unsub = subscribeSchoolSettings(schoolCode, (settings) => {
+      setSchoolSettings(settings);
       const term = settings?.currentTerm || "";
       setSchoolTerm(term);
       setSelectedTerm((chosen) => chosen || term);
@@ -248,6 +238,10 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
   const showToast = (msg, type = "success") => setToast({ message: msg, type });
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
+  // This class's grading scale, and every grade call below uses it.
+  const scale = scaleForClass(schoolSettings, selectedClass);
+  const GRADES = scaleRows(scale);
+  const gradeOf = (score) => getGradeInfo(score, scale);
   const selectedAssessmentLabel = ASSESSMENT_TYPES.find(a => a.id === selectedAssessment)?.label || "";
 
   const marksDocId = useCallback((assessmentType) => (
@@ -498,9 +492,9 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
   const classAvg = ranked.length
     ? Math.round((ranked.reduce((a, b) => a + b.average, 0) / ranked.length) * 10) / 10
     : null;
-  const atRisk    = ranked.filter(s => s.average < 40).length;
-  const needsHelp = ranked.filter(s => s.average >= 40 && s.average < 50).length;
-  const topPass   = ranked.filter(s => s.average >= 70).length;
+  const atRisk    = ranked.filter(s => gradeOf(s.average)?.pass === false).length;
+  const needsHelp = ranked.filter(s => { const g = gradeOf(s.average); return g && g.pass !== false && g.tone === "warning"; }).length;
+  const topPass   = ranked.filter(s => gradeOf(s.average)?.tone === "success").length;
 
   const overallStudents = students.map((s) => {
     const subjMap = overallData[s.id] || {};
@@ -552,8 +546,8 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
               : noAssignment
               ? "No classes assigned yet"
               : viewMode === "overall"
-              ? `${selectedClass?.name || ""} · Overall (weighted) · ${selectedTerm} · MANEB grade scale (1–9)`
-              : `${selectedClass?.name || ""} · ${selectedAssessmentLabel} · MANEB grade scale (1–9)`}
+              ? `${selectedClass?.name || ""} · Overall (weighted) · ${selectedTerm} · ${scale.name || "School"} grading`
+              : `${selectedClass?.name || ""} · ${selectedAssessmentLabel} · ${scale.name || "School"} grading`}
           </p>
           {/* Says why the marks will not take, rather than leaving a teacher
               typing into a table that silently discards what they enter. */}
@@ -714,9 +708,9 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
           <div className="stat-strip">
             {[
               { label: "Class average",         value: classAvg !== null ? `${classAvg}%` : "—", icon: <BarChart2 width={16} height={16} />, variant: "" },
-              { label: "Distinctions (G1–G2)",  value: topPass,   icon: <Award width={16} height={16} />, variant: "teal" },
-              { label: "Needs support (G8)",    value: needsHelp, icon: <AlertTriangle width={16} height={16} />, variant: "gold" },
-              { label: "Failing (G9)",          value: atRisk,    icon: <AlertCircle width={16} height={16} />, variant: "" },
+              { label: `Top grades (${GRADES.filter(g => g.tone === "success").map(g => g.code).join("–")})`, value: topPass,   icon: <Award width={16} height={16} />, variant: "teal" },
+              { label: `Needs support (${GRADES.filter(g => g.pass !== false && g.tone === "warning").map(g => g.code).join("–")})`, value: needsHelp, icon: <AlertTriangle width={16} height={16} />, variant: "gold" },
+              { label: `Failing (${GRADES.filter(g => g.pass === false).map(g => g.code).join(", ")})`, value: atRisk,    icon: <AlertCircle width={16} height={16} />, variant: "" },
             ].map((c) => (
               <div key={c.label} className="stat-card">
                 <div className="stat-card__top">
@@ -733,17 +727,17 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
         </div>
       )}
 
-      {/* ── MANEB scale reference ── */}
+      {/* ── Grading scale reference ── */}
       <details>
         <summary style={{ fontSize: 11, color: "var(--text-muted)", cursor: "pointer", userSelect: "none", display: "flex", alignItems: "center", gap: 6 }}>
-          <ChevronDown size={12} /> MANEB Grade Scale Reference
+          <ChevronDown size={12} /> Grading Scale Reference
         </summary>
         <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6, paddingLeft: 18 }}>
-          {MANEB_GRADES.map(g => {
+          {GRADES.map(g => {
             const t = TONE[g.tone];
             return (
               <span key={g.grade} style={{ fontSize: 10, padding: "5px 10px", borderRadius: "var(--radius-md)", background: t.bg, color: t.color, border: t.border, fontWeight: 600 }}>
-                G{g.grade}: {g.min}{g.grade < 9 ? `–${g.max}` : "+"}% · {g.remark}
+                {g.code}: {rangeLabel(g)}% · {g.remark}
               </span>
             );
           })}
@@ -802,7 +796,7 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
                   <tbody>
                     {filtered.map((student) => {
                       const avg = student.average;
-                      const avgGrade = getGradeInfo(avg);
+                      const avgGrade = gradeOf(avg);
                       return (
                         <tr key={student.id}>
                           <td style={{ padding: "12px 20px" }} data-label="Student">
@@ -815,13 +809,14 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
                               value={student.subjectMarks[subj] ?? null}
                               disabled={readOnly}
                               onCommit={score => updateMark(student.id, subj, score)}
+                              scale={scale}
                             />
                           ))}
                           <td style={{ padding: "10px 12px", textAlign: "center" }} data-label="Average">
                             {avg !== null ? (
                               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
                                 <span style={{ fontWeight: 700, fontSize: 15, color: avgGrade?.color || "var(--text-primary)" }}>{avg}%</span>
-                                {avgGrade && <span style={{ fontSize: 9, fontWeight: 700, color: avgGrade.color }}>G{avgGrade.grade} · {avgGrade.remark}</span>}
+                                {avgGrade && <span style={{ fontSize: 9, fontWeight: 700, color: avgGrade.color }}>{avgGrade.code} · {avgGrade.remark}</span>}
                               </div>
                             ) : <span style={{ color: "var(--text-muted)", opacity: 0.4, fontSize: 12 }}>—</span>}
                           </td>
@@ -875,7 +870,7 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
                   </div>
                 )}
                 {ranked.map((student) => {
-                  const g = getGradeInfo(student.average);
+                  const g = gradeOf(student.average);
                   return (
                     <div key={student.id} className="cc-row" style={{ alignItems: "center" }}>
                       <div style={{
@@ -892,7 +887,7 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
                           {mySubjects.map(subj => {
                             const score = student.subjectMarks[subj];
-                            const sg = getGradeInfo(score);
+                            const sg = gradeOf(score);
                             return score !== null && score !== undefined ? (
                               <span key={subj} style={{ fontSize: 9.5, padding: "3px 8px", borderRadius: "var(--radius-md)", fontWeight: 600, background: sg ? sg.bg : "var(--surface)", color: sg ? sg.color : "var(--text-muted)", border: sg ? sg.border : "1px solid var(--border-color)" }}>
                                 {subj}: {score}%
@@ -923,13 +918,13 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
                   </div>
                 </div>
                 <div className="cc__body" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {MANEB_GRADES.map(g => {
+                  {GRADES.map(g => {
                     const t = TONE[g.tone];
-                    const count = ranked.filter(s => getGradeInfo(s.average)?.grade === g.grade).length;
+                    const count = ranked.filter(s => gradeOf(s.average)?.grade === g.grade).length;
                     const pct = ranked.length ? Math.round((count / ranked.length) * 100) : 0;
                     return (
                       <div key={g.grade} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, width: 92, flexShrink: 0, color: t.color }}>G{g.grade} {g.remark}</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, width: 92, flexShrink: 0, color: t.color }}>{g.code} {g.remark}</span>
                         <div style={{ flex: 1, height: 8, borderRadius: 99, background: "var(--primary-dim)", overflow: "hidden" }}>
                           <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99, background: t.color, transition: "width 0.5s" }} />
                         </div>
@@ -959,7 +954,7 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
                       const avg = scores.length
                         ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
                         : null;
-                      const g = getGradeInfo(avg);
+                      const g = gradeOf(avg);
                       return (
                         <div key={subj} style={{ display: "flex", alignItems: "center", gap: 12 }}>
                           <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", width: 128, flexShrink: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{subj}</span>
@@ -971,7 +966,7 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
                           {avg !== null ? (
                             <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                               <span style={{ fontSize: 13, fontWeight: 700, color: g?.color || "var(--text-primary)" }}>{avg}%</span>
-                              {g && <span style={{ fontSize: 9, fontWeight: 700, color: g.color }}>G{g.grade}</span>}
+                              {g && <span style={{ fontSize: 9, fontWeight: 700, color: g.color }}>{g.code}</span>}
                             </div>
                           ) : <span style={{ fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>No data</span>}
                         </div>
@@ -991,7 +986,7 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
                   </div>
                   <div className="cc__body" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {ranked.filter(s => s.average < 50).map(s => {
-                      const g = getGradeInfo(s.average);
+                      const g = gradeOf(s.average);
                       const weakSubjects = mySubjects.filter(subj => {
                         const sc = s.subjectMarks[subj];
                         return sc !== null && sc !== undefined && Number(sc) < 50;
@@ -1035,14 +1030,14 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
                     {(() => {
                       const ov = overallRanked;
                       const ovAvg = ov.length ? Math.round((ov.reduce((a, b) => a + b.average, 0) / ov.length) * 10) / 10 : null;
-                      const ovAtRisk = ov.filter(s => s.average < 40).length;
-                      const ovNeedsHelp = ov.filter(s => s.average >= 40 && s.average < 50).length;
-                      const ovTop = ov.filter(s => s.average >= 70).length;
+                      const ovAtRisk = ov.filter(s => gradeOf(s.average)?.pass === false).length;
+                      const ovNeedsHelp = ov.filter(s => { const g = gradeOf(s.average); return g && g.pass !== false && g.tone === "warning"; }).length;
+                      const ovTop = ov.filter(s => gradeOf(s.average)?.tone === "success").length;
                       return [
                         { label: "Overall class average", value: ovAvg !== null ? `${ovAvg}%` : "—", icon: <PieChart width={16} height={16} />, variant: "" },
-                        { label: "Distinctions (G1–G2)",   value: ovTop,      icon: <Award width={16} height={16} />, variant: "teal" },
-                        { label: "Needs support (G8)",     value: ovNeedsHelp,icon: <AlertTriangle width={16} height={16} />, variant: "gold" },
-                        { label: "Failing (G9)",           value: ovAtRisk,  icon: <AlertCircle width={16} height={16} />, variant: "" },
+                        { label: `Top grades (${GRADES.filter(g => g.tone === "success").map(g => g.code).join("–")})`,  value: ovTop,      icon: <Award width={16} height={16} />, variant: "teal" },
+                        { label: `Needs support (${GRADES.filter(g => g.pass !== false && g.tone === "warning").map(g => g.code).join("–")})`,  value: ovNeedsHelp,icon: <AlertTriangle width={16} height={16} />, variant: "gold" },
+                        { label: `Failing (${GRADES.filter(g => g.pass === false).map(g => g.code).join(", ")})`,  value: ovAtRisk,  icon: <AlertCircle width={16} height={16} />, variant: "" },
                       ].map(c => (
                         <div key={c.label} className="stat-card">
                           <div className="stat-card__top">
@@ -1088,7 +1083,7 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
                       </thead>
                       <tbody>
                         {overallFiltered.map((student) => {
-                          const avgGrade = getGradeInfo(student.average);
+                          const avgGrade = gradeOf(student.average);
                           return (
                             <tr key={student.id}>
                               <td style={{ padding: "12px 20px" }} data-label="Student">
@@ -1102,7 +1097,7 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
                               </td>
                               {mySubjects.map(subj => {
                                 const cell = student.subjMap[subj];
-                                const g = getGradeInfo(cell?.score);
+                                const g = gradeOf(cell?.score);
                                 return (
                                   <td key={subj} style={{ padding: "10px 12px", textAlign: "center" }} data-label={subj}>
                                     {cell ? (
@@ -1118,7 +1113,7 @@ export default function PerformanceModule({ userId, schoolCode, userName, userRo
                                 {student.average !== null ? (
                                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
                                     <span style={{ fontWeight: 700, fontSize: 15, color: avgGrade?.color || "var(--text-primary)" }}>{student.average}%</span>
-                                    {avgGrade && <span style={{ fontSize: 9, fontWeight: 700, color: avgGrade.color }}>G{avgGrade.grade} · {avgGrade.remark}</span>}
+                                    {avgGrade && <span style={{ fontSize: 9, fontWeight: 700, color: avgGrade.color }}>{avgGrade.code} · {avgGrade.remark}</span>}
                                   </div>
                                 ) : <span style={{ color: "var(--text-muted)", opacity: 0.4, fontSize: 12 }}>—</span>}
                               </td>

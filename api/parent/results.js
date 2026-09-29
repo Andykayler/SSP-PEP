@@ -27,6 +27,7 @@ import { computeStudentBalance, getCurrentTerm } from "../_lib/feeBalance.js";
 import { normalisePhone } from "../../src/services/phone.js";
 import { resultsAccess, withheldMessage, releaseId, RELEASES } from "../../src/services/resultsAccessCore.js";
 import { childResults } from "../../src/services/resultsCore.js";
+import { scaleForClass } from "../../src/services/curriculumCore.js";
 import { isDeactivated } from "../../src/services/staffAccountCore.js";
 
 const fail = (res, status, error) => res.status(status).json({ error });
@@ -101,7 +102,7 @@ export default async function handler(req, res) {
     }
 
     const cardId = `${schoolCode}__${student.id}__${term.replace(/\s+/g, "_")}`;
-    const [marksSnap, cardSnap, classCount] = await Promise.all([
+    const [marksSnap, cardSnap, classCount, settingsSnap, classSnap] = await Promise.all([
       adminDb.collection("ca_marks")
         .where("schoolCode", "==", schoolCode)
         .where("classId", "==", student.classId)
@@ -112,7 +113,12 @@ export default async function handler(req, res) {
         .where("schoolCode", "==", schoolCode)
         .where("classId", "==", student.classId)
         .count().get(),
+      adminDb.collection("school_settings").doc(schoolCode).get(),
+      adminDb.collection("school_classes").doc(student.classId).get(),
     ]);
+    // The grading scale of the child's class, so the app shows the grades the
+    // school uses (MANEB, Cambridge, Abeka, or its own) — see curriculumCore.js.
+    const grading = scaleForClass(settingsSnap.data() || {}, classSnap.exists ? classSnap.data() : null);
 
     const results = childResults(marksSnap.docs.map((d) => d.data()), student.id);
     const card = cardSnap.exists ? cardSnap.data() : null;
@@ -124,6 +130,7 @@ export default async function handler(req, res) {
       overallAverage: results.overallAverage,
       rank: results.rank,
       classSize: classCount.data().count,
+      grading,
       reportCard: card && {
         term: card.term || term,
         className: card.className || "",
