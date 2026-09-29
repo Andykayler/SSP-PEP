@@ -1,41 +1,44 @@
-// Records ad.html to a 1080x1920 webm using Playwright's built-in video recorder.
-// Usage: node record.mjs   (needs @playwright/test or playwright installed)
+// Renders ad.html frame by frame (1080x1920, 30 fps) and muxes build/voiceover.wav into
+// output/acalink-ad.mp4 (H.264 + AAC). Every frame is captured at an exact timestamp via
+// window.seek(ms), so video and voiceover cannot drift apart. Takes several minutes.
+// Needs: playwright, a full ffmpeg on PATH (or FFMPEG=...), and build/ from `python3 synth.py`.
 import { createRequire } from "node:module";
-const { chromium } = createRequire(import.meta.url)("playwright");
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { spawnSync } from "node:child_process";
-import { rename, mkdir, readdir } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 
+const { chromium } = createRequire(import.meta.url)("playwright");
 const here = dirname(fileURLToPath(import.meta.url));
 const out = join(here, "output");
 await mkdir(out, { recursive: true });
+const FPS = 30;
+const only = process.env.ONLY_SECONDS ? Number(process.env.ONLY_SECONDS) : null; // quick test renders
 
 const browser = await chromium.launch();
-const ctx = await browser.newContext({
-  viewport: { width: 1080, height: 1920 },
-  recordVideo: { dir: out, size: { width: 1080, height: 1920 } },
-});
-const t0 = Date.now();
-const page = await ctx.newPage();
+const page = await browser.newPage({ viewport: { width: 1080, height: 1920 } });
+page.on("pageerror", (e) => { throw e; });
 await page.goto("file://" + join(here, "ad.html"));
 await page.evaluate(() => document.fonts.ready);
-await page.waitForTimeout(500);
-const t1 = Date.now();
-const end = await page.evaluate(() => { window.startAd(); return window.END; });
-await page.waitForTimeout(end * 1000);
-await ctx.close();
+const end = await page.evaluate(() => window.END);
+const seconds = only ?? end;
+const frames = Math.round(seconds * FPS);
+
+const target = join(out, only ? "test.mp4" : "acalink-ad.mp4");
+const ff = spawn(process.env.FFMPEG || "ffmpeg", ["-hide_banner", "-loglevel", "error", "-y",
+  "-f", "image2pipe", "-framerate", String(FPS), "-c:v", "mjpeg", "-i", "-",
+  "-i", join(here, "build", "voiceover.wav"), "-t", String(seconds),
+  "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+  "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", target], { stdio: ["pipe", "inherit", "inherit"] });
+const done = new Promise((res, rej) => { ff.on("close", (c) => (c === 0 ? res() : rej(new Error("ffmpeg exit " + c)))); });
+
+for (let f = 0; f < frames; f++) {
+  await page.evaluate((ms) => window.seek(ms), (f / FPS) * 1000);
+  const buf = await page.screenshot({ type: "jpeg", quality: 92 });
+  if (!ff.stdin.write(buf)) await new Promise((r) => ff.stdin.once("drain", r));
+  if (f % 300 === 0) console.log(`frame ${f}/${frames}`);
+}
+ff.stdin.end();
+await done;
 await browser.close();
-
-const files = (await readdir(out)).filter((f) => f.endsWith(".webm") && f !== "acalink-ad.webm");
-if (files.length) await rename(join(out, files[files.length - 1]), join(out, "acalink-ad.webm"));
-
-// Playwright's recorder starts at page creation; cut the load/font wait so the
-// clip opens on the first frame of scene 1. Its bundled ffmpeg only does VP8/webm.
-const ffmpeg = process.env.FFMPEG || "/opt/pw-browsers/ffmpeg-1011/ffmpeg-linux";
-const lead = ((t1 - t0) / 1000).toFixed(2);
-const r = spawnSync(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-ss", lead,
-  "-i", join(out, "acalink-ad.webm"), "-t", String(end), "-c:v", "libvpx", "-b:v", "2M", "-crf", "10", "-an",
-  join(out, "acalink-ad-final.webm")], { encoding: "utf8" });
-if (r.status !== 0) throw new Error(r.stderr);
-console.log("wrote", join(out, "acalink-ad-final.webm"), "(trimmed", lead, "s of lead-in)");
+console.log("wrote", target, `(${seconds}s)`);

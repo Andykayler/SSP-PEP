@@ -1,8 +1,9 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<title>Acalink advert, vertical 9:16</title>
+<title>Acalink advert, all modules, vertical 9:16</title>
 <meta name="viewport" content="width=1080">
 <style>
+
 @font-face{font-family:'Fraunces';font-weight:700;src:url(fonts/fraunces.ttf) format('truetype')}
 @font-face{font-family:'Caveat';font-weight:700;src:url(fonts/caveat.ttf) format('truetype')}
 @font-face{font-family:'DM Sans';font-weight:400;src:url(fonts/dmsans-400.ttf) format('truetype')}
@@ -73,112 +74,138 @@ ul.plan li::before{content:"✓";color:var(--green);font-weight:700;margin-right
 .pill{border:3px solid var(--ink);border-radius:999px;padding:16px 34px;font:700 40px var(--body)}
 .btn{background:var(--blue);color:#fff;font:700 62px var(--body);padding:36px 56px;border-radius:26px;align-self:flex-start;box-shadow:0 20px 0 -8px #2f47bd}
 .url{font:700 84px var(--display)}
+
+/* chips */
+.chips{display:grid;grid-template-columns:1fr 1fr;gap:18px 20px}
+.chips.one{grid-template-columns:1fr}
+.chip{display:flex;align-items:center;gap:20px;background:var(--card);border:2px solid rgba(22,33,62,.16);border-radius:16px;padding:22px 26px;font:700 42px/1.1 var(--body);
+  opacity:0;transform:translateY(24px) scale(.97);transition:opacity .45s ease,transform .45s cubic-bezier(.2,.9,.3,1.2)}
+.chip i{flex:none;width:18px;height:18px;border-radius:50%;background:var(--tone,var(--blue))}
+.chip small{display:block;font:400 28px/1.2 var(--body);color:var(--muted);margin-top:4px}
+.on .chip.show{opacity:1;transform:none}
+.grp{display:grid;gap:14px}
+.grp>h3{font:700 32px var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.tone-blue{--tone:#3b56d9}.tone-green{--tone:#1e8a5a}.tone-gold{--tone:#d99c00}.tone-red{--tone:#cf4029}.tone-teal{--tone:#178a91}
+.count{font:700 220px/0.9 var(--display);color:var(--blue)}
+.roles{display:flex;flex-wrap:wrap;gap:16px}
+.roles span{border:3px solid var(--ink);border-radius:999px;padding:14px 30px;font:700 38px var(--body);opacity:0;transform:translateY(20px);transition:all .4s ease}
+.on .roles span.show{opacity:1;transform:none}
+.cur{display:grid;gap:18px}
+.card3{background:var(--card);border:3px solid rgba(22,33,62,.18);border-radius:16px;padding:34px 40px;display:flex;justify-content:space-between;align-items:center;font:700 64px var(--display);
+  opacity:0;transform:translateY(24px);transition:all .5s ease}
+.on .card3.show{opacity:1;transform:none}
+.card3 span{font:400 34px var(--body);color:var(--muted)}
+.tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.tile{background:var(--card);border:2px solid rgba(22,33,62,.16);border-radius:16px;padding:38px 14px;text-align:center;font:700 34px/1.15 var(--body);opacity:0;transform:scale(.9);transition:all .4s cubic-bezier(.2,.9,.3,1.2)}
+.on .tile.show{opacity:1;transform:none}
+.tile b{display:block;font-size:56px;margin-bottom:8px;color:var(--blue)}
+.wa{background:#1f7a5a;color:#fff;border-radius:22px;padding:26px 34px;font:700 40px/1.3 var(--body);opacity:0;transition:opacity .5s ease}
+.on .wa.show{opacity:1}
+.wa small{display:block;font:400 32px var(--body);opacity:.9;margin-top:6px}
+
 </style></head>
-<body><div class="stage" id="stage">
-
-<!-- 0 hook -->
-<section class="scene" data-s="0">
-  <p class="eyebrow pop s1">Monday · 7:45am</p>
-  <h1 class="pop s1">Memory is <mark>not in class.</mark></h1>
-  <div class="sheet pop s2">
-    <div class="hd"><span>Form 3A register</span><span>Monday</span></div>
-    <div class="row"><span class="box">✓</span>Chikondi Mwale</div>
-    <div class="row"><span class="box">✓</span>Tiyamike Phiri</div>
-    <div class="row abs flip"><span class="box">✕</span>Memory Banda</div>
-    <div class="row"><span class="box">✓</span>Yamikani Kachale</div>
-  </div>
-  <p class="hand pop s3">a few taps. that's the register.</p>
-  <p class="sample">Sample data</p>
-</section>
-
-<!-- 1 whatsapp absence -->
-<section class="scene" data-s="1">
-  <p class="eyebrow pop s1">7:47am</p>
-  <div class="phone pop s1">
-    <div class="bar"><span class="av">S</span>Your school</div>
-    <div class="chat">
-      <div class="msg pop s2">Good morning. Memory Banda (Form 3A) was marked absent today. Please let the school know if she is unwell.<small>07:47</small></div>
-      <div class="msg ok pop s3">She has malaria. Back on Wednesday, thank you.<small>07:52 <span class="tick">✓✓</span></small></div>
-    </div>
-  </div>
-  <h2 class="pop s2">Parents hear it <mark>from the school first.</mark></h2>
-  <p class="sample">Sample data</p>
-</section>
-
-<!-- 2 fees -->
-<section class="scene" data-s="2">
-  <p class="eyebrow pop s1">Fees</p>
-  <div class="phone pop s1">
-    <div class="bar"><span class="av">A</span>Acalink · school fees</div>
-    <div class="chat">
-      <div class="msg pop s2">Term 2 fees: a reminder that the balance of MK 85,000 is due on 14 October.<small>08:00</small></div>
-      <div class="msg ok pop s3">Paid by mobile money.<small>08:14 <span class="tick">✓✓</span></small></div>
-      <div class="msg pop s4">Payment received. Receipt sent to the bursar and to you. Thank you.<small>08:15</small></div>
-    </div>
-  </div>
-  <h2 class="pop s2">Reminded on WhatsApp. <mark>Paid on the phone.</mark></h2>
-  <p class="sample">Sample data</p>
-</section>
-
-<!-- 3 marks -->
-<section class="scene" data-s="3">
-  <p class="eyebrow pop s1">Term end</p>
-  <h2 class="pop s1">Marks go onto the <mark>MANEB scale.</mark></h2>
-  <div class="sheet pop s2" style="position:relative">
-    <span class="stamp">★</span>
-    <div class="hd"><span>Term 2 report</span><span>Form 3A</span></div>
-    <p style="font:700 50px var(--display);margin-bottom:8px">Memory Banda</p>
-    <table class="marks">
-      <tr><td>Mathematics</td><td>82</td><td>G1 · Distinction</td></tr>
-      <tr><td>English</td><td>74</td><td>G2 · Distinction</td></tr>
-      <tr><td>Biology</td><td>68</td><td>G3 · Credit</td></tr>
-    </table>
-  </div>
-  <p class="hand pop s3">enter once. the grades work themselves out.</p>
-  <p class="sample">Sample data</p>
-</section>
-
-<!-- 4 teacher + head teacher -->
-<section class="scene" data-s="4">
-  <p class="eyebrow pop s1">Teachers &amp; head teachers</p>
-  <div class="sheet pop s1" style="display:grid;gap:34px">
-    <div class="field"><span class="lab">Lesson topic</span><span class="type">Quadratic equations</span></div>
-    <span class="gen pop s2">Generate with AI</span>
-    <ul class="plan pop s3">
-      <li>Objectives drafted</li>
-      <li>Resources listed</li>
-      <li>Assessment suggested</li>
-    </ul>
-  </div>
-  <h2 class="pop s3">Plan from a topic. The head teacher <mark>reads every plan.</mark></h2>
-  <p class="cap pop s4">And Class Monitor shows which lessons are actually being taken.</p>
-  <p class="sample">Sample data</p>
-</section>
-
-<!-- 5 cta -->
-<section class="scene" data-s="5">
-  <p class="logo pop s1">Acalink</p>
-  <h2 class="pop s1">From the <mark>first bell</mark> to the last report card.</h2>
-  <div class="pills pop s2">
-    <span class="pill">Built for Malawi</span>
-    <span class="pill">Every module included</span>
-    <span class="pill">Priced per learner, in kwacha</span>
-  </div>
-  <span class="btn pop s3">Register your school</span>
-  <p class="url pop s4">acalink.mw</p>
-</section>
-
-</div>
+<body><div class="stage" id="stage"></div>
+<script src="build/timeline.js"></script>
 <script>
-/* Scene timeline in seconds. Total length is END. */
-window.TIMELINE=[0,5,11,17,23,29]; window.END=37;
+/* One scene per entry in script.json, same order. Chips appear evenly across the spoken part of the scene. */
+var M=function(names,tone){return names.map(function(n){return Array.isArray(n)?{n:n[0],s:n[1],t:tone}:{n:n,t:tone}})};
+var S={
+hook:function(){return '<p class="eyebrow pop s1">Monday · 7:45am</p><h1 class="pop s1">Memory is <mark>not in class.</mark></h1>'+
+ '<div class="sheet pop s2" style="padding:26px 40px"><div class="hd" style="font-size:36px"><span>Form 3A register</span><span>Monday</span></div>'+
+ '<div class="row" style="padding:14px 0;font-size:46px"><span class="box">✓</span>Chikondi Mwale</div>'+
+ '<div class="row abs flip" style="padding:14px 0;font-size:46px"><span class="box">✕</span>Memory Banda</div>'+
+ '<div class="row" style="padding:14px 0;font-size:46px"><span class="box">✓</span>Yamikani Kachale</div></div>'+
+ '<div class="msg pop s3" style="max-width:800px;font-size:38px;align-self:flex-start;border-radius:26px 26px 26px 6px">Good morning. Memory Banda (Form 3A) was marked absent today. Please let the school know if she is unwell.<small>WhatsApp · 07:47</small></div>'+
+ '<p class="sample">Sample data</p>'},
+intro:function(){return '<p class="logo pop s1">Acalink</p><h2 class="pop s1">One system for <mark>everyone</mark> in a Malawian school.</h2>'+
+ '<div class="roles" data-stagger><span>Head teacher</span><span>Teacher</span><span>Bursar</span><span>Director</span><span>Administrator</span><span>Librarian</span><span>Parent</span></div>'+
+ '<p class="hand pop s3">everything it does, as of today.</p>'},
+ht_see:function(){return chips('Head teacher','See the whole school.',M([['School Overview','Every campus, one view'],['Attendance Overview','Every class, every day'],['Performance Analytics'],['Class Monitor','Timetable beside clock-ins'],['At-Risk Learners','Worst first, with reasons'],['Exam Readiness','On course for six credits?']],'blue'),true)},
+ht_run:function(){return chips('Head teacher','Run it without the paper.',M([['Auto-generate Timetable'],['Timetable from a photo, PDF or CSV'],['Student Management'],['Classes & Streams'],['Staff Management'],['Exams'],['School Calendar'],['Lesson Plans'],['Announcements','English, Chichewa or both']],'blue'))},
+ht_care:function(){return chips('Head teacher','Look after everyone.',M([['Discipline'],['Health','Profiles and sick bay'],['Leave & Cover'],['Transport','Late-bus messages'],['Admissions','Applicant to enrolled'],['Boarding','Sign-outs alert guardians'],['Inventory','Who is holding what'],['Arrears & Clearance'],['Parent Messages'],['Reports & Exports']],'red'))},
+teacher:function(){return chips('Teacher','Plan, teach, record.',M([['My Classes','AI lesson plans from a topic'],['Timetable'],['Take Attendance'],['Enter Marks','MANEB scale'],['Homework','AI-drafted questions'],['Discipline Cases'],['My Students'],['Class Activity'],['Parent Messages'],['Leave'],['Health']],'green'))},
+report:function(){return '<p class="eyebrow pop s1">Term end</p><h2 class="pop s1">Marks go onto the <mark>MANEB scale.</mark></h2>'+
+ '<div class="sheet pop s2" style="position:relative"><span class="stamp">★</span><div class="hd"><span>Term 2 report</span><span>Form 3A</span></div>'+
+ '<p style="font:700 50px var(--display);margin-bottom:8px">Memory Banda</p><table class="marks">'+
+ '<tr><td>Mathematics</td><td>82</td><td>G1 · Distinction</td></tr><tr><td>English</td><td>74</td><td>G2 · Distinction</td></tr><tr><td>Biology</td><td>68</td><td>G3 · Credit</td></tr></table></div>'+
+ '<div class="sheet pop s3" style="border-left:6px solid var(--blue)"><span class="lab" style="font:700 30px var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--blue)">Insight for parents</span>'+
+ '<p style="font-size:40px;line-height:1.35;margin-top:10px">Steady progress. Biology is the subject to watch this term.</p></div><p class="sample">Sample data</p>'},
+bursar:function(){return chips('Bursar','Fees in. Money out.',M([['Fee Structure'],['Student Fees','Look up any balance'],['Payments','Cash, bank, mobile money'],['Receipts','Print or resend'],['Arrears & Clearance','Head teacher decides exam entry'],['Sponsors & Bursaries'],['Expenses','Beside collections'],['Reports','Term and year summaries']],'gold'))},
+pay:function(){return '<p class="eyebrow pop s1">Fees online</p><div class="phone pop s1" style="height:900px"><div class="bar"><span class="av">A</span>Acalink · school fees</div><div class="chat">'+
+ '<div class="msg pop s2">Term 2 fees: a reminder that the balance of MK 85,000 is due on 14 October.<small>08:00</small></div>'+
+ '<div class="msg ok pop s3">Paid by mobile money.<small>08:14 <span class="tick">✓✓</span></small></div>'+
+ '<div class="msg pop s4">Payment received. Receipt sent to the bursar and to you. Thank you.<small>08:15</small></div></div></div>'+
+ '<h2 class="pop s2">Reminded on WhatsApp. <mark>Paid on the phone.</mark></h2><p class="sample">Sample data</p>'},
+admin:function(){return '<p class="eyebrow pop s1">Behind the scenes</p>'+
+ grp('Director',M(['School Overview','Campuses','Campus Transfers','Fee Position','Subscription'],'teal'),0)+
+ grp('Administrator',M(['User Management','Students','School Settings','Billing','Announcements','Audit Log','Data & Backup'],'blue'),1)+
+ grp('Librarian',M([['Library','Catalogue, lending, returns, fines']],'green'),2)},
+curric:function(){return '<p class="eyebrow pop s1">Sections, curriculum &amp; grading</p><h2 class="pop s1">Your school, <mark>your curriculum.</mark></h2><div class="cur" data-stagger>'+
+ '<div class="card3">Malawian<span>with its own grading scale</span></div><div class="card3">Cambridge<span>with its own grading scale</span></div><div class="card3">Abeka<span>with its own grading scale</span></div></div>'+
+ '<p class="cap pop s4">Kindergarten, Primary and Secondary. Several curricula at one level if you need them.</p>'},
+parents:function(){return '<p class="eyebrow pop s1">Parents &amp; guardians</p><h2 class="pop s1">Parents hear it <mark>from the school first.</mark></h2><div class="tiles" data-stagger>'+
+ ['Attendance','Results','Homework','Calendar','Fees','Discipline','Messages','Chat','Notifications'].map(function(t,i){return '<div class="tile">'+t+'</div>'}).join('')+'</div>'+
+ '<div class="wa" data-late>WhatsApp first, then app, then SMS<small>Absences · lateness · discipline · homework · fees</small></div>'},
+cta:function(){return '<p class="logo pop s1">Acalink</p><p class="count pop s1">40+<span style="font:700 60px var(--body);color:var(--ink)"> modules</span></p>'+
+ '<h2 class="pop s2">From the <mark>first bell</mark> to the last report card.</h2><div class="pills pop s2"><span class="pill">Every module included</span><span class="pill">Priced per learner, in kwacha</span></div>'+
+ '<span class="btn pop s3">Register your school</span><p class="url pop s4">acalink.mw</p>'}
+};
+function chips(role,title,items,firstBig){
+  var one=items.length<=6;
+  return '<p class="eyebrow pop s1">'+role+'</p><h2 class="pop s1">'+title+'</h2><div class="chips'+(one?' one':'')+'" data-stagger>'+
+   items.map(function(c){return '<div class="chip tone-'+c.t+'"><i></i><div>'+c.n+(c.s?'<small>'+c.s+'</small>':'')+'</div></div>'}).join('')+'</div>';
+}
+function grp(label,items,i){
+  return '<div class="grp"><h3 class="pop s'+(i+1)+'" style="opacity:1">'+label+'</h3><div class="chips" data-stagger>'+
+   items.map(function(c){return '<div class="chip tone-'+c.t+'" style="padding:14px 22px;font-size:36px"><i></i><div>'+c.n+(c.s?'<small>'+c.s+'</small>':'')+'</div></div>'}).join('')+'</div></div>';
+}
+var stage=document.getElementById('stage'),scenes=[];
+TIMELINE.forEach(function(t){
+  var el=document.createElement('section');el.className='scene';el.dataset.s=t.id;el.innerHTML=S[t.id]();stage.appendChild(el);scenes.push(el);
+});
+/* Wall-clock scheduler. setTimeout drifts while the recorder is busy; this checks real elapsed
+   time every frame, so scenes stay locked to the voiceover however heavy a frame is. */
+var queue=[],t0=0;
+function at(ms,fn){queue.push({ms:ms,fn:fn});}
+function tick(){
+  var now=performance.now()-t0;
+  for(var i=queue.length-1;i>=0;i--){ if(queue[i].ms<=now){var q=queue.splice(i,1)[0];q.fn();} }
+  if(queue.length) requestAnimationFrame(tick);
+}
+/* reveal chips/tiles evenly across the spoken part of each scene */
+function stagger(el,t,base){
+  var groups=[].slice.call(el.querySelectorAll('[data-stagger]'));
+  var all=[];groups.forEach(function(g){all=all.concat([].slice.call(g.children))});
+  var span=Math.max(1,t.speech-1.2),step=span/Math.max(1,all.length);
+  all.forEach(function(c,i){at(base+(0.9+i*step)*1000,function(){c.classList.add('show')})});
+  var late=el.querySelector('[data-late]');if(late)at(base+t.speech*0.55*1000,function(){late.classList.add('show')});
+}
 window.startAd=function(){
-  var scenes=[].slice.call(document.querySelectorAll('.scene'));
+  t0=performance.now();
   TIMELINE.forEach(function(t,i){
-    setTimeout(function(){
+    var base=t.start*1000;
+    at(base,function(){
       if(i>0){scenes[i-1].classList.remove('on');scenes[i-1].classList.add('out')}
       scenes[i].classList.add('on');
-    },t*1000);
+    });
+    stagger(scenes[i],t,base);
+  });
+  requestAnimationFrame(tick);
+};
+
+/* Deterministic mode for rendering: seek(ms) fires every event due by ms, then pins every running
+   CSS transition to (ms - the moment it started), so a frame depends only on ms, never on real time. */
+window.seek=function(ms){
+  if(!window.__armed){ window.__armed=true; TIMELINE.forEach(function(t,i){
+    var base=t.start*1000;
+    at(base,function(){ if(i>0){scenes[i-1].classList.remove('on');scenes[i-1].classList.add('out')} scenes[i].classList.add('on'); });
+    stagger(scenes[i],t,base);
+  }); }
+  queue.sort(function(a,b){return b.ms-a.ms});
+  while(queue.length && queue[queue.length-1].ms<=ms){ queue.pop().fn(); }
+  document.getAnimations().forEach(function(a){
+    if(a.__v0===undefined){ a.__v0=ms; a.pause(); }
+    a.currentTime=Math.max(0,ms-a.__v0);
   });
 };
 </script>

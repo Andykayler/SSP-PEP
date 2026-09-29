@@ -1,0 +1,21 @@
+{
+  "voice": "bf_emma",
+  "lang": "en-gb",
+  "speed": 0.96,
+  "gap": 0.32,
+  "scenes": [
+    { "id": "hook",    "vo": ["Monday, seven forty-five.", "Memory is not in class.", "Before the first lesson begins, her mother already knows."] },
+    { "id": "intro",   "vo": ["This is Acalink.", "One system for everyone in a Malawian school.", "Here is everything it does today."] },
+    { "id": "ht_see",  "vo": ["The head teacher sees the whole school.", "Attendance, performance, and a class monitor that shows which lessons are really being taught.", "At-risk learners come with the reasons, and exam readiness shows who is on course."] },
+    { "id": "ht_run",  "vo": ["Timetables build themselves, or the assistant reads a photo of the one you already have.", "Manage students, classes, staff, exams, the calendar, lesson plans and announcements.", "Notices can be written in English, Chichewa, or both."] },
+    { "id": "ht_care", "vo": ["Discipline, health, leave and cover, transport, admissions, boarding and inventory are all here too.", "When a boarder signs out, the guardian is told straight away."] },
+    { "id": "teacher", "vo": ["Teachers take the register in a few taps, and enter marks on the MANEB scale.", "The assistant drafts homework questions, and a lesson plan starts from just a topic."] },
+    { "id": "report",  "vo": ["At term end, the grades work themselves out.", "Every report card can carry a written insight for parents."] },
+    { "id": "bursar",  "vo": ["The bursar sets the fee structure, records payments, and prints receipts.", "Arrears, sponsors, bursaries and expenses stay in order, and the head teacher decides who is cleared for exams."] },
+    { "id": "pay",     "vo": ["Reminders go out on WhatsApp, and parents can pay by mobile money.", "The school always receives the full amount."] },
+    { "id": "admin",   "vo": ["Directors compare every campus and approve transfers.", "Administrators manage accounts, settings and backups, with an audit log of who changed what.", "And the library handles lending, returns and fines."] },
+    { "id": "curric",  "vo": ["Run Malawian, Cambridge or Abeka side by side, each with its own grading scale."] },
+    { "id": "parents", "vo": ["Parents get their own app for attendance, results, homework, the calendar, fees and messages.", "And alerts arrive on WhatsApp first."] },
+    { "id": "cta",     "vo": ["Every module is included in every plan.", "Priced per learner, per term, in kwacha.", "Register your school at Acalink dot M W."] }
+  ]
+}
