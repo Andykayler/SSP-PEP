@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { auth, db } from "../../../firebase";
 import { syncAssignmentsWithClasses } from "../../../services/staffAssignments";
 import {
-  sectionsOf, sectionIdOfClass, sectionForClass, sectionLabel, curriculumLabel,
+  sectionsOf, sectionKeyOfClass, sectionOfClass, sectionForClass, sectionName,
   ladderFor, planSectionClasses, renameClass,
 } from "../../../services/curriculum";
 import CurriculumSettings from "../../../components/setup/CurriculumSettings";
@@ -62,17 +62,18 @@ function UtilBar({ pct }) {
 }
 
 // ─── Set up classes (section → classes → streams) ───────────────────────────
-// Generates class records from the school's sections (Kindergarten / Primary /
+// Generates class records from the school's sections — each a level taught to a
+// curriculum, e.g. Primary (Abeka) — (Kindergarten / Primary /
 // Secondary) and the curriculum each follows — see services/curriculumCore.js.
 function ClassSetupModal({ schoolCode, existingClasses, existingSettings, onClose, onSaved }) {
   const sections = useMemo(() => sectionsOf(existingSettings), [existingSettings]);
-  const [activeId, setActiveId] = useState(sections[0]?.id);
-  // section id → { ladder position → stream count }, from the classes that exist.
+  const [activeKey, setActiveKey] = useState(sections[0]?.key);
+  // section key → { ladder position → stream count }, from the classes that exist.
   const [rungs, setRungs] = useState(() => {
-    const out = Object.fromEntries(sections.map((x) => [x.id, {}]));
+    const out = Object.fromEntries(sections.map((x) => [x.key, {}]));
     existingClasses.forEach((c) => {
       if (!c.formLevel) return;
-      const id = sectionIdOfClass(c, sections);
+      const id = sectionKeyOfClass(c, sections);
       if (!out[id]) return;
       const streamIndex = c.stream ? c.stream.charCodeAt(0) - 64 : 0; // "A" -> 1
       out[id][c.formLevel] = Math.max(out[id][c.formLevel] || 0, streamIndex);
@@ -82,21 +83,21 @@ function ClassSetupModal({ schoolCode, existingClasses, existingSettings, onClos
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const section = sections.find((x) => x.id === activeId) || sections[0];
+  const section = sections.find((x) => x.key === activeKey) || sections[0];
   const ladder = ladderFor(section.id, section.curriculum);
-  const mine = rungs[section.id] || {};
+  const mine = rungs[section.key] || {};
 
   const toggle = (n) => setRungs((prev) => {
-    const next = { ...(prev[section.id] || {}) };
+    const next = { ...(prev[section.key] || {}) };
     if (n in next) delete next[n]; else next[n] = 0;
-    return { ...prev, [section.id]: next };
+    return { ...prev, [section.key]: next };
   });
   const setStreams = (n, count) => setRungs((prev) => ({
-    ...prev, [section.id]: { ...(prev[section.id] || {}), [n]: Math.max(0, Math.min(6, count)) },
+    ...prev, [section.key]: { ...(prev[section.key] || {}), [n]: Math.max(0, Math.min(6, count)) },
   }));
 
   const handleSave = async () => {
-    const plan = sections.flatMap((x) => planSectionClasses({ schoolCode, section: x, rungs: rungs[x.id] || {}, capacity: DEFAULT_CAPACITY }));
+    const plan = sections.flatMap((x) => planSectionClasses({ schoolCode, section: x, rungs: rungs[x.key] || {}, capacity: DEFAULT_CAPACITY }));
     if (plan.length === 0) { setError("Select at least one class."); return; }
     setSaving(true);
     setError("");
@@ -105,13 +106,13 @@ function ClassSetupModal({ schoolCode, existingClasses, existingSettings, onClos
       const uid = auth.currentUser?.uid || null;
       // An existing class in the same section, year and stream keeps its id,
       // name, subjects and capacity — re-running this never clobbers edits.
-      const existingKey = (c) => `${sectionIdOfClass(c, sections)}_${c.formLevel}_${c.stream || ""}`;
+      const existingKey = (c) => `${sectionKeyOfClass(c, sections)}_${c.formLevel}_${c.stream || ""}`;
       const existing = new Map(existingClasses.filter((c) => c.formLevel).map((c) => [existingKey(c), c]));
       plan.forEach(({ id, data }) => {
-        const match = existing.get(`${data.section}_${data.formLevel}_${data.stream || ""}`);
+        const match = existing.get(`${data.sectionKey}_${data.formLevel}_${data.stream || ""}`);
         if (match) {
           batch.set(doc(db, "school_classes", match.id), {
-            section: data.section, curriculum: data.curriculum, formLevel: data.formLevel, stream: data.stream,
+            section: data.section, curriculum: data.curriculum, sectionKey: data.sectionKey, formLevel: data.formLevel, stream: data.stream,
             order: data.order, updatedAt: serverTimestamp(), updatedBy: uid,
           }, { merge: true });
         } else {
@@ -148,15 +149,15 @@ function ClassSetupModal({ schoolCode, existingClasses, existingSettings, onClos
           {sections.length > 1 && (
             <div className="flex gap-2 flex-wrap">
               {sections.map((x) => (
-                <button key={x.id} type="button" onClick={() => setActiveId(x.id)}
-                  className={`filter-btn ${section.id === x.id ? "filter-btn--active" : ""}`}>
-                  {sectionLabel(x.id)}
+                <button key={x.key} type="button" onClick={() => setActiveKey(x.key)}
+                  className={`filter-btn ${section.key === x.key ? "filter-btn--active" : ""}`}>
+                  {sectionName(x)}
                 </button>
               ))}
             </div>
           )}
           <p className="text-xs text-muted">
-            {sectionLabel(section.id)} · {curriculumLabel(section.curriculum)}. New classes start with this section&rsquo;s{" "}
+            {sectionName(section)}. New classes start with this section&rsquo;s{" "}
             {section.subjects.length} subjects. Change sections, curriculum or subjects under &ldquo;Curriculum &amp; grading&rdquo;.
           </p>
 
@@ -245,7 +246,7 @@ function EditClassModal({ cls, settings, schoolCode, onClose, onSaved }) {
         <div className="modal-header">
           <div>
             <h3>Edit {cls.name}</h3>
-            <p>{sectionLabel(section?.id)} · {curriculumLabel(section?.curriculum)}</p>
+            <p>{sectionName(section)}</p>
           </div>
           <button onClick={onClose} className="modal-close"><X size={22} /></button>
         </div>
@@ -386,7 +387,7 @@ export default function ClassAndStreamModule({ schoolCode, currentUser }) {
           <h2 style={{ fontFamily: "'Playfair Display', serif" }}>Classes & Streams</h2>
           <p className="text-muted">
             Class management dashboard · enrollment & capacity
-            {schoolSettings && ` · ${sectionsOf(schoolSettings).map((x) => `${sectionLabel(x.id)} (${curriculumLabel(x.curriculum)})`).join(", ")}`}
+            {schoolSettings && ` · ${sectionsOf(schoolSettings).map(sectionName).join(", ")}`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -484,7 +485,7 @@ export default function ClassAndStreamModule({ schoolCode, currentUser }) {
               <div className="flex items-start justify-between gap-3">
                 <div style={{ minWidth: 0 }}>
                   <h3 className="text-xl font-bold text-app-text truncate">{cls.name}</h3>
-                  <p className="text-xs text-muted mt-0.5">{sectionLabel(sectionIdOfClass(cls, sectionsOf(schoolSettings)))} · {cls.subjectCount} subjects</p>
+                  <p className="text-xs text-muted mt-0.5">{sectionName(sectionOfClass(cls, sectionsOf(schoolSettings)))} · {cls.subjectCount} subjects</p>
                 </div>
                 <span className="status-pill status-pill--success" style={{ flexShrink: 0 }}>{cls.status}</span>
               </div>

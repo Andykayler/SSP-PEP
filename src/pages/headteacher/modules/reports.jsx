@@ -8,7 +8,7 @@ import { notifyGuardians } from "../../../services/notifications";
 import { fetchClearances, reportCardAllowed } from "../../../services/feeClearance";
 import { buildArrears } from "../../../services/feeAllocationCore";
 import { fetchReleases, resultsAccess } from "../../../services/resultsRelease";
-import { sectionsOf, sectionIdOfClass, ladderFor, isManebScale, MANEB_SCALE } from "../../../services/curriculumCore";
+import { sectionsOf, sectionOfClass, sectionKeyOfClass, sectionOrder, ladderFor, isManebScale, MANEB_SCALE } from "../../../services/curriculumCore";
 import { gradeInfo, scaleRows } from "../../../components/ui/grades";
 import { sendSmsToMany } from "../../../services/sms";
 import { smsFallbackCategories } from "../../../services/smsFallback";
@@ -260,8 +260,7 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
   const sections = useMemo(() => sectionsOf(schoolSettings), [schoolSettings]);
   const scaleOf = (classId) => {
     const cls = classes.find((c) => c.id === classId);
-    const id = sectionIdOfClass(cls, sections);
-    return (sections.find((x) => x.id === id) || sections[0])?.grading || MANEB_SCALE;
+    return sectionOfClass(cls, sections)?.grading || MANEB_SCALE;
   };
 
   const [classesReady, setClassesReady] = useState(false);
@@ -926,24 +925,26 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
     const configured = classes.filter((c) => c.formLevel);
     if (configured.length === 0) return [];
 
-    // Grouped by section and year: Standard 1 and Form 1 are both year 1.
-    const sectionOrder = (id) => ["kindergarten", "primary", "secondary"].indexOf(id);
+    // Grouped by section and year: Standard 1, Grade 1 (Abeka) and Form 1 are
+    // all year 1 of a different section. A section key is "primary:abeka",
+    // so the group key splits on its last colon.
     const byLevel = {};
     configured.forEach((c) => {
-      const key = `${sectionIdOfClass(c, sections)}:${c.formLevel}`;
+      const key = `${sectionKeyOfClass(c, sections)}|${c.formLevel}`;
       if (!byLevel[key]) byLevel[key] = [];
       byLevel[key].push(c);
     });
-    const inYear = (sectionId, year) => classes
-      .filter((c) => c.formLevel === year && sectionIdOfClass(c, sections) === sectionId)
+    const inYear = (key, year) => classes
+      .filter((c) => c.formLevel === year && sectionKeyOfClass(c, sections) === key)
       .sort((a, b) => (a.stream || "").localeCompare(b.stream || ""));
+    const sectionFor = (key) => sections.find((x) => x.key === key) || sections[0];
 
     return Object.keys(byLevel).sort((a, b) => {
-      const [sa, la] = a.split(":");
-      const [sb, lb] = b.split(":");
-      return sectionOrder(sa) - sectionOrder(sb) || Number(la) - Number(lb);
+      const [ka, la] = a.split("|");
+      const [kb, lb] = b.split("|");
+      return sectionOrder(sectionFor(ka)) - sectionOrder(sectionFor(kb)) || Number(la) - Number(lb);
     }).map((level) => {
-      const [sectionId, yearText] = level.split(":");
+      const [key, yearText] = level.split("|");
       const year = Number(yearText);
       const levelClasses = byLevel[level];
       const levelClassIds = new Set(levelClasses.map((c) => c.id));
@@ -975,13 +976,17 @@ export default function ReportsModule({ schoolCode, userId, userName }) {
 
       // The top of kindergarten moves up into the first primary year when the
       // school has one; the top of any other section is the final year.
-      const section = sections.find((x) => x.id === sectionId) || sections[0];
+      // The top of kindergarten moves up into the first primary year — of the
+      // same curriculum when the school runs it, otherwise its first primary.
+      const section = sectionFor(key);
       const lastYear = ladderFor(section.id, section.curriculum).length;
-      const intoPrimary = sectionId === "kindergarten" && year >= lastYear && sections.some((x) => x.id === "primary");
+      const primary = sections.find((x) => x.id === "primary" && x.curriculum === section.curriculum)
+        || sections.find((x) => x.id === "primary");
+      const intoPrimary = section.id === "kindergarten" && year >= lastYear && Boolean(primary);
       const isFinalLevel = year >= lastYear && !intoPrimary;
       const targetClasses = isFinalLevel
         ? []
-        : intoPrimary ? inYear("primary", 1) : inYear(sectionId, year + 1);
+        : intoPrimary ? inYear(primary.key, 1) : inYear(key, year + 1);
       const targetConfigured = isFinalLevel || targetClasses.length > 0;
 
       // Rank-based tiering: split passing students (already sorted by average

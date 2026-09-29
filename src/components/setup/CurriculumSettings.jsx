@@ -1,7 +1,8 @@
 // src/components/setup/CurriculumSettings.jsx
-// "Sections, curriculum & grading" — which sections the school runs
-// (Kindergarten, Primary, Secondary), the curriculum each follows (Malawian,
-// Cambridge, Abeka), each section's subjects and its grading scale.
+// "Sections, curriculum & grading" — the sections the school runs, each a
+// level (Kindergarten, Primary, Secondary) taught to a curriculum (Malawian,
+// Cambridge, Abeka), with its own subjects and grading scale. A school may run
+// several curricula at one level: Primary (Malawian) beside Primary (Abeka).
 //
 // Shown in the admin's School Settings and the head teacher's Classes screen.
 // Everything is a draft until "Save", except renaming a subject: that rewrites
@@ -14,7 +15,7 @@ import { db } from "../../firebase";
 import { Btn, Notice } from "../ui/ModuleKit";
 import {
   SECTIONS, CURRICULA, DEFAULT_SCALES, sectionsOf, defaultSection, ladderFor,
-  validateScale, sectionIdOfClass, curriculumLabel, toneFor,
+  validateScale, sectionKeyOfClass, sectionKey, sectionName, sectionOrder, toneFor,
   saveSections, renameSubject,
 } from "../../services/curriculum";
 import { syncAssignmentsWithClasses } from "../../services/staffAssignments";
@@ -162,7 +163,8 @@ export default function CurriculumSettings({ schoolCode, settings, actorId }) {
   const [edits, setEdits] = useState(null);
   const draft = edits ?? saved;
   const dirty = edits !== null;
-  const [open, setOpen] = useState(() => saved[0]?.id || "primary");
+  const [open, setOpen] = useState(() => saved[0]?.key || "");
+  const [adding, setAdding] = useState({ level: "primary", curriculum: "malawi" });
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState(null); // { tone, text }
   const [classes, setClasses] = useState([]);
@@ -174,31 +176,30 @@ export default function CurriculumSettings({ schoolCode, settings, actorId }) {
       .catch(() => setClasses([]));
   }, [schoolCode]);
 
-  // The open tab, or the first section if that one was just turned off.
-  const activeId = draft.some((s) => s.id === open) ? open : draft[0]?.id;
+  // The open tab, or the first section if that one was just removed.
+  const activeKey = draft.some((s) => s.key === open) ? open : draft[0]?.key;
+  const classesIn = (key) => classes.filter((c) => sectionKeyOfClass(c, draft) === key);
 
   const edit = (next) => { setEdits(clone(next)); setNote(null); };
-  const update = (id, patch) => edit(draft.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  const update = (key, patch) => edit(draft.map((s) => (s.key === key ? { ...s, ...patch } : s)));
 
-  function toggleSection(id) {
-    if (draft.some((s) => s.id === id)) {
-      if (draft.length === 1) { setNote({ tone: "danger", text: "A school needs at least one section." }); return; }
-      const inUse = classes.filter((c) => sectionIdOfClass(c, draft) === id).length;
-      if (inUse && !window.confirm(`${inUse} class${inUse === 1 ? " is" : "es are"} in this section. Turn it off anyway? The classes stay; they just won't have a section until you move them.`)) return;
-      edit(draft.filter((s) => s.id !== id));
-    } else {
-      const curriculum = draft[0]?.curriculum || "malawi";
-      const next = [...draft, defaultSection(id, curriculum)];
-      edit(SECTIONS.map((s) => next.find((x) => x.id === s.id)).filter(Boolean));
-      setOpen(id);
-    }
+  const newKey = sectionKey(adding.level, adding.curriculum);
+  const alreadyRun = draft.some((s) => s.key === newKey);
+
+  function addSection() {
+    if (alreadyRun) return;
+    const added = defaultSection(adding.level, adding.curriculum);
+    edit([...draft, added].sort((a, b) => sectionOrder(a) - sectionOrder(b)));
+    setOpen(added.key);
   }
 
-  function changeCurriculum(id, curriculum) {
-    const current = draft.find((s) => s.id === id);
-    if (!current || current.curriculum === curriculum) return;
-    update(id, defaultSection(id, curriculum));
-    setNote({ tone: "info", text: `${SECTIONS.find((s) => s.id === id).label} now uses ${curriculumLabel(curriculum)} subjects and grading. Adjust them below, then save.` });
+  function removeSection(section) {
+    if (draft.length === 1) { setNote({ tone: "danger", text: "A school needs at least one section." }); return; }
+    const inUse = classesIn(section.key).length;
+    if (!window.confirm(inUse
+      ? `${inUse} class${inUse === 1 ? " is" : "es are"} in ${sectionName(section)}. Remove the section anyway? The classes stay, but they'll be graded as another section until you move them.`
+      : `Remove ${sectionName(section)}?`)) return;
+    edit(draft.filter((s) => s.key !== section.key));
   }
 
   async function rename(from, to) {
@@ -207,13 +208,13 @@ export default function CurriculumSettings({ schoolCode, settings, actorId }) {
       || classes.some((c) => (c.subjects || []).includes(from));
     // A subject nobody has used yet only exists in this draft.
     if (everSaved) {
-      if (!window.confirm(`Rename "${from}" to "${to}" everywhere — every class, timetable period, mark sheet and teacher that has it?`)) return;
+      if (!window.confirm(`Rename "${from}" to "${to}" everywhere — every section, class, timetable period, mark sheet and teacher that has it?`)) return;
       setBusy(true);
       const res = await renameSubject(from, to);
       setBusy(false);
       if (!res.ok) { setNote({ tone: "danger", text: res.error }); return; }
       setNote({ tone: "success", text: `Renamed "${from}" to "${to}" across the school.` });
-      setClasses((prev) => prev.map((c) => ({ ...c, subjects: (c.subjects || []).map((s) => (s === from ? to : s)) })));
+      setClasses((prev) => prev.map((c) => ({ ...c, subjects: (c.subjects || []).map((x) => (x === from ? to : x)) })));
     }
     // The server already renamed it in saved sections; an unsaved draft, or a
     // school whose sections were never saved, needs it renamed here too.
@@ -233,14 +234,15 @@ export default function CurriculumSettings({ schoolCode, settings, actorId }) {
 
   /** Gives every class in a section exactly the section's subject list. */
   async function applySubjects(section) {
-    const targets = classes.filter((c) => sectionIdOfClass(c, draft) === section.id);
+    const targets = classesIn(section.key);
     if (!targets.length) return;
-    if (!window.confirm(`Set the subjects of all ${targets.length} ${section.id} class${targets.length === 1 ? "" : "es"} to this list? Subjects not on the list come off those classes, and off their teachers.`)) return;
+    if (!window.confirm(`Set the subjects of all ${targets.length} ${sectionName(section)} class${targets.length === 1 ? "" : "es"} to this list? Subjects not on the list come off those classes, and off their teachers.`)) return;
     setBusy(true);
     try {
       const batch = writeBatch(db);
       targets.forEach((c) => batch.update(doc(db, "school_classes", c.id), {
-        subjects: section.subjects, section: section.id, curriculum: section.curriculum, updatedAt: serverTimestamp(),
+        subjects: section.subjects, section: section.id, curriculum: section.curriculum, sectionKey: section.key,
+        updatedAt: serverTimestamp(),
       }));
       await batch.commit();
       await syncAssignmentsWithClasses(schoolCode).catch((e) => console.error("assignment sync failed:", e));
@@ -256,53 +258,46 @@ export default function CurriculumSettings({ schoolCode, settings, actorId }) {
     <div className="space-y-4">
       {note && <Notice tone={note.tone} onDismiss={() => setNote(null)}>{note.text}</Notice>}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
-        {SECTIONS.map((s) => {
-          const on = draft.some((x) => x.id === s.id);
-          const cur = draft.find((x) => x.id === s.id);
-          return (
-            <button key={s.id} type="button" onClick={() => toggleSection(s.id)} aria-pressed={on}
-              className={`choice-btn ${on ? "choice-btn--active" : ""}`} style={{ textAlign: "left" }}>
-              <div className="flex items-center justify-between" style={{ gap: 8 }}>
-                <strong>{s.label}</strong>{on && <Check size={16} />}
-              </div>
-              <div className="text-muted" style={{ fontSize: 11, marginTop: 2 }}>
-                {on ? curriculumLabel(cur.curriculum) : "Not offered — tap to add"}
-              </div>
-            </button>
-          );
-        })}
+      {/* The sections the school runs, one tab each. */}
+      <div className="flex gap-2" style={{ flexWrap: "wrap" }} role="tablist">
+        {draft.map((s) => (
+          <button key={s.key} type="button" role="tab" aria-selected={activeKey === s.key}
+            className={`filter-btn ${activeKey === s.key ? "filter-btn--active" : ""}`} onClick={() => setOpen(s.key)}>
+            {sectionName(s)}
+            <span className="text-muted" style={{ fontSize: 11, marginLeft: 6 }}>{classesIn(s.key).length}</span>
+          </button>
+        ))}
       </div>
 
-      {draft.length > 1 && (
-        <div className="flex gap-2" style={{ flexWrap: "wrap" }} role="tablist">
-          {draft.map((s) => (
-            <button key={s.id} type="button" role="tab" aria-selected={activeId === s.id}
-              className={`filter-btn ${activeId === s.id ? "filter-btn--active" : ""}`} onClick={() => setOpen(s.id)}>
-              {SECTIONS.find((x) => x.id === s.id).label}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Add another: any level, any curriculum — including a second curriculum at a level already run. */}
+      <div className="flex gap-2" style={{ flexWrap: "wrap", alignItems: "center" }}>
+        <span className="field__label" style={{ margin: 0 }}>Add a section</span>
+        <select className="field__select" style={{ width: 160 }} value={adding.level}
+          onChange={(e) => setAdding((p) => ({ ...p, level: e.target.value }))} aria-label="Level">
+          {SECTIONS.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+        </select>
+        <select className="field__select" style={{ width: 190 }} value={adding.curriculum}
+          onChange={(e) => setAdding((p) => ({ ...p, curriculum: e.target.value }))} aria-label="Curriculum">
+          {CURRICULA.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+        </select>
+        <Btn variant="ghost" size="sm" icon={<Plus size={13} />} onClick={addSection} disabled={alreadyRun}>
+          {alreadyRun ? "Already added" : "Add"}
+        </Btn>
+      </div>
 
-      {draft.filter((s) => s.id === activeId).map((section) => {
+      {draft.filter((s) => s.key === activeKey).map((section) => {
         const ladder = ladderFor(section.id, section.curriculum);
-        const count = classes.filter((c) => sectionIdOfClass(c, draft) === section.id).length;
+        const count = classesIn(section.key).length;
         return (
-          <div key={section.id} className="space-y-5" style={{ border: "1px solid var(--border-color, var(--border))", borderRadius: 12, padding: 18 }}>
-            <div>
-              <p className="field__label" style={{ marginBottom: 6 }}>Curriculum</p>
-              <div className="flex gap-2" style={{ flexWrap: "wrap" }}>
-                {CURRICULA.map((c) => (
-                  <button key={c.id} type="button" onClick={() => changeCurriculum(section.id, c.id)}
-                    className={`choice-btn ${section.curriculum === c.id ? "choice-btn--active" : ""}`}>
-                    {c.label}
-                  </button>
-                ))}
+          <div key={section.key} className="space-y-5" style={{ border: "1px solid var(--border-color, var(--border))", borderRadius: 12, padding: 18 }}>
+            <div className="flex items-center justify-between" style={{ gap: 12, flexWrap: "wrap" }}>
+              <div>
+                <p style={{ fontWeight: 700 }}>{sectionName(section)}</p>
+                <p className="text-muted" style={{ fontSize: 12, marginTop: 2 }}>
+                  Classes: {ladder.join(", ")}. {count} class{count === 1 ? "" : "es"} set up — add them under Classes.
+                </p>
               </div>
-              <p className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>
-                Classes: {ladder[0]} to {ladder[ladder.length - 1]}. {count} class{count === 1 ? "" : "es"} set up in this section — create or rename them under Classes.
-              </p>
+              <Btn variant="ghost" size="sm" icon={<Trash2 size={13} />} onClick={() => removeSection(section)}>Remove section</Btn>
             </div>
 
             <div>
@@ -311,7 +306,7 @@ export default function CurriculumSettings({ schoolCode, settings, actorId }) {
                 New classes in this section start with these. Renaming a subject updates it everywhere straight away.
               </p>
               <SubjectEditor subjects={section.subjects} busy={busy}
-                onChange={(subjects) => update(section.id, { subjects })} onRename={rename} />
+                onChange={(subjects) => update(section.key, { subjects })} onRename={rename} />
               {count > 0 && (
                 <div style={{ marginTop: 10 }}>
                   <Btn variant="ghost" size="sm" disabled={busy || dirty} onClick={() => applySubjects(section)}
@@ -329,7 +324,7 @@ export default function CurriculumSettings({ schoolCode, settings, actorId }) {
                 How a percentage becomes a grade on mark sheets, report cards and the parent app for this section.
               </p>
               <GradingEditor scale={section.grading} defaultScale={DEFAULT_SCALES[section.id][section.curriculum]}
-                onChange={(grading) => update(section.id, { grading })} />
+                onChange={(grading) => update(section.key, { grading })} />
             </div>
           </div>
         );

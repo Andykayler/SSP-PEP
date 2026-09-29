@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { db } from "../../../firebase";
 import {
-  doc, collection, getDocs, updateDoc, deleteDoc, query, where, serverTimestamp, addDoc,
+  doc, collection, getDocs, getDoc, setDoc, updateDoc, deleteDoc, query, where, serverTimestamp, addDoc,
 } from "firebase/firestore";
 
 import { IC } from "./icons";
@@ -12,7 +12,7 @@ import { SCHOOL_TYPES, setSchoolType, schoolTypeLabel } from "../../../services/
 import { subscribeSchoolSettings } from "../../../services/academicTerm";
 import { syncAssignmentsWithClasses } from "../../../services/staffAssignments";
 import {
-  SECTIONS, sectionsOf, sectionIdOfClass, sectionLabel, curriculumLabel, renameClass, ladderFor,
+  sectionsOf, sectionOfClass, sectionKeyOfClass, sectionName, sectionOrder, renameClass, ladderFor, classDocIdFor,
 } from "../../../services/curriculum";
 import CurriculumSettings from "../../../components/setup/CurriculumSettings";
 import {
@@ -25,10 +25,26 @@ import {
 
 const SECTION_COLOR = { kindergarten: "#f472b6", primary: "#3b82f6", secondary: "#14b8a6" };
 
-/** "e.g. Year 2" — a placeholder from the section's own class names. */
-function ladderHint(section) {
-  const names = section ? ladderFor(section.id, section.curriculum) : [];
-  return names[1] || names[0] || "Class name";
+const STREAMS = ["", "A", "B", "C", "D", "E", "F"];
+const CUSTOM = "custom";
+
+/**
+ * The class form for a class, or a blank one for a section. A class whose
+ * name is one of its section's class names (plus a stream letter) opens on
+ * the dropdowns; anything else opens on "Other name".
+ */
+function classFormFor(section, cls = null) {
+  const ladder = section ? ladderFor(section.id, section.curriculum) : [];
+  if (!cls) return { sectionKey: section?.key || "", rung: 1, stream: "", customName: "", subjects: [...(section?.subjects || [])] };
+  const stream = STREAMS.includes(cls.stream || "") ? cls.stream || "" : "";
+  const rung = ladder.findIndex((n) => `${n}${stream}` === cls.name) + 1;
+  return {
+    sectionKey: section?.key || "",
+    rung: rung > 0 ? rung : CUSTOM,
+    stream: rung > 0 ? stream : "",
+    customName: rung > 0 ? "" : cls.name || "",
+    subjects: cls.subjects || [],
+  };
 }
 
 // ─── MODULE 3: School Settings ────────────────────────────────────────────────
@@ -40,7 +56,8 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
   const [error, setError]           = useState("");
   const [showClassModal, setShowClassModal] = useState(false);
   const [editingClass, setEditingClass]     = useState(null);
-  const [classForm, setClassForm]   = useState({ name: "", section: "primary", subjects: [] });
+  const [classForm, setClassForm]   = useState(() => classFormFor(null));
+  const [classError, setClassError] = useState("");
   const [levelFilter, setLevelFilter] = useState("all");
   // Held here as well as in the setup gate, because a school that starts as
   // day and opens a hostel two years later needs to be able to say so.
@@ -68,7 +85,14 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
 
   // The sections the school runs, each with its curriculum and subjects.
   const sections = useMemo(() => sectionsOf(settings), [settings]);
-  const sectionOf = (id) => sections.find((x) => x.id === id) || sections[0];
+  const sectionByKey = (key) => sections.find((x) => x.key === key) || sections[0];
+
+  // The class being added or edited, as the dropdowns describe it.
+  const formSection = sectionByKey(classForm.sectionKey);
+  const formLadder = formSection ? ladderFor(formSection.id, formSection.curriculum) : [];
+  const formName = classForm.rung === CUSTOM
+    ? classForm.customName.trim()
+    : `${formLadder[classForm.rung - 1] || ""}${classForm.stream}`;
 
   /**
    * Toggling one category writes the whole list, because the setting is stored
@@ -145,39 +169,64 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
   }
 
   function openClassModal(cls = null) {
-    if (cls) { setClassForm({ name: cls.name||"", section: sectionIdOfClass(cls, sections), subjects: cls.subjects||[] }); setEditingClass(cls); }
-    else { setClassForm({ name: "", section: sections[0]?.id || "primary", subjects: [] }); setEditingClass(null); }
+    setClassForm(classFormFor(cls ? sectionOfClass(cls, sections) : sections[0], cls));
+    setEditingClass(cls);
+    setClassError("");
     setShowClassModal(true);
   }
 
+  /** A new section starts on its first class with all of its subjects. */
+  function chooseSection(key) {
+    setClassForm(classFormFor(sectionByKey(key)));
+  }
+
   async function saveClass() {
-    if (!classForm.name.trim()) { alert("Class name required"); return; }
+    const name = formName;
+    if (!name) { setClassError("Choose a class, or type a name."); return; }
+    if (classes.some((c) => c.id !== editingClass?.id && (c.name || "").trim().toLowerCase() === name.toLowerCase())) {
+      setClassError(`There is already a class called ${name}. Pick a stream to tell them apart.`);
+      return;
+    }
     setLoading(true);
+    setClassError("");
     try {
-      const section = sectionOf(classForm.section);
-      const name = classForm.name.trim();
+      const section = formSection;
+      const custom = classForm.rung === CUSTOM;
       const data = {
-        section: section.id, curriculum: section.curriculum,
+        section: section.id, curriculum: section.curriculum, sectionKey: section.key,
         // `level` is what older screens read.
         level: section.id,
+        formLevel: custom ? null : classForm.rung,
+        stream: custom ? null : classForm.stream || null,
         subjects: classForm.subjects.length > 0 ? classForm.subjects : section.subjects,
         schoolCode, updatedAt: serverTimestamp(),
       };
+      const order = sectionOrder(section) * 1000 + (custom ? 990 : classForm.rung * 10 + Math.max(0, STREAMS.indexOf(classForm.stream) - 1));
       if (editingClass) {
         // A rename goes through the server so every learner, timetable period,
         // mark sheet and teacher assignment carrying the old name follows it.
         if (editingClass.name !== name) {
           const res = await renameClass(editingClass.id, name);
-          if (!res.ok) { setError(res.error); setLoading(false); return; }
+          if (!res.ok) { setClassError(res.error); setLoading(false); return; }
         }
         await updateDoc(doc(db, "school_classes", editingClass.id), data);
+      } else if (custom) {
+        await addDoc(collection(db, "school_classes"), { ...data, name, order, capacity: 45, createdAt: serverTimestamp() });
       } else {
-        await addDoc(collection(db, "school_classes"), { ...data, name, order: classes.length + 1 });
+        // The same id "Set up classes" would give it, so running that later
+        // finds this class instead of making a second one.
+        const ref = doc(db, "school_classes", classDocIdFor(schoolCode, section.id, section.curriculum, classForm.rung, classForm.stream));
+        if ((await getDoc(ref)).exists()) {
+          setClassError(`${name} already exists${section ? ` in ${sectionName(section)}` : ""}.`);
+          setLoading(false);
+          return;
+        }
+        await setDoc(ref, { ...data, name, order, capacity: 45, createdAt: serverTimestamp() });
       }
       // A dropped subject comes off its teachers' lists.
       await syncAssignmentsWithClasses(schoolCode).catch((e) => console.error("assignment sync failed:", e));
       setShowClassModal(false); fetchClasses();
-    } catch (err) { console.error(err); setError("Failed to save class: " + err.message); }
+    } catch (err) { console.error(err); setClassError("Failed to save class: " + err.message); }
     setLoading(false);
   }
 
@@ -201,14 +250,14 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
     const uniqueSubjects = new Set(classes.flatMap(c => c.subjects || []));
     return {
       total: classes.length,
-      bySection: SECTIONS.map((x) => ({ ...x, count: classes.filter((c) => sectionIdOfClass(c, sections) === x.id).length })),
+      bySection: sections.map((x) => ({ ...x, label: sectionName(x), count: classes.filter((c) => sectionKeyOfClass(c, sections) === x.key).length })),
       subjects: uniqueSubjects.size,
     };
   }, [classes, sections]);
 
   const filteredClasses = useMemo(() => {
     return classes.filter(c => {
-      if (levelFilter !== "all" && sectionIdOfClass(c, sections) !== levelFilter) return false;
+      if (levelFilter !== "all" && sectionKeyOfClass(c, sections) !== levelFilter) return false;
       if (classSearch.trim() && !c.name?.toLowerCase().includes(classSearch.trim().toLowerCase())) return false;
       return true;
     });
@@ -515,8 +564,8 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
             <div className="ss-stat__num">{stats.total}</div>
             <div className="ss-stat__label">Total Classes</div>
           </div>
-          {stats.bySection.filter((x) => x.count > 0 || sections.some((y) => y.id === x.id)).map((x) => (
-            <div key={x.id} className="ss-stat">
+          {stats.bySection.map((x) => (
+            <div key={x.key} className="ss-stat">
               <div className="ss-stat__accent" style={{ background: SECTION_COLOR[x.id] }} />
               <div className="ss-stat__num">{x.count}</div>
               <div className="ss-stat__label">{x.label}</div>
@@ -535,7 +584,7 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
           <div>
             <p style={{ fontFamily: "var(--font-display)", fontSize: 16, color: "var(--text)", letterSpacing: 0.5 }}>Classes &amp; Subjects</p>
             <p style={{ fontSize: 12, color: "var(--text3)", marginTop: 2 }}>
-              {sections.map((x) => `${sectionLabel(x.id)}: ${curriculumLabel(x.curriculum)}`).join(" · ")}. Edit a class to rename it or change its subjects.
+              {sections.map(sectionName).join(" · ")}. Edit a class to rename it or change its subjects.
             </p>
           </div>
           <Btn onClick={() => openClassModal()} variant="gold" size="sm">{IC.plus} Add Class</Btn>
@@ -551,13 +600,13 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
                 onChange={e => setClassSearch(e.target.value)}
               />
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {["all", ...stats.bySection.filter((x) => x.count > 0).map((x) => x.id)].map(key => (
+                {["all", ...stats.bySection.filter((x) => x.count > 0).map((x) => x.key)].map(key => (
                   <span
                     key={key}
                     className={`ss-pill ${levelFilter === key ? "ss-pill--active" : ""}`}
                     onClick={() => setLevelFilter(key)}
                   >
-                    {key === "all" ? "All Sections" : sectionLabel(key)}
+                    {key === "all" ? "All Sections" : stats.bySection.find((x) => x.key === key)?.label}
                   </span>
                 ))}
               </div>
@@ -576,10 +625,10 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 16 }}>
               {filteredClasses.map(cls => (
                 <div key={cls.id} className="ss-class-card">
-                  <div className="ss-class-card__bar" style={{ background: SECTION_COLOR[sectionIdOfClass(cls, sections)] }} />
+                  <div className="ss-class-card__bar" style={{ background: SECTION_COLOR[sectionOfClass(cls, sections)?.id] }} />
                   <div className="flex-between" style={{ marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
                     <div className="flex-gap-3">
-                      <span style={{ background: "var(--accent-pale)", color: "var(--accent-lt)", border: "1px solid var(--border)", fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 6, letterSpacing: 1, textTransform: "uppercase" }}>{sectionLabel(sectionIdOfClass(cls, sections))}</span>
+                      <span style={{ background: "var(--accent-pale)", color: "var(--accent-lt)", border: "1px solid var(--border)", fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 6, letterSpacing: 1, textTransform: "uppercase" }}>{sectionName(sectionOfClass(cls, sections))}</span>
                       <span style={{ fontFamily: "var(--font-display)", fontSize: 16, color: "var(--text)" }}>{cls.name}</span>
                       <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "var(--text3)" }}>· {(cls.subjects || []).length} subjects</span>
                     </div>
@@ -601,16 +650,30 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
       {showClassModal && (
         <Modal title={editingClass ? "Edit Class" : "Add New Class"} onClose={() => setShowClassModal(false)} size="lg">
           <div className="space-y-5">
+            {classError && <div className="alert alert--error">{IC.warning}<span>{classError}</span></div>}
+            <Select label="Section" required value={classForm.sectionKey} onChange={e => chooseSection(e.target.value)}>
+              {sections.map((x) => <option key={x.key} value={x.key}>{sectionName(x)}</option>)}
+            </Select>
             <div className="grid-2">
-              <Input label="Class Name" required value={classForm.name} onChange={e => setClassForm(p => ({...p, name: e.target.value}))} placeholder={ladderHint(sectionOf(classForm.section))} />
-              <Select label="Section" required value={classForm.section} onChange={e => setClassForm(p => ({...p, section: e.target.value, subjects: []}))}>
-                {sections.map((x) => <option key={x.id} value={x.id}>{sectionLabel(x.id)} ({curriculumLabel(x.curriculum)})</option>)}
+              <Select label="Class" required value={classForm.rung}
+                onChange={e => setClassForm(p => ({ ...p, rung: e.target.value === CUSTOM ? CUSTOM : Number(e.target.value) }))}>
+                {formLadder.map((n, i) => <option key={n} value={i + 1}>{n}</option>)}
+                <option value={CUSTOM}>Other name…</option>
               </Select>
+              {classForm.rung === CUSTOM ? (
+                <Input label="Class name" required value={classForm.customName}
+                  onChange={e => setClassForm(p => ({ ...p, customName: e.target.value }))} placeholder="e.g. Remedial Class" />
+              ) : (
+                <Select label="Stream" value={classForm.stream} onChange={e => setClassForm(p => ({ ...p, stream: e.target.value }))}>
+                  {STREAMS.map((x) => <option key={x || "none"} value={x}>{x ? `Stream ${x}` : "No stream"}</option>)}
+                </Select>
+              )}
             </div>
+            {formName && <p style={{ fontSize: 12, color: "var(--text3)", marginTop: -8 }}>Will be called <strong style={{ color: "var(--text)" }}>{formName}</strong>.</p>}
             <div>
               <label className="field__label">Subjects</label>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, maxHeight: 220, overflowY: "auto", padding: 12, border: "1px solid var(--border)", borderRadius: 12, background: "var(--bg)", marginTop: 6 }}>
-                {[...new Set([...sectionOf(classForm.section).subjects, ...classForm.subjects])].map((subject, idx) => (
+                {[...new Set([...(formSection?.subjects || []), ...classForm.subjects])].map((subject, idx) => (
                   <label key={idx} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", padding: "7px 10px", borderRadius: 8, color: "var(--text2)" }}>
                     <input type="checkbox" checked={classForm.subjects.includes(subject)} onChange={() => toggleSubject(subject)} style={{ accentColor: "var(--accent)" }} />
                     <span>{subject}</span>
@@ -618,7 +681,8 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
                 ))}
               </div>
               <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 5 }}>
-                The section&rsquo;s subjects are used if none are ticked. Add or rename subjects under Sections, Curriculum &amp; Grading.
+                {formSection ? `${sectionName(formSection)} subjects, all ticked to start. ` : ""}Untick any this class doesn&rsquo;t take.
+                Add or rename subjects under Sections, Curriculum &amp; Grading.
                 {editingClass && " Renaming the class updates its learners, timetable, marks and teachers too."}
               </p>
             </div>

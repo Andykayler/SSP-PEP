@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   sectionsOf, scaleForClass, sectionIdOfClass, gradeFor, validateScale, toneFor,
   planSectionClasses, defaultSection, renameSubjectInMarks, renameInList,
-  MANEB_SCALE, CAMBRIDGE_SCALE, ABEKA_SCALE, isManebScale,
+  MANEB_SCALE, CAMBRIDGE_SCALE, ABEKA_SCALE, isManebScale, sectionName, sectionKeyOfClass, classDocIdFor,
 } from "../../src/services/curriculumCore.js";
 import { planTimetableImport, matchDay, parseExtractedLessons } from "../../src/services/timetableImportCore.js";
 import { analyseSubjects } from "../../src/services/examsCore.js";
@@ -185,5 +185,40 @@ describe("reading a timetable with the AI", () => {
     const strict = planTimetableImport({ rows, classes, staff, days, periods });
     assert.equal(strict.slots.length, 0);
     assert.equal(strict.errors.length, 1);
+  });
+});
+
+describe("more than one curriculum at a level", () => {
+  const settings = {
+    sections: [defaultSection("primary", "abeka"), defaultSection("primary", "malawi"), defaultSection("primary", "abeka")],
+  };
+
+  it("keeps each level-and-curriculum once, Malawian first", () => {
+    const s = sectionsOf(settings);
+    assert.deepEqual(s.map((x) => x.key), ["primary:malawi", "primary:abeka"]);
+    assert.equal(sectionName(s[1]), "Primary (Abeka)");
+  });
+
+  it("grades each class on its own curriculum's scale", () => {
+    assert.equal(scaleForClass(settings, { section: "primary", curriculum: "abeka" }).name, ABEKA_SCALE.name);
+    assert.equal(scaleForClass(settings, { sectionKey: "primary:malawi" }).name, "Malawi primary A–F");
+    // A class made before curricula were recorded falls to the first primary section.
+    assert.equal(sectionKeyOfClass({ level: "primary" }, sectionsOf(settings)), "primary:malawi");
+  });
+
+  it("gives the two sections' classes different ids and keys", () => {
+    const [malawi, abeka] = sectionsOf(settings);
+    const a = planSectionClasses({ schoolCode: "S", section: malawi, rungs: { 1: 0 } })[0];
+    const b = planSectionClasses({ schoolCode: "S", section: abeka, rungs: { 1: 0 } })[0];
+    assert.equal(a.data.name, "Standard 1");
+    assert.equal(b.data.name, "Grade 1");
+    assert.notEqual(a.id, b.id);
+    assert.equal(b.data.sectionKey, "primary:abeka");
+    assert.ok(b.data.subjects.includes("Phonics and Reading"));
+  });
+
+  it("keeps Standard 1 and Form 1 apart in a Malawian primary-and-secondary school", () => {
+    assert.notEqual(classDocIdFor("S", "primary", "malawi", 1, ""), classDocIdFor("S", "secondary", "malawi", 1, ""));
+    assert.equal(classDocIdFor("S", "secondary", "malawi", 1, "A"), "S_form1A");
   });
 });

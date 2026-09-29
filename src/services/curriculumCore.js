@@ -4,18 +4,20 @@
 // grading rules can be tested in tests/logic and shared with the server
 // (api/parent/results.js) and every portal screen.
 //
-// A school runs one or more SECTIONS — Kindergarten, Primary, Secondary — and
-// each section follows one CURRICULUM: the Malawian national curriculum
-// (MANEB), Cambridge, or Abeka. One school can mix them: an Abeka
-// kindergarten, a Cambridge primary and a MANEB secondary is a real shape
-// among Malawi's private schools.
+// A school runs one or more SECTIONS. A section is a level — Kindergarten,
+// Primary, Secondary — taught to one CURRICULUM: the Malawian national
+// curriculum (MANEB), Cambridge, or Abeka. A school can run several, even at
+// the same level: "Primary (Malawian)" beside "Primary (Abeka)", or an Abeka
+// kindergarten under a MANEB secondary, are real shapes among Malawi's
+// private schools. A section's `id` is its level; its `key` ("primary:abeka")
+// is what tells two sections at the same level apart.
 //
 // The curriculum decides three defaults for its section — the class names
 // (Standard 1 / Year 1 / Grade 1), the subjects, and the grading scale — and
 // the school can then edit all three. They live on
 // `school_settings/{schoolCode}.sections`:
 //
-//   [{ id: "primary", curriculum: "cambridge",
+//   [{ id: "primary", curriculum: "cambridge", key: "primary:cambridge",
 //      subjects: ["English", …],
 //      grading: { bands: [{ label: "A*", min: 90, remark: "Outstanding", pass: true }, …] } }]
 //
@@ -39,6 +41,14 @@ export const CURRICULA = [
 
 export const sectionLabel = (id) => SECTIONS.find((s) => s.id === id)?.label || "Class";
 export const curriculumLabel = (id) => CURRICULA.find((c) => c.id === id)?.label || "Malawian (MANEB)";
+
+/** What tells two sections apart: level and curriculum. */
+export const sectionKey = (level, curriculum) => `${level}:${curriculum}`;
+
+/** "Primary (Abeka)" — how a section is named wherever a school may run more than one. */
+export const sectionName = (section) => (section
+  ? `${sectionLabel(section.id)} (${CURRICULA.find((c) => c.id === section.curriculum)?.short || "Malawian"})`
+  : "Class");
 
 const range = (prefix, from, to) => Array.from({ length: to - from + 1 }, (_, i) => `${prefix} ${from + i}`);
 
@@ -173,6 +183,7 @@ export function defaultSection(id, curriculum = "malawi") {
   return {
     id,
     curriculum,
+    key: sectionKey(id, curriculum),
     subjects: [...DEFAULT_SUBJECTS[id][curriculum]],
     grading: clone(DEFAULT_SCALES[id][curriculum]),
   };
@@ -206,13 +217,18 @@ export function validateScale(scale) {
   return { ok: true, scale: { name: String(scale?.name || "Custom").trim() || "Custom", bands } };
 }
 
+/** Kindergarten → Primary → Secondary, and within a level Malawian → Cambridge → Abeka. */
+export const sectionOrder = (section) =>
+  SECTIONS.findIndex((x) => x.id === section.id) * 10 + CURRICULA.findIndex((c) => c.id === section.curriculum);
+
 /**
- * The school's sections, each complete. Falls back to the legacy single
- * `schoolLevel` — graded on MANEB, as it always was — for a school that has
- * not saved sections yet.
+ * The school's sections, each complete, one per level-and-curriculum. Falls
+ * back to the legacy single `schoolLevel` — graded on MANEB, as it always
+ * was — for a school that has not saved sections yet.
  */
 export function sectionsOf(settings) {
   const saved = Array.isArray(settings?.sections) ? settings.sections : [];
+  const seen = new Set();
   const clean = saved
     .filter((s) => s && isSection(s.id))
     .map((s) => {
@@ -220,30 +236,48 @@ export function sectionsOf(settings) {
       const base = defaultSection(s.id, curriculum);
       const subjects = Array.isArray(s.subjects) && s.subjects.length ? s.subjects.filter(Boolean) : base.subjects;
       const checked = validateScale(s.grading);
-      return { id: s.id, curriculum, subjects, grading: checked.ok ? checked.scale : base.grading };
-    });
-  if (clean.length) {
-    return SECTIONS.map((s) => clean.find((c) => c.id === s.id)).filter(Boolean);
-  }
+      return { id: s.id, curriculum, key: base.key, subjects, grading: checked.ok ? checked.scale : base.grading };
+    })
+    .filter((s) => (seen.has(s.key) ? false : seen.add(s.key)));
+  if (clean.length) return clean.sort((a, b) => sectionOrder(a) - sectionOrder(b));
 
   const legacy = settings?.schoolLevel || settings?.schoolType;
   const id = legacy === "Primary" ? "primary" : "secondary";
   return [{ ...defaultSection(id, "malawi"), grading: clone(MANEB_SCALE) }];
 }
 
-/** Which section a class belongs to. Classes made before sections read their old `level`. */
+/**
+ * The section (from `sections`) a class belongs to: by its `sectionKey`, or —
+ * for classes made before keys — by its level and curriculum, then its level
+ * alone (classes made before sections read their old `level`).
+ */
+export function sectionOfClass(cls, sections = []) {
+  const byKey = sections.find((s) => s.key === cls?.sectionKey);
+  if (byKey) return byKey;
+  const level = isSection(cls?.section) ? cls.section : String(cls?.level || "").toLowerCase();
+  if (isSection(level)) {
+    return sections.find((s) => s.id === level && s.curriculum === cls?.curriculum)
+      || sections.find((s) => s.id === level)
+      || sections[0];
+  }
+  return sections[0];
+}
+
+/** The key of the section a class belongs to. */
+export const sectionKeyOfClass = (cls, sections = []) => sectionOfClass(cls, sections)?.key || "";
+
+/** The level (kindergarten / primary / secondary) of the section a class belongs to. */
 export function sectionIdOfClass(cls, sections = []) {
+  const s = sectionOfClass(cls, sections);
+  if (s) return s.id;
   if (isSection(cls?.section)) return cls.section;
   const level = String(cls?.level || "").toLowerCase();
-  if (isSection(level)) return level;
-  return sections[0]?.id || "secondary";
+  return isSection(level) ? level : "secondary";
 }
 
 /** The full section record a class belongs to, falling back to the first one. */
 export function sectionForClass(settings, cls) {
-  const sections = sectionsOf(settings);
-  const id = sectionIdOfClass(cls, sections);
-  return sections.find((s) => s.id === id) || sections[0];
+  return sectionOfClass(cls, sectionsOf(settings));
 }
 
 /** The grading scale that applies to a class. */
@@ -296,14 +330,19 @@ export function ladderFor(sectionId, curriculum) {
 }
 
 /**
- * Document id for a generated class. Malawian primary/secondary keep the
- * original `${schoolCode}_form${n}${stream}` so existing schools re-running
- * setup update their classes instead of duplicating them; everything else is
- * prefixed with its section, so Standard 1 and Form 1 can never collide.
+ * Document id for a generated class. Malawian secondary keeps the original
+ * `${schoolCode}_form${n}${stream}`, so an existing school re-running setup
+ * updates its classes instead of duplicating them. Malawian primary uses
+ * `_std`, so Standard 1 and Form 1 can sit in the same school. Everything else
+ * carries its level and curriculum, so Primary (Abeka) Grade 1 and Primary
+ * (Cambridge) Year 1 never collide. (Classes that already exist keep whatever
+ * id they were made with — setup matches them by section, year and stream.)
  */
 export function classDocIdFor(schoolCode, sectionId, curriculum, rung, stream) {
-  if (curriculum === "malawi" && sectionId !== "kindergarten") return `${schoolCode}_form${rung}${stream || ""}`;
-  return `${schoolCode}_${sectionId}${rung}${stream || ""}`;
+  const letter = stream || "";
+  if (curriculum === "malawi" && sectionId === "secondary") return `${schoolCode}_form${rung}${letter}`;
+  if (curriculum === "malawi" && sectionId === "primary") return `${schoolCode}_std${rung}${letter}`;
+  return `${schoolCode}_${sectionId}_${curriculum}${rung}${letter}`;
 }
 
 /**
@@ -313,7 +352,7 @@ export function classDocIdFor(schoolCode, sectionId, curriculum, rung, stream) {
  */
 export function planSectionClasses({ schoolCode, section, rungs = {}, capacity = 45 }) {
   const names = ladderFor(section.id, section.curriculum);
-  const sectionOrder = SECTIONS.findIndex((s) => s.id === section.id) * 1000;
+  const base = sectionOrder(section) * 1000;
   const out = [];
   Object.keys(rungs)
     .map(Number)
@@ -323,10 +362,10 @@ export function planSectionClasses({ schoolCode, section, rungs = {}, capacity =
       const label = names[rung - 1];
       const streams = Math.max(0, Math.min(8, Number(rungs[rung]) || 0));
       const slots = streams === 0
-        ? [{ stream: null, name: label, order: sectionOrder + rung * 10 }]
+        ? [{ stream: null, name: label, order: base + rung * 10 }]
         : Array.from({ length: streams }, (_, i) => {
           const letter = String.fromCharCode(65 + i);
-          return { stream: letter, name: `${label}${letter}`, order: sectionOrder + rung * 10 + i };
+          return { stream: letter, name: `${label}${letter}`, order: base + rung * 10 + i };
         });
       slots.forEach(({ stream, name, order }) => out.push({
         id: classDocIdFor(schoolCode, section.id, section.curriculum, rung, stream),
@@ -334,6 +373,7 @@ export function planSectionClasses({ schoolCode, section, rungs = {}, capacity =
           schoolCode, name, formLevel: rung, stream, order,
           section: section.id,
           curriculum: section.curriculum,
+          sectionKey: sectionKey(section.id, section.curriculum),
           // `level` is what older screens filter on.
           level: section.id === "secondary" ? "Secondary" : section.id === "primary" ? "Primary" : "Kindergarten",
           subjects: [...section.subjects],

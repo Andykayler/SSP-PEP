@@ -6,7 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { auth, db } from "../firebase";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { validateScale } from "./curriculumCore";
+import { validateScale, sectionKey, sectionName } from "./curriculumCore";
 
 export * from "./curriculumCore";
 
@@ -20,10 +20,10 @@ export async function saveSections({ schoolCode, sections, actorId }) {
   const cleaned = [];
   for (const s of sections) {
     const subjects = [...new Set((s.subjects || []).map((x) => String(x).trim()).filter(Boolean))];
-    if (subjects.length === 0) return { ok: false, error: `Add at least one subject to ${s.id}.` };
+    if (subjects.length === 0) return { ok: false, error: `Add at least one subject to ${sectionName(s)}.` };
     const checked = validateScale(s.grading);
-    if (!checked.ok) return { ok: false, error: `${s.id[0].toUpperCase()}${s.id.slice(1)} grading: ${checked.error}` };
-    cleaned.push({ id: s.id, curriculum: s.curriculum, subjects, grading: checked.scale });
+    if (!checked.ok) return { ok: false, error: `${sectionName(s)} grading: ${checked.error}` };
+    cleaned.push({ id: s.id, curriculum: s.curriculum, key: sectionKey(s.id, s.curriculum), subjects, grading: checked.scale });
   }
   const top = cleaned.some((s) => s.id === "secondary") ? "Secondary" : "Primary";
   try {

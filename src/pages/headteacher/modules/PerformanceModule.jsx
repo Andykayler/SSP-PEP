@@ -11,7 +11,7 @@ import {
 import {
   subscribeSchoolSettings, pastTermOptions, isPastTerm,
 } from "../../../services/academicTerm";
-import { sectionsOf, sectionIdOfClass, MANEB_SCALE } from "../../../services/curriculumCore";
+import { sectionsOf, sectionOfClass, MANEB_SCALE } from "../../../services/curriculumCore";
 import { gradeInfo, scaleRows, rangeLabel } from "../../../components/ui/grades";
 
 // ─── Assessment components & their weight toward the overall term grade ──────
@@ -311,8 +311,7 @@ export default function PerformanceModule({ schoolCode }) {
   const sections = useMemo(() => sectionsOf(schoolSettings), [schoolSettings]);
   const scaleOf = (classId) => {
     const cls = classes.find((c) => c.id === classId);
-    const id = sectionIdOfClass(cls, sections);
-    return (sections.find((x) => x.id === id) || sections[0])?.grading || MANEB_SCALE;
+    return sectionOfClass(cls, sections)?.grading || MANEB_SCALE;
   };
   // The scale for the whole view: the chosen class's, or the one every class
   // shares. With "All classes" across differently graded sections there is no

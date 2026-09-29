@@ -532,10 +532,11 @@ function PublishTab({ exam, sitting, ready, problems, seated, onPublish, busy })
 
 // ─── Results analysis ────────────────────────────────────────────────────────
 function Analysis({ schoolCode, students, currentTerm, classes, settings }) {
-  // Exams are graded on the secondary section's scale (or the school's only
-  // section). MSCE readiness — credits, "on track" — applies on MANEB only.
+  // Exams are graded on the secondary section's scale — the Malawian one when
+  // the school runs several — or the school's first section. MSCE readiness
+  // (credits, "on track") applies on MANEB only.
   const sections = useMemo(() => sectionsOf(settings), [settings]);
-  const scale = (sections.find((x) => x.id === "secondary") || sections[0]).grading;
+  const scale = (sections.find((x) => x.key === "secondary:malawi") || sections.find((x) => x.id === "secondary") || sections[0]).grading;
   const maneb = isManebScale(scale);
   const GRADES = scaleRows(scale);
   const [pickedTerm, setTerm] = useState("");
