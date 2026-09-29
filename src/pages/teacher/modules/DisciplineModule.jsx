@@ -264,7 +264,7 @@ export default function DisciplineModule({ userId, schoolCode, userName, userRol
     setError("");
     try {
       const student = students.find((s) => s.id === newRecord.studentId);
-      await addDoc(collection(db, "discipline_cases"), {
+      const caseRef = await addDoc(collection(db, "discipline_cases"), {
         studentId:    newRecord.studentId,
         studentName:  newRecord.studentName,
         studentCode:  student?.studentCode || "",
@@ -281,6 +281,7 @@ export default function DisciplineModule({ userId, schoolCode, userName, userRol
       });
       await notifyDisciplineLogged({
         schoolCode,
+        caseId: caseRef.id,
         student,
         offense: newRecord.offense.trim(),
         severity: newRecord.severity,

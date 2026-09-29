@@ -6,8 +6,6 @@ import {
   doc, serverTimestamp,
 } from "firebase/firestore";
 import { notifyHomeworkPosted } from "../../../services/notificationHooks";
-import { sendSms, messageChannel } from "../../../services/sms";
-import { subscribeSchoolSettings } from "../../../services/academicTerm";
 import SubmissionPanel from "../../../components/homework/SubmissionPanel";
 import {
   Plus, Clock, Calendar, Eye, Edit2, Trash2,
@@ -29,19 +27,6 @@ function fmt(dateStr) {
 function daysUntil(dateStr) {
   if (!dateStr) return null;
   return Math.ceil((new Date(dateStr) - new Date(new Date().toDateString())) / 864e5);
-}
-
-// Plain-text version of the homework notice for SMS/WhatsApp. Kept separate
-// from the bilingual in-app template (tpl.homework, used by
-// notifyHomeworkPosted) the same way enrolmentSms is kept separate from the
-// in-app registration text — one guardian phone gets one message regardless
-// of how many of their children share the class, so this can't be worded
-// per-student the way the in-app notice is.
-function homeworkSms({ className, subject, title, dueDate }) {
-  const due = dueDate
-    ? ` Due ${new Date(`${dueDate}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}.`
-    : "";
-  return `New homework for ${className}: ${subject} — "${title}".${due} Check the ACALink app for details.`;
 }
 
 // ─── Shared inline style helpers ──────────────────────────────────────────────
@@ -505,10 +490,6 @@ export default function HomeworkModule({ userId, schoolCode, userName, userRole 
   const [toast,         setToast]         = useState(null);
   const [error,         setError]         = useState("");
 
-  // For the guardian WhatsApp/SMS: SMS if the school has SMS on, else
-  // WhatsApp — same setting StudentManagement reads for enrolment messages.
-  const [schoolSettings, setSchoolSettings] = useState(null);
-  useEffect(() => subscribeSchoolSettings(schoolCode, setSchoolSettings), [schoolCode]);
 
   const isLoading    = assignLoading || hwLoading;
   const noAssignment = !assignLoading && myClasses.length === 0;
@@ -597,9 +578,9 @@ export default function HomeworkModule({ userId, schoolCode, userName, userRole 
       const ref = await addDoc(collection(db, "homework"), payload);
       setHomework((prev) => [{ id: ref.id, ...payload }, ...prev]);
 
-      // In-app notice for every guardian of every student in this exact
-      // class (matched by classId, so a same-named class on another campus
-      // is never included).
+      // In-app notice and WhatsApp for every guardian of every student in
+      // this exact class (matched by classId, so a same-named class on
+      // another campus is never included).
       await notifyHomeworkPosted({
         schoolCode,
         classId: payload.classId,
@@ -610,63 +591,9 @@ export default function HomeworkModule({ userId, schoolCode, userName, userRole 
         homeworkId: ref.id,
         actor: { id: userId, name: userName || "Class Teacher", role: userRole || "class_teacher" },
       });
-
-      // WhatsApp/SMS to the same guardians — same pattern as student
-      // registration in StudentManagement.jsx: one message per unique
-      // guardian phone, sent over whichever channel the school has
-      // configured for this term.
-      const notified = await sendHomeworkMessages(payload);
-      showToast(
-        notified > 0
-          ? `Homework assigned — ${notified} guardian${notified === 1 ? "" : "s"} notified.`
-          : "Homework assigned."
-      );
+      showToast("Homework assigned — guardians are being notified on WhatsApp.");
     }
   };
-
-  /**
-   * Fetches the students in `classId`, dedupes their guardians by phone (a
-   * guardian with two children in the same class gets one message, not two),
-   * and sends each one the homework notice over sendSms — mirroring exactly
-   * how StudentManagement.jsx messages a guardian on enrolment. Swallows its
-   * own errors: a guardian not getting a WhatsApp/SMS must not make the
-   * homework post itself look like it failed.
-   */
-  const sendHomeworkMessages = useCallback(async ({ classId, className, subject, title, dueDate }) => {
-    if (!classId) return 0;
-    try {
-      const snap = await getDocs(
-        query(
-          collection(db, "students"),
-          where("schoolCode", "==", schoolCode),
-          where("classId",    "==", classId)
-        )
-      );
-      const phones = new Set();
-      snap.docs.forEach((d) => {
-        const phone = d.data().guardianPhone;
-        if (phone) phones.add(phone);
-      });
-      if (phones.size === 0) return 0;
-
-      const message = homeworkSms({ className, subject, title, dueDate });
-      const channel = messageChannel(schoolSettings);
-
-      let sent = 0;
-      for (const phone of phones) {
-        try {
-          const result = await sendSms(phone, message, { channel });
-          if (result?.success) sent += 1;
-        } catch (err) {
-          console.error("Homework SMS/WhatsApp failed for", phone, err);
-        }
-      }
-      return sent;
-    } catch (err) {
-      console.error("Homework guardian message fetch failed:", err);
-      return 0;
-    }
-  }, [schoolCode, schoolSettings]);
 
   // ── Delete ────────────────────────────────────────────────────────────────
   const deleteHomework = async (id) => {

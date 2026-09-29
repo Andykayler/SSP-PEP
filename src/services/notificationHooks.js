@@ -105,8 +105,10 @@ export async function notifyAnnouncement({
 
 // ─── Discipline ──────────────────────────────────────────────────────────────
 export async function notifyDisciplineLogged({
-  schoolCode, student, offense, severity, action, actor,
+  schoolCode, caseId, student, offense, severity, action, actor,
 }) {
+  // Not awaited: the teacher should not wait on WhatsApp to close the form.
+  if (caseId) sendGuardianWhatsApp({ kind: "discipline", caseId });
   try {
     await notifyGuardians({
       students: [student],
@@ -182,35 +184,38 @@ export async function notifyAttendanceSaved({
       entityId: date,
     });
 
-    // WhatsApp goes through a server endpoint: the WaAPI token cannot live in
-    // the browser. The endpoint takes phone numbers from the student records
-    // and builds the message itself, so only ids and statuses are sent here.
-    await sendAttendanceWhatsApp({
-      className,
-      date,
-      items: flagged.map((s) => ({ studentId: s.id, status: records[s.id].status })),
-    });
+    // One request per 60 learners keeps each call inside the server's time limit.
+    const items = flagged.map((s) => ({ studentId: s.id, status: records[s.id].status }));
+    for (let i = 0; i < items.length; i += 60) {
+      await sendGuardianWhatsApp({ kind: "attendance", className, date, items: items.slice(i, i + 60) });
+    }
   } catch (err) {
     console.error("[hooks] attendance notify failed:", err);
   }
 }
 
-async function sendAttendanceWhatsApp({ className, date, items }) {
+/**
+ * Asks the server to WhatsApp guardians about something just recorded.
+ * WhatsApp goes through a server endpoint: the WaAPI token cannot live in the
+ * browser. The endpoint takes phone numbers from the student records and
+ * builds the message itself (with the parents.acalinks.com link), so only ids
+ * are sent from here — see api/_lib/guardianSend.js.
+ */
+async function sendGuardianWhatsApp(payload) {
   try {
     const user = getAuth().currentUser;
-    if (!user || items.length === 0) return;
+    if (!user) return;
     const idToken = await user.getIdToken();
-    // One request per 60 learners keeps each call inside the server's time limit.
-    for (let i = 0; i < items.length; i += 60) {
-      const res = await fetch("/api/whatsapp/webhook?action=send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ className, date, items: items.slice(i, i + 60) }),
-      });
-      if (!res.ok) console.error("[hooks] attendance WhatsApp failed:", res.status, await res.text());
-    }
+    const res = await fetch("/api/whatsapp/webhook?action=send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) console.error(`[hooks] ${payload.kind} WhatsApp failed:`, res.status, data);
+    else if (data.reason || data.skipped || data.failed) console.warn(`[hooks] ${payload.kind} WhatsApp:`, data);
   } catch (err) {
-    console.error("[hooks] attendance WhatsApp failed:", err);
+    console.error(`[hooks] ${payload.kind} WhatsApp failed:`, err);
   }
 }
 
@@ -247,6 +252,8 @@ export async function notifyMarksPublished({
 export async function notifyHomeworkPosted({
   schoolCode, classId, className, subject, title, dueDate, homeworkId, actor,
 }) {
+  // Not awaited: a whole class takes a while at WhatsApp's gentle pace.
+  if (homeworkId) sendGuardianWhatsApp({ kind: "homework", homeworkId });
   try {
     const due = dueDate
       ? new Date(`${dueDate}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
