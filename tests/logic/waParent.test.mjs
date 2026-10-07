@@ -71,3 +71,14 @@ describe("texts", () => {
     assert.match(text, /Position: 1 of 40/);
   });
 });
+
+describe("natural phrasing", () => {
+  it("understands polite and punctuated requests", () => {
+    for (const t of ["Results please", "my results?", "Show me the RESULTS 😊", "Hi", "Hello!"]) {
+      assert.ok(parseParentCommand(t), t);
+    }
+    assert.equal(parseParentCommand("results previous").term.kind, "list");
+    assert.equal(parseParentCommand("make payment"), null);
+    assert.equal(parseParentCommand("I want to pay"), null);
+  });
+});

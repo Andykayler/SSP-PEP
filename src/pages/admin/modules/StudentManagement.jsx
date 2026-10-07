@@ -14,7 +14,7 @@ import {
   StatusPill, Modal, Input, Select, Btn, Spinner, EmptyState, ActionBtn, StudentCodeBadge, NotifStatus,
 } from "./ui";
 import {
-  resolveGuardianLink, notifyGuardianOfPendingLink, enrolmentSms, guardianWelcomeSms, isLinkPending,
+  resolveGuardianLink, notifyGuardianOfPendingLink, enrolmentSms, guardianWelcomeSms, loginLinkSms, isLinkPending,
   LINK_ACTIVE, LINK_PENDING,
 } from "../../../services/guardianLink";
 import BulkImportModal from "../../../components/import/BulkImportModal";
@@ -54,6 +54,8 @@ export default function StudentManagement({ schoolCode, schoolName }) {
   const [regForm, setRegForm]                         = useState(EMPTY_REG);
   const [regErrors, setRegErrors]                     = useState({});
   const [newStudentResult, setNewStudentResult]       = useState(null);
+  const [linkSending, setLinkSending]                 = useState(false);
+  const [linkSent, setLinkSent]                       = useState(false);
   const [showBulk, setShowBulk]                       = useState(false);
 
   // ── Transfer OUT lookup/request state ──
@@ -292,14 +294,29 @@ export default function StudentManagement({ schoolCode, schoolName }) {
         code: studentCode,
         guardianEmail: regForm.guardianEmail.trim(),
         guardianPhone,
+        guardianNumbers: guardianSet.guardians.map((g) => g.phone),
+        studentName: fullName,
         emailSent,
         smsSent,
         link,
       });
-      setRegForm(EMPTY_REG); setRegErrors({});
+      setRegForm(EMPTY_REG); setRegErrors({}); setLinkSent(false);
       fetchStudents();
     } catch (err) { setError("Registration failed: " + err.message); }
     setActionLoading(false);
+  }
+
+  async function sendLoginLink() {
+    const r = newStudentResult;
+    if (!r?.guardianNumbers?.length) return;
+    setLinkSending(true);
+    try {
+      const channel = messageChannel(schoolSettings);
+      const text = loginLinkSms({ schoolName, studentName: r.studentName, whatsapp: channel === "whatsapp" });
+      await Promise.all(r.guardianNumbers.map((to) => sendSms(to, text, { channel })));
+      setLinkSent(true);
+    } catch (err) { setError("Could not send the login link: " + err.message); }
+    setLinkSending(false);
   }
 
   async function handleTransferLookup() {
@@ -663,6 +680,17 @@ export default function StudentManagement({ schoolCode, schoolName }) {
                   </div>
                 )}
               </div>
+
+              {newStudentResult.guardianNumbers?.length > 0 && (
+                <div style={{ marginBottom: 8 }}>
+                  <Btn variant="ghost" disabled={linkSending || linkSent} onClick={sendLoginLink}>
+                    {linkSent ? "Login link sent" : linkSending ? "Sending…" : "Send login link (parents.acalinks.com)"}
+                  </Btn>
+                  <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 6 }}>
+                    Sends the parent login link to every guardian listed for this student.
+                  </p>
+                </div>
+              )}
 
               <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 20 }}>
                 <Btn variant="ghost" onClick={() => { setNewStudentResult(null); setActiveTab("list"); }}>View Students</Btn>

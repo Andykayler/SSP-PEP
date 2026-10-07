@@ -20,7 +20,7 @@ export const COMMANDS = {
   discipline:    /^(behaviou?r|discipline|conduct)$/i,
   announcements: /^(notices?|announcements?|news|uthenga)$/i,
   fees:          /^(fees?|balance|bal)$/i,
-  menu:          /^(menu|help|options|commands|thandizo)$/i,
+  menu:          /^(menu|help|options|commands|thandizo|hi|hie|hello|hey|moni|muli bwanji|start menu)$/i,
 };
 
 /** Commands whose records belong to a term and so accept one. */
@@ -33,7 +33,12 @@ const CURRENT_RE = /^(current|this|now)(\s+term)?$/i;
  * @returns {{ cmd: string, term: null|{ kind: "current" } | { kind: "list" } | { kind: "term", number: number, year: number|null } } | null}
  */
 export function parseParentCommand(text) {
-  const words = String(text || "").trim().replace(/\s+/g, " ");
+  // Parents type naturally: "Results please", "my results?", "Show me the homework 😊".
+  // Strip punctuation/emoji and polite filler so those still land on the command.
+  const words = String(text || "").toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\b(please|pls|plz|kindly|my|the|me|show|send|view|see|i\s+want|i\s+need|want|need|to)\b/g, " ")
+    .replace(/\s+/g, " ").trim();
   if (!words || words.length > 40) return null;
 
   // Longest command word first so "home work" is not read as "home".

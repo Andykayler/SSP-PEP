@@ -533,6 +533,7 @@ export default async function handler(req, res) {
     const senderPhone = normalisePhone(phoneFromChatId(resolved));
     if (!senderPhone) return res.status(200).json({ ok: true });
 
+    console.log("[whatsapp] inbound from", senderPhone, JSON.stringify(text.slice(0, 60)));
     await route(senderPhone, text);
   } catch (err) {
     console.error("[whatsapp] webhook handling failed:", err);

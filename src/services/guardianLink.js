@@ -143,6 +143,21 @@ export async function notifyGuardianOfPendingLink({
   }
 }
 
+/** Where guardians log in. */
+export const PARENT_PORTAL_URL = "https://parents.acalinks.com";
+
+/** A short message carrying only the login link, for the "Send login link" button. */
+export function loginLinkSms({ schoolName, studentName, whatsapp = false }) {
+  return `${schoolName}: you can see ${studentName}'s results, attendance, fees and homework on ACALink.
+`
+       + `Log in here: ${PARENT_PORTAL_URL}
+`
+       + `Use this phone number to sign in. If you don't have your password, ask the school.`
+       + (whatsapp ? `
+
+${WHATSAPP_MENU_HINT}` : "");
+}
+
 /** The SMS body for each case. Kept here so both enrolment paths word it alike. */
 export function enrolmentSms({ link, schoolName, studentName, className, studentCode, whatsapp = false }) {
   // On WhatsApp the guardian can also just reply to this chat for their child's
