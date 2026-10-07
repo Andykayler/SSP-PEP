@@ -347,11 +347,18 @@ export default function StudentManagement({ schoolCode, schoolName }) {
   // WhatsApp let 27 new conversations through before its send protection kicked in,
   // so messages go out fast in batches a little under that, with a 10s pause between.
   const LINK_BATCH = 25;
+  // One-off: families who already have their login, so they are left out this time.
+  // Editable in the box below; delete this default once the rollout is done.
+  const [skipText, setSkipText] = useState("0991686188,0995139560, 0884250111, 0882370942,0885560860,0884131413,0884166834,0881970059,0882644674,0888184151,0993910842,0884095769,0999678833,0996492204,0996440274,0888552700,0991375780,0991613795,0999541085,0993558292,0881199606,0992625701,0995446298,0996401893");
+  const parseSkip = (t) => new Set(String(t || "").split(/[\s,;]+/).map((x) => normalisePhone(x)).filter(Boolean));
 
   async function sendLoginLinkToAll() {
     const channel = messageChannel(schoolSettings);
     const list = loginLinkAudience();
     const already = readSent();
+    // The skipped numbers count as already sent from now on, so a later run leaves them out too.
+    parseSkip(skipText).forEach((p) => already.add(p));
+    try { localStorage.setItem(sentKey, JSON.stringify([...already])); } catch { /* ignore */ }
     stopLinkRef.current = false;
     const pending = list.filter((r) => !already.has(r.to)).length;
     const todo = pending;
@@ -576,12 +583,28 @@ export default function StudentManagement({ schoolCode, schoolName }) {
       {bulkLink && (
         <div className="alert alert--info" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           {bulkLink.stage === "confirm" && (<>
-            <span>
-              Send the parent login link (parents.acalinks.com) to <strong>{bulkLink.total}</strong> guardian numbers, in batches of {LINK_BATCH} with a 10-second pause between batches.
-              {" "}<strong>{bulkLink.withPassword}</strong> of them also get their login phone and password.
-              {bulkLink.skipped ? ` ${bulkLink.skipped} already sent earlier are skipped.` : ""}
-            </span>
-            <Btn variant="gold" size="sm" disabled={!bulkLink.total} onClick={sendLoginLinkToAll}>Yes, send</Btn>
+            {(() => {
+              const all = loginLinkAudience();
+              const done = readSent();
+              const skip = parseSkip(skipText);
+              const todo = all.filter((r) => !done.has(r.to) && !skip.has(r.to));
+              const known = new Set(all.map((r) => r.to));
+              const unmatched = [...skip].filter((p) => !known.has(p));
+              return (<>
+                <span style={{ flex: "1 1 100%" }}>
+                  Send the parent login link (parents.acalinks.com) to <strong>{todo.length}</strong> guardian numbers, in batches of {LINK_BATCH} with a 10-second pause between batches.
+                  {" "}<strong>{todo.filter((r) => r.withPassword).length}</strong> of them also get their login phone and password.
+                  {" "}Leaving out {all.length - todo.length} already sent or listed below.
+                  {unmatched.length ? ` (${unmatched.length} listed number${unmatched.length === 1 ? "" : "s"} matched no guardian: ${unmatched.join(", ")}.)` : ""}
+                </span>
+                <textarea
+                  value={skipText} onChange={(e) => setSkipText(e.target.value)} rows={3}
+                  placeholder="Numbers to leave out this time, separated by commas"
+                  style={{ flex: "1 1 100%", fontSize: 12, padding: 8, borderRadius: 8 }}
+                />
+                <Btn variant="gold" size="sm" disabled={!todo.length} onClick={sendLoginLinkToAll}>Yes, send</Btn>
+              </>);
+            })()}
             <Btn variant="ghost" size="sm" onClick={() => setBulkLink(null)}>Cancel</Btn>
           </>)}
           {bulkLink.stage === "sending" && (<>
