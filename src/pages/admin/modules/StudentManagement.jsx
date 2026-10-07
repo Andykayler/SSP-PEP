@@ -7,7 +7,8 @@ import {
 import { IC } from "./icons";
 import { GENDERS, DISTRICTS } from "./constants";
 import { generateStudentCode, normalisePhone, initials, fmtDate } from "./helpers";
-import { guardianFields } from "../../../services/guardians";
+import { guardianFields, guardiansOf } from "../../../services/guardians";
+import { sendSmsToMany } from "../../../services/sms";
 import { sendSms, sendEmail, EMAILJS_GUARDIAN_TEMPLATE_ID, APP_URL, messageChannel } from "./notifications";
 import { subscribeSchoolSettings } from "../../../services/academicTerm";
 import {
@@ -54,6 +55,7 @@ export default function StudentManagement({ schoolCode, schoolName }) {
   const [regForm, setRegForm]                         = useState(EMPTY_REG);
   const [regErrors, setRegErrors]                     = useState({});
   const [newStudentResult, setNewStudentResult]       = useState(null);
+  const [bulkLink, setBulkLink]                   = useState(null);   // null | { stage: "confirm"|"sending"|"done", ... }
   const [linkSending, setLinkSending]                 = useState(false);
   const [linkSent, setLinkSent]                       = useState(false);
   const [showBulk, setShowBulk]                       = useState(false);
@@ -306,6 +308,29 @@ export default function StudentManagement({ schoolCode, schoolName }) {
     setActionLoading(false);
   }
 
+  /** One message per phone number across every active student, so a parent
+   *  with three children (or a number listed twice) is messaged once. */
+  function loginLinkAudience() {
+    const phones = new Set();
+    for (const st of students) {
+      if (st.status && st.status !== "active") continue;
+      for (const g of guardiansOf(st)) if (g.phone) phones.add(g.phone);
+    }
+    return [...phones];
+  }
+
+  async function sendLoginLinkToAll() {
+    const channel = messageChannel(schoolSettings);
+    const text = loginLinkSms({ schoolName, studentName: "your child", whatsapp: channel === "whatsapp" });
+    const list = loginLinkAudience();
+    setBulkLink({ stage: "sending", done: 0, total: list.length });
+    const res = await sendSmsToMany(list.map((to) => ({ to, message: text })), {
+      channel, concurrency: 3,
+      onProgress: (done, total) => setBulkLink({ stage: "sending", done, total }),
+    });
+    setBulkLink({ stage: "done", ...res, total: list.length });
+  }
+
   async function sendLoginLink() {
     const r = newStudentResult;
     if (!r?.guardianNumbers?.length) return;
@@ -489,10 +514,33 @@ export default function StudentManagement({ schoolCode, schoolName }) {
           <h2 className="module-title">Student Management</h2>
           <p className="module-sub">{students.length} students enrolled — {schoolName}</p>
         </div>
-        <Btn variant="primary" onClick={() => setShowBulk(true)}>
-          {IC.plus}<span style={{ marginLeft: 6 }}>Import from CSV</span>
-        </Btn>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Btn variant="ghost" onClick={() => setBulkLink({ stage: "confirm", total: loginLinkAudience().length })}>
+            Send login link to all parents
+          </Btn>
+          <Btn variant="primary" onClick={() => setShowBulk(true)}>
+            {IC.plus}<span style={{ marginLeft: 6 }}>Import from CSV</span>
+          </Btn>
+        </div>
       </div>
+
+      {bulkLink && (
+        <div className="alert alert--info" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          {bulkLink.stage === "confirm" && (<>
+            <span>Send the parent login link (parents.acalinks.com) to <strong>{bulkLink.total}</strong> guardian numbers, one message per number, covering every active student?</span>
+            <Btn variant="gold" size="sm" disabled={!bulkLink.total} onClick={sendLoginLinkToAll}>Yes, send</Btn>
+            <Btn variant="ghost" size="sm" onClick={() => setBulkLink(null)}>Cancel</Btn>
+          </>)}
+          {bulkLink.stage === "sending" && <span>Sending… {bulkLink.done} of {bulkLink.total}. Keep this page open.</span>}
+          {bulkLink.stage === "done" && (<>
+            <span>
+              Sent to {bulkLink.sent} of {bulkLink.total} numbers
+              {bulkLink.failed ? ` — ${bulkLink.failed} failed${bulkLink.failures?.[0]?.reason ? ` (${bulkLink.failures[0].reason})` : ""}` : ""}.
+            </span>
+            <Btn variant="ghost" size="sm" onClick={() => setBulkLink(null)}>Close</Btn>
+          </>)}
+        </div>
+      )}
 
       <div className="sub-tabs" style={{ overflowX: "auto" }}>
         {tabs.map(t => (
