@@ -13,14 +13,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { db } from "../firebase";
 import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
-import { formatTerm, parseTerm, isFullYear, resolveTerm } from "./academicTermCore.js";
+import { formatTerm, parseTerm, isFullYear, resolveTerm, termWindow } from "./academicTermCore.js";
 
 export const TERMS_PER_YEAR = 3;
 
 // formatTerm, parseTerm, isFullYear and resolveTerm now live in
 // academicTermCore.js (no Firestore import) so serverless functions can share
 // them; re-exported here so nothing importing this module has to change.
-export { formatTerm, parseTerm, isFullYear, resolveTerm };
+export { formatTerm, parseTerm, isFullYear, resolveTerm, termWindow };
 
 /**
  * Term 3 rolls over into Term 1 of the next year — which is also the point at
@@ -49,35 +49,7 @@ export function academicYearFor(term) {
   return `${parsed.year - 1}/${parsed.year}`;
 }
 
-/**
- * The calendar window a term covers, as ISO dates.
- *
- * Nothing stores term dates, but they are implied by what `academicYearFor`
- * already asserts: "Term 1 2026" belongs to academic year 2025/2026, so Term 1
- * sits in the back half of 2025 and Terms 2 and 3 in 2026. That matches the
- * Malawian school year — Term 1 from September, the year ending in July.
- *
- * Used to scope attendance and discipline to the term being reported on. The
- * boundaries are generous on purpose: a register marked a few days either side
- * of the official term start should still count toward that term, and the
- * alternative — counting a whole year's absences against one term — is much
- * more wrong than a week of overlap.
- *
- * A school running a different calendar would need this configurable; today
- * nothing in the product asks for term dates at all.
- */
-export function termWindow(term) {
-  const parsed = parseTerm(term);
-  if (!parsed) return null;
-
-  const { number, year } = parsed;
-  // year - 1 is when the academic year opens; `year` is when it closes.
-  switch (number) {
-    case 1:  return { start: `${year - 1}-09-01`, end: `${year - 1}-12-31` };
-    case 2:  return { start: `${year}-01-01`,     end: `${year}-04-30` };
-    default: return { start: `${year}-05-01`,     end: `${year}-08-31` };
-  }
-}
+// termWindow now lives in academicTermCore.js and is re-exported above.
 
 /**
  * Best guess when a school has never set a term — the calendar year, first

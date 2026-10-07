@@ -27,30 +27,18 @@ import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 
 import { normalisePhone } from "./phone";
+import { guardianFields } from "./guardians";
+import {
+  STUDENT_COLUMNS, STUDENT_SAMPLE, validateStudentRows, phoneIsUsable,
+} from "./studentImportCore";
+
+export { STUDENT_COLUMNS, STUDENT_SAMPLE, validateStudentRows };
 import { generatePassword, generateStudentCode } from "./credentials";
 import { lookupSiblingsByPhone } from "./studentLookup";
 import {
-  resolveGuardianLink, notifyGuardianOfPendingLink, enrolmentSms,
+  resolveGuardianLink, notifyGuardianOfPendingLink, enrolmentSms, guardianWelcomeSms,
   LINK_ACTIVE, LINK_PENDING,
 } from "./guardianLink";
-
-// ─── Column contracts ────────────────────────────────────────────────────────
-// `key` is the normalised header (see csv.js), `label` is what the template
-// writes out for a human to fill in.
-export const STUDENT_COLUMNS = [
-  { key: "firstname",       label: "First Name",       required: true  },
-  { key: "lastname",        label: "Last Name",        required: true  },
-  { key: "gender",          label: "Gender",           required: true,  hint: "Male or Female" },
-  { key: "dob",             label: "Date of Birth",    required: false, hint: "YYYY-MM-DD" },
-  { key: "class",           label: "Class",            required: true,  hint: "Must match a class you have created" },
-  { key: "guardianname",    label: "Guardian Name",    required: true  },
-  { key: "guardianphone",   label: "Guardian Phone",   required: true,  hint: "0991234567 or +265991234567" },
-  { key: "guardianemail",   label: "Guardian Email",   required: false },
-  { key: "guardianrelation",label: "Guardian Relation",required: false, hint: "Parent, Uncle, Grandmother…" },
-  { key: "nationalid",      label: "National ID",      required: false },
-  { key: "district",        label: "District",         required: false },
-  { key: "village",         label: "Village",          required: false },
-];
 
 export const STAFF_COLUMNS = [
   { key: "name",  label: "Full Name", required: true },
@@ -60,135 +48,10 @@ export const STAFF_COLUMNS = [
 ];
 
 const VALID_ROLES  = ["head_teacher", "class_teacher", "bursar", "librarian"];
-const VALID_GENDER = { male: "Male", female: "Female", m: "Male", f: "Female" };
 
-/** One example row, so the template is obviously fillable rather than abstract. */
-export const STUDENT_SAMPLE = [
-  "Chikondi", "Phiri", "Female", "2011-04-17", "Form 1",
-  "Grace Banda", "0991234567", "", "Mother", "", "Ntcheu", "Chigodi",
-];
 export const STAFF_SAMPLE = ["James Mwale", "j.mwale@example.com", "class_teacher", "0888606204"];
 
 // ─── Shared validation helpers ───────────────────────────────────────────────
-
-/** True for a number that will actually reach a phone and match in the app. */
-function phoneIsUsable(raw) {
-  return /^\+265[89]\d{8}$/.test(normalisePhone(raw));
-}
-
-/** Accepts YYYY-MM-DD and DD/MM/YYYY; returns the ISO form the app stores. */
-function normaliseDob(raw = "") {
-  const s = String(raw).trim();
-  if (!s) return { ok: true, value: "" };
-  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
-  if (m) return isoIfReal(m[1], m[2], m[3]);
-  m = /^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/.exec(s);
-  if (m) return isoIfReal(m[3], m[2], m[1]);
-  return { ok: false };
-}
-
-function isoIfReal(y, mo, d) {
-  const yy = Number(y), mm = Number(mo), dd = Number(d);
-  const date = new Date(Date.UTC(yy, mm - 1, dd));
-  const real = date.getUTCFullYear() === yy
-            && date.getUTCMonth() === mm - 1
-            && date.getUTCDate() === dd;
-  if (!real) return { ok: false };
-  const pad = (n) => String(n).padStart(2, "0");
-  return { ok: true, value: `${yy}-${pad(mm)}-${pad(dd)}` };
-}
-
-// ─── Students ────────────────────────────────────────────────────────────────
-
-/**
- * Turns parsed CSV rows into import-ready records, each carrying its own list
- * of problems. Nothing is written here — the caller shows the result first.
- *
- * `classes` and `existingStudents` are passed in rather than fetched so the
- * whole file costs one read of each, not one per row.
- */
-export function validateStudentRows({ rows, classes, existingStudents }) {
-  const byClassName = new Map(
-    (classes || []).map((c) => [String(c.name || "").trim().toLowerCase(), c])
-  );
-
-  // Same child twice in one file, and same child already on the roll.
-  const seenInFile = new Map();
-  const onRoll = new Set(
-    (existingStudents || []).map((s) =>
-      `${String(s.fullName || "").trim().toLowerCase()}|${String(s.className || "").trim().toLowerCase()}`
-    )
-  );
-
-  return (rows || []).map((raw) => {
-    const errors = [];
-    const warnings = [];
-
-    const firstName = (raw.firstname || "").trim();
-    const lastName  = (raw.lastname  || "").trim();
-    if (!firstName) errors.push("First name is missing.");
-    if (!lastName)  errors.push("Last name is missing.");
-
-    const gender = VALID_GENDER[(raw.gender || "").trim().toLowerCase()];
-    if (!gender) errors.push(`Gender must be Male or Female (got "${raw.gender || ""}").`);
-
-    const dob = normaliseDob(raw.dob);
-    if (!dob.ok) errors.push(`Date of birth "${raw.dob}" is not a real date — use YYYY-MM-DD.`);
-
-    const classKey = (raw.class || "").trim().toLowerCase();
-    const cls = byClassName.get(classKey);
-    if (!classKey) errors.push("Class is missing.");
-    else if (!cls) errors.push(`No class called "${raw.class}" — create it in School Settings first.`);
-
-    const guardianName = (raw.guardianname || "").trim();
-    if (!guardianName) errors.push("Guardian name is missing.");
-
-    const phoneRaw = (raw.guardianphone || "").trim();
-    const phone = normalisePhone(phoneRaw);
-    if (!phoneRaw) errors.push("Guardian phone is missing.");
-    else if (!phoneIsUsable(phoneRaw)) {
-      errors.push(`"${phoneRaw}" is not a usable Malawian mobile number — the guardian will never be able to sign in.`);
-    }
-
-    const email = (raw.guardianemail || "").trim();
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      warnings.push("Guardian email looks wrong — it will be skipped.");
-    }
-
-    const fullName = `${firstName} ${lastName}`.trim();
-    const dupKey = `${fullName.toLowerCase()}|${classKey}`;
-    if (fullName && classKey) {
-      if (seenInFile.has(dupKey)) {
-        errors.push(`Same name and class as row ${seenInFile.get(dupKey)} in this file.`);
-      } else {
-        seenInFile.set(dupKey, raw.__line);
-        if (onRoll.has(dupKey)) {
-          warnings.push("A student with this name is already in this class — check it isn't a duplicate.");
-        }
-      }
-    }
-
-    return {
-      line: raw.__line,
-      errors,
-      warnings,
-      valid: errors.length === 0,
-      data: {
-        firstName, lastName, fullName, gender,
-        dob: dob.ok ? dob.value : "",
-        classId: cls?.id || "",
-        className: cls?.name || (raw.class || "").trim(),
-        guardianName,
-        guardianPhone: phone,
-        guardianEmail: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "",
-        guardianRelation: (raw.guardianrelation || "").trim() || "Parent/Guardian",
-        nationalId: (raw.nationalid || "").trim(),
-        district: (raw.district || "").trim(),
-        village: (raw.village || "").trim(),
-      },
-    };
-  });
-}
 
 /**
  * Writes the valid rows.
@@ -203,13 +66,13 @@ export function validateStudentRows({ rows, classes, existingStudents }) {
  * student who was never created is not.
  */
 export async function importStudents({
-  rows, schoolCode, schoolName, sendSms, appUrl, onProgress,
+  rows, schoolCode, schoolName, sendSms, appUrl, onProgress, whatsapp = false,
 }) {
   const valid = rows.filter((r) => r.valid);
   if (valid.length === 0) return { created: 0, families: 0, pending: 0, messages: [], failed: [] };
 
   // One read of every student already attached to any phone in this file.
-  const phones = [...new Set(valid.map((r) => r.data.guardianPhone))];
+  const phones = [...new Set(valid.map((r) => r.data.guardianPhone).filter(Boolean))];
   const siblingsByPhone = await fetchSiblings(phones);
 
   // Resolve each family once, then let later rows for that family reuse it.
@@ -230,13 +93,19 @@ export async function importStudents({
     const batch = writeBatch(db);
 
     chunk.forEach((row) => {
-      const link = familyByPhone.get(row.data.guardianPhone);
+      // A child with no usable number is still enrolled; they just have no
+      // family to message yet.
+      const link = familyByPhone.get(row.data.guardianPhone)
+        || { phone: "", status: LINK_ACTIVE, password: generatePassword(), isNewGuardian: true, siblingCount: 0, guardianName: "" };
       const studentCode = generateStudentCode();
       const ref = doc(collection(db, "students"));
 
       batch.set(ref, {
         studentCode,
         ...row.data,
+        // Every guardian, plus the flat list of their numbers that WhatsApp
+        // delivery and the bot search by — see services/guardians.js.
+        ...guardianFields(row.data.guardians),
         schoolCode, schoolName,
         status: "active",
         parentPortalPassword: link.password,
@@ -270,6 +139,7 @@ export async function importStudents({
 
   for (const entry of created) {
     const { link, row } = entry;
+    if (!link.phone) continue;
     if (notified.has(link.phone)) continue;
     notified.add(link.phone);
 
@@ -294,10 +164,38 @@ export async function importStudents({
           className: row.data.className,
           studentCode: kids.map((k) => k.studentCode).join(", "),
           appUrl,
+          whatsapp,
         }));
         messages.push({ phone: link.phone, sent: !!res?.success });
       } catch {
         messages.push({ phone: link.phone, sent: false });
+      }
+    }
+  }
+
+  // ── The other guardians of each child (second parent, uncle…) ──
+  // They hear about the child too; they get no password because the app
+  // account belongs to the first guardian.
+  if (sendSms) {
+    const extra = new Map();
+    for (const entry of created) {
+      for (const g of entry.row.data.guardians.slice(1)) {
+        if (notified.has(g.phone)) continue;           // already messaged as someone's first guardian
+        if (!extra.has(g.phone)) extra.set(g.phone, { name: g.name, kids: [] });
+        extra.get(g.phone).kids.push(entry);
+      }
+    }
+    for (const [phone, { kids }] of extra) {
+      try {
+        const res = await sendSms(phone, guardianWelcomeSms({
+          schoolName,
+          studentName: kids.map((k) => k.row.data.fullName).join(", "),
+          className: kids[0].row.data.className,
+          whatsapp,
+        }));
+        messages.push({ phone, sent: !!res?.success });
+      } catch {
+        messages.push({ phone, sent: false });
       }
     }
   }

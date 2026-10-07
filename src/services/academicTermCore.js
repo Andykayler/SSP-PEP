@@ -21,6 +21,24 @@ export function parseTerm(term = "") {
   return { number: Number(m[1]), year: Number(m[2]) };
 }
 
+/**
+ * The calendar window a term covers, as ISO dates. Nothing stores term dates,
+ * so they are implied by the academic year ("Term 1 2026" belongs to 2025/2026:
+ * Term 1 from September, Terms 2 and 3 in 2026). Boundaries are generous on
+ * purpose — a register marked a few days either side still counts.
+ */
+export function termWindow(term) {
+  const parsed = parseTerm(term);
+  if (!parsed) return null;
+
+  const { number, year } = parsed;
+  switch (number) {
+    case 1:  return { start: `${year - 1}-09-01`, end: `${year - 1}-12-31` };
+    case 2:  return { start: `${year}-01-01`,     end: `${year}-04-30` };
+    default: return { start: `${year}-05-01`,     end: `${year}-08-31` };
+  }
+}
+
 /** True for the fee modules' catch-all option, which covers every term. */
 export function isFullYear(term) {
   return String(term || "").trim().toLowerCase() === "full year";

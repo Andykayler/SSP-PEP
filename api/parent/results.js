@@ -25,6 +25,7 @@ import { adminAuth, adminDb } from "../_lib/firebaseAdmin.js";
 import { readBody } from "../_lib/auth.js";
 import { computeStudentBalance, getCurrentTerm } from "../_lib/feeBalance.js";
 import { normalisePhone } from "../../src/services/phone.js";
+import { isGuardianPhone } from "../../src/services/guardians.js";
 import { resultsAccess, withheldMessage, releaseId, RELEASES } from "../../src/services/resultsAccessCore.js";
 import { childResults } from "../../src/services/resultsCore.js";
 import { scaleForClass } from "../../src/services/curriculumCore.js";
@@ -67,7 +68,7 @@ export default async function handler(req, res) {
 
     if (who.parent) {
       const phone = normalisePhone(body.phone || "");
-      if (!phone || phone !== normalisePhone(student.guardianPhone || "")) {
+      if (!phone || !isGuardianPhone(student, phone)) {
         return fail(res, 403, "This child isn't linked to your phone number.");
       }
     } else if (who.staff.schoolCode !== student.schoolCode) {

@@ -61,7 +61,9 @@ import { getSession, setSession, clearSession } from "../_lib/waSession.js";
 import { openWhatsAppDirectCharge, openWhatsAppFeeCheckout } from "../_lib/waFeeCheckout.js";
 import { settleTransaction, TX_COLLECTION } from "../_lib/settle.js";
 import { normalisePhone } from "../../src/services/phone.js";
+import { isGuardianPhone } from "../../src/services/guardians.js";
 import { handleGuardianSend } from "../_lib/guardianSend.js";
+import { parseParentCommand, startParentCommand, continueParentSession } from "../_lib/waParent.js";
 import { calculateTransactionFee } from "../../src/services/transactionFeeCore.js";
 
 const ATTEMPTS = "wa_payment_attempts";
@@ -158,7 +160,7 @@ async function loadStudent(id) {
  * to be edited, and the charge must never be opened against a stale match.
  */
 async function stillOwnsStudent(senderPhone, student) {
-  return normalisePhone(student.guardianPhone) === senderPhone;
+  return isGuardianPhone(student, senderPhone);
 }
 
 // ─── The conversation ────────────────────────────────────────────────────────
@@ -460,8 +462,16 @@ async function route(senderPhone, text) {
     return;
   }
 
+  // A menu word (RESULTS, ATTENDANCE, HOMEWORK…) always wins, even mid-way
+  // through a payment: it abandons that conversation, which expires on its own.
+  const parentCommand = parseParentCommand(text);
+  if (parentCommand) return startParentCommand(senderPhone, parentCommand, (p, t) => reply(p, t));
+
   const session = await getSession(senderPhone);
 
+  if (session?.awaiting === "info_child" || session?.awaiting === "info_term") {
+    return continueParentSession(senderPhone, text, session, (p, t) => reply(p, t));
+  }
   if (session?.awaiting === "select") return handleSelect(senderPhone, text, session);
   if (session?.awaiting === "amount") return handleAmount(senderPhone, text, session);
   if (session?.awaiting === "confirm") return handleConfirm(senderPhone, text, session);
@@ -470,9 +480,9 @@ async function route(senderPhone, text) {
   if (CHECK_RE.test(text)) return handleCheckCommand(senderPhone);
   if (TRIGGER_RE.test(text)) return startPaymentFlow(senderPhone);
 
-  // No active conversation and no trigger phrase: stay silent. This is a
-  // payment bot, not a general assistant — replying to every stray message
-  // sent to this number would be noise, not help.
+  // No active conversation and no trigger phrase or menu word: stay silent. This
+  // is not a general assistant — replying to every stray message sent to this
+  // number would be noise, not help.
   return undefined;
 }
 

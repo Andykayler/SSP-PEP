@@ -7,13 +7,14 @@ import {
 import { IC } from "./icons";
 import { GENDERS, DISTRICTS } from "./constants";
 import { generateStudentCode, normalisePhone, initials, fmtDate } from "./helpers";
+import { guardianFields } from "../../../services/guardians";
 import { sendSms, sendEmail, EMAILJS_GUARDIAN_TEMPLATE_ID, APP_URL, messageChannel } from "./notifications";
 import { subscribeSchoolSettings } from "../../../services/academicTerm";
 import {
   StatusPill, Modal, Input, Select, Btn, Spinner, EmptyState, ActionBtn, StudentCodeBadge, NotifStatus,
 } from "./ui";
 import {
-  resolveGuardianLink, notifyGuardianOfPendingLink, enrolmentSms, isLinkPending,
+  resolveGuardianLink, notifyGuardianOfPendingLink, enrolmentSms, guardianWelcomeSms, isLinkPending,
   LINK_ACTIVE, LINK_PENDING,
 } from "../../../services/guardianLink";
 import BulkImportModal from "../../../components/import/BulkImportModal";
@@ -47,6 +48,7 @@ export default function StudentManagement({ schoolCode, schoolName }) {
     firstName: "", lastName: "", dob: "", gender: "",
     nationalId: "", guardianName: "", guardianPhone: "",
     guardianEmail: "", guardianRelation: "",
+    guardian2Name: "", guardian2Phone: "", guardian2Relation: "",
     district: "", village: "", classId: "", campusId: "",
   };
   const [regForm, setRegForm]                         = useState(EMPTY_REG);
@@ -180,6 +182,11 @@ export default function StudentManagement({ schoolCode, schoolName }) {
     const fullName       = `${regForm.firstName.trim()} ${regForm.lastName.trim()}`;
     const cls            = classes.find(c => c.id === regForm.classId);
     const guardianPhone  = normalisePhone(regForm.guardianPhone);
+    // Everyone listed gets the school's WhatsApp messages, not only the first.
+    const guardianSet = guardianFields([
+      { name: regForm.guardianName.trim(), phone: guardianPhone, relation: regForm.guardianRelation.trim() || "Parent/Guardian" },
+      { name: regForm.guardian2Name.trim(), phone: regForm.guardian2Phone, relation: regForm.guardian2Relation.trim() },
+    ]);
 
     try {
       // Does this guardian already exist on ACALink? If so the child joins the
@@ -197,6 +204,8 @@ export default function StudentManagement({ schoolCode, schoolName }) {
         guardianPhone,
         guardianEmail: regForm.guardianEmail.trim() || "",
         guardianRelation: regForm.guardianRelation.trim() || "Parent/Guardian",
+        guardians: guardianSet.guardians,
+        guardianPhones: guardianSet.guardianPhones,
         district: regForm.district, village: regForm.village.trim() || "",
         classId: regForm.classId, className: cls?.name || "",
         // The campus the child actually attends. Written even for a
@@ -259,10 +268,24 @@ export default function StudentManagement({ schoolCode, schoolName }) {
             className: cls?.name || "",
             studentCode,
             appUrl: APP_URL,
+            whatsapp: messageChannel(schoolSettings) === "whatsapp",
           }),
           { channel: messageChannel(schoolSettings) },
         );
         smsSent = smsResult.success;
+      }
+
+      // Second guardian: hears about the child too, with no login of their own.
+      const second = guardianSet.guardians.find((g) => g.phone !== guardianPhone);
+      if (second) {
+        await sendSms(
+          second.phone,
+          guardianWelcomeSms({
+            schoolName, studentName: fullName, className: cls?.name || "",
+            whatsapp: messageChannel(schoolSettings) === "whatsapp",
+          }),
+          { channel: messageChannel(schoolSettings) },
+        );
       }
 
       setNewStudentResult({
@@ -692,6 +715,14 @@ export default function StudentManagement({ schoolCode, schoolName }) {
                   </div>
                   <Input label="Relationship" value={regForm.guardianRelation} onChange={e => setRegForm(p => ({...p, guardianRelation: e.target.value}))} placeholder="Father / Mother / Uncle…" />
                 </div>
+                <div className="grid-2" style={{ marginTop: 16 }}>
+                  <Input label="Second Guardian Name (optional)" value={regForm.guardian2Name} onChange={e => setRegForm(p => ({...p, guardian2Name: e.target.value}))} placeholder="Mary Banda" />
+                  <Input label="Second Guardian Phone" value={regForm.guardian2Phone} onChange={e => setRegForm(p => ({...p, guardian2Phone: e.target.value}))} placeholder="09xxxxxxxx" />
+                  <Input label="Second Guardian Relationship" value={regForm.guardian2Relation} onChange={e => setRegForm(p => ({...p, guardian2Relation: e.target.value}))} placeholder="Mother / Uncle…" />
+                </div>
+                <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 4 }}>
+                  Every guardian listed receives the school's WhatsApp messages about this child.
+                </p>
                 <div style={{ marginTop: 16 }}>
                   <Input
                     label="Guardian Email (optional — for parent portal email)"
@@ -1011,8 +1042,8 @@ export default function StudentManagement({ schoolCode, schoolName }) {
           previewColumns={[
             { label: "Name",     get: (r) => r.data.fullName },
             { label: "Class",    get: (r) => r.data.className },
-            { label: "Guardian", get: (r) => r.data.guardianName },
-            { label: "Phone",    get: (r) => r.data.guardianPhone },
+            { label: "Guardians", get: (r) => (r.data.guardians || []).map((g) => g.name).join(", ") },
+            { label: "Phones",    get: (r) => (r.data.guardians || []).map((g) => g.phone).join(", ") },
           ]}
           onValidate={(rows) =>
             validateStudentRows({ rows, classes, existingStudents: students })
@@ -1023,6 +1054,7 @@ export default function StudentManagement({ schoolCode, schoolName }) {
               schoolCode, schoolName,
               sendSms: (to, message) => sendSms(to, message, { channel: messageChannel(schoolSettings) }),
               appUrl: APP_URL, onProgress,
+              whatsapp: messageChannel(schoolSettings) === "whatsapp",
             })
           }
           renderResult={(res) => (

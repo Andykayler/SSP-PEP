@@ -20,6 +20,7 @@ import {
   writeBatch, updateDoc, serverTimestamp, deleteDoc,
 } from "firebase/firestore";
 import { isDeactivated } from "./staffAccountCore";
+import { guardiansOf } from "./guardians";
 
 export const PARENT_PREFIX = "parent:";
 
@@ -213,22 +214,23 @@ export async function notifyGuardians({ students, ...payload }) {
   const targets = [];
   const seen = new Set();
   (students || []).forEach((s) => {
-    const phone = s?.guardianPhone;
-    if (!phone) return;
-    const key = `${phone}|${s.id}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    targets.push({
-      ...payload,
-      recipientId: parentRecipientId(phone),
-      recipientName: s.guardianName || "",
-      studentId: s.id,
-      studentName: s.fullName || `${s.firstName || ""} ${s.lastName || ""}`.trim(),
-      body: typeof payload.body === "function" ? payload.body(s) : payload.body,
-      title: typeof payload.title === "function" ? payload.title(s) : payload.title,
-      bodyNy: typeof payload.bodyNy === "function" ? payload.bodyNy(s) : payload.bodyNy,
-      titleNy: typeof payload.titleNy === "function" ? payload.titleNy(s) : payload.titleNy,
-      lang: s.guardianLanguage || "",
+    // Every guardian of the child, not just the first.
+    guardiansOf(s).forEach((g) => {
+      const key = `${g.phone}|${s.id}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      targets.push({
+        ...payload,
+        recipientId: parentRecipientId(g.phone),
+        recipientName: g.name || s.guardianName || "",
+        studentId: s.id,
+        studentName: s.fullName || `${s.firstName || ""} ${s.lastName || ""}`.trim(),
+        body: typeof payload.body === "function" ? payload.body(s) : payload.body,
+        title: typeof payload.title === "function" ? payload.title(s) : payload.title,
+        bodyNy: typeof payload.bodyNy === "function" ? payload.bodyNy(s) : payload.bodyNy,
+        titleNy: typeof payload.titleNy === "function" ? payload.titleNy(s) : payload.titleNy,
+        lang: s.guardianLanguage || "",
+      });
     });
   });
   return pushNotifications(targets);

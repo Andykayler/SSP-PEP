@@ -18,7 +18,7 @@
 import { useRef, useState } from "react";
 import { Modal, Btn } from "../../pages/admin/modules/ui";
 import { IC } from "../../pages/admin/modules/icons";
-import { parseCsvRows, downloadCsv, readFileAsText } from "../../services/csv";
+import { readTableFile, downloadCsv } from "../../services/csv";
 
 const UploadIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}
@@ -62,15 +62,14 @@ export default function BulkImportModal({
     setError("");
     setFileName(file.name);
     try {
-      const text = await readFileAsText(file);
-      const { rows, headers } = parseCsvRows(text);
+      const { rows, headers } = await readTableFile(file);
 
       if (rows.length === 0) {
-        setError("That file has no rows under the header. Check you saved it as CSV.");
+        setError("That file has no rows under the header. Check it is a CSV or Excel (.xlsx) file with the column names in the first row.");
         return;
       }
       const missing = columns
-        .filter((c) => c.required && !headers.includes(c.key))
+        .filter((c) => c.required && !(c.present ? c.present(headers) : headers.includes(c.key)))
         .map((c) => c.label);
       if (missing.length > 0) {
         setError(
@@ -122,14 +121,14 @@ export default function BulkImportModal({
             }}
           >
             <div style={{ color: "var(--text3)", marginBottom: 10 }}>{UploadIcon}</div>
-            <div style={{ fontWeight: 600, fontSize: 14 }}>Choose a CSV file</div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>Choose a CSV or Excel file</div>
             <div style={{ fontSize: 12, color: "var(--text3)", marginTop: 4 }}>
               or drag it here
             </div>
             <input
               ref={inputRef}
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               style={{ display: "none" }}
               onChange={(e) => handleFile(e.target.files?.[0])}
             />

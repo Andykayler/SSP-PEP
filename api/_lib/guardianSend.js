@@ -29,7 +29,7 @@
 import { getAuth } from "firebase-admin/auth";
 import { adminDb, FieldValue } from "./firebaseAdmin.js";
 import { sendWhatsAppText, isConfigured as waConfigured } from "./waapi.js";
-import { normalisePhone } from "../../src/services/phone.js";
+import { guardiansOf } from "../../src/services/guardians.js";
 import { tpl } from "../../src/services/messageTemplates.js";
 
 const MAX_ITEMS = 60;          // one class; keeps a request inside maxDuration
@@ -104,27 +104,30 @@ async function deliver({ jobs, category, schoolCode, settings }) {
 
   for (const { student, template } of jobs) {
     if (!student) { skip("not_found"); continue; }
-    const phone = normalisePhone(student.guardianPhone);
-    if (!phone) { skip("no_phone"); continue; }
+    // Every guardian of the child hears about it, not just the first.
+    const phones = guardiansOf(student).map((g) => g.phone);
+    if (phones.length === 0) { skip("no_phone"); continue; }
 
     const message = composeMessage(template, isChichewa(student, settings), schoolName);
-    const key = `${phone}|${message}`;
-    if (seen.has(key)) { skip("duplicate"); continue; }
-    seen.add(key);
+    for (const phone of phones) {
+      const key = `${phone}|${message}`;
+      if (seen.has(key)) { skip("duplicate"); continue; }
+      seen.add(key);
 
-    if (await isOptedOut(phone)) { skip("opted_out"); continue; }
+      if (await isOptedOut(phone)) { skip("opted_out"); continue; }
 
-    const entry = { schoolCode, category, recipientId: `parent:${phone}`, to: phone, message, studentId: student.id };
-    try {
-      await sendWhatsAppText(phone, message);
-      result.sent += 1;
-      await log({ ...entry, status: "sent", sentAt: FieldValue.serverTimestamp() });
-    } catch (err) {
-      result.failed += 1;
-      console.error(`[guardianSend] ${category} to ${phone} failed:`, err.message || err);
-      await log({ ...entry, status: "failed", error: String(err.message || err).slice(0, 300) });
+      const entry = { schoolCode, category, recipientId: `parent:${phone}`, to: phone, message, studentId: student.id };
+      try {
+        await sendWhatsAppText(phone, message);
+        result.sent += 1;
+        await log({ ...entry, status: "sent", sentAt: FieldValue.serverTimestamp() });
+      } catch (err) {
+        result.failed += 1;
+        console.error(`[guardianSend] ${category} to ${phone} failed:`, err.message || err);
+        await log({ ...entry, status: "failed", error: String(err.message || err).slice(0, 300) });
+      }
+      await sleep(PACE_MS);
     }
-    await sleep(PACE_MS);
   }
   return result;
 }

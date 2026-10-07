@@ -29,7 +29,7 @@ import { isDeactivated } from "../../src/services/staffAccountCore.js";
 import { sendWhatsAppText, isConfigured as waConfigured } from "../_lib/waapi.js";
 import { computeSchoolArrears } from "../_lib/feeBalance.js";
 import { stageFor } from "../../src/services/feeReminderCore.js";
-import { normalisePhone } from "../../src/services/phone.js";
+import { guardiansOf } from "../../src/services/guardians.js";
 
 const FINANCE_ROLES = ["admin", "bursar"];
 const SENT_LOG = "wa_reminders_sent";
@@ -113,7 +113,7 @@ export default async function handler(req, res) {
       : null;
 
     const targets = rows.filter((r) => (
-      r.balance > 0 && r.guardianPhone && (!wanted || wanted.has(r.id))
+      r.balance > 0 && guardiansOf(r).length > 0 && (!wanted || wanted.has(r.id))
     ));
 
     if (targets.length === 0) {
@@ -130,32 +130,35 @@ export default async function handler(req, res) {
       const stage = stageFor(row);
       if (!stage) continue;
 
-      const phone = normalisePhone(row.guardianPhone);
       const message = `${stage.body(row, { term: currentTerm, currency: "MK " })}\n\n`
         + `You can also pay right now — reply "Make Payment" here on WhatsApp.`;
 
-      try {
-        await sendWhatsAppText(phone, message);
-        sent += 1;
-        await adminDb.collection(SENT_LOG).add({
-          schoolCode,
-          studentId: row.id,
-          studentName: row.fullName || "",
-          guardianPhone: phone,
-          balance: row.balance,
-          stage: stage.stage,
-          stageId: stage.id,
-          term: currentTerm,
-          sentBy: auth.uid || "",
-          sentByName: auth.user.name || "",
-          sentAt: FieldValue.serverTimestamp(),
-        });
-      } catch (err) {
-        console.error("[whatsapp] reminder failed for", row.id, err);
-        failures.push({ studentId: row.id, studentName: row.fullName || "", error: err.message });
-      }
+      // Every guardian of the child is reminded — whoever pays the fees may
+      // not be the first name on the record.
+      for (const phone of guardiansOf(row).map((g) => g.phone)) {
+        try {
+          await sendWhatsAppText(phone, message);
+          sent += 1;
+          await adminDb.collection(SENT_LOG).add({
+            schoolCode,
+            studentId: row.id,
+            studentName: row.fullName || "",
+            guardianPhone: phone,
+            balance: row.balance,
+            stage: stage.stage,
+            stageId: stage.id,
+            term: currentTerm,
+            sentBy: auth.uid || "",
+            sentByName: auth.user.name || "",
+            sentAt: FieldValue.serverTimestamp(),
+          });
+        } catch (err) {
+          console.error("[whatsapp] reminder failed for", row.id, err);
+          failures.push({ studentId: row.id, studentName: row.fullName || "", error: err.message });
+        }
 
-      await sleep(THROTTLE_MS);
+        await sleep(THROTTLE_MS);
+      }
     }
 
     return res.status(200).json({

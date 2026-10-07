@@ -144,18 +144,40 @@ export async function notifyGuardianOfPendingLink({
 }
 
 /** The SMS body for each case. Kept here so both enrolment paths word it alike. */
-export function enrolmentSms({ link, schoolName, studentName, className, studentCode }) {
+export function enrolmentSms({ link, schoolName, studentName, className, studentCode, whatsapp = false }) {
+  // On WhatsApp the guardian can also just reply to this chat for their child's
+  // records (api/_lib/waParent.js), so the welcome says how.
+  const menu = whatsapp ? `\n\n${WHATSAPP_MENU_HINT}` : "";
   if (link.isNewGuardian) {
     return `${schoolName}: ${studentName} has been enrolled in ${className || "school"}.\n`
          + `Student Code: ${studentCode}\n`
          + `ACALink login — Phone: ${link.phone}\nPassword: ${link.password}\n`
          + `One password covers all your children, at any school on ACALink.\n`
-         + `Keep this code safe — it's used for transfers too.`;
+         + `Keep this code safe — it's used for transfers too.${menu}`;
   }
   return `${schoolName}: ${studentName} has been enrolled in ${className || "school"}.\n`
        + `Student Code: ${studentCode}\n`
        + `${studentName} has been added to your existing ACALink account. `
        + `Open parents.acalinks.com and confirm with your password to see their records. `
        + `You do NOT need a new password.\n`
-       + `If you were not expecting this, contact the school.`;
+       + `If you were not expecting this, contact the school.${menu}`;
 }
+
+/**
+ * For a child's second parent, uncle or other guardian: they hear about the
+ * child but get no login (the app account belongs to the first guardian).
+ */
+export function guardianWelcomeSms({ schoolName, studentName, className, whatsapp = false }) {
+  return `${schoolName}: ${studentName} is enrolled in ${className || "school"}, and this number is listed as a guardian. `
+       + `You will receive the school's updates about ${studentName} here.`
+       + (whatsapp ? `
+
+${WHATSAPP_MENU_HINT}` : "");
+}
+
+/** Shown in the enrolment WhatsApp so a new guardian knows what the number can do. */
+export const WHATSAPP_MENU_HINT =
+  "You can also reply to this chat any time:\n"
+  + "RESULTS · ATTENDANCE · HOMEWORK · BEHAVIOUR · NOTICES · FEES · MAKE PAYMENT\n"
+  + "Add PREVIOUS for earlier terms (e.g. \"results previous\"). Send MENU for help.\n"
+  + "Tumizani MENU kuti muwone zomwe mungapemphe.";

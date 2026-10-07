@@ -434,7 +434,12 @@ service cloud.firestore {
     // SCHOOL CLASSES
     // =============================================
       match /school_classes/{classId} {
-      allow read: if request.auth != null && sameSchool(resource.data.schoolCode);
+      // `resource == null` covers a getDoc on a class that does not exist yet:
+      // Add Class checks its id is free before creating it, and without this
+      // branch resource.data throws and the check fails as "permission denied".
+      // Nothing leaks — there is no document to read.
+      allow read: if request.auth != null &&
+                  (resource == null || sameSchool(resource.data.schoolCode));
       allow create: if request.auth != null && isAdminOrHead() && sameSchool(request.resource.data.schoolCode) && schoolIsActive(request.resource.data.schoolCode);
       allow update: if request.auth != null && isAdminOrHead() && sameSchool(resource.data.schoolCode) && sameSchool(request.resource.data.schoolCode) && schoolIsActive(resource.data.schoolCode);
       allow delete: if request.auth != null && isAdmin() && sameSchool(resource.data.schoolCode) && schoolIsActive(resource.data.schoolCode);
@@ -867,9 +872,13 @@ service cloud.firestore {
       // `parent:` address), so dropping it costs no security: an anonymous
       // session could already read any of them. The real fix is Phone Auth —
       // see the note at the bottom of this file.
+      // `resource == null`: ensureConversation() getDocs the thread before its
+      // first message to see whether to create it.
       allow read: if isAnonParent() ||
-                     (isSignedIn() && request.auth.uid in resource.data.participantIds &&
-                      sameSchool(resource.data.schoolCode));
+                     (isSignedIn() &&
+                      (resource == null ||
+                       (request.auth.uid in resource.data.participantIds &&
+                        sameSchool(resource.data.schoolCode))));
 
       // Staff open a thread with one of their school's guardians.
       allow create: if isStaffOfSchool(request.resource.data.schoolCode) &&
@@ -1018,7 +1027,9 @@ service cloud.firestore {
                     schoolIsActive(schoolCode);
     }
     // =============================================
-    // SCHOOL SETTINGS (school type, promotion threshold)
+    // SCHOOL SETTINGS (school type, promotion threshold, sections — each a
+    // level plus curriculum with its subjects and grading scale — enabled
+    // modules and the setup-complete flag)
     // =============================================
     match /school_settings/{schoolCode} {
       // The parent app reads `currentTerm` from here so its grades card
@@ -1057,14 +1068,6 @@ service cloud.firestore {
                   resource.data.requestedByUid == request.auth.uid;
       allow update, delete: if false;
     }
-
-    // =============================================
-    // DEFAULT DENY — must be last
-    // =============================================
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
 
     // ─────────────────────────────────────────────────────────────────────────
     // STAFF LEAVE
@@ -1515,6 +1518,36 @@ service cloud.firestore {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode) &&
                   (isAdmin() || isDirector());
       allow write: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SERVER-ONLY COLLECTIONS
+    //
+    // Used only by the functions under api/ and functions/, which run on the
+    // Admin SDK and bypass these rules. The default deny below would already
+    // refuse clients; they are listed so nobody mistakes them for forgotten.
+    //
+    //   otp_challenges       api/auth/otp.js (sign-in and phone-change codes)
+    //   wa_sessions          api/_lib/waSession.js (WhatsApp bot conversations)
+    //   wa_optouts           guardians who replied STOP
+    //   wa_payment_attempts  fee payments started from WhatsApp
+    //   wa_reminders_sent    api/whatsapp/send-reminders.js dedupe log
+    // ─────────────────────────────────────────────────────────────────────────
+    match /otp_challenges/{id}      { allow read, write: if false; }
+    match /wa_sessions/{id}         { allow read, write: if false; }
+    match /wa_optouts/{id}          { allow read, write: if false; }
+    match /wa_payment_attempts/{id} { allow read, write: if false; }
+    match /wa_reminders_sent/{id}   { allow read, write: if false; }
+
+    // =============================================
+    // DEFAULT DENY — must be last
+    //
+    // Firestore grants a request if ANY matching rule allows it, so this never
+    // overrides an allow above; it only guarantees that a collection nobody
+    // wrote a rule for is closed rather than open.
+    // =============================================
+    match /{document=**} {
+      allow read, write: if false;
     }
 
   }

@@ -66,17 +66,37 @@ export function parseCsv(text) {
  * about this and correcting them by hand is exactly the work we are removing.
  */
 export function parseCsvRows(text) {
-  const rows = parseCsv(text);
-  if (rows.length === 0) return { headers: [], rows: [] };
+  return tableFromRows(parseCsv(text));
+}
+
+/** Rows of cells (first row = headers) → objects keyed by normalised header. */
+export function tableFromRows(rows) {
+  if (!rows || rows.length === 0) return { headers: [], rows: [] };
 
   const headers = rows[0].map(normaliseHeader);
   const out = rows.slice(1).map((cells, i) => {
     const obj = { __line: i + 2 }; // 1-based, +1 for the header row
-    headers.forEach((h, j) => { if (h) obj[h] = (cells[j] ?? "").trim(); });
+    headers.forEach((h, j) => { if (h) obj[h] = String(cells[j] ?? "").trim(); });
     return obj;
   });
 
   return { headers, rows: out };
+}
+
+/**
+ * Reads an uploaded roll — CSV, or an Excel workbook (.xlsx) as school offices
+ * send them — into the same { headers, rows } shape.
+ */
+export async function readTableFile(file) {
+  const name = (file?.name || "").toLowerCase();
+  if (name.endsWith(".xlsx")) {
+    const { readXlsxRows } = await import("./xlsx.js");
+    return tableFromRows(await readXlsxRows(await file.arrayBuffer()));
+  }
+  if (name.endsWith(".xls")) {
+    throw new Error("That's an old .xls workbook. Open it in Excel and Save As .xlsx or CSV UTF-8, then upload that.");
+  }
+  return parseCsvRows(await readFileAsText(file));
 }
 
 export function normaliseHeader(h = "") {

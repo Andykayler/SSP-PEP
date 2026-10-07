@@ -33,10 +33,15 @@ export async function getCurrentTerm(schoolCode) {
  */
 export async function findStudentsByGuardianPhone(phone) {
   if (!phone) return [];
-  const snap = await adminDb.collection("students").where("guardianPhone", "==", phone).get();
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((s) => (s.status || "active") === "active");
+  // The first guardian lives in `guardianPhone`; every guardian's number is also
+  // in the `guardianPhones` array (see src/services/guardians.js).
+  const [primary, any] = await Promise.all([
+    adminDb.collection("students").where("guardianPhone", "==", phone).get(),
+    adminDb.collection("students").where("guardianPhones", "array-contains", phone).get(),
+  ]);
+  const byId = new Map();
+  [...primary.docs, ...any.docs].forEach((d) => byId.set(d.id, { id: d.id, ...d.data() }));
+  return [...byId.values()].filter((s) => (s.status || "active") === "active");
 }
 
 /**
