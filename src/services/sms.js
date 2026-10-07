@@ -53,13 +53,66 @@ export async function sendSms(to, message, { channel = "sms" } = {}) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       console.error("SMS failed:", data);
-      return { success: false, reason: data.error || "api_error", code: data.code };
+      return {
+        success: false, reason: data.error || "api_error", code: data.code,
+        rateLimited: !!data.rateLimited, retryAfter: data.retryAfter || 0,
+      };
     }
     return { success: true, sid: data.sid };
   } catch (err) {
     console.error("SMS error:", err);
     return { success: false, reason: "network_error" };
   }
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Sends to many recipients ONE AT A TIME, slowly — for WhatsApp, which blocks
+ * accounts that message lots of new people quickly (WaAPI "send protection").
+ * When the gateway says the new-conversation limit is reached it waits the
+ * time it asks for (capped) and tries the same number again; if the limit
+ * keeps coming back it stops, so the caller can resume later without losing
+ * its place. `isDone(to)` / `onSent(to)` let the caller remember who already
+ * got the message.
+ */
+export async function sendPaced(recipients, {
+  channel = "whatsapp", gapMs = 250, maxWaitMs = 15 * 60_000, giveUpAfter = 5,
+  batchSize = Infinity, batchPauseMs = 10_000,
+  isDone, onSent, onProgress, onWait, shouldStop, maxSend = Infinity,
+} = {}) {
+  const list = (recipients || []).filter((r) => r?.to && r?.message && !isDone?.(r.to)).slice(0, maxSend);
+  const out = { sent: 0, failed: 0, stopped: "", remaining: 0, failures: [] };
+  let strikes = 0;
+
+  for (let i = 0; i < list.length; ) {
+    if (shouldStop?.()) { out.stopped = "user"; break; }
+    const item = list[i];
+    const res = await sendSms(item.to, item.message, { channel });
+    if (res.success) {
+      out.sent += 1; strikes = 0; i += 1;
+      onSent?.(item.to);
+      onProgress?.(out.sent + out.failed, list.length);
+      if (i < list.length) {
+        if (out.sent % batchSize === 0) { onWait?.(Math.ceil(batchPauseMs / 1000), 0, "batch"); await sleep(batchPauseMs); }
+        else await sleep(gapMs);
+      }
+      continue;
+    }
+    if (res.rateLimited) {
+      strikes += 1;
+      const waitMs = Math.min(Math.max((res.retryAfter || 10) * 1000, batchPauseMs), maxWaitMs);
+      if (strikes > giveUpAfter || (res.retryAfter || 0) * 1000 > maxWaitMs) { out.stopped = "limit"; break; }
+      onWait?.(Math.ceil(waitMs / 1000), strikes, "limit");
+      await sleep(waitMs);
+      continue;                               // same number again
+    }
+    out.failed += 1; i += 1;
+    if (out.failures.length < 5) out.failures.push({ to: item.to, reason: res.reason });
+    onProgress?.(out.sent + out.failed, list.length);
+  }
+  out.remaining = list.length - out.sent - out.failed;
+  return out;
 }
 
 /**

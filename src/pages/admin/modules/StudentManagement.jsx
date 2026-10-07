@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { db, auth } from "../../../firebase";
 import {
   doc, collection, getDocs, deleteDoc, query, where, serverTimestamp, addDoc, limit,
@@ -8,14 +8,14 @@ import { IC } from "./icons";
 import { GENDERS, DISTRICTS } from "./constants";
 import { generateStudentCode, normalisePhone, initials, fmtDate } from "./helpers";
 import { guardianFields, guardiansOf } from "../../../services/guardians";
-import { sendSmsToMany } from "../../../services/sms";
+import { sendPaced } from "../../../services/sms";
 import { sendSms, sendEmail, EMAILJS_GUARDIAN_TEMPLATE_ID, APP_URL, messageChannel } from "./notifications";
 import { subscribeSchoolSettings } from "../../../services/academicTerm";
 import {
   StatusPill, Modal, Input, Select, Btn, Spinner, EmptyState, ActionBtn, StudentCodeBadge, NotifStatus,
 } from "./ui";
 import {
-  resolveGuardianLink, notifyGuardianOfPendingLink, enrolmentSms, guardianWelcomeSms, loginLinkSms, isLinkPending,
+  resolveGuardianLink, notifyGuardianOfPendingLink, enrolmentSms, guardianWelcomeSms, loginLinkSms, credentialsSms, isLinkPending,
   LINK_ACTIVE, LINK_PENDING,
 } from "../../../services/guardianLink";
 import BulkImportModal from "../../../components/import/BulkImportModal";
@@ -311,24 +311,69 @@ export default function StudentManagement({ schoolCode, schoolName }) {
   /** One message per phone number across every active student, so a parent
    *  with three children (or a number listed twice) is messaged once. */
   function loginLinkAudience() {
-    const phones = new Set();
+    const channel = messageChannel(schoolSettings);
+    const whatsapp = channel === "whatsapp";
+    const byPhone = new Map();     // phone -> { primaryOf: [students], any: true }
     for (const st of students) {
       if (st.status && st.status !== "active") continue;
-      for (const g of guardiansOf(st)) if (g.phone) phones.add(g.phone);
+      guardiansOf(st).forEach((g, i) => {
+        if (!g.phone) return;
+        if (!byPhone.has(g.phone)) byPhone.set(g.phone, { primaryOf: [] });
+        // The first guardian owns the app account, so only they are given the
+        // password. A child still waiting for the guardian to confirm in the
+        // app has no password to give out yet.
+        if (i === 0 && st.parentPortalPassword && st.guardianLinkStatus !== "pending") {
+          byPhone.get(g.phone).primaryOf.push(st);
+        }
+      });
     }
-    return [...phones];
+    return [...byPhone].map(([to, { primaryOf }]) => {
+      const withPassword = primaryOf.length > 0;
+      const message = withPassword
+        ? credentialsSms({
+            schoolName, phone: to, password: primaryOf[0].parentPortalPassword, whatsapp,
+            studentNames: primaryOf.map((s) => s.fullName).join(", "),
+          })
+        : loginLinkSms({ schoolName, studentName: "your child", whatsapp });
+      return { to, message, withPassword };
+    });
   }
+
+  // Who has already been sent the link, remembered in this browser so a
+  // stopped or rate-limited run can be resumed without messaging anyone twice.
+  const sentKey = `loginLinkSent:${schoolCode}`;
+  const readSent = () => { try { return new Set(JSON.parse(localStorage.getItem(sentKey) || "[]")); } catch { return new Set(); } };
+  const stopLinkRef = useRef(false);
+  // WhatsApp let 27 new conversations through before its send protection kicked in,
+  // so messages go out fast in batches a little under that, with a 10s pause between.
+  const LINK_BATCH = 25;
 
   async function sendLoginLinkToAll() {
     const channel = messageChannel(schoolSettings);
-    const text = loginLinkSms({ schoolName, studentName: "your child", whatsapp: channel === "whatsapp" });
     const list = loginLinkAudience();
-    setBulkLink({ stage: "sending", done: 0, total: list.length });
-    const res = await sendSmsToMany(list.map((to) => ({ to, message: text })), {
-      channel, concurrency: 3,
+    const already = readSent();
+    stopLinkRef.current = false;
+    const pending = list.filter((r) => !already.has(r.to)).length;
+    const todo = pending;
+    setBulkLink({ stage: "sending", done: 0, total: todo });
+    const res = await sendPaced(list, {
+      channel,
+      gapMs: 250,
+      batchSize: channel === "whatsapp" ? LINK_BATCH : Infinity,
+      batchPauseMs: 10_000,
+      isDone: (to) => already.has(to),
+      onSent: (to) => {
+        already.add(to);
+        try { localStorage.setItem(sentKey, JSON.stringify([...already])); } catch { /* resume just won't remember */ }
+      },
       onProgress: (done, total) => setBulkLink({ stage: "sending", done, total }),
+      onWait: (secs, _n, kind) => {
+        setBulkLink((b) => ({ ...b, waiting: secs, waitKind: kind }));
+        setTimeout(() => setBulkLink((b) => (b?.stage === "sending" ? { ...b, waiting: 0 } : b)), secs * 1000);
+      },
+      shouldStop: () => stopLinkRef.current,
     });
-    setBulkLink({ stage: "done", ...res, total: list.length });
+    setBulkLink({ stage: "done", ...res, total: todo, alreadyDone: list.length - pending, left: pending - res.sent - res.failed });
   }
 
   async function sendLoginLink() {
@@ -515,7 +560,11 @@ export default function StudentManagement({ schoolCode, schoolName }) {
           <p className="module-sub">{students.length} students enrolled — {schoolName}</p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Btn variant="ghost" onClick={() => setBulkLink({ stage: "confirm", total: loginLinkAudience().length })}>
+          <Btn variant="ghost" onClick={() => setBulkLink((() => {
+            const all = loginLinkAudience(); const done = readSent();
+            const todo = all.filter((r) => !done.has(r.to));
+            return { stage: "confirm", total: todo.length, withPassword: todo.filter((r) => r.withPassword).length, skipped: all.length - todo.length };
+          })())}>
             Send login link to all parents
           </Btn>
           <Btn variant="primary" onClick={() => setShowBulk(true)}>
@@ -527,15 +576,29 @@ export default function StudentManagement({ schoolCode, schoolName }) {
       {bulkLink && (
         <div className="alert alert--info" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           {bulkLink.stage === "confirm" && (<>
-            <span>Send the parent login link (parents.acalinks.com) to <strong>{bulkLink.total}</strong> guardian numbers, one message per number, covering every active student?</span>
+            <span>
+              Send the parent login link (parents.acalinks.com) to <strong>{bulkLink.total}</strong> guardian numbers, in batches of {LINK_BATCH} with a 10-second pause between batches.
+              {" "}<strong>{bulkLink.withPassword}</strong> of them also get their login phone and password.
+              {bulkLink.skipped ? ` ${bulkLink.skipped} already sent earlier are skipped.` : ""}
+            </span>
             <Btn variant="gold" size="sm" disabled={!bulkLink.total} onClick={sendLoginLinkToAll}>Yes, send</Btn>
             <Btn variant="ghost" size="sm" onClick={() => setBulkLink(null)}>Cancel</Btn>
           </>)}
-          {bulkLink.stage === "sending" && <span>Sending… {bulkLink.done} of {bulkLink.total}. Keep this page open.</span>}
+          {bulkLink.stage === "sending" && (<>
+            <span>
+              Sending… {bulkLink.done} of {bulkLink.total}, in batches of {LINK_BATCH} with a short pause between. Keep this page open.
+              {bulkLink.waiting ? (bulkLink.waitKind === "limit" ? ` WhatsApp asked us to slow down — pausing ${bulkLink.waiting}s then retrying.` : ` Pausing ${bulkLink.waiting}s before the next batch.`) : ""}
+            </span>
+            <Btn variant="ghost" size="sm" onClick={() => { stopLinkRef.current = true; }}>Stop</Btn>
+          </>)}
           {bulkLink.stage === "done" && (<>
             <span>
               Sent to {bulkLink.sent} of {bulkLink.total} numbers
+              {bulkLink.alreadyDone ? ` (${bulkLink.alreadyDone} had it from an earlier run)` : ""}
               {bulkLink.failed ? ` — ${bulkLink.failed} failed${bulkLink.failures?.[0]?.reason ? ` (${bulkLink.failures[0].reason})` : ""}` : ""}.
+              {bulkLink.left > 0 && !bulkLink.stopped ? ` ${bulkLink.left} still to go — click the button again for the next batch.` : ""}
+              {bulkLink.stopped === "limit" ? " WhatsApp's new-conversation limit is still on, so it stopped. Click the button again later (hours, or tomorrow) and it carries on with the rest — nobody is messaged twice." : ""}
+              {bulkLink.stopped === "user" ? " Stopped. Click the button again to carry on with the rest." : ""}
             </span>
             <Btn variant="ghost" size="sm" onClick={() => setBulkLink(null)}>Close</Btn>
           </>)}

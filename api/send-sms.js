@@ -88,6 +88,11 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, channel: "whatsapp" });
     } catch (err) {
       console.error("WhatsApp send failed:", err.status, err.message);
+      if (err.rateLimited) {
+        return res.status(429).json({
+          error: err.message || "WhatsApp send limit reached.", rateLimited: true, retryAfter: err.retryAfter || 0,
+        });
+      }
       return res.status(502).json({ error: err.message || "WhatsApp send failed." });
     }
   }

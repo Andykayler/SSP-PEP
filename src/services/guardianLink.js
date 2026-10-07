@@ -158,6 +158,19 @@ export function loginLinkSms({ schoolName, studentName, whatsapp = false }) {
 ${WHATSAPP_MENU_HINT}` : "");
 }
 
+/**
+ * The login link together with the family's credentials, for a guardian who
+ * never received them. Sent to the account's own guardian (the first one) only:
+ * the app signs in with that number and password.
+ */
+export function credentialsSms({ schoolName, phone, password, studentNames, whatsapp = false }) {
+  return `${schoolName}: your ACALink parent login for ${studentNames}.\n`
+       + `Log in here: ${PARENT_PORTAL_URL}\n`
+       + `Phone: ${phone}\nPassword: ${password}\n`
+       + `One password covers all your children. Please keep it private.`
+       + (whatsapp ? `\n\n${WHATSAPP_MENU_HINT}` : "");
+}
+
 /** The SMS body for each case. Kept here so both enrolment paths word it alike. */
 export function enrolmentSms({ link, schoolName, studentName, className, studentCode, whatsapp = false }) {
   // On WhatsApp the guardian can also just reply to this chat for their child's

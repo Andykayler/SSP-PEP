@@ -72,6 +72,11 @@ async function call(path, body) {
     const err = new Error(msg);
     err.status = res.status;
     err.payload = data;
+    // WaAPI's "send protection" says when to try again; keep it for callers.
+    const header = Number(res.headers.get("retry-after"));
+    const inBody = Number(data?.retryAfter ?? data?.retry_after ?? /retry[^0-9]{0,40}(\d+)/i.exec(JSON.stringify(data))?.[1]);
+    err.retryAfter = [header, inBody].find((n) => Number.isFinite(n) && n > 0) || 0;
+    err.rateLimited = res.status === 429 || /limit|protection/i.test(msg);
     throw err;
   }
 
