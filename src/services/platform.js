@@ -134,3 +134,16 @@ export async function putLegacyOnPlan(school, actor, { days = TRIAL_DAYS } = {})
   });
   await audit(actor, "legacy_plan", school, { days });
 }
+
+/** { [schoolCode]: { total, active } } - students per school, counted on the server. */
+export async function fetchStudentCounts() {
+  return (await apiPost("/api/platform/email-status", { action: "student-counts" })).counts || {};
+}
+
+/**
+ * The guardian(s) behind a phone number with their app password and children.
+ * Done on the server, which records the lookup in the audit log.
+ */
+export async function lookupGuardian(phone) {
+  return (await apiPost("/api/platform/email-status", { action: "guardian-lookup", phone })).guardians || [];
+}

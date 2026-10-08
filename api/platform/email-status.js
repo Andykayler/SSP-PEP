@@ -8,11 +8,15 @@
 // the platform console asks here before approving a school, and can say "this
 // email has not been verified" instead of approving a typo.
 //
+// Also the platform owner's other server-side actions, so they share one function:
+//   { action: "school-decision" | "student-counts" | "guardian-lookup" }
+//
 // Platform owner only.
 // ─────────────────────────────────────────────────────────────────────────────
 import { adminAuth, adminDb, FieldValue } from "../_lib/firebaseAdmin.js";
 import { sendEmail, appUrl } from "../_lib/email.js";
 import { approvedEmail, rejectedEmail } from "../_lib/emailTemplates.js";
+import { studentCounts, guardianLookup } from "../_lib/platformStudents.js";
 
 const toMs = (v) => (v?.toMillis ? v.toMillis() : v?.seconds ? v.seconds * 1000 : typeof v === "number" ? v : null);
 
@@ -63,6 +67,25 @@ export default async function handler(req, res) {
     } catch (err) {
       console.error("[platform] decision email failed:", err);
       return res.status(500).json({ error: "Couldn't send the email." });
+    }
+  }
+
+  if (body.action === "student-counts") {
+    try {
+      return res.status(200).json({ counts: await studentCounts() });
+    } catch (err) {
+      console.error("[platform] student counts failed:", err);
+      return res.status(500).json({ error: "Couldn't count the students." });
+    }
+  }
+
+  if (body.action === "guardian-lookup") {
+    try {
+      const result = await guardianLookup(body.phone, auth);
+      return res.status(result.error ? 400 : 200).json(result);
+    } catch (err) {
+      console.error("[platform] guardian lookup failed:", err);
+      return res.status(500).json({ error: "Couldn't look that number up." });
     }
   }
 

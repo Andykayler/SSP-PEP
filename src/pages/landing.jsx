@@ -8,11 +8,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { getInitialTheme, applyTheme, toggleTheme as toggleThemeUtil } from "../utils/theme";
 import {
-  Sun, Moon, X, Menu, LogIn, School, ArrowRight, Check, Minus, Star,
+  Sun, Moon, X, Menu, LogIn, School, ArrowRight, Check, Star,
   ClipboardCheck, BookOpen, Clock, Wallet, MessageCircle, Award,
   Users, Building2, GraduationCap, UserCheck, Bell, Pencil,
 } from "lucide-react";
-import { BANDS, MIN_PLATFORM_PER_TERM, CADENCES, TERMS_PER_YEAR } from "../services/pricing";
+import { PRICE_PER_LEARNER_PER_YEAR } from "../services/pricing";
 import { BRAND } from "../components/brand";
 import "./landing.css";
 
@@ -347,68 +347,27 @@ function Parents() {
 }
 
 /* ─── PRICING ───────────────────────────────────────── */
-/* Rates come from services/pricing.js so this page can never drift away from
-   what the billing screen actually invoices. Cards are grouped by school size
-   because that is how a head teacher identifies their own school — the bands
-   themselves are marginal, so a school spanning two of them pays each rate on
-   the learners that fall in it. */
-const rate = (id) => (BANDS.find((b) => b.id === id) || {}).rate;
+/* The rate comes from services/pricing.js so this page can never drift away
+   from what the billing screen actually invoices. One flat price for every
+   school: the active roll times the yearly rate per learner. */
 const mk = (n) => `MK ${Number(n).toLocaleString("en-US")}`;
 
-const PLANS = [
-  {
-    name: "Small school",
-    range: "Up to 250 learners",
-    price: mk(rate("A")),
-    desc: "Everything included from day one. No module is locked behind a tier.",
-    accent: false,
-    features: [
-      { label: "Every module included", yes: true },
-      { label: "Guardian mobile app", yes: true },
-      { label: "Fees, receipts & arrears", yes: true },
-      { label: "Attendance, grades & reports", yes: true },
-      { label: "SMS wallet, pay as you use", yes: true },
-      { label: `Minimum ${mk(MIN_PLATFORM_PER_TERM)} per term`, yes: true },
-      { label: "Priority support", yes: false },
-      { label: "Dedicated account manager", yes: false },
-    ],
-  },
-  {
-    name: "Growing school",
-    range: "251–1,200 learners",
-    tag: "Most popular",
-    price: `from ${mk(rate("C"))}`,
-    desc: "Your rate drops as your roll grows, automatically.",
-    accent: true,
-    features: [
-      { label: "Everything in Small school", yes: true },
-      { label: `${mk(rate("B"))} per learner from 251`, yes: true },
-      { label: `${mk(rate("C"))} per learner from 601`, yes: true },
-      { label: "Boarding & inventory modules", yes: true },
-      { label: "Bulk import & data migration", yes: true },
-      { label: "Admissions & exam readiness", yes: true },
-      { label: "Priority support", yes: true },
-      { label: "Dedicated account manager", yes: false },
-    ],
-  },
-  {
-    name: "Large school",
-    range: "1,201+ learners",
-    price: `from ${mk(rate("D"))}`,
-    desc: "For the largest schools and multi-school groups. Volume terms by agreement.",
-    accent: false,
-    features: [
-      { label: "Everything in Growing school", yes: true },
-      { label: `${mk(rate("D"))} per learner from 1,201`, yes: true },
-      { label: "Volume terms by agreement", yes: true },
-      { label: "Group billing arrangements", yes: true },
-      { label: "Custom reporting", yes: true },
-      { label: "Guided onboarding & training", yes: true },
-      { label: "Priority support", yes: true },
-      { label: "Dedicated account manager", yes: true },
-    ],
-  },
-];
+const PLAN = {
+  name: "Every school",
+  range: "Any number of learners",
+  price: mk(PRICE_PER_LEARNER_PER_YEAR),
+  desc: "Everything included from day one. No module is locked behind a tier.",
+  features: [
+    "Every module included",
+    "Guardian mobile app",
+    "Fees, receipts & arrears",
+    "Attendance, grades & reports",
+    "Boarding, inventory & admissions",
+    "Bulk import & data migration",
+    "SMS wallet, pay as you use",
+    "Priority support",
+  ],
+};
 
 function Pricing() {
   return (
@@ -418,35 +377,26 @@ function Pricing() {
           <p className="lp-eyebrow">Pricing</p>
           <h2 id="lp-pricing-title" className="lp-h2">Simple, priced per learner.</h2>
           <p className="lp-body">
-            You pay per learner, per term: {TERMS_PER_YEAR} terms a year, invoiced when schools collect
-            fees. Prepay the year and save {Math.round((1 - CADENCES.annual.multiplier) * 100)}%. Every plan
-            starts with a 30-day free trial.
+            You pay {mk(PRICE_PER_LEARNER_PER_YEAR)} per learner, per year, for the learners on your roll.
+            Every school starts with a 30-day free trial.
           </p>
         </Reveal>
 
-        <div className="lp-plans">
-          {PLANS.map((plan, i) => (
-            <Reveal as="article" key={plan.name} delay={i * 80} className={`lp-plan${plan.accent ? " lp-plan--accent" : ""}`}>
-              {plan.accent && (
-                <span className="lp-plan__flag"><Star size={11} fill="currentColor" aria-hidden="true" /> {plan.tag}</span>
-              )}
-              <span className="lp-plan__tag">{plan.range}</span>
-              <h3>{plan.name}</h3>
-              <p className="lp-plan__price">{plan.price}<small> / learner / term</small></p>
-              <p className="lp-plan__desc">{plan.desc}</p>
-              <ul>
-                {plan.features.map((f) => (
-                  <li key={f.label} className={f.yes ? "" : "is-no"}>
-                    {f.yes ? <Check size={15} aria-hidden="true" /> : <Minus size={15} aria-hidden="true" />}
-                    {f.label}
-                  </li>
-                ))}
-              </ul>
-              <Link to="/register" className={`lp-btn lp-btn--block ${plan.accent ? "lp-btn--primary" : "lp-btn--ghost"}`}>
-                Start 30-day trial <ArrowRight size={16} aria-hidden="true" />
-              </Link>
-            </Reveal>
-          ))}
+        <div className="lp-plans" style={{ maxWidth: 420, margin: "0 auto" }}>
+          <Reveal as="article" className="lp-plan lp-plan--accent">
+            <span className="lp-plan__tag">{PLAN.range}</span>
+            <h3>{PLAN.name}</h3>
+            <p className="lp-plan__price">{PLAN.price}<small> / learner / year</small></p>
+            <p className="lp-plan__desc">{PLAN.desc}</p>
+            <ul>
+              {PLAN.features.map((label) => (
+                <li key={label}><Check size={15} aria-hidden="true" />{label}</li>
+              ))}
+            </ul>
+            <Link to="/register" className="lp-btn lp-btn--block lp-btn--primary">
+              Start 30-day trial <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          </Reveal>
         </div>
       </div>
     </section>

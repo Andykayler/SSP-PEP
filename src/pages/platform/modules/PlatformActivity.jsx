@@ -15,6 +15,7 @@ const LABELS = {
   reinstate: ["Reinstated", "success"],
   extend_trial: ["Trial extended", "warning"],
   legacy_plan: ["Legacy put on plan", "neutral"],
+  view_guardian_password: ["Viewed guardian password", "warning"],
 };
 
 function describe(e) {
@@ -22,6 +23,7 @@ function describe(e) {
   if (e.action === "approve") return `Trial of ${d.trialDays} days`;
   if (e.action === "extend_trial") return `+${d.days} days`;
   if (e.action === "legacy_plan") return `Trial of ${d.days} days`;
+  if (e.action === "view_guardian_password") return d.phone || "";
   return d.reason || "";
 }
 

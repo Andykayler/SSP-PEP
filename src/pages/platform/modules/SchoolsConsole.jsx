@@ -12,7 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Building2, Check, X, Pause, Play, CalendarPlus, MailCheck, MailWarning, MessageCircle, History } from "lucide-react";
 import {
   subscribeSchools, approveSchool, rejectSchool, suspendSchool, reinstateSchool,
-  extendTrial, putLegacyOnPlan,
+  extendTrial, putLegacyOnPlan, fetchStudentCounts,
 } from "../../../services/platform";
 import { schoolAccess, toMs, TRIAL_DAYS } from "../../../services/subscriptionState";
 import { apiPost } from "../../../services/api";
@@ -48,6 +48,7 @@ export default function SchoolsConsole({ currentUser, initialFilter = "pending" 
   const [filter, setFilter] = useState(initialFilter);
   const [search, setSearch] = useState("");
   const [verified, setVerified] = useState({});
+  const [students, setStudents] = useState(null);   // { [schoolCode]: { total, active } }
   const [dialog, setDialog] = useState(null);      // { kind, school }
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
@@ -65,6 +66,10 @@ export default function SchoolsConsole({ currentUser, initialFilter = "pending" 
       .catch(() => { /* the badge just stays "unknown" */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schools]);
+
+  useEffect(() => {
+    fetchStudentCounts().then(setStudents).catch(() => setStudents({}));
+  }, []);
 
   const rows = useMemo(
     () => (schools || []).map((s) => ({ ...s, access: schoolAccess(s) })),
@@ -138,6 +143,7 @@ export default function SchoolsConsole({ currentUser, initialFilter = "pending" 
         <StatCard label="Paying" value={counts.paying} tone="success" />
         <StatCard label="Needs attention" value={counts.attention} tone={counts.attention ? "danger" : undefined} sub="Trial or payment lapsed" />
         <StatCard label="Legacy" value={counts.legacy} sub="Registered before approval existed" />
+        <StatCard label="Students" value={students ? Object.values(students).reduce((n, c) => n + c.total, 0) : "…"} sub="Across all schools" />
       </StatGrid>
 
       <div className="flex items-center gap-3 mb-4" style={{ flexWrap: "wrap" }}>
@@ -173,7 +179,7 @@ export default function SchoolsConsole({ currentUser, initialFilter = "pending" 
           <table className="data-table">
             <thead>
               <tr>
-                <th>School</th><th>Contact</th><th>Registered</th><th>Status</th><th>Plan</th>
+                <th>School</th><th>Contact</th><th>Students</th><th>Registered</th><th>Status</th><th>Plan</th>
                 <th style={{ textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
@@ -204,6 +210,16 @@ export default function SchoolsConsole({ currentUser, initialFilter = "pending" 
                             ? <span style={{ fontSize: 11, color: "var(--warning-light)" }}><MailWarning size={12} style={{ verticalAlign: "-2px" }} /> Email not verified</span>
                             : null
                       )}
+                    </td>
+                    <td style={{ fontSize: 13 }}>
+                      {students ? (
+                        <>
+                          <strong>{students[s.code || s.id]?.total ?? 0}</strong>
+                          {students[s.code || s.id] && students[s.code || s.id].active !== students[s.code || s.id].total && (
+                            <div className="text-muted" style={{ fontSize: 11 }}>{students[s.code || s.id].active} active</div>
+                          )}
+                        </>
+                      ) : "…"}
                     </td>
                     <td style={{ fontSize: 13 }}>{fmtDate(toMs(s.createdAt))}</td>
                     <td>

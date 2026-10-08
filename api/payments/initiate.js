@@ -246,10 +246,8 @@ async function prepareSubscription({ body, auth }) {
   const studentsSnap = await adminDb.collection("students").where("schoolCode", "==", schoolCode).get();
   const active = studentsSnap.docs.map((d) => d.data()).filter((s) => (s.status || "active") === "active");
   const learners = active.length;
-  const boarders = active.filter((s) => String(s.residence || "").toLowerCase() === "boarding").length;
 
-  const cadence = ["termly", "annual", "monthly"].includes(body.cadence) ? body.cadence : "termly";
-  const q = quote({ learners, boarders, cadence });
+  const q = quote({ learners });
   const amount = Math.round(q.perInvoice);
 
   if (amount <= 0) {
@@ -264,14 +262,14 @@ async function prepareSubscription({ body, auth }) {
       lastName: (auth.user?.name || "").split(/\s+/).slice(1).join(" ") || "Administrator",
     },
     title: "Acalink subscription",
-    description: `${school.name || schoolCode} — ${q.cadence.label}`,
+    description: `${school.name || schoolCode} — ${q.cadence.label} (${learners} learners)`,
     record: {
       schoolCode,
       schoolName: school.name || schoolCode,
-      cadence,
+      cadence: q.cadence.id,
       periodLabel: q.cadence.label,
       learners,
-      boarders,
+      ratePerLearner: q.ratePerLearner,
       amount,
     },
   };

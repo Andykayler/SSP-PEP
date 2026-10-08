@@ -34,7 +34,7 @@ const TERMS = [
     "You must give accurate details and keep your sign-in details private. The school is responsible for everything done under its accounts, including those of the staff it adds.",
   ]],
   ["Free trial and fees", [
-    "A school starts with a free trial (30 days from approval unless we tell you otherwise). After that, use of the platform requires a paid subscription, charged per learner per term as shown in Billing and on our pricing page, in Malawi Kwacha.",
+    "A school starts with a free trial (30 days from approval unless we tell you otherwise). After that, use of the platform requires a paid subscription, charged per learner per year (MWK 3,050 per learner) as shown in Billing and on our pricing page, in Malawi Kwacha.",
     "If the trial or a paid period ends, we give a short grace period. After it, access is limited to renewing the subscription. The school's data is kept and access returns when the school subscribes.",
     "Payments are handled by PayChangu. We do not receive or store card or mobile-money PINs.",
   ]],
