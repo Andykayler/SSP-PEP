@@ -82,7 +82,7 @@ export async function sendPaced(recipients, {
   isDone, onSent, onProgress, onWait, shouldStop, maxSend = Infinity,
 } = {}) {
   const list = (recipients || []).filter((r) => r?.to && r?.message && !isDone?.(r.to)).slice(0, maxSend);
-  const out = { sent: 0, failed: 0, stopped: "", remaining: 0, failures: [] };
+  const out = { sent: 0, failed: 0, stopped: "", retryAfter: 0, remaining: 0, failures: [] };
   let strikes = 0;
 
   for (let i = 0; i < list.length; ) {
@@ -102,7 +102,7 @@ export async function sendPaced(recipients, {
     if (res.rateLimited) {
       strikes += 1;
       const waitMs = Math.min(Math.max((res.retryAfter || 10) * 1000, batchPauseMs), maxWaitMs);
-      if (strikes > giveUpAfter || (res.retryAfter || 0) * 1000 > maxWaitMs) { out.stopped = "limit"; break; }
+      if (strikes > giveUpAfter || (res.retryAfter || 0) * 1000 > maxWaitMs) { out.stopped = "limit"; out.retryAfter = res.retryAfter || 0; break; }
       onWait?.(Math.ceil(waitMs / 1000), strikes, "limit");
       await sleep(waitMs);
       continue;                               // same number again

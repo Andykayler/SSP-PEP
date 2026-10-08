@@ -620,7 +620,7 @@ export default function StudentManagement({ schoolCode, schoolName }) {
               {bulkLink.alreadyDone ? ` (${bulkLink.alreadyDone} had it from an earlier run)` : ""}
               {bulkLink.failed ? ` — ${bulkLink.failed} failed${bulkLink.failures?.[0]?.reason ? ` (${bulkLink.failures[0].reason})` : ""}` : ""}.
               {bulkLink.left > 0 && !bulkLink.stopped ? ` ${bulkLink.left} still to go — click the button again for the next batch.` : ""}
-              {bulkLink.stopped === "limit" ? " WhatsApp's new-conversation limit is still on, so it stopped. Click the button again later (hours, or tomorrow) and it carries on with the rest — nobody is messaged twice." : ""}
+              {bulkLink.stopped === "limit" ? ` WhatsApp's new-conversation limit is on, so it stopped. ${bulkLink.retryAfter ? `WhatsApp says try again in about ${bulkLink.retryAfter >= 3600 ? Math.round(bulkLink.retryAfter / 3600) + " hour(s)" : Math.ceil(bulkLink.retryAfter / 60) + " minute(s)"}.` : "It didn't say how long."} Click the button again then and it carries on with the rest — nobody is messaged twice.` : ""}
               {bulkLink.stopped === "user" ? " Stopped. Click the button again to carry on with the rest." : ""}
             </span>
             <Btn variant="ghost" size="sm" onClick={() => setBulkLink(null)}>Close</Btn>

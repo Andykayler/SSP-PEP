@@ -3,12 +3,14 @@
 //
 //   1. A photo or PDF of the printed timetable. The AI reads it
 //      (api/_lib/aiTools.js, task=timetable-extract); nothing is stored.
-//   2. A spreadsheet (CSV), one row per lesson.
+//   2. An Excel timetable laid out as a grid (classes down, periods across),
+//      read by services/timetableGridCore.js.
+//   3. A spreadsheet (CSV), one row per lesson.
 //
 // Either way the lessons are checked against the school's classes, subjects
 // and teachers, and for clashes, and shown for review before anything is
 // saved (services/timetableImportCore.js).
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { collection, doc, getDocs, query, where, writeBatch, serverTimestamp } from "firebase/firestore";
 import { X, Download, Upload, AlertCircle, CheckCircle, Loader2, Sparkles, FileSpreadsheet } from "lucide-react";
 import { db } from "../../firebase";
@@ -16,6 +18,7 @@ import { parseCsvRows, readFileAsText, downloadCsv } from "../../services/csv";
 import { TIMETABLE_COLUMNS, planTimetableImport, timetableTemplateRows } from "../../services/timetableImportCore";
 import { timetableFilesToImages, TIMETABLE_FILE_ACCEPT, MAX_PAGES } from "../../services/timetableImages";
 import { extractTimetable } from "../../services/aiTools";
+import { parseTimetableGrids, normLabel } from "../../services/timetableGridCore";
 
 const Spinner = ({ size = 16 }) => <Loader2 size={size} style={{ animation: "spin 0.65s linear infinite" }} />;
 
@@ -78,8 +81,43 @@ export default function TimetableUpload({ schoolCode, classes, staff, days, peri
   const [note, setNote] = useState("");
   const [plan, setPlan] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [sheets, setSheets] = useState(null);       // the Excel workbook, cell by cell
+  const [subjectMap, setSubjectMap] = useState({}); // timetable label → subject, or "" to skip
 
-  const switchTab = (next) => { setTab(next); setPlan(null); setError(""); setNote(""); };
+  const switchTab = (next) => { setTab(next); setPlan(null); setError(""); setNote(""); setSheets(null); setSubjectMap({}); };
+
+  // The Excel grid is re-read whenever the head teacher maps a subject, so the
+  // lesson count and the problems below always reflect the choices made so far.
+  const grid = useMemo(() => (sheets ? parseTimetableGrids(sheets, { classes, subjectMap }) : null), [sheets, classes, subjectMap]);
+  const gridPlan = useMemo(
+    () => (grid ? planTimetableImport({ rows: grid.rows, classes, staff, days, periods, existingSlots: allSlots, strict: false }) : null),
+    [grid, classes, staff, days, periods, allSlots],
+  );
+  const allSubjects = useMemo(() => [...new Set(classes.flatMap((c) => c.subjects || []))].sort(), [classes]);
+  const shownPlan = tab === "xlsx" ? gridPlan : plan;
+
+  // ── Excel grid ────────────────────────────────────────────────────────────
+  async function readXlsx(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setError(""); setNote(""); setPlan(null); setSheets(null); setSubjectMap({});
+    try {
+      setBusy("Reading the spreadsheet…");
+      const { default: readExcelFile } = await import("read-excel-file/browser");
+      const read = await readExcelFile(file);
+      const parsed = parseTimetableGrids(read, { classes });
+      if (!parsed.sheetsRead) {
+        setError("Couldn't find a timetable grid in this file. It needs a \"Class\" heading with the days beside it and the periods across.");
+        return;
+      }
+      setSheets(read);
+    } catch (err) {
+      setError(`Couldn't read this file: ${err.message}`);
+    } finally {
+      setBusy("");
+    }
+  }
 
   // ── Photo or PDF, read by the AI ─────────────────────────────────────────
   async function readWithAi(e) {
@@ -132,6 +170,7 @@ export default function TimetableUpload({ schoolCode, classes, staff, days, peri
   }
 
   async function save() {
+    const plan = shownPlan;
     if (!plan?.slots.length) return;
     setSaving(true);
     setError("");
@@ -145,7 +184,7 @@ export default function TimetableUpload({ schoolCode, classes, staff, days, peri
       });
       const saved = plan.slots.map((s) => {
         const id = slotId(schoolCode, s.classId, s.day, s.periodNumber);
-        const data = { schoolCode, ...s, source: tab === "ai" ? "ai_import" : "import", updatedAt: serverTimestamp() };
+        const data = { schoolCode, ...s, source: tab === "ai" ? "ai_import" : tab === "xlsx" ? "xlsx_import" : "import", updatedAt: serverTimestamp() };
         ops.push((b) => b.set(doc(db, "timetable", id), { ...data, createdAt: serverTimestamp() }, { merge: true }));
         return { id, ...data };
       });
@@ -180,8 +219,11 @@ export default function TimetableUpload({ schoolCode, classes, staff, days, peri
             <button type="button" className={`filter-btn ${tab === "ai" ? "filter-btn--active" : ""}`} onClick={() => switchTab("ai")} disabled={Boolean(busy)}>
               <Sparkles size={13} /> Photo or PDF
             </button>
+            <button type="button" className={`filter-btn ${tab === "xlsx" ? "filter-btn--active" : ""}`} onClick={() => switchTab("xlsx")} disabled={Boolean(busy)}>
+              <FileSpreadsheet size={13} /> Excel timetable
+            </button>
             <button type="button" className={`filter-btn ${tab === "csv" ? "filter-btn--active" : ""}`} onClick={() => switchTab("csv")} disabled={Boolean(busy)}>
-              <FileSpreadsheet size={13} /> Spreadsheet (CSV)
+              <FileSpreadsheet size={13} /> CSV, one row per lesson
             </button>
           </div>
 
@@ -196,6 +238,19 @@ export default function TimetableUpload({ schoolCode, classes, staff, days, peri
               <label className="btn-save" style={{ cursor: busy ? "wait" : "pointer", display: "inline-flex" }}>
                 {busy ? <Spinner /> : <Upload size={14} />} Choose photo or PDF
                 <input type="file" accept={TIMETABLE_FILE_ACCEPT} multiple onChange={readWithAi} disabled={Boolean(busy)} style={{ display: "none" }} />
+              </label>
+            </div>
+          ) : tab === "xlsx" ? (
+            <div className="space-y-3">
+              <p className="text-sm text-muted">
+                Choose the Excel timetable as it is — classes down the side, periods across the top, one sheet or
+                several. Break columns are skipped and periods are numbered from the left. Subjects written
+                in shorthand (&ldquo;Arithmet&rdquo;, &ldquo;B/K&rdquo;) are matched to your subjects; anything
+                that can&rsquo;t be matched is listed for you to choose. No teachers are set — add them in the grid afterwards.
+              </p>
+              <label className="btn-save" style={{ cursor: busy ? "wait" : "pointer", display: "inline-flex" }}>
+                {busy ? <Spinner /> : <Upload size={14} />} Choose Excel file
+                <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={readXlsx} disabled={Boolean(busy)} style={{ display: "none" }} />
               </label>
             </div>
           ) : (
@@ -218,8 +273,30 @@ export default function TimetableUpload({ schoolCode, classes, staff, days, peri
           {busy && <p className="text-sm text-muted flex items-center gap-2"><Spinner size={14} /> {busy}</p>}
           {error && <div className="error-message"><AlertCircle size={14} /> {error}</div>}
           {note && <div className="alert alert--warning"><AlertCircle size={14} /> <span>{note}</span></div>}
-          {plan && (
-            <Review plan={plan} lenient={tab === "ai"} rowWord={tab === "ai" ? "Lesson" : "Line"} saving={saving} onSave={save} />
+          {tab === "xlsx" && grid && (
+            <div className="space-y-3">
+              <Problems tone="warning" title="Check these" items={grid.problems} />
+              {grid.unmatched.length > 0 && (
+                <div className="alert alert--warning" style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}>
+                  <strong>Which subject is each of these?</strong>
+                  <span style={{ fontSize: 12.5 }}>Lessons left on &ldquo;Skip&rdquo; are not added to the timetable.</span>
+                  {grid.unmatched.map(({ label, count }) => (
+                    <label key={label} className="flex items-center gap-2" style={{ fontSize: 13 }}>
+                      <span style={{ flex: 1 }}>&ldquo;{label}&rdquo; &middot; {count} lesson{count === 1 ? "" : "s"}</span>
+                      <select className="form-input" style={{ maxWidth: 220 }} value={subjectMap[normLabel(label)] || ""}
+                        onChange={(e) => setSubjectMap((m) => ({ ...m, [normLabel(label)]: e.target.value }))}>
+                        <option value="">Skip</option>
+                        {allSubjects.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+              )}
+              {grid.notes.length > 0 && <p className="text-sm text-muted">{grid.notes.join(" ")} The school has {periods.length} periods set up.</p>}
+            </div>
+          )}
+          {shownPlan && (
+            <Review plan={shownPlan} lenient={tab !== "csv"} rowWord={tab === "csv" ? "Line" : "Lesson"} saving={saving} onSave={save} />
           )}
         </div>
       </div>
