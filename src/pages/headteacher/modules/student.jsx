@@ -1,6 +1,6 @@
 // modules/StudentManagement.jsx
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Search, Eye, Bell, BellRing, X, Check, RefreshCw, AlertCircle } from "lucide-react";
+import { Search, Eye, Bell, BellRing, X, Check, RefreshCw, AlertCircle, ArrowRightLeft } from "lucide-react";
 import { db } from "../../../firebase";
 import useCampusScope from "../../../hooks/useCampusScope";
 import { fetchSchoolClasses } from "../../../services/staffAssignments";
@@ -11,6 +11,8 @@ import {
   where,
   getDocs,
   addDoc,
+  doc,
+  writeBatch,
   serverTimestamp,
 } from "firebase/firestore";
 
@@ -231,6 +233,62 @@ function NotificationModal({ targets, schoolCode, senderName, onClose }) {
   );
 }
 
+// ─── Transfer Modal ───────────────────────────────────────────────────────────
+function TransferModal({ students, classes, onClose, onConfirm }) {
+  const [classId, setClassId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const target = classes.find(c => c.id === classId);
+  // A class is only worth offering if at least one selected student isn't in it.
+  const movers = target ? students.filter(s => (s.className || s.form || "") !== target.name) : students;
+
+  const submit = async () => {
+    if (!target) { setError("Choose the class to move them to."); return; }
+    if (movers.length === 0) { setError("All selected students are already in that class."); return; }
+    setSaving(true);
+    setError("");
+    try {
+      await onConfirm(target, movers);
+    } catch (err) {
+      setError("Transfer failed: " + err.message);
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-container" style={{ maxWidth: "460px" }}>
+        <div className="modal-header">
+          <div>
+            <h3>Transfer students</h3>
+            <p>{students.length} selected</p>
+          </div>
+          <button onClick={onClose} className="modal-close"><X size={18} /></button>
+        </div>
+        <div className="modal-body space-y-3">
+          {error && <div className="error-message"><AlertCircle size={16} /> {error}</div>}
+          <label className="text-muted text-[10px] uppercase tracking-wide">Move to class</label>
+          <select value={classId} onChange={e => { setClassId(e.target.value); setError(""); }} className="field__select" style={{ width: "100%" }}>
+            <option value="">Select a class…</option>
+            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          {target && movers.length < students.length && (
+            <p className="text-muted text-xs">{students.length - movers.length} already in {target.name} will be left as they are.</p>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button onClick={onClose} className="btn-cancel" disabled={saving}>Cancel</button>
+          <button onClick={submit} className="btn-save" disabled={saving || !target}>
+            {saving ? <Spinner size={16} /> : <ArrowRightLeft size={14} />}
+            {saving ? "Transferring…" : `Transfer ${movers.length}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function StudentManagement({ schoolCode, senderName, viewer, schoolBoards = false }) {
   // Campus scope. A head attached to one campus sees that campus's roll and no
@@ -250,6 +308,9 @@ export default function StudentManagement({ schoolCode, senderName, viewer, scho
   const [filterFee, setFilterFee] = useState("All");
   const [viewStudent, setViewStudent] = useState(null);
   const [notifyTargets, setNotifyTargets] = useState(null);
+  const [selected, setSelected] = useState(() => new Set());
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [notice, setNotice] = useState("");
 
   const fetchStudents = useCallback(async () => {
     if (!schoolCode) return;
@@ -261,6 +322,7 @@ export default function StudentManagement({ schoolCode, senderName, viewer, scho
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         .sort((a, b) => (a.fullName || a.lastName || "").localeCompare(b.fullName || b.lastName || ""));
       setStudents(data);
+      setSelected(new Set());
     } catch (err) {
       setFetchError("Could not load students: " + err.message);
     } finally {
@@ -277,7 +339,7 @@ export default function StudentManagement({ schoolCode, senderName, viewer, scho
     if (!schoolCode) return;
     let cancelled = false;
     fetchSchoolClasses(schoolCode)
-      .then(list => { if (!cancelled) setRegisteredClasses(list.map(c => c.name).filter(Boolean)); })
+      .then(list => { if (!cancelled) setRegisteredClasses(list.filter(c => c.name)); })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [schoolCode]);
@@ -289,20 +351,59 @@ export default function StudentManagement({ schoolCode, senderName, viewer, scho
   // Registered classes first (in register order), then any class a student
   // carries that isn't on the register (older records).
   const classOptions = useMemo(() => {
-    const seen = new Set(registeredClasses);
+    const names = registeredClasses.map(c => c.name);
+    const seen = new Set(names);
     const extra = [...new Set(students.map(getForm).filter(c => c && !seen.has(c)))].sort();
-    return [...registeredClasses, ...extra];
+    return [...names, ...extra];
   }, [registeredClasses, students]);
+
   const filtered = students.filter(s => {
     const q = searchTerm.toLowerCase();
     const fullName = (s.fullName || `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim()).toLowerCase();
     const code = (s.studentCode || s.id || "").toLowerCase();
     const matchSearch = !searchTerm || fullName.includes(q) || code.includes(q);
     const matchForm = filterForm === "All" || getForm(s) === filterForm;
-    const matchBoard = !schoolBoards || filterBoarding === "All" ||(s.boarding || "No") === filterBoarding;
+    const matchBoard = !schoolBoards || filterBoarding === "All" || (s.boarding || "No") === filterBoarding;
     const matchFee = filterFee === "All" || (s.feeStatus || "—") === filterFee;
     return matchSearch && matchForm && matchBoard && matchFee;
   });
+
+  const toggleOne = (id) => setSelected(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+  const allFilteredSelected = filtered.length > 0 && filtered.every(s => selected.has(s.id));
+  const toggleAllFiltered = () => setSelected(prev => {
+    const next = new Set(prev);
+    if (allFilteredSelected) filtered.forEach(s => next.delete(s.id));
+    else filtered.forEach(s => next.add(s.id));
+    return next;
+  });
+  const selectedStudents = students.filter(s => selected.has(s.id));
+
+  // Writes in batches of 400 (Firestore caps a batch at 500). `stream` is
+  // cleared because register class names already carry the stream (Form 1A);
+  // leaving the old one would show a stream the child is no longer in.
+  const transferStudents = async (target, movers) => {
+    for (let i = 0; i < movers.length; i += 400) {
+      const batch = writeBatch(db);
+      movers.slice(i, i + 400).forEach(s => batch.update(doc(db, "students", s.id), {
+        classId: target.id,
+        className: target.name,
+        stream: "",
+        classTransferredAt: serverTimestamp(),
+        classTransferredBy: viewer?.uid || viewer?.id || "",
+      }));
+      await batch.commit();
+    }
+    const ids = new Set(movers.map(s => s.id));
+    setStudents(prev => prev.map(s => ids.has(s.id)
+      ? { ...s, classId: target.id, className: target.name, stream: "" } : s));
+    setSelected(new Set());
+    setTransferOpen(false);
+    setNotice(`${movers.length} student${movers.length === 1 ? "" : "s"} moved to ${target.name}.`);
+  };
 
   const boardingCount = students.filter(s => s.boarding === "Yes").length;
   const feesPaidCount = students.filter(s => s.feeStatus === "Paid").length;
@@ -380,6 +481,25 @@ export default function StudentManagement({ schoolCode, senderName, viewer, scho
         </div>
       </div>
 
+      {notice && (
+        <div className="card p-3 flex items-center justify-between text-sm">
+          <span><Check size={14} style={{ display: "inline", marginRight: 6 }} />{notice}</span>
+          <button onClick={() => setNotice("")} className="icon-btn" title="Dismiss"><X size={14} /></button>
+        </div>
+      )}
+
+      {selected.size > 0 && (
+        <div className="card p-3 flex items-center justify-between gap-2">
+          <span className="text-sm font-medium">{selected.size} selected</span>
+          <div className="flex gap-2">
+            <button onClick={() => setSelected(new Set())} className="btn btn--secondary">Clear</button>
+            <button onClick={() => setTransferOpen(true)} className="btn btn--accent">
+              <ArrowRightLeft size={14} /> Transfer to class
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="card">
         <div className="data-table-wrap">
@@ -389,12 +509,12 @@ export default function StudentManagement({ schoolCode, senderName, viewer, scho
             <table className="data-table data-table--stack">
               <thead>
                 <tr>
-                  <th>Code</th><th>Student</th><th>Class</th><th>Parent / Guardian</th><th>Contact</th>{schoolBoards && <th>Boarding</th>}<th>Actions</th>
+                  <th style={{ width: 32 }}><input type="checkbox" checked={allFilteredSelected} onChange={toggleAllFiltered} aria-label="Select all shown students" /></th><th>Code</th><th>Student</th><th>Class</th><th>Parent / Guardian</th><th>Contact</th>{schoolBoards && <th>Boarding</th>}<th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={schoolBoards ? 7 : 6} className="text-center py-12 text-muted">{students.length === 0 ? "No students enrolled yet." : "No students match your filters."}</td></tr>
+                  <tr><td colSpan={schoolBoards ? 8 : 7} className="text-center py-12 text-muted">{students.length === 0 ? "No students enrolled yet." : "No students match your filters."}</td></tr>
                 ) : (
                   filtered.map(student => {
                     const fullName = student.fullName || `${student.firstName ?? ""} ${student.lastName ?? ""}`.trim() || "—";
@@ -406,6 +526,7 @@ export default function StudentManagement({ schoolCode, senderName, viewer, scho
                     const email = student.guardianEmail || student.parentEmail || null;
                     return (
                       <tr key={student.id}>
+                        <td data-label="Select"><input type="checkbox" checked={selected.has(student.id)} onChange={() => toggleOne(student.id)} aria-label={`Select ${fullName}`} /></td>
                         <td data-label="Code" className="text-muted font-mono text-xs">{code}</td>
                         <td data-label="Student"><span className="font-medium">{fullName}</span><div className="text-muted text-xs">{student.gender || "—"}</div></td>
                         <td data-label="Class"><span className="tag tag--blue">{cls}{stream}</span></td>
@@ -424,6 +545,7 @@ export default function StudentManagement({ schoolCode, senderName, viewer, scho
       </div>
 
       {viewStudent && <ViewModal student={viewStudent} schoolBoards={schoolBoards} onClose={() => setViewStudent(null)} onNotify={targets => { setViewStudent(null); setNotifyTargets(targets); }} />}
+      {transferOpen && <TransferModal students={selectedStudents} classes={registeredClasses} onClose={() => setTransferOpen(false)} onConfirm={transferStudents} />}
       {notifyTargets && <NotificationModal targets={notifyTargets} schoolCode={schoolCode} senderName={senderName} onClose={() => setNotifyTargets(null)} />}
     </div>
   );
