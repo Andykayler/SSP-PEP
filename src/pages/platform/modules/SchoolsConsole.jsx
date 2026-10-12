@@ -9,16 +9,17 @@
 // The school is told by the `onSchoolStatusChange` Cloud Function, not here.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useState } from "react";
-import { Building2, Check, X, Pause, Play, CalendarPlus, MailCheck, MailWarning, MessageCircle, History } from "lucide-react";
+import { Building2, Check, X, Pause, Play, CalendarPlus, MailCheck, MailWarning, MessageCircle, History, BadgePercent } from "lucide-react";
 import {
   subscribeSchools, approveSchool, rejectSchool, suspendSchool, reinstateSchool,
-  extendTrial, putLegacyOnPlan, fetchStudentCounts,
+  extendTrial, putLegacyOnPlan, fetchStudentCounts, setSchoolDiscount,
 } from "../../../services/platform";
 import { schoolAccess, toMs, TRIAL_DAYS } from "../../../services/subscriptionState";
 import { apiPost } from "../../../services/api";
 import { countSchools } from "../../../services/platformSummary";
+import { quote, formatMWK, describeDiscount, normaliseDiscount, PRICE_PER_LEARNER_PER_YEAR } from "../../../services/pricing";
 import {
-  Modal, Btn, Input, Textarea, Pill, EmptyState, StatGrid, StatCard,
+  Modal, Btn, Input, Textarea, Select, Pill, EmptyState, StatGrid, StatCard,
   ModuleHeader, Notice, LoadingState, TableWrap, FilterBar,
 } from "../../../components/ui/ModuleKit";
 import "../../headteacher/modules/staff-management.css";
@@ -53,6 +54,7 @@ export default function SchoolsConsole({ currentUser, initialFilter = "pending" 
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
   const [field, setField] = useState("");          // reason / days input
+  const [disc, setDisc] = useState({ type: "none", value: "", note: "" });   // the discount dialog
 
   useEffect(() => subscribeSchools(setSchools, (e) => { setError(e.message); setSchools([]); }), []);
 
@@ -90,7 +92,12 @@ export default function SchoolsConsole({ currentUser, initialFilter = "pending" 
     return true;
   });
 
-  const open = (kind, school) => { setField(kind === "approve" ? String(TRIAL_DAYS) : kind === "extend" ? "14" : ""); setDialog({ kind, school }); };
+  const open = (kind, school) => {
+    if (kind === "discount") {
+      const d = normaliseDiscount(school.discount);
+      setDisc(d ? { type: d.type, value: String(d.value), note: d.note || "" } : { type: "none", value: "", note: "" });
+    }
+    setField(kind === "approve" ? String(TRIAL_DAYS) : kind === "extend" ? "14" : ""); setDialog({ kind, school }); };
   const close = () => { setDialog(null); setField(""); };
 
   const run = async (label, fn) => {
@@ -115,12 +122,18 @@ export default function SchoolsConsole({ currentUser, initialFilter = "pending" 
     if (kind === "reinstate") return run(`${school.name} reinstated.`, () => reinstateSchool(school, currentUser));
     if (kind === "extend") return run(`Trial extended by ${days} days.`, () => extendTrial(school, currentUser, days));
     if (kind === "legacy") return run(`${school.name} is now on a ${days}-day trial.`, () => putLegacyOnPlan(school, currentUser, { days }));
+    if (kind === "discount") {
+      const chosen = disc.type === "none" ? null : normaliseDiscount(disc);
+      return run(chosen ? `${school.name}: ${describeDiscount(chosen)}.` : `${school.name} is back on the standard rate.`,
+        () => setSchoolDiscount(school, currentUser, chosen));
+    }
     return undefined;
   };
 
   const titles = {
     approve: "Approve this school", reject: "Turn this registration away", suspend: "Suspend this school",
     reinstate: "Reinstate this school", extend: "Extend the trial", legacy: "Put this school on a plan",
+    discount: "Subscription discount",
   };
   const needsReason = dialog && (dialog.kind === "reject" || dialog.kind === "suspend");
   const needsDays = dialog && ["approve", "extend", "legacy"].includes(dialog.kind);
@@ -228,7 +241,10 @@ export default function SchoolsConsole({ currentUser, initialFilter = "pending" 
                         <div className="text-muted" style={{ fontSize: 11, marginTop: 4, maxWidth: 180 }}>{s.rejectedReason || s.suspendedReason}</div>
                       )}
                     </td>
-                    <td style={{ fontSize: 13 }}>{planLabel(s, s.access)}</td>
+                    <td style={{ fontSize: 13 }}>
+                      {planLabel(s, s.access)}
+                      {normaliseDiscount(s.discount) && <div><Pill tone="success">{describeDiscount(s.discount)}</Pill></div>}
+                    </td>
                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                       {s.status === "pending" && (
                         <>
@@ -241,6 +257,9 @@ export default function SchoolsConsole({ currentUser, initialFilter = "pending" 
                           <Btn size="sm" variant="secondary" icon={<CalendarPlus size={14} />} onClick={() => open("extend", s)}>Extend trial</Btn>{" "}
                           <Btn size="sm" variant="secondary" icon={<Pause size={14} />} onClick={() => open("suspend", s)}>Suspend</Btn>
                         </>
+                      )}
+                      {["active", "suspended"].includes(s.status) && (
+                        <>{" "}<Btn size="sm" variant="secondary" icon={<BadgePercent size={14} />} onClick={() => open("discount", s)}>Discount</Btn></>
                       )}
                       {s.status === "suspended" && (
                         <Btn size="sm" variant="accent" icon={<Play size={14} />} onClick={() => open("reinstate", s)}>Reinstate</Btn>
@@ -272,7 +291,7 @@ export default function SchoolsConsole({ currentUser, initialFilter = "pending" 
                 variant={dialog.kind === "reject" || dialog.kind === "suspend" ? "danger" : "accent"}
                 onClick={submit}
                 loading={busy}
-                disabled={needsReason && !field.trim()}
+                disabled={(needsReason && !field.trim()) || (dialog.kind === "discount" && disc.type !== "none" && !normaliseDiscount(disc))}
               >
                 Confirm
               </Btn>
@@ -294,6 +313,39 @@ export default function SchoolsConsole({ currentUser, initialFilter = "pending" 
           {dialog.kind === "reinstate" && (
             <p className="text-muted" style={{ fontSize: 13 }}>Staff at this school will be able to sign in again straight away.</p>
           )}
+          {dialog.kind === "discount" && (() => {
+            const chosen = disc.type === "none" ? null : normaliseDiscount(disc);
+            const learners = students?.[dialog.school.code || dialog.school.id]?.active ?? 0;
+            const q = quote({ learners, discount: chosen });
+            return (
+              <div className="space-y-3">
+                <p className="text-muted" style={{ fontSize: 13 }}>
+                  The standard rate is {formatMWK(PRICE_PER_LEARNER_PER_YEAR)} per learner per year. The school sees
+                  the discount on its Subscription page and is charged the discounted amount.
+                </p>
+                <Select label="Discount" value={disc.type} onChange={(e) => setDisc((d) => ({ ...d, type: e.target.value }))}>
+                  <option value="none">None — standard rate</option>
+                  <option value="percent">Percentage off</option>
+                  <option value="rate">Custom rate per learner</option>
+                </Select>
+                {disc.type !== "none" && (
+                  <Input
+                    label={disc.type === "percent" ? "Percent off (0–100)" : "MWK per learner per year"}
+                    type="number" min="0" max={disc.type === "percent" ? "100" : String(PRICE_PER_LEARNER_PER_YEAR - 1)}
+                    value={disc.value} onChange={(e) => setDisc((d) => ({ ...d, value: e.target.value }))}
+                  />
+                )}
+                {disc.type !== "none" && (
+                  <Input label="Note (optional)" value={disc.note} placeholder="e.g. Pilot school, 2026/27" onChange={(e) => setDisc((d) => ({ ...d, note: e.target.value }))} />
+                )}
+                <p style={{ fontSize: 13 }}>
+                  {learners.toLocaleString()} active learners × {formatMWK(q.ratePerLearner)} = <strong>{formatMWK(q.annualPayable)}</strong> a year
+                  {q.saving > 0 && <span className="text-muted"> (saves {formatMWK(q.saving)})</span>}
+                </p>
+                {disc.type !== "none" && !chosen && <p style={{ fontSize: 12, color: "var(--danger-light)" }}>Enter a valid amount to save this discount.</p>}
+              </div>
+            );
+          })()}
           {needsDays && (
             <Input
               label={dialog.kind === "extend" ? "Extra days" : "Trial length (days)"}

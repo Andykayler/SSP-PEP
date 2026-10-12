@@ -247,7 +247,7 @@ async function prepareSubscription({ body, auth }) {
   const active = studentsSnap.docs.map((d) => d.data()).filter((s) => (s.status || "active") === "active");
   const learners = active.length;
 
-  const q = quote({ learners });
+  const q = quote({ learners, discount: school.discount });
   const amount = Math.round(q.perInvoice);
 
   if (amount <= 0) {

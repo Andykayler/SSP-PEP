@@ -135,6 +135,22 @@ export async function putLegacyOnPlan(school, actor, { days = TRIAL_DAYS } = {})
   await audit(actor, "legacy_plan", school, { days });
 }
 
+/**
+ * Give a school a discount, or take it away (discount = null). Schools cannot
+ * write this field (firestore.rules); billing reads it, so the next checkout is
+ * priced with it.
+ */
+export async function setSchoolDiscount(school, actor, discount) {
+  if (!discount) {
+    await updateDoc(schoolRef(school), { discount: deleteField() });
+    await audit(actor, "set_discount", school, { removed: true });
+    return;
+  }
+  const clean = { type: discount.type, value: Number(discount.value), note: String(discount.note || "").trim().slice(0, 200) };
+  await updateDoc(schoolRef(school), { discount: clean });
+  await audit(actor, "set_discount", school, clean);
+}
+
 /** { [schoolCode]: { total, active } } - students per school, counted on the server. */
 export async function fetchStudentCounts() {
   return (await apiPost("/api/platform/email-status", { action: "student-counts" })).counts || {};

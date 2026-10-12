@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { Search, Eye, Bell, BellRing, X, Check, RefreshCw, AlertCircle } from "lucide-react";
 import { db } from "../../../firebase";
 import useCampusScope from "../../../hooks/useCampusScope";
+import { fetchSchoolClasses } from "../../../services/staffAssignments";
 import "./staff-management.css";
 import {
   collection,
@@ -14,7 +15,6 @@ import {
 } from "firebase/firestore";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const FORMS = ["Form 1", "Form 2", "Form 3", "Form 4"];
 const NOTIFICATION_TYPES = [
   { value: "general",    label: "General announcement" },
   { value: "fee",        label: "Fee reminder"         },
@@ -43,7 +43,7 @@ function Spinner({ size = 20 }) {
 }
 
 // ─── View Profile Modal ───────────────────────────────────────────────────────
-function ViewModal({ student, onClose, onNotify }) {
+function ViewModal({ student, onClose, onNotify, schoolBoards }) {
   const name          = student.fullName || `${student.firstName ?? ""} ${student.lastName ?? ""}`.trim() || "—";
   const admNo         = student.studentCode || student.id || "—";
   const form          = student.className || student.form || "—";
@@ -64,8 +64,8 @@ function ViewModal({ student, onClose, onNotify }) {
     { label: "Date of Birth",    value: dob           },
     { label: "Class / Stream",   value: stream !== "—" ? `${form} — Stream ${stream}` : form },
     { label: "District",         value: district      },
-    { label: "Boarding",         value: boarding      },
-    { label: "Fee Status",       value: feeStatus     },
+    ...(schoolBoards ? [{ label: "Boarding", value: boarding }] : []),
+    { label: "Fee Status",      value: feeStatus     },
     { label: "Status",           value: status        },
     { label: "Parent / Guardian",value: guardian      },
     { label: "Parent Phone",     value: guardianPhone },
@@ -232,7 +232,7 @@ function NotificationModal({ targets, schoolCode, senderName, onClose }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function StudentManagement({ schoolCode, senderName, viewer }) {
+export default function StudentManagement({ schoolCode, senderName, viewer, schoolBoards = false }) {
   // Campus scope. A head attached to one campus sees that campus's roll and no
   // other; one attached to several gets a picker. Applied to `students` as
   // soon as they load, so every count and every action below — including
@@ -270,16 +270,36 @@ export default function StudentManagement({ schoolCode, senderName, viewer }) {
 
   useEffect(() => { fetchStudents(); }, [fetchStudents]);
 
+  // The school's registered classes, so the filter follows whatever the school
+  // runs (Standards, Grades, Forms…) rather than a fixed list.
+  const [registeredClasses, setRegisteredClasses] = useState([]);
+  useEffect(() => {
+    if (!schoolCode) return;
+    let cancelled = false;
+    fetchSchoolClasses(schoolCode)
+      .then(list => { if (!cancelled) setRegisteredClasses(list.map(c => c.name).filter(Boolean)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [schoolCode]);
+
   const students = useMemo(() => scope(allStudents), [scope, allStudents]);
 
   const getForm = (s) => s.className || s.form || "";
+
+  // Registered classes first (in register order), then any class a student
+  // carries that isn't on the register (older records).
+  const classOptions = useMemo(() => {
+    const seen = new Set(registeredClasses);
+    const extra = [...new Set(students.map(getForm).filter(c => c && !seen.has(c)))].sort();
+    return [...registeredClasses, ...extra];
+  }, [registeredClasses, students]);
   const filtered = students.filter(s => {
     const q = searchTerm.toLowerCase();
     const fullName = (s.fullName || `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim()).toLowerCase();
     const code = (s.studentCode || s.id || "").toLowerCase();
     const matchSearch = !searchTerm || fullName.includes(q) || code.includes(q);
     const matchForm = filterForm === "All" || getForm(s) === filterForm;
-    const matchBoard = filterBoarding === "All" || (s.boarding || "No") === filterBoarding;
+    const matchBoard = !schoolBoards || filterBoarding === "All" ||(s.boarding || "No") === filterBoarding;
     const matchFee = filterFee === "All" || (s.feeStatus || "—") === filterFee;
     return matchSearch && matchForm && matchBoard && matchFee;
   });
@@ -316,7 +336,7 @@ export default function StudentManagement({ schoolCode, senderName, viewer }) {
       {/* Summary cards */}
       <div className="stats-grid">
         <div className="stat-card"><div className="stat-card__value">{students.length}</div><div className="stat-card__label">Total students</div></div>
-        <div className="stat-card"><div className="stat-card__value">{boardingCount}</div><div className="stat-card__label">Boarding</div></div>
+        {schoolBoards && <div className="stat-card"><div className="stat-card__value">{boardingCount}</div><div className="stat-card__label">Boarding</div></div>}
         <div className="stat-card"><div className="stat-card__value stat-card__value--success">{feesPaidCount}</div><div className="stat-card__label">Fees paid</div></div>
         <div className="stat-card"><div className="stat-card__value stat-card__value--danger">{feesPendingCount}</div><div className="stat-card__label">Fees pending</div></div>
       </div>
@@ -337,14 +357,16 @@ export default function StudentManagement({ schoolCode, senderName, viewer }) {
             </select>
           )}
           <select value={filterForm} onChange={e => setFilterForm(e.target.value)} className="field__select">
-            <option value="All">All forms</option>
-            {FORMS.map(f => <option key={f}>{f}</option>)}
+            <option value="All">All classes</option>
+            {classOptions.map(c => <option key={c}>{c}</option>)}
           </select>
-          <select value={filterBoarding} onChange={e => setFilterBoarding(e.target.value)} className="field__select">
-            <option value="All">All boarding</option>
-            <option value="Yes">Boarding</option>
-            <option value="No">Day scholar</option>
-          </select>
+          {schoolBoards && (
+            <select value={filterBoarding} onChange={e => setFilterBoarding(e.target.value)} className="field__select">
+              <option value="All">All boarding</option>
+              <option value="Yes">Boarding</option>
+              <option value="No">Day scholar</option>
+            </select>
+          )}
           <select value={filterFee} onChange={e => setFilterFee(e.target.value)} className="field__select">
             <option value="All">All fee status</option>
             <option value="Paid">Paid</option>
@@ -367,12 +389,12 @@ export default function StudentManagement({ schoolCode, senderName, viewer }) {
             <table className="data-table data-table--stack">
               <thead>
                 <tr>
-                  <th>Code</th><th>Student</th><th>Class</th><th>Parent / Guardian</th><th>Contact</th><th>Boarding</th><th>Actions</th>
+                  <th>Code</th><th>Student</th><th>Class</th><th>Parent / Guardian</th><th>Contact</th>{schoolBoards && <th>Boarding</th>}<th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-12 text-muted">{students.length === 0 ? "No students enrolled yet." : "No students match your filters."}</td></tr>
+                  <tr><td colSpan={schoolBoards ? 7 : 6} className="text-center py-12 text-muted">{students.length === 0 ? "No students enrolled yet." : "No students match your filters."}</td></tr>
                 ) : (
                   filtered.map(student => {
                     const fullName = student.fullName || `${student.firstName ?? ""} ${student.lastName ?? ""}`.trim() || "—";
@@ -389,7 +411,7 @@ export default function StudentManagement({ schoolCode, senderName, viewer }) {
                         <td data-label="Class"><span className="tag tag--blue">{cls}{stream}</span></td>
                         <td data-label="Parent / Guardian"><div>{guardian}</div><div className="text-muted text-xs">{student.guardianRelation || ""}</div></td>
                         <td data-label="Contact"><div className="font-mono">{phone}</div>{email && <div className="text-muted text-xs">{email}</div>}</td>
-                        <td data-label="Boarding" className="text-center"><StatusBadge value={student.boarding || "No"} type="boarding" /></td>
+                        {schoolBoards && <td data-label="Boarding" className="text-center"><StatusBadge value={student.boarding || "No"} type="boarding" /></td>}
                         <td data-label="Actions"><div className="flex items-center justify-center gap-1.5"><button onClick={() => setViewStudent(student)} className="icon-btn" title="View profile"><Eye size={14} /></button><button onClick={() => setNotifyTargets([student])} className="icon-btn icon-btn--assign" title="Notify parent"><Bell size={14} /></button></div></td>
                       </tr>
                     );
@@ -401,7 +423,7 @@ export default function StudentManagement({ schoolCode, senderName, viewer }) {
         </div>
       </div>
 
-      {viewStudent && <ViewModal student={viewStudent} onClose={() => setViewStudent(null)} onNotify={targets => { setViewStudent(null); setNotifyTargets(targets); }} />}
+      {viewStudent && <ViewModal student={viewStudent} schoolBoards={schoolBoards} onClose={() => setViewStudent(null)} onNotify={targets => { setViewStudent(null); setNotifyTargets(targets); }} />}
       {notifyTargets && <NotificationModal targets={notifyTargets} schoolCode={schoolCode} senderName={senderName} onClose={() => setNotifyTargets(null)} />}
     </div>
   );

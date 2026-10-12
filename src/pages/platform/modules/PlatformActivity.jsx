@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ScrollText } from "lucide-react";
 import { subscribeAudit } from "../../../services/platform";
 import { toMs } from "../../../services/subscriptionState";
+import { describeDiscount } from "../../../services/pricing";
 import { ModuleHeader, EmptyState, LoadingState, TableWrap, Pill } from "../../../components/ui/ModuleKit";
 import "../../headteacher/modules/staff-management.css";
 
@@ -15,6 +16,7 @@ const LABELS = {
   reinstate: ["Reinstated", "success"],
   extend_trial: ["Trial extended", "warning"],
   legacy_plan: ["Legacy put on plan", "neutral"],
+  set_discount: ["Discount set", "neutral"],
   view_guardian_password: ["Viewed guardian password", "warning"],
 };
 
@@ -23,6 +25,7 @@ function describe(e) {
   if (e.action === "approve") return `Trial of ${d.trialDays} days`;
   if (e.action === "extend_trial") return `+${d.days} days`;
   if (e.action === "legacy_plan") return `Trial of ${d.days} days`;
+  if (e.action === "set_discount") return d.removed ? "Removed" : `${describeDiscount(d)}${d.note ? ` — ${d.note}` : ""}`;
   if (e.action === "view_guardian_password") return d.phone || "";
   return d.reason || "";
 }

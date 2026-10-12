@@ -252,7 +252,7 @@ export default function HeadTeacherDashboard() {
     // `viewer` carries the campus scope: a head attached to one campus sees
     // that campus's roll and no other. Read from their own users document, so
     // it cannot be widened from the client.
-    { id: "students", label: "Student Management", icon: <Users className="w-5 h-5" />, component: <StudentManagement schoolCode={schoolCode} viewer={userData} senderName={displayName} /> },
+    { id: "students", label: "Student Management", icon: <Users className="w-5 h-5" />, component: <StudentManagement schoolCode={schoolCode} viewer={userData} senderName={displayName} schoolBoards={boards(settings)} /> },
     { id: "classes", label: "Classes & Streams", icon: <Users className="w-5 h-5" />, component: <ClassAndStreamModule schoolCode={schoolCode} currentUser={currentUser} /> },
     { id: "messages", label: "Parent Messages", icon: <MessageSquare className="w-5 h-5" />, component: <MessagesModule key={pendingConversationId || "inbox"} schoolCode={schoolCode} currentUser={currentUser} initialConversationId={pendingConversationId} /> },
     { id: "timetable", label: "Timetable", icon: <Calendar className="w-5 h-5" />, component: <TimetableModule schoolCode={schoolCode} /> },

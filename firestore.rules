@@ -183,7 +183,7 @@ service cloud.firestore {
                                'approvedAt', 'approvedBy', 'rejectedReason',
                                'suspendedReason', 'paidThrough', 'paidThroughLabel',
                                'lastPaymentAt', 'lastPaymentAmount', 'billing_cadence',
-                               'authUid', 'code', 'legacyGrandfathered']);
+                               'authUid', 'code', 'legacyGrandfathered', 'discount']);
 
       // The platform owner decides on approval, suspension and trial length.
       allow update: if isPlatformOwner();

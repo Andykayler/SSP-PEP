@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { quote, formatMWK, SMS, PRICE_PER_LEARNER_PER_YEAR } from "../../../services/pricing";
+import { quote, formatMWK, describeDiscount, SMS } from "../../../services/pricing";
 import { IC } from "./icons";
 import { Btn } from "./ui";
 import PayChanguCheckout from "../../../components/payments/PayChanguCheckout";
@@ -53,7 +53,8 @@ export default function Billing({ schoolData, schoolCode, canPay = true }) {
   const [paying, setPaying] = useState(false);
   const [paid, setPaid] = useState(null);
 
-  const q = quote({ learners });
+  const q = quote({ learners, discount: schoolData?.discount });
+  const rate = q.ratePerLearner;
 
   if (loading) {
     return (
@@ -71,7 +72,7 @@ export default function Billing({ schoolData, schoolCode, canPay = true }) {
     <div className="space-y-6">
       <div>
         <h2 className="module-title">Subscription &amp; Billing</h2>
-        <p className="module-sub">{formatMWK(PRICE_PER_LEARNER_PER_YEAR)} per learner, per year — your invoice follows your roll</p>
+        <p className="module-sub">{formatMWK(rate)} per learner, per year — your invoice follows your roll</p>
       </div>
 
       {/* ── Status ─────────────────────────────────────────────────────── */}
@@ -134,17 +135,28 @@ export default function Billing({ schoolData, schoolCode, canPay = true }) {
         </div>
         <div className="stat-card">
           <div className="stat-card__label">Rate</div>
-          <div className="stat-card__value">{formatMWK(PRICE_PER_LEARNER_PER_YEAR, false)}</div>
-          <div className="stat-card__sub">MWK per learner per year</div>
+          <div className="stat-card__value">{formatMWK(rate, false)}</div>
+          <div className="stat-card__sub">
+            {q.discount ? `${describeDiscount(q.discount)} — standard ${formatMWK(q.standardRate, false)}` : "MWK per learner per year"}
+          </div>
         </div>
         <div className="stat-card">
           <div className="stat-card__label">Yearly subscription</div>
           <div className="stat-card__value">{formatMWK(q.annualPayable)}</div>
           <div className="stat-card__sub">
-            {learners.toLocaleString()} × {formatMWK(PRICE_PER_LEARNER_PER_YEAR, false)}
+            {learners.toLocaleString()} × {formatMWK(rate, false)}
           </div>
         </div>
       </div>
+
+      {q.discount && (
+        <div className="alert alert--success">
+          <span>
+            Your school has a discount: {describeDiscount(q.discount)}
+            {q.discount.note ? ` (${q.discount.note})` : ""}. You save {formatMWK(q.saving)} a year.
+          </span>
+        </div>
+      )}
 
       <p style={{ fontSize: 12.5, color: "var(--text2)" }}>
         Withdrawn learners are not billed. The amount charged is always worked out from your roll at the
@@ -193,7 +205,7 @@ export default function Billing({ schoolData, schoolCode, canPay = true }) {
         <PayChanguCheckout
           purpose="subscription"
           title="Pay your Acalink subscription"
-          subtitle={`${learners.toLocaleString()} learners × ${formatMWK(PRICE_PER_LEARNER_PER_YEAR)} · 1 year`}
+          subtitle={`${learners.toLocaleString()} learners × ${formatMWK(rate)} · 1 year`}
           context={{}}
           defaultAmount={q.annualPayable}
           amountEditable={false}
