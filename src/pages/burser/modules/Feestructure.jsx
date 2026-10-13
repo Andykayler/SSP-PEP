@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { db } from "../../../firebase";
 import {
   collection, query, where, getDocs, addDoc, updateDoc,
-  deleteDoc, doc, serverTimestamp,
+  deleteDoc, doc, serverTimestamp, writeBatch,
 } from "firebase/firestore";
 import { subscribeSchoolSettings, nextTerm, previousTerm, formatTerm } from "../../../services/academicTerm";
 import { structuresForTerm, yearOfTerm } from "../../../services/termFeesCore";
@@ -166,6 +166,7 @@ export default function FeeStructure({ schoolCode, schoolName }) {
   const EMPTY = {
     name: "",
     classId: "",
+    classIds: [],
     className: "",
     category: "",
     amount: "",
@@ -222,10 +223,12 @@ export default function FeeStructure({ schoolCode, schoolName }) {
     setLoading(false);
   }
 
-  function validate(f) {
+  function validate(f, multi = false) {
     const e = {};
     if (!f.name?.trim()) e.name = "Fee name required.";
-    if (!f.classId) e.classId = "Select a class.";
+    if (multi) {
+      if (!f.classIds?.length) e.classId = "Select at least one class.";
+    } else if (!f.classId) e.classId = "Select a class.";
     if (!f.category) e.category = "Select a category.";
     if (!f.amount || isNaN(f.amount) || Number(f.amount) <= 0) e.amount = "Enter a valid amount.";
     return e;
@@ -233,7 +236,7 @@ export default function FeeStructure({ schoolCode, schoolName }) {
 
   async function handleAdd(ev) {
     ev.preventDefault();
-    const errs = validate(form);
+    const errs = validate(form, true);
     if (Object.keys(errs).length) {
       setFormErrors(errs);
       return;
@@ -241,18 +244,41 @@ export default function FeeStructure({ schoolCode, schoolName }) {
     setActionLoading(true);
     setError("");
     try {
-      const cls = classes.find((c) => c.id === form.classId);
-      await addDoc(collection(db, "fee_structures"), {
-        ...form,
-        amount: Number(form.amount),
-        className: cls?.name || "",
-        term: viewTerm,
-        academicYear: yearOfTerm(viewTerm),
-        schoolCode,
-        schoolName,
-        createdAt: serverTimestamp(),
-      });
-      setSuccess(await billStudents("Fee added."));
+      // A class that already has a fee with this name this term is skipped, so
+      // re-running a shared fee over an overlapping selection can't double-bill.
+      const nameKey = form.name.trim().toLowerCase();
+      const have = new Set(structures
+        .filter((s) => (s.name || "").trim().toLowerCase() === nameKey)
+        .map((s) => s.classId));
+      const targets = classes.filter((c) => form.classIds.includes(c.id) && !have.has(c.id));
+      const skipped = form.classIds.length - targets.length;
+      if (targets.length === 0) {
+        setError(`"${form.name.trim()}" already exists for ${skipped === 1 ? "that class" : "all the selected classes"} this term.`);
+        setActionLoading(false);
+        return;
+      }
+
+      const { classIds, classId, ...rest } = form;
+      for (let i = 0; i < targets.length; i += 400) {
+        const batch = writeBatch(db);
+        targets.slice(i, i + 400).forEach((cls) => {
+          batch.set(doc(collection(db, "fee_structures")), {
+            ...rest,
+            name: form.name.trim(),
+            classId: cls.id,
+            className: cls.name || "",
+            amount: Number(form.amount),
+            term: viewTerm,
+            academicYear: yearOfTerm(viewTerm),
+            schoolCode,
+            schoolName,
+            createdAt: serverTimestamp(),
+          });
+        });
+        await batch.commit();
+      }
+      const verb = `Fee added to ${targets.length} class${targets.length === 1 ? "" : "es"}${skipped ? ` (${skipped} skipped — already had it)` : ""}.`;
+      setSuccess(await billStudents(verb));
       setShowAdd(false);
       setForm(EMPTY);
       fetchAll();
@@ -273,8 +299,9 @@ export default function FeeStructure({ schoolCode, schoolName }) {
     setError("");
     try {
       const cls = classes.find((c) => c.id === form.classId);
+      const { classIds: _unused, ...editable } = form;
       await updateDoc(doc(db, "fee_structures", showEdit.id), {
-        ...form,
+        ...editable,
         amount: Number(form.amount),
         className: cls?.name || "",
         term: viewTerm,
@@ -346,10 +373,36 @@ export default function FeeStructure({ schoolCode, schoolName }) {
           <Input label="Fee Name" required value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. Term 1 Tuition Fee" error={formErrors.name} />
         </div>
 
-        <Select label="Class" required value={form.classId} onChange={(e) => setForm((p) => ({ ...p, classId: e.target.value }))} error={formErrors.classId}>
-          <option value="">Select class...</option>
-          {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </Select>
+        {isEdit ? (
+          <Select label="Class" required value={form.classId} onChange={(e) => setForm((p) => ({ ...p, classId: e.target.value }))} error={formErrors.classId}>
+            <option value="">Select class...</option>
+            {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </Select>
+        ) : (
+          <div className="col-span-2">
+            <label className="text-sm text-muted">Classes <span style={{ color: "var(--danger, #c0392b)" }}>*</span></label>
+            <div className="filter-bar" style={{ margin: "6px 0", gap: 8 }}>
+              <button type="button" className="btn btn--secondary btn--sm"
+                onClick={() => setForm((p) => ({ ...p, classIds: p.classIds.length === classes.length ? [] : classes.map((c) => c.id) }))}>
+                {form.classIds.length === classes.length && classes.length > 0 ? "Clear all" : "Select all"}
+              </button>
+              <span className="text-muted text-xs">{form.classIds.length} selected — the same fee is created for each</span>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", maxHeight: 140, overflowY: "auto" }}>
+              {classes.map((c) => (
+                <label key={c.id} className="text-sm cursor-pointer" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input type="checkbox" checked={form.classIds.includes(c.id)}
+                    onChange={() => setForm((p) => ({
+                      ...p,
+                      classIds: p.classIds.includes(c.id) ? p.classIds.filter((x) => x !== c.id) : [...p.classIds, c.id],
+                    }))} />
+                  {c.name}
+                </label>
+              ))}
+            </div>
+            {formErrors.classId && <p className="text-xs" style={{ color: "var(--danger, #c0392b)", marginTop: 4 }}>{formErrors.classId}</p>}
+          </div>
+        )}
 
         <Select label="Category" required value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))} error={formErrors.category}>
           <option value="">Select category...</option>
@@ -378,7 +431,7 @@ export default function FeeStructure({ schoolCode, schoolName }) {
       <div className="flex justify-end gap-4 mt-4">
         <Btn type="button" variant="secondary" onClick={() => { setShowAdd(false); setShowEdit(null); }}>Cancel</Btn>
         <Btn type="submit" variant="accent" loading={actionLoading}>
-          <Check size={14} /> {isEdit ? "Update Fee" : "Create Fee"}
+          <Check size={14} /> {isEdit ? "Update Fee" : form.classIds.length > 1 ? `Create for ${form.classIds.length} classes` : "Create Fee"}
         </Btn>
       </div>
     </form>
@@ -450,7 +503,7 @@ export default function FeeStructure({ schoolCode, schoolName }) {
               <div className="empty-state__icon"><Receipt size={28} /></div>
               <p className="empty-state__title">No fee structures found</p>
               <p className="empty-state__sub">Create fee templates for your classes</p>
-              <button className="btn btn--accent btn--md" onClick={() => setShowAdd(true)}>
+              <button className="btn btn--accent btn--md" onClick={() => { setForm(EMPTY); setFormErrors({}); setShowAdd(true); }}>
                 <Plus size={15} /> Add First Fee
               </button>
             </div>
