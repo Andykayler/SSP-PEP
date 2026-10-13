@@ -23,6 +23,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { adminAuth, adminDb } from "../_lib/firebaseAdmin.js";
 import { readBody } from "../_lib/auth.js";
+import { confirmGuardianLink } from "../_lib/guardianLink.js";
 import { computeStudentBalance, getCurrentTerm } from "../_lib/feeBalance.js";
 import { normalisePhone } from "../../src/services/phone.js";
 import { isGuardianPhone } from "../../src/services/guardians.js";
@@ -53,6 +54,9 @@ async function caller(req) {
 }
 
 export default async function handler(req, res) {
+  // POST /api/parent/confirm is rewritten here (vercel.json) so guardian link
+  // confirmation doesn't cost a function of its own.
+  if (req.query?.task === "confirm") return confirmGuardianLink(req, res);
   if (req.method !== "POST") return fail(res, 405, "Use POST.");
   const who = await caller(req);
   if (who.error) return fail(res, ...who.error);

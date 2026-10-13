@@ -13,6 +13,10 @@
   },
   "rewrites": [
     {
+      "source": "/api/parent/confirm",
+      "destination": "/api/parent/results?task=confirm"
+    },
+    {
       "source": "/api/ai-insight",
       "destination": "/api/ai?task=insight"
     },
