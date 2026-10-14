@@ -3,7 +3,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { db } from "../../../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { subscribeSchoolSettings } from "../../../services/academicTerm";
-import { syncTermFees } from "../../../services/termFees";
+import { syncTermFees, applyOptionalFee } from "../../../services/termFees";
+import { structuresForTerm, isOptionalLine } from "../../../services/termFeesCore";
 import { termPosition } from "../../../services/feeAllocationCore";
 import { fetchClearances } from "../../../services/feeClearance";
 import {
@@ -11,7 +12,7 @@ import {
 } from "../../../services/resultsRelease";
 import {
   Search, X, Check, Users, Info, AlertTriangle, RefreshCw, Unlock,
-  GraduationCap, Wallet, AlertCircle, CheckCircle2,
+  GraduationCap, Wallet, AlertCircle, CheckCircle2, PlusCircle,
 } from "lucide-react";
 import "./staff-management.css";
 
@@ -187,6 +188,11 @@ export default function StudentFees({ schoolCode, currentUser }) {
   const [clearances, setClearances] = useState(new Map());
   const [releaseFor, setReleaseFor] = useState(null);   // { students, approve }
   const [releaseNote, setReleaseNote] = useState("");
+  // Optional (secondary) fee lines for the open term, and the add/remove dialog.
+  const [structures, setStructures] = useState([]);
+  const [optionalOpen, setOptionalOpen] = useState(false);
+  const [optionalLineId, setOptionalLineId] = useState("");
+  const [optionalAction, setOptionalAction] = useState("add");
 
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState(null);
@@ -218,14 +224,16 @@ export default function StudentFees({ schoolCode, currentUser }) {
       }
 
       const q = (name) => getDocs(query(collection(db, name), where("schoolCode", "==", schoolCode)));
-      const [stSnap, clSnap, faSnap, pySnap, rel, clr] = await Promise.all([
+      const [stSnap, clSnap, faSnap, pySnap, rel, clr, fsSnap] = await Promise.all([
         q("students"),
         q("school_classes"),
         q("fee_assignments"),
         q("payments"),
         currentTerm ? fetchReleases(schoolCode, currentTerm) : Promise.resolve(new Map()),
         currentTerm ? fetchClearances(schoolCode, currentTerm) : Promise.resolve(new Map()),
+        q("fee_structures"),
       ]);
+      setStructures(fsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
 
       const studentRows = stSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setStudents(studentRows);
@@ -268,9 +276,16 @@ export default function StudentFees({ schoolCode, currentUser }) {
       const pos = positions.get(s.id) || { charged: 0, paid: 0, owed: 0, broughtForward: 0, balance: 0, percentage: 0 };
       const release = releases.get(s.id) || null;
       const access = resultsAccess({ balance: pos.balance, release, clearance: clearances.get(s.id), term: currentTerm });
+      // Optional fees the student has been added to, kept apart from the
+      // compulsory fees the whole class owes.
+      const optionalCharged = studentFees
+        .filter((f) => f.studentId === s.id && f.optional && f.term === currentTerm)
+        .reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
       return {
         ...s,
-        // This term only — the one term the student is in.
+        optionalCharged,
+        compulsoryCharged: pos.charged - optionalCharged,
+        // This term only — the one term the student is in (compulsory + optional).
         totalCharged: pos.charged,
         totalPaid: pos.paid,
         termOwed: pos.owed,
@@ -337,6 +352,36 @@ export default function StudentFees({ schoolCode, currentUser }) {
     setSelectedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   }
 
+  const selectedStudents = enriched.filter((s) => selectedIds.has(s.id));
+  // Optional lines that apply to at least one selected student's class.
+  const optionalLines = useMemo(() => {
+    if (!currentTerm) return [];
+    const classIds = new Set(enriched.filter((s) => selectedIds.has(s.id)).map((s) => s.classId));
+    return structuresForTerm(structures, currentTerm).filter((l) => isOptionalLine(l) && classIds.has(l.classId));
+  }, [structures, currentTerm, enriched, selectedIds]);
+  const optionalLine = optionalLines.find((l) => l.id === optionalLineId) || null;
+  const optionalTargets = optionalLine ? selectedStudents.filter((s) => s.classId === optionalLine.classId) : [];
+
+  async function confirmOptional() {
+    if (!optionalLine || optionalTargets.length === 0) return;
+    setActionLoading(true);
+    try {
+      const r = await applyOptionalFee({ schoolCode, term: currentTerm, line: optionalLine, students: optionalTargets, action: optionalAction });
+      const n = optionalAction === "add" ? r.added : r.removed;
+      showToast("success", optionalAction === "add"
+        ? `${optionalLine.name} added for ${n} student${n === 1 ? "" : "s"}${n < optionalTargets.length ? ` (${optionalTargets.length - n} already had it)` : ""}.`
+        : `${optionalLine.name} removed from ${n} student${n === 1 ? "" : "s"}.`);
+      setOptionalOpen(false);
+      setSelectedIds(new Set());
+      setLoading(true);
+      await fetchAll();
+    } catch (err) {
+      console.error(err);
+      showToast("error", `Couldn't save: ${err.message}`);
+    }
+    setActionLoading(false);
+  }
+
   async function confirmRelease() {
     if (!releaseFor || !currentTerm) return;
     setActionLoading(true);
@@ -394,7 +439,7 @@ export default function StudentFees({ schoolCode, currentUser }) {
         <div className="alert alert--info">
           <Info size={16} />
           <div>
-            <strong>{currentTerm}</strong> is open. Every active student is billed automatically from their class&apos;s fee structure — no manual assigning.
+            <strong>{currentTerm}</strong> is open. Every active student is billed automatically from their class&apos;s compulsory fees. Optional fees (bus, uniform…) are only billed to students you add them to: select students, then use Optional fees.
             {" "}Results are hidden from families who owe fees unless you release them.
             {billingNote && <div style={{ marginTop: 4, fontWeight: 600 }}>{billingNote}</div>}
           </div>
@@ -462,6 +507,15 @@ export default function StudentFees({ schoolCode, currentUser }) {
             </select>
 
             <Btn
+              variant="secondary"
+              onClick={() => { setOptionalLineId(optionalLines[0]?.id || ""); setOptionalAction("add"); setOptionalOpen(true); }}
+              disabled={!currentTerm || optionalLines.length === 0}
+              title={someSelected ? "Add or remove an optional fee for the selected students" : "Select students first"}
+            >
+              <PlusCircle size={16} /> Optional fees{someSelected ? ` (${selectedIds.size})` : ""}
+            </Btn>
+
+            <Btn
               variant="accent"
               onClick={() => { setReleaseNote(""); setReleaseFor({ students: selectedHeld, approve: true }); }}
               disabled={!currentTerm || selectedHeld.length === 0}
@@ -490,7 +544,8 @@ export default function StudentFees({ schoolCode, currentUser }) {
                       <th>Student</th>
                       <th>Class</th>
                       <th>Term</th>
-                      <th className="text-right">This term</th>
+                      <th className="text-right">Compulsory</th>
+                      <th className="text-right">Optional</th>
                       <th className="text-right">Paid</th>
                       <th className="text-right">Brought forward</th>
                       <th className="text-right">Balance</th>
@@ -523,7 +578,8 @@ export default function StudentFees({ schoolCode, currentUser }) {
                               ? <span className="tag tag--blue">{currentTerm}</span>
                               : <span className="text-muted">Not billed</span>}
                           </td>
-                          <td className="text-right">{fmt(s.totalCharged)}</td>
+                          <td className="text-right">{fmt(s.compulsoryCharged)}</td>
+                          <td className={`text-right ${s.optionalCharged > 0 ? "" : "text-muted"}`}>{s.optionalCharged > 0 ? fmt(s.optionalCharged) : "—"}</td>
                           <td className="text-right font-semibold text-success">{fmt(s.totalPaid)}</td>
                           <td className={`text-right ${s.broughtForward > 0 ? "text-danger" : "text-muted"}`}>
                             {s.broughtForward > 0 ? fmt(s.broughtForward) : "—"}
@@ -576,6 +632,46 @@ export default function StudentFees({ schoolCode, currentUser }) {
             )}
           </div>
         </>
+      )}
+
+      {/* Optional fee add / remove */}
+      {optionalOpen && (
+        <Modal
+          title="Optional fees"
+          subtitle={`${selectedIds.size} student${selectedIds.size === 1 ? "" : "s"} selected · ${currentTerm}`}
+          onClose={() => setOptionalOpen(false)}
+        >
+          <div className="space-y-4">
+            <div className="field">
+              <label className="field__label" htmlFor="optional-line">Fee</label>
+              <select id="optional-line" className="form-input" value={optionalLineId} onChange={(e) => setOptionalLineId(e.target.value)}>
+                {optionalLines.map((l) => <option key={l.id} value={l.id}>{l.name} — {l.className} ({fmt(l.amount)})</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label className="field__label" htmlFor="optional-action">Action</label>
+              <select id="optional-action" className="form-input" value={optionalAction} onChange={(e) => setOptionalAction(e.target.value)}>
+                <option value="add">Add to the selected students</option>
+                <option value="remove">Remove from the selected students</option>
+              </select>
+            </div>
+            {optionalLine && (
+              <div className="alert alert--info">
+                <Info size={16} />
+                <div>
+                  {optionalTargets.length} of the {selectedIds.size} selected {optionalTargets.length === 1 ? "is" : "are"} in {optionalLine.className}
+                  {optionalTargets.length < selectedIds.size ? "; students in other classes are skipped" : ""}.
+                </div>
+              </div>
+            )}
+            <div className="flex gap-4 mt-4">
+              <Btn variant="secondary" onClick={() => setOptionalOpen(false)} className="flex-1">Cancel</Btn>
+              <Btn variant="accent" onClick={confirmOptional} loading={actionLoading} disabled={optionalTargets.length === 0} className="flex-1">
+                {optionalAction === "add" ? "Add fee" : "Remove fee"}
+              </Btn>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* Release / withdraw confirmation */}

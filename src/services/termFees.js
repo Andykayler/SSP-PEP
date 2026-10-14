@@ -3,7 +3,7 @@
 // the reads and writes. Safe to run as often as you like.
 import { db } from "../firebase";
 import { collection, doc, getDocs, query, where, writeBatch, serverTimestamp } from "firebase/firestore";
-import { planTermFees } from "./termFeesCore";
+import { planTermFees, planOptionalFees } from "./termFeesCore";
 
 const CHUNK = 400;
 
@@ -15,6 +15,28 @@ async function loadAll(schoolCode, name) {
 /**
  * @returns {Promise<{ created: number, updated: number, removed: number, billed: number }>}
  */
+async function commit(ops) {
+  for (let i = 0; i < ops.length; i += CHUNK) {
+    const batch = writeBatch(db);
+    ops.slice(i, i + CHUNK).forEach((op) => op(batch));
+    await batch.commit();
+  }
+}
+
+/**
+ * Adds (or removes) one optional fee line for the chosen students.
+ * @returns {Promise<{ added: number, removed: number }>}
+ */
+export async function applyOptionalFee({ schoolCode, term, line, students, action = "add" }) {
+  const assignments = await loadAll(schoolCode, "fee_assignments");
+  const plan = planOptionalFees({ schoolCode, term, line, students, assignments, action });
+  await commit([
+    ...plan.create.map((c) => (b) => b.set(doc(db, "fee_assignments", c.id), { ...c.data, createdAt: serverTimestamp() })),
+    ...plan.remove.map((id) => (b) => b.delete(doc(db, "fee_assignments", id))),
+  ]);
+  return { added: plan.create.length, removed: plan.remove.length };
+}
+
 export async function syncTermFees({ schoolCode, term }) {
   if (!schoolCode || !term) return { created: 0, updated: 0, removed: 0, billed: 0 };
   const [students, structures, assignments] = await Promise.all([

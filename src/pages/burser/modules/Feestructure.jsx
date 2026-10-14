@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { db } from "../../../firebase";
 import {
-  collection, query, where, getDocs, addDoc, updateDoc,
+  collection, query, where, getDocs, updateDoc,
   deleteDoc, doc, serverTimestamp, writeBatch,
 } from "firebase/firestore";
 import { subscribeSchoolSettings, nextTerm, previousTerm, formatTerm } from "../../../services/academicTerm";
@@ -258,7 +258,7 @@ export default function FeeStructure({ schoolCode, schoolName }) {
         return;
       }
 
-      const { classIds, classId, ...rest } = form;
+      const { classIds: _ids, classId: _id, ...rest } = form;
       for (let i = 0; i < targets.length; i += 400) {
         const batch = writeBatch(db);
         targets.slice(i, i + 400).forEach((cls) => {
@@ -355,11 +355,15 @@ export default function FeeStructure({ schoolCode, schoolName }) {
     return acc;
   }, {});
 
-  const totalByClass = Object.entries(grouped).map(([cls, fees]) => ({
-    cls,
-    total: fees.reduce((sum, f) => sum + (f.amount || 0), 0),
-    count: fees.length,
-  }));
+  // Compulsory fees are what every student in the class owes; optional ones
+  // are only billed to the students who take them, so they are never added in.
+  const isOptional = (f) => f.mandatory === false;
+  const sumOf = (fees) => fees.reduce((sum, f) => sum + (f.amount || 0), 0);
+  const totalByClass = Object.entries(grouped).map(([cls, fees]) => {
+    const required = fees.filter((f) => !isOptional(f));
+    const optional = fees.filter(isOptional);
+    return { cls, total: sumOf(required), count: required.length, optionalTotal: sumOf(optional), optionalCount: optional.length };
+  });
 
   // Called as a function, not rendered as <FormBody />: a component defined
   // inside this one is a new component on every render, so React would throw
@@ -420,7 +424,7 @@ export default function FeeStructure({ schoolCode, schoolName }) {
 
         <div className="col-span-2 filter-bar">
           <input type="checkbox" id="mandatory" checked={form.mandatory} onChange={(e) => setForm((p) => ({ ...p, mandatory: e.target.checked }))} />
-          <label htmlFor="mandatory" className="text-sm text-muted cursor-pointer">Mandatory fee (required for all students in this class)</label>
+          <label htmlFor="mandatory" className="text-sm text-muted cursor-pointer">Mandatory fee (billed to every student in the class). Untick for an optional fee — it is only billed to students you add it to on Student Fees.</label>
         </div>
 
         <div className="col-span-2">
@@ -488,11 +492,14 @@ export default function FeeStructure({ schoolCode, schoolName }) {
           {/* Summary Cards */}
           {totalByClass.length > 0 && (
             <div className="stats-grid">
-              {totalByClass.map(({ cls, total, count }) => (
+              {totalByClass.map(({ cls, total, count, optionalTotal, optionalCount }) => (
                 <div key={cls} className="card p-4">
                   <p className="stat-card__label">{cls}</p>
                   <p className="stat-card__value">{fmt(total)}</p>
-                  <p className="text-xs text-muted">{count} fee{count !== 1 ? "s" : ""}</p>
+                  <p className="text-xs text-muted">{count} compulsory fee{count !== 1 ? "s" : ""}</p>
+                  {optionalCount > 0 && (
+                    <p className="text-xs text-muted">+ {optionalCount} optional ({fmt(optionalTotal)}, billed per student)</p>
+                  )}
                 </div>
               ))}
             </div>
@@ -514,7 +521,8 @@ export default function FeeStructure({ schoolCode, schoolName }) {
                   <div className="assignment-card__header">
                     <div className="font-semibold">{className}</div>
                     <div className="text-sm text-muted">
-                      {fees.length} fees • Total: <span className="font-semibold">{fmt(fees.reduce((sum, f) => sum + (f.amount || 0), 0))}</span>
+                      Compulsory: <span className="font-semibold">{fmt(sumOf(fees.filter((f) => !isOptional(f))))}</span>
+                      {fees.some(isOptional) && <> • Optional: <span className="font-semibold">{fmt(sumOf(fees.filter(isOptional)))}</span></>}
                     </div>
                   </div>
 
@@ -535,7 +543,9 @@ export default function FeeStructure({ schoolCode, schoolName }) {
                             <td data-label="Fee Name">
                               <div className="font-medium">{fee.name}</div>
                               {fee.description && <div className="text-xs text-muted mt-1">{fee.description}</div>}
-                              {fee.mandatory && <span className="tag tag--green mt-1">Mandatory</span>}
+                              {isOptional(fee)
+                                ? <span className="tag mt-1">Optional</span>
+                                : <span className="tag tag--green mt-1">Mandatory</span>}
                             </td>
                             <td data-label="Category">
                               <span className="tag">{fee.category}</span>

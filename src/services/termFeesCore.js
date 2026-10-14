@@ -41,6 +41,14 @@ export function structuresForTerm(structures = [], term) {
 const isActive = (s) => (s.status || "active") === "active";
 
 /**
+ * Optional (secondary) fees — bus, uniform, a trip — are not owed by the whole
+ * class. They are never billed automatically; the bursar adds them to the
+ * students who actually take them (see planOptionalFees). Lines saved before
+ * the flag existed have no `mandatory` field and stay compulsory.
+ */
+export const isOptionalLine = (line) => line?.mandatory === false;
+
+/**
  * What has to change for every active student to carry exactly this term's
  * fees for their class.
  *
@@ -65,7 +73,7 @@ export function planTermFees({ schoolCode, term, students = [], structures = [],
   for (const s of students) {
     if (!isActive(s) || !s.classId) continue;
     for (const line of lines) {
-      if (line.classId !== s.classId) continue;
+      if (line.classId !== s.classId || isOptionalLine(line)) continue;
       const key = `${s.id}|${line.id}`;
       wanted.add(key);
       const have = existing.get(key);
@@ -96,16 +104,75 @@ export function planTermFees({ schoolCode, term, students = [], structures = [],
     }
   }
 
+  // An optional charge follows its fee line's amount and name, but is never
+  // created or removed here — only the bursar decides who takes it.
+  for (const a of existing.values()) {
+    const line = lineById.get(a.feeStructureId);
+    if (!line || !isOptionalLine(line) || !a.optional) continue;
+    const amount = Number(line.amount) || 0;
+    if (Number(a.amount) !== amount || a.feeName !== (line.name || "")) {
+      plan.update.push({ id: a.id, data: { amount, feeName: line.name || "", category: line.category || "" } });
+    }
+  }
+
   // Automatic charges whose fee line was removed, or that belong to a class the
   // student has since left, come off. Hand-entered charges are never touched.
   for (const [key, a] of existing) {
     if (!a.auto || wanted.has(key)) continue;
     const line = lineById.get(a.feeStructureId);
+    // A line the bursar has since marked optional: what was already billed
+    // stays, so no one's balance changes behind their back.
+    if (line && isOptionalLine(line)) continue;
     const student = students.find((s) => s.id === a.studentId);
     // A student who left the school still owes what they were billed.
     if (line && student && !isActive(student)) continue;
     plan.remove.push(a.id);
   }
 
+  return plan;
+}
+
+/**
+ * Adds an optional fee to the chosen students for `term`, or takes it off
+ * again. Idempotent: a student who already has it is left alone.
+ *
+ * @returns {{ create: {id, data}[], remove: string[] }}
+ */
+export function planOptionalFees({ schoolCode, term, line, students = [], assignments = [], action = "add" }) {
+  const plan = { create: [], remove: [] };
+  if (!schoolCode || !parseTerm(term) || !line || !isOptionalLine(line)) return plan;
+
+  const have = new Map();
+  for (const a of assignments) {
+    if (a.feeStructureId === line.id && resolveTerm(a.term, term) === term) have.set(a.studentId, a);
+  }
+
+  for (const s of students) {
+    const existing = have.get(s.id);
+    if (action === "remove") {
+      if (existing && existing.optional) plan.remove.push(existing.id);
+      continue;
+    }
+    if (existing) continue;
+    plan.create.push({
+      id: termFeeId(schoolCode, s.id, line.id, term),
+      data: {
+        schoolCode,
+        studentId: s.id,
+        studentName: s.fullName || "",
+        studentCode: s.studentCode || "",
+        classId: s.classId || line.classId || "",
+        className: s.className || line.className || "",
+        feeStructureId: line.id,
+        feeName: line.name || "",
+        category: line.category || "",
+        amount: Number(line.amount) || 0,
+        term,
+        academicYear: yearOfTerm(term),
+        auto: false,
+        optional: true,
+      },
+    });
+  }
   return plan;
 }

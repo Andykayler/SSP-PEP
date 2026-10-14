@@ -2,7 +2,7 @@
 // the class mark sheets.
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { planTermFees, structuresForTerm, termFeeId, yearOfTerm } from "../../src/services/termFeesCore.js";
+import { planTermFees, planOptionalFees, structuresForTerm, termFeeId, yearOfTerm } from "../../src/services/termFeesCore.js";
 import { resultsAccess, releaseActive, withheldMessage } from "../../src/services/resultsAccessCore.js";
 import { childResults } from "../../src/services/resultsCore.js";
 import { termPosition } from "../../src/services/feeAllocationCore.js";
@@ -176,5 +176,49 @@ describe("termPosition", () => {
   it("fully paid means nothing owed anywhere", () => {
     const p = termPosition([{ term: T3, amount: 100 }], [{ amount: 100 }], T3);
     assert.deepEqual([p.owed, p.broughtForward, p.balance, p.percentage], [0, 0, 0, 100]);
+  });
+});
+
+describe("optional fees", () => {
+  const students = [
+    { id: "s1", classId: "c1", fullName: "A", status: "active" },
+    { id: "s2", classId: "c1", fullName: "B", status: "active" },
+  ];
+  const tuition = { id: "f1", classId: "c1", name: "Tuition", amount: 1000, term: TERM, mandatory: true };
+  const bus = { id: "f2", classId: "c1", name: "Bus", amount: 300, term: TERM, mandatory: false };
+  const structures = [tuition, bus];
+
+  it("is not billed to the whole class automatically", () => {
+    const plan = planTermFees({ schoolCode: S, term: TERM, students, structures, assignments: [] });
+    assert.deepEqual(plan.create.map((c) => c.data.feeStructureId), ["f1", "f1"]);
+  });
+  it("adds the fee only to the chosen students, once", () => {
+    const first = planOptionalFees({ schoolCode: S, term: TERM, line: bus, students: [students[0]], assignments: [] });
+    assert.equal(first.create.length, 1);
+    assert.equal(first.create[0].data.studentId, "s1");
+    assert.equal(first.create[0].data.optional, true);
+    const again = planOptionalFees({
+      schoolCode: S, term: TERM, line: bus, students,
+      assignments: first.create.map((c) => ({ id: c.id, ...c.data })),
+    });
+    assert.deepEqual(again.create.map((c) => c.data.studentId), ["s2"]);
+  });
+  it("removes it again, and a later billing run leaves it alone", () => {
+    const assignments = planOptionalFees({ schoolCode: S, term: TERM, line: bus, students, assignments: [] })
+      .create.map((c) => ({ id: c.id, ...c.data }));
+    const sync = planTermFees({ schoolCode: S, term: TERM, students, structures, assignments });
+    assert.deepEqual(sync.remove, []);
+    const off = planOptionalFees({ schoolCode: S, term: TERM, line: bus, students: [students[1]], assignments, action: "remove" });
+    assert.deepEqual(off.remove, [assignments[1].id]);
+  });
+  it("follows the fee line when its amount changes", () => {
+    const assignments = planOptionalFees({ schoolCode: S, term: TERM, line: bus, students: [students[0]], assignments: [] })
+      .create.map((c) => ({ id: c.id, ...c.data }));
+    const plan = planTermFees({ schoolCode: S, term: TERM, students, structures: [tuition, { ...bus, amount: 400 }], assignments });
+    assert.equal(plan.update.length, 1);
+    assert.equal(plan.update[0].data.amount, 400);
+  });
+  it("ignores mandatory lines", () => {
+    assert.deepEqual(planOptionalFees({ schoolCode: S, term: TERM, line: tuition, students, assignments: [] }).create, []);
   });
 });
