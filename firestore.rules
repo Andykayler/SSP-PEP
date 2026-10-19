@@ -29,6 +29,12 @@ service cloud.firestore {
     // Who may approve a student moving between campuses: the two roles with
     // sight of both sides of the move. A head teacher runs one campus, so they
     // raise the request and someone else grants it.
+    // Read-only oversight: the roles that may LOOK at what head teachers look
+    // at. The director monitors every module but changes none of it, so this
+    // is used only on `allow read` lines — never on create/update/delete.
+    function canOversee() {
+      return isAdminOrHead() || isDirector();
+    }
     function isCampusApprover() {
       return isAdmin() || isDirector();
     }
@@ -274,7 +280,7 @@ service cloud.firestore {
     // is taken on by another school. The school they left keeps this record,
     // and uses it to take them back later with their old profile restored.
     match /former_staff/{recordId} {
-      allow read: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+      allow read: if isStaff() && canOversee() && sameSchool(resource.data.schoolCode);
       allow write: if false;
     }
 
@@ -459,15 +465,17 @@ service cloud.firestore {
                    (sameSchool(resource.data.schoolCode) &&
                     (resource.data.teacherId == request.auth.uid ||
                      isMyClass() ||
-                     isAdminOrHead()))));
+                     canOversee()))));
 
-      allow create: if request.auth != null &&
+      allow create: if !isDirector() &&
+                    request.auth != null &&
                     sameSchool(request.resource.data.schoolCode) &&
                     schoolIsActive(request.resource.data.schoolCode) &&
                     (request.resource.data.teacherId == request.auth.uid ||
                      isAdminOrHead());
 
-      allow update: if request.auth != null &&
+      allow update: if !isDirector() &&
+                    request.auth != null &&
                     sameSchool(resource.data.schoolCode) &&
                     schoolIsActive(resource.data.schoolCode) &&
                     (resource.data.teacherId == request.auth.uid ||
@@ -490,7 +498,8 @@ service cloud.firestore {
                      : (request.auth != null &&
                         sameSchool(resource.data.schoolCode));
 
-      allow create: if request.auth != null &&
+      allow create: if !isDirector() &&
+                    request.auth != null &&
                     sameSchool(request.resource.data.schoolCode) &&
                     schoolIsActive(request.resource.data.schoolCode) &&
                     (request.resource.data.reportedByUid == request.auth.uid ||
@@ -515,7 +524,8 @@ service cloud.firestore {
                   resource.data.teacherId == request.auth.uid &&
                   sameSchool(resource.data.schoolCode);
 
-      allow delete: if request.auth != null &&
+      allow delete: if !isDirector() &&
+                    request.auth != null &&
                     resource.data.teacherId == request.auth.uid &&
                     sameSchool(resource.data.schoolCode) &&
                     schoolIsActive(resource.data.schoolCode);
@@ -523,7 +533,8 @@ service cloud.firestore {
       // The author edits the plan but cannot mark it approved. The one review
       // field they may touch is putting it back to "pending" (resubmitting
       // after changes were asked for).
-      allow update: if request.auth != null &&
+      allow update: if !isDirector() &&
+                    request.auth != null &&
                     resource.data.teacherId == request.auth.uid &&
                     sameSchool(resource.data.schoolCode) &&
                     schoolIsActive(resource.data.schoolCode) &&
@@ -534,20 +545,22 @@ service cloud.firestore {
 
       // The head teacher reviews: approve, or ask for changes with a comment.
       // Only the review fields, so a reviewer cannot rewrite the teacher's plan.
-      allow update: if request.auth != null &&
+      allow update: if !isDirector() &&
+                    request.auth != null &&
                     isAdminOrHead() &&
                     sameSchool(resource.data.schoolCode) &&
                     schoolIsActive(resource.data.schoolCode) &&
                     request.resource.data.diff(resource.data).affectedKeys()
                       .hasOnly(['review', 'reviewStatus', 'reviewedAt', 'reviewedBy', 'reviewedByName']);
 
-      allow create: if request.auth != null &&
+      allow create: if !isDirector() &&
+                    request.auth != null &&
                     request.resource.data.teacherId == request.auth.uid &&
                     sameSchool(request.resource.data.schoolCode) &&
                     schoolIsActive(request.resource.data.schoolCode);
 
       allow read: if request.auth != null &&
-                  isAdminOrHead() &&
+                  canOversee() &&
                   sameSchool(resource.data.schoolCode);
     }
 
@@ -561,19 +574,22 @@ service cloud.firestore {
       allow read: if isAnonParent() ||
                   (request.auth != null &&
                    sameSchool(resource.data.schoolCode) &&
-                   (resource.data.teacherId == request.auth.uid || isAdminOrHead()));
+                   (resource.data.teacherId == request.auth.uid || canOversee()));
 
-      allow create: if request.auth != null &&
+      allow create: if !isDirector() &&
+                    request.auth != null &&
                     request.resource.data.teacherId == request.auth.uid &&
                     sameSchool(request.resource.data.schoolCode) &&
                     schoolIsActive(request.resource.data.schoolCode);
 
-      allow update: if request.auth != null &&
+      allow update: if !isDirector() &&
+                    request.auth != null &&
                     resource.data.teacherId == request.auth.uid &&
                     sameSchool(resource.data.schoolCode) &&
                     schoolIsActive(resource.data.schoolCode);
 
-      allow delete: if request.auth != null &&
+      allow delete: if !isDirector() &&
+                    request.auth != null &&
                     sameSchool(resource.data.schoolCode) &&
                     (resource.data.teacherId == request.auth.uid || isAdmin()) &&
                     schoolIsActive(resource.data.schoolCode);
@@ -596,18 +612,20 @@ service cloud.firestore {
               (request.auth != null &&
               (resource == null ||
                (sameSchool(resource.data.schoolCode) &&
-                (resource.data.teacherId == request.auth.uid || isAdminOrHead()))));
+                (resource.data.teacherId == request.auth.uid || canOversee()))));
 
   // Writes are confined to the open term. The portal already hides the
   // controls, but a hidden button is a courtesy, not a control — this is what
   // makes "a teacher cannot enter marks for a term that is not set" true.
-  allow update: if request.auth != null &&
+  allow update: if !isDirector() &&
+                    request.auth != null &&
                 resource.data.teacherId == request.auth.uid &&
                 sameSchool(resource.data.schoolCode) &&
                 schoolIsActive(resource.data.schoolCode) &&
                 isWritableTerm(resource.data.schoolCode, request.resource.data.term);
 
-  allow create: if request.auth != null &&
+  allow create: if !isDirector() &&
+                    request.auth != null &&
                 request.resource.data.teacherId == request.auth.uid &&
                 sameSchool(request.resource.data.schoolCode) &&
                 schoolIsActive(request.resource.data.schoolCode) &&
@@ -755,7 +773,8 @@ service cloud.firestore {
                       resource.data.get('decidedBy', '');
 
       // Staff answer the request, and can correct a record afterwards.
-      allow create, update: if isStaffOfSchool(request.resource.data.schoolCode) &&
+      allow create, update: if !isDirector() &&
+                    isStaffOfSchool(request.resource.data.schoolCode) &&
                             schoolIsActive(request.resource.data.schoolCode);
 
       allow delete: if isStaffOfSchool(resource.data.schoolCode) && isAdminOrHead() &&
@@ -937,7 +956,7 @@ service cloud.firestore {
     // AUDIT LOGS
     // =============================================
     match /audit_logs/{logId} {
-      allow read: if request.auth != null && isAdminOrHead();
+      allow read: if request.auth != null && canOversee();
       allow create: if request.auth != null;
       allow update, delete: if false;
     }
@@ -1213,7 +1232,7 @@ service cloud.firestore {
     // failed.
     // ─────────────────────────────────────────────────────────────────────────
     match /wa_outbox/{messageId} {
-      allow read: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+      allow read: if isStaff() && canOversee() && sameSchool(resource.data.schoolCode);
       allow write: if false;
     }
 
@@ -1325,7 +1344,7 @@ service cloud.firestore {
     // salary lines live in here.
     // ─────────────────────────────────────────────────────────────────────────
     match /expenses/{expenseId} {
-      allow read: if isStaff() && (isFinance() || isHeadTeacher()) &&
+      allow read: if isStaff() && (isFinance() || isHeadTeacher() || isDirector()) &&
         sameSchool(resource.data.schoolCode);
       allow create, update: if isStaff() && isFinance() &&
         sameSchool(request.resource.data.schoolCode) &&
@@ -1377,9 +1396,11 @@ service cloud.firestore {
 
     match /boarding_signouts/{signoutId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
-      allow create: if isStaff() && sameSchool(request.resource.data.schoolCode) &&
+      allow create: if !isDirector() &&
+                    isStaff() && sameSchool(request.resource.data.schoolCode) &&
         schoolIsActive(request.resource.data.schoolCode);
-      allow update: if isStaff() && sameSchool(resource.data.schoolCode) &&
+      allow update: if !isDirector() &&
+                    isStaff() && sameSchool(resource.data.schoolCode) &&
         sameSchool(request.resource.data.schoolCode) &&
         schoolIsActive(resource.data.schoolCode);
       allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode) &&
@@ -1389,10 +1410,11 @@ service cloud.firestore {
     // A child's medical record. Leadership only, and never a parent branch —
     // guardians are told by notification, not given the log to browse.
     match /sickbay_visits/{visitId} {
-      allow read: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode);
+      allow read: if isStaff() && canOversee() && sameSchool(resource.data.schoolCode);
       // A class teacher whose learner falls ill logs the visit; only
       // leadership can read the log back.
-      allow create: if isStaff() &&
+      allow create: if !isDirector() &&
+                    isStaff() &&
         sameSchool(request.resource.data.schoolCode) &&
         schoolIsActive(request.resource.data.schoolCode);
       allow update: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode) &&
@@ -1418,9 +1440,11 @@ service cloud.firestore {
 
     match /inventory_issues/{issueId} {
       allow read: if isStaff() && sameSchool(resource.data.schoolCode);
-      allow create: if isStaff() && sameSchool(request.resource.data.schoolCode) &&
+      allow create: if !isDirector() &&
+                    isStaff() && sameSchool(request.resource.data.schoolCode) &&
         schoolIsActive(request.resource.data.schoolCode);
-      allow update: if isStaff() && sameSchool(resource.data.schoolCode) &&
+      allow update: if !isDirector() &&
+                    isStaff() && sameSchool(resource.data.schoolCode) &&
         sameSchool(request.resource.data.schoolCode) &&
         schoolIsActive(resource.data.schoolCode);
       allow delete: if isStaff() && isAdminOrHead() && sameSchool(resource.data.schoolCode) &&

@@ -103,6 +103,19 @@ none of which they want, and all of which they would later be signing off on.
 | Fee Position | Billed / collected / outstanding, per campus |
 | Subscription | What the group pays Acalink — and pays it |
 
+Beyond those five, the portal lists **every module the school runs** — Students,
+Classes, Attendance, Homework, Results & Performance, Exams, Report Cards,
+Timetable, Discipline, Student Fees, Payments, Receipts, Arrears, Expenses,
+Staff, Health, Boarding, Library, Audit Log and the rest — all view-only. The
+staff modules are the real ones shown through `<ViewOnly>`
+(`src/components/ui/ViewOnly.jsx`), which hides controls that add, edit,
+delete, approve or send. That wrapper is a courtesy; the control is
+`firestore.rules`: `canOversee()` lets a director *read* what a head teacher
+reads, and `!isDirector()` is on every create/update/delete rule for the
+records staff keep (attendance, marks, homework, lesson plans, discipline,
+boarding, sick bay, inventory). Pinned by
+`tests/rules/director-oversight.rules.test.js`.
+
 Everything else is read-only by design. A director who can quietly change a roll
 or a balance while also being the person who signs off on them is an audit
 finding waiting to happen. In `firestore.rules`, `isDirector()` is deliberately

@@ -10,7 +10,10 @@
 //
 // So this portal is deliberately narrow and deliberately whole-school:
 //
-//   • It reads everything, across every campus, and edits almost nothing.
+//   • It reads everything, across every campus, and edits almost nothing:
+//     students, fees, attendance, homework, results and the rest are the
+//     staff's own modules shown through <ViewOnly>, with write access withheld
+//     by firestore.rules.
 //   • The one decision it owns is a student moving between campuses, because
 //     that is precisely the call that needs someone with sight of both sites.
 //   • It can pay the group's Acalink subscription, since that is the person
@@ -19,20 +22,59 @@
 // Built on the same DashboardShell as the head teacher's portal, so a school
 // that adds a director gets a product that looks like the one they already use.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState, useEffect } from "react";
+import { useState, useEffect, createElement } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { signOut, onAuthStateChanged } from "firebase/auth";
-import { Home, Building2, ArrowLeftRight, Wallet, CreditCard } from "lucide-react";
+import {
+  Home, Building2, ArrowLeftRight, Wallet, CreditCard, Users, UserCheck, Award, BookOpen,
+  AlertTriangle, FileText, ClipboardList, GraduationCap, HeartPulse, Calendar, ClipboardCheck,
+  CalendarDays, Bell, UserCog, UserPlus, Receipt, Landmark, ShieldCheck, Library, Bus,
+  BedDouble, Package, CalendarOff,
+} from "lucide-react";
 
 import { auth, db } from "../../firebase";
 import DashboardShell from "../../components/DashboardShell";
 import TransferApprovals from "../../components/campus/TransferApprovals";
 import Billing from "../admin/modules/Billing";
+import ViewOnly from "../../components/ui/ViewOnly";
+import ArrearsModule from "../../components/fees/ArrearsModule";
+import LeaveModule from "../../components/leave/LeaveModule";
+import HealthModule from "../../components/health/HealthModule";
+import StudentManagement from "../headteacher/modules/student";
+import ClassAndStreamModule from "../headteacher/modules/ClassModule";
+import TimetableModule from "../headteacher/modules/TimetableModule";
+import LessonPlansModule from "../headteacher/modules/classplanning";
+import ClassSessionsModule from "../headteacher/modules/ClassSessionsModule";
+import AttendanceOverview from "../headteacher/modules/AttendanceModule";
+import PerformanceAnalytics from "../headteacher/modules/PerformanceModule";
+import DisciplineOverview from "../headteacher/modules/DisciplineModule";
+import ReportsModule from "../headteacher/modules/reports";
+import ExamsModule from "../headteacher/modules/ExamsModule";
+import ExamReadiness from "../headteacher/modules/ExamReadiness";
+import AtRiskModule from "../headteacher/modules/AtRiskModule";
+import Admissions from "../headteacher/modules/Admissions";
+import StaffManagement from "../headteacher/modules/StaffManagement";
+import AnnouncementsModule from "../headteacher/modules/announcement";
+import CalendarModule from "../headteacher/modules/CalendarModule";
+import TransportModule from "../headteacher/modules/TransportModule";
+import Boarding from "../headteacher/modules/Boarding";
+import Inventory from "../headteacher/modules/Inventory";
+import StudentFees from "../burser/modules/StudentFees";
+import Payments from "../burser/modules/Payments";
+import Receipts from "../burser/modules/Receipts";
+import Expenses from "../burser/modules/Expenses";
+import FeeStructure from "../burser/modules/Feestructure";
+import Sponsors from "../burser/modules/Sponsors";
+import FinanceReports from "../burser/modules/Reports";
+import LibraryModule from "../library/modules/LibraryModule";
+import AuditLog from "../admin/modules/AuditLog";
+import HomeworkMonitor from "./modules/HomeworkMonitor";
 import SchoolOverview from "./modules/SchoolOverview";
 import CampusPerformance from "./modules/CampusPerformance";
 import FeePosition from "./modules/FeePosition";
 import { subscribeCampuses, subscribeTransferRequests, TRANSFER_PENDING } from "../../services/campuses";
 import { subscribeSchoolSettings, academicYearFor } from "../../services/academicTerm";
+import { boards } from "../../services/schoolProfile";
 import { loadSchoolOverview, emptyOverview } from "../../services/schoolOverview";
 import "../admin/admin_dashboard.css";
 import "../burser/modules/staff-management.css";
@@ -146,23 +188,63 @@ export default function DirectorDashboard() {
   const schoolDistrict = schoolData?.district || "";
   const currentUser = { id: uid, name: displayName, role: "director" };
 
+  // Everything below the first four screens is the same module the staff who
+  // run it use, shown through <ViewOnly>. The director monitors; the rules in
+  // firestore.rules are what stop a write, the wrapper just doesn't offer one.
+  const view = (node) => <ViewOnly>{node}</ViewOnly>;
+  const icon = (Glyph) => createElement(Glyph, { className: "w-5 h-5" });
+
   const navItems = [
-    { id: "overview", label: "School Overview", icon: <Home className="w-5 h-5" /> },
+    { id: "overview", label: "School Overview", icon: icon(Home) },
     {
-      id: "campuses", label: "Campuses", icon: <Building2 className="w-5 h-5" />,
+      id: "campuses", label: "Campuses", icon: icon(Building2),
       component: <CampusPerformance overview={overviewData} loading={overviewLoading} />,
     },
     {
-      id: "transfers", label: "Campus Transfers", icon: <ArrowLeftRight className="w-5 h-5" />,
+      id: "transfers", label: "Campus Transfers", icon: icon(ArrowLeftRight),
       badge: pending || undefined,
       component: <TransferApprovals schoolCode={schoolCode} currentUser={currentUser} canDecide />,
     },
+    // Students and learning
+    { id: "students", label: "Students", icon: icon(Users), component: view(<StudentManagement schoolCode={schoolCode} viewer={userData} senderName={displayName} schoolBoards={boards(settings)} />) },
+    { id: "classes", label: "Classes & Streams", icon: icon(Users), component: view(<ClassAndStreamModule schoolCode={schoolCode} currentUser={currentUser} />) },
+    { id: "attendance", label: "Attendance", icon: icon(UserCheck), component: view(<AttendanceOverview schoolCode={schoolCode} />) },
+    { id: "homework", label: "Homework", icon: icon(BookOpen), component: <HomeworkMonitor schoolCode={schoolCode} /> },
+    { id: "performance", label: "Results & Performance", icon: icon(Award), component: view(<PerformanceAnalytics schoolCode={schoolCode} />) },
+    { id: "exams", label: "Exams", icon: icon(ClipboardList), component: view(<ExamsModule schoolCode={schoolCode} currentUser={currentUser} />) },
+    { id: "readiness", label: "Exam Readiness", icon: icon(GraduationCap), component: view(<ExamReadiness schoolCode={schoolCode} />) },
+    { id: "reports", label: "Report Cards", icon: icon(FileText), component: view(<ReportsModule schoolCode={schoolCode} userId={uid} userName={displayName} />) },
+    { id: "timetable", label: "Timetable", icon: icon(Calendar), component: view(<TimetableModule schoolCode={schoolCode} />) },
+    { id: "lessonplans", label: "Lesson Plans", icon: icon(BookOpen), component: view(<LessonPlansModule schoolCode={schoolCode} currentUser={currentUser} />) },
+    { id: "classmonitor", label: "Class Monitor", icon: icon(ClipboardCheck), component: view(<ClassSessionsModule schoolCode={schoolCode} />) },
+    { id: "discipline", label: "Discipline", icon: icon(AlertTriangle), component: view(<DisciplineOverview schoolCode={schoolCode} />) },
+    { id: "atrisk", label: "At-Risk Learners", icon: icon(HeartPulse), component: view(<AtRiskModule schoolCode={schoolCode} currentUser={currentUser} />) },
+    { id: "admissions", label: "Admissions", icon: icon(UserPlus), component: view(<Admissions schoolCode={schoolCode} currentUser={currentUser} schoolBoards={boards(settings)} />) },
+    // Money
+    { id: "finance", label: "Fee Position", icon: icon(Wallet), component: <FeePosition overview={overviewData} loading={overviewLoading} academicYear={academicYear} /> },
+    { id: "studentfees", label: "Student Fees", icon: icon(Receipt), component: view(<StudentFees schoolCode={schoolCode} currentUser={currentUser} />) },
+    { id: "payments", label: "Payments", icon: icon(Landmark), component: view(<Payments schoolCode={schoolCode} bursarName={displayName} />) },
+    { id: "receipts", label: "Receipts", icon: icon(Receipt), component: view(<Receipts schoolCode={schoolCode} schoolName={schoolName} />) },
+    { id: "arrears", label: "Arrears & Clearance", icon: icon(Wallet), component: view(<ArrearsModule schoolCode={schoolCode} currentUser={currentUser} />) },
+    { id: "feestructure", label: "Fee Structure", icon: icon(Landmark), component: view(<FeeStructure schoolCode={schoolCode} schoolName={schoolName} />) },
+    { id: "expenses", label: "Expenses", icon: icon(Wallet), component: view(<Expenses schoolCode={schoolCode} currentUser={currentUser} />) },
+    { id: "sponsors", label: "Sponsors", icon: icon(Users), component: view(<Sponsors schoolCode={schoolCode} currentUser={currentUser} />) },
+    { id: "financereports", label: "Finance Reports", icon: icon(FileText), component: view(<FinanceReports schoolCode={schoolCode} schoolName={schoolName} />) },
+    // Staff and operations
+    { id: "staff", label: "Staff", icon: icon(UserCog), component: view(<StaffManagement schoolCode={schoolCode} schoolName={schoolName} />) },
+    { id: "leave", label: "Leave & Cover", icon: icon(CalendarOff), component: view(<LeaveModule schoolCode={schoolCode} currentUser={currentUser} mode="head" />) },
+    { id: "health", label: "Health", icon: icon(HeartPulse), component: view(<HealthModule schoolCode={schoolCode} currentUser={currentUser} mode="lead" />) },
+    { id: "transport", label: "Transport", icon: icon(Bus), component: view(<TransportModule schoolCode={schoolCode} currentUser={currentUser} />) },
+    ...(boards(settings)
+      ? [{ id: "boarding", label: "Boarding", icon: icon(BedDouble), component: view(<Boarding schoolCode={schoolCode} currentUser={currentUser} />) }]
+      : []),
+    { id: "inventory", label: "Inventory", icon: icon(Package), component: view(<Inventory schoolCode={schoolCode} currentUser={currentUser} />) },
+    { id: "library", label: "Library", icon: icon(Library), component: view(<LibraryModule schoolCode={schoolCode} currentUser={currentUser} />) },
+    { id: "announcements", label: "Announcements", icon: icon(Bell), component: view(<AnnouncementsModule schoolCode={schoolCode} userId={uid} userName={displayName} />) },
+    { id: "calendar", label: "School Calendar", icon: icon(CalendarDays), component: view(<CalendarModule schoolCode={schoolCode} currentUser={currentUser} />) },
+    { id: "audit", label: "Audit Log", icon: icon(ShieldCheck), component: view(<AuditLog schoolCode={schoolCode} />) },
     {
-      id: "finance", label: "Fee Position", icon: <Wallet className="w-5 h-5" />,
-      component: <FeePosition overview={overviewData} loading={overviewLoading} academicYear={academicYear} />,
-    },
-    {
-      id: "billing", label: "Subscription", icon: <CreditCard className="w-5 h-5" />,
+      id: "billing", label: "Subscription", icon: icon(CreditCard),
       component: <Billing schoolData={schoolData} schoolCode={schoolCode} canPay />,
     },
   ];
