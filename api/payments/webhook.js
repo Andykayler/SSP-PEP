@@ -21,6 +21,7 @@
 // is legitimately still pending is noise, not recovery.
 // ─────────────────────────────────────────────────────────────────────────────
 import { verifyWebhookSignature } from "../_lib/paychangu.js";
+import { recordConnectEvent } from "../_lib/connectWebhook.js";
 import { settleTransaction } from "../_lib/settle.js";
 import { sendWhatsAppText, isConfigured as waConfigured } from "../_lib/waapi.js";
 
@@ -79,10 +80,19 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  // The Connect app's own webhook (a school linking its PayChangu account) is
+  // pointed at ?source=connect. It is only recorded — see api/_lib/connectWebhook.js.
+  const isConnect = new URL(req.url || "/", "http://localhost").searchParams.get("source") === "connect";
+
   let payload = {};
   try {
     const raw = await rawBody(req);
     payload = parseBody(raw, req.body);
+
+    if (isConnect) {
+      recordConnectEvent({ payload, raw, headers: req.headers });
+      return res.status(200).json({ received: true });
+    }
 
     if (raw) {
       const signature = req.headers.signature || req.headers["x-paychangu-signature"];

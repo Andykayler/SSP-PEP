@@ -122,6 +122,26 @@ settled by the API call regardless. A signature that never validates usually
 means `PAYCHANGU_WEBHOOK_SECRET` is wrong; watch the function logs for
 `webhook signature did not validate`.
 
+## The Connect app (schools linking their own PayChangu account)
+
+Not built yet beyond three stubs, because the linking and split-payment calls
+have not been confirmed against PayChangu's documentation:
+
+- **Redirect URL** `https://ssp-pep.vercel.app/pay/connected` — a public,
+  inert page (`src/pages/PayConnected.jsx`) that trusts nothing in its URL.
+- **Webhook URL** `https://ssp-pep.vercel.app/api/payments/webhook?source=connect`
+  — recorded only (`api/_lib/connectWebhook.js`): the event is logged with
+  secret-looking fields removed so the real payload can be read from the
+  function logs, and nothing acts on it. It shares the checkout webhook's file
+  because Vercel's plan caps the number of functions.
+- **Webhook secret** — `PAYCHANGU_CONNECT_WEBHOOK_SECRET`, the same value as
+  the Live secret on the Connect app. Checked advisorily, like the checkout one.
+
+PayChangu settings for the app: Connect fee 1.5% (Acalink's commission, within
+the 4.5% surcharge) and fee responsibility "Connected account", so the 3%
+processing fee comes out of the school's side of the split, which the family's
+surcharge covers.
+
 ## Environment variables
 
 Set these in **Vercel → Project → Settings → Environment Variables**, ticked for
