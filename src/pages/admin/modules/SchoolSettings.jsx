@@ -15,6 +15,7 @@ import {
   SECTIONS, CURRICULA, sectionsOf, sectionOfClass, sectionKeyOfClass, sectionName, sectionOrder, renameClass, ladderFor, classDocIdFor,
 } from "../../../services/curriculum";
 import CurriculumSettings from "../../../components/setup/CurriculumSettings";
+import OnlinePaymentAccount from "../../../components/payments/OnlinePaymentAccount";
 import {
   SMS_ALWAYS_CATEGORIES, SMS_FALLBACK_CATEGORIES,
   smsFallbackCategories, setSmsFallbackCategories,
@@ -363,6 +364,8 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
           <Btn onClick={savePayout} loading={savingPayout} variant="accent">Save Payout Destination</Btn>
         </div>
       </div>
+
+      <OnlinePaymentAccount schoolCode={schoolCode} />
 
       <div className="card" style={{ padding: 28 }}>
         <p style={{ fontFamily: "var(--font-display)", fontSize: 16, color: "var(--text)", letterSpacing: 0.5 }}>

@@ -1515,6 +1515,26 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // CONNECT REQUESTS
+    //
+    // A school asking to receive online fee payments in its own PayChangu
+    // account. One document per school (id = schoolCode). An administrator
+    // raises it, as 'requested' and nothing else; it is never edited from a
+    // browser — linking the account is done server-side. The platform owner
+    // reads them to see who has asked.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /connect_requests/{schoolCode} {
+      allow read: if isStaff() &&
+                  ((isAdmin() && sameSchool(schoolCode)) || isPlatformOwner());
+      allow create: if isStaff() && isAdmin() &&
+                    request.resource.data.schoolCode == schoolCode &&
+                    sameSchool(schoolCode) &&
+                    schoolIsActive(schoolCode) &&
+                    request.resource.data.status == 'requested';
+      allow update, delete: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // PAYMENT TRANSACTIONS AND SUBSCRIPTION RECEIPTS
     //
     // Both are written exclusively by the serverless functions under api/,

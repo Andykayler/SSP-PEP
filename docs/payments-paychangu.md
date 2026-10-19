@@ -137,6 +137,12 @@ have not been confirmed against PayChangu's documentation:
 - **Webhook secret** — `PAYCHANGU_CONNECT_WEBHOOK_SECRET`, the same value as
   the Live secret on the Connect app. Checked advisorily, like the checkout one.
 
+- **Admin side** — Admin → School Settings → *Online Payment Account*: says
+  where a school's online payments go today and lets its administrator
+  **request its own PayChangu account**. That writes `connect_requests/{schoolCode}`
+  (status `requested`; browsers cannot edit it afterwards) and changes nothing
+  about how the school is paid. Linking the account itself is not built yet.
+
 PayChangu settings for the app: Connect fee 1.5% (Acalink's commission, within
 the 4.5% surcharge) and fee responsibility "Connected account", so the 3%
 processing fee comes out of the school's side of the split, which the family's
