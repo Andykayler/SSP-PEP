@@ -23,7 +23,7 @@ export function computeFinancePulse({ students = [], assignments = [], payments 
 
   const billedBy = new Map();
   for (const a of assignments) {
-    if (!activeIds.has(a.studentId)) continue;
+    if (!activeIds.has(a.studentId) || a.optional) continue;
     billedBy.set(a.studentId, (billedBy.get(a.studentId) || 0) + Number(a.amount || a.totalAmount || 0));
   }
 

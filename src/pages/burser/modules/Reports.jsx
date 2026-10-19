@@ -50,7 +50,7 @@ export default function Reports({ schoolCode, schoolName }) {
   // Enriched student data
   const enriched = useMemo(() => {
     return students.map(s => {
-      const assigned = feeAssignments.filter(fa => fa.studentId === s.id);
+      const assigned = feeAssignments.filter(fa => fa.studentId === s.id && !fa.optional);
       const totalCharged = assigned.reduce((sum, fa) => sum + (fa.amount || 0), 0);
       const totalPaid = payments.filter(p => p.studentId === s.id).reduce((sum, p) => sum + (p.amount || 0), 0);
       return { ...s, totalCharged, totalPaid, balance: totalCharged - totalPaid };

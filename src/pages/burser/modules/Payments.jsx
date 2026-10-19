@@ -288,7 +288,7 @@ export default function Payments({ schoolCode, bursarName }) {
   }, [schoolCode]);
 
   const studentFinancials = useCallback((studentId) => {
-    const totalCharged = feeAssignments.filter((fa) => fa.studentId === studentId).reduce((s, fa) => s + (fa.amount || 0), 0);
+    const totalCharged = feeAssignments.filter((fa) => fa.studentId === studentId && !fa.optional).reduce((s, fa) => s + (fa.amount || 0), 0);
     const totalPaid = payments.filter((p) => p.studentId === studentId && isCounted(p)).reduce((s, p) => s + (p.amount || 0), 0);
     const balance = totalCharged - totalPaid;
     return { totalCharged, totalPaid, balance };

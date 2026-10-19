@@ -77,7 +77,7 @@ export default function Sponsors({ schoolCode, currentUser }) {
   // termsMatch rather than equality: fee_assignments store "Term 1" (and
   // "Full Year") while this screen knows "Term 1 2026".
   const chargedFor = useCallback((studentId) => charges
-    .filter((c) => c.studentId === studentId && (!term || termsMatch(c.term, term)))
+    .filter((c) => c.studentId === studentId && !c.optional && (!term || termsMatch(c.term, term)))
     .reduce((s, c) => s + (Number(c.amount) || 0), 0), [charges, term]);
 
   const sponsorPaidFor = useCallback((studentId, sponsorId) => payments
