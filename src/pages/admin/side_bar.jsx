@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 export const NAV_ITEMS = [
   { id: "overview",      label: "Overview",        icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} width={20} height={20}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955a1.126 1.126 0 011.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/></svg> },
@@ -56,6 +56,34 @@ export default function HeadTeacherSidebar({
   const [weather, setWeather] = useState(getInitialWeather);
   const isDesktop = useIsDesktop();
 
+  // Items may carry a `group`. Grouped items fold under a heading so a portal
+  // with dozens of modules (the director's) is not one long scroll; items with
+  // no group render as before, so the other portals are unchanged. The group
+  // holding the open page is always expanded.
+  const { loose, groups } = useMemo(() => {
+    const loose = [];
+    const byName = new Map();
+    for (const item of navItems) {
+      if (!item.group) { loose.push(item); continue; }
+      if (!byName.has(item.group)) byName.set(item.group, []);
+      byName.get(item.group).push(item);
+    }
+    return { loose, groups: [...byName.entries()].map(([name, items]) => ({ name, items })) };
+  }, [navItems]);
+
+  const activeGroup = navItems.find((i) => i.id === currentTab)?.group || "";
+  const [opened, setOpened] = useState(() => new Set(activeGroup ? [activeGroup] : []));
+  const [prevActiveGroup, setPrevActiveGroup] = useState(activeGroup);
+  if (activeGroup !== prevActiveGroup) {
+    setPrevActiveGroup(activeGroup);
+    if (activeGroup && !opened.has(activeGroup)) setOpened(new Set([...opened, activeGroup]));
+  }
+  const toggleGroup = (name) => setOpened((prev) => {
+    const next = new Set(prev);
+    if (next.has(name)) next.delete(name); else next.add(name);
+    return next;
+  });
+
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
@@ -70,6 +98,57 @@ export default function HeadTeacherSidebar({
 
   /* ── derived visibility ── */
   const visible = isDesktop || isOpen;
+
+  const renderItem = (item) => {
+    const active = currentTab === item.id;
+    return (
+      <li key={item.id}>
+        <button
+          data-tour={`nav-${item.id}`}
+          onClick={() => { onTabChange(item.id); onClose?.(); }}
+          className={`sb-nav-btn${active ? " sb-nav-btn--active" : ""}`}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            width: "100%",
+            padding: "10px 16px",
+            borderRadius: "var(--radius-lg)",
+            color: active ? "var(--primary)" : "var(--text-secondary)",
+            background: active ? "var(--primary-dim)" : "transparent",
+            border: "none",
+            borderLeft: `3px solid ${active ? "var(--primary)" : "transparent"}`,
+            fontFamily: "var(--font-body)",
+            fontWeight: 500,
+            fontSize: "0.85rem",
+            cursor: "pointer",
+            transition: "all var(--transition-base)",
+            textAlign: "left",
+            minHeight: 42,
+          }}
+        >
+          <span style={{ width: 22, height: 22, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            {item.icon}
+          </span>
+          <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {item.label}
+          </span>
+          {item.badge && (
+            <span style={{
+              marginLeft: "auto",
+              background: "var(--primary)",
+              color: "#fff",
+              fontSize: "0.6rem",
+              fontWeight: 700,
+              padding: "2px 8px",
+              borderRadius: 40,
+              flexShrink: 0,
+            }}>{item.badge}</span>
+          )}
+        </button>
+      </li>
+    );
+  };
 
   return (
     <>
@@ -226,57 +305,45 @@ export default function HeadTeacherSidebar({
           }}>{navSectionLabel}</span>
 
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-            {navItems.map((item) => {
-              const active = currentTab === item.id;
-              return (
-                <li key={item.id}>
-                  <button
-                    data-tour={`nav-${item.id}`}
-                    onClick={() => { onTabChange(item.id); onClose?.(); }}
-                    className={`sb-nav-btn${active ? " sb-nav-btn--active" : ""}`}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 14,
-                      width: "100%",
-                      padding: "10px 16px",
-                      borderRadius: "var(--radius-lg)",
-                      color: active ? "var(--primary)" : "var(--text-secondary)",
-                      background: active ? "var(--primary-dim)" : "transparent",
-                      border: "none",
-                      borderLeft: `3px solid ${active ? "var(--primary)" : "transparent"}`,
-                      fontFamily: "var(--font-body)",
-                      fontWeight: 500,
-                      fontSize: "0.85rem",
-                      cursor: "pointer",
-                      transition: "all var(--transition-base)",
-                      textAlign: "left",
-                      minHeight: 42,
-                    }}
-                  >
-                    <span style={{ width: 22, height: 22, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      {item.icon}
-                    </span>
-                    <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {item.label}
-                    </span>
-                    {item.badge && (
-                      <span style={{
-                        marginLeft: "auto",
-                        background: "var(--primary)",
-                        color: "#fff",
-                        fontSize: "0.6rem",
-                        fontWeight: 700,
-                        padding: "2px 8px",
-                        borderRadius: 40,
-                        flexShrink: 0,
-                      }}>{item.badge}</span>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
+            {loose.map(renderItem)}
           </ul>
+
+          {groups.map((g) => {
+            const isOpen = opened.has(g.name);
+            const pending = g.items.reduce((n, i) => n + (Number(i.badge) || 0), 0);
+            return (
+              <div key={g.name} style={{ marginTop: 14 }}>
+                <button
+                  type="button"
+                  className="sb-group-btn"
+                  onClick={() => toggleGroup(g.name)}
+                  aria-expanded={isOpen}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8, width: "100%",
+                    padding: "8px 12px", background: "transparent", border: "none",
+                    cursor: "pointer", textAlign: "left",
+                    fontFamily: "var(--font-mono)", fontSize: "0.65rem", letterSpacing: "1.5px",
+                    textTransform: "uppercase", color: "var(--text-muted)",
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width={14} height={14}
+                    style={{ transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }} aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                  <span style={{ flex: 1 }}>{g.name}</span>
+                  {!isOpen && pending > 0 && (
+                    <span style={{ background: "var(--primary)", color: "#fff", fontSize: "0.6rem", fontWeight: 700, padding: "1px 7px", borderRadius: 40 }}>{pending}</span>
+                  )}
+                  <span style={{ fontSize: "0.6rem", opacity: 0.7 }}>{g.items.length}</span>
+                </button>
+                {isOpen && (
+                  <ul style={{ listStyle: "none", margin: "2px 0 0", padding: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+                    {g.items.map(renderItem)}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
         </nav>
 
         {/* ── Footer ── */}

@@ -24,7 +24,7 @@ import { roleMap } from "../../admin/modules/constants";
 import useSchoolAccess from "../../../components/subscription/useSchoolAccess";
 import { plural } from "../../../components/overview/overviewText";
 import {
-  OverviewHero, TodoSheet, SectionTitle, StatGrid, QuickActions, Panel, EmptyNote, Banner,
+  OverviewHero, TodoSheet, SectionTitle, StatGrid, QuickActions, Panel, EmptyNote, Banner, ModuleDirectory,
 } from "../../../components/overview/OverviewKit";
 
 /** A percentage where "no data" and "zero per cent" must not look the same. */
@@ -54,7 +54,7 @@ const quickActions = [
 ];
 
 export default function SchoolOverview({
-  displayName = "Director", schoolName, schoolCode, overview, loading, pendingTransfers = 0, onOpenTab,
+  displayName = "Director", schoolName, schoolCode, overview, loading, pendingTransfers = 0, onOpenTab, navItems = [], moduleGroups = [], moduleHints = {},
 }) {
   const { access } = useSchoolAccess(schoolCode);
   const { totals, campuses, staffByRole, unverifiedPayments } = overview;
@@ -229,6 +229,13 @@ export default function SchoolOverview({
           }
         />
       </section>
+
+      {navItems.length > 0 && (
+        <section aria-labelledby="tp-modules">
+          <SectionTitle id="tp-modules">Every module, view only</SectionTitle>
+          <ModuleDirectory groups={moduleGroups} navItems={navItems} hints={moduleHints} onOpen={onOpenTab} />
+        </section>
+      )}
 
       <p className="module-sub" style={{ fontSize: 12.5 }}>
         Figures are read live from the school&apos;s own records, so they always match the bursar&apos;s ledger.

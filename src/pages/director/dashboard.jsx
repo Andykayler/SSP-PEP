@@ -81,6 +81,36 @@ import "../burser/modules/staff-management.css";
 import "../../styles/paper-skin.css";
 import useDashboardSkin from "../../hooks/useDashboardSkin";
 
+// The sidebar folds these under headings so thirty-odd modules are not one long
+// scroll; the overview shows the same groups as cards. Ids not listed (the
+// first screens, and Subscription) stay at the top level.
+const MODULE_GROUPS = [
+  { title: "Learning & results", ids: ["students", "classes", "attendance", "homework", "performance", "exams", "readiness", "reports", "timetable", "lessonplans", "classmonitor"] },
+  { title: "Welfare & admissions", ids: ["discipline", "atrisk", "health", "admissions", "boarding"] },
+  { title: "Fees & finance", ids: ["finance", "studentfees", "payments", "receipts", "arrears", "feestructure", "expenses", "sponsors", "financereports"] },
+  { title: "Staff & operations", ids: ["staff", "leave", "transport", "inventory", "library", "announcements", "calendar", "audit"] },
+];
+
+const MODULE_HINTS = {
+  students: "Roll, classes and guardians", classes: "Forms, streams and teachers",
+  attendance: "Registers and absence trends", homework: "Work set and handed in",
+  performance: "Marks, grades and rankings", exams: "Papers, rooms and invigilation",
+  readiness: "MSCE / JCE preparation", reports: "Report cards and returns",
+  timetable: "The weekly timetable", lessonplans: "Teachers' lesson plans",
+  classmonitor: "Which lessons ran today", discipline: "Cases and outcomes",
+  atrisk: "Learners who need attention", health: "Sick bay and health records",
+  admissions: "Applications and enrolment", boarding: "Hostels and allocations",
+  finance: "Billed, collected, outstanding", studentfees: "Balances per student",
+  payments: "Every payment received", receipts: "Receipts issued",
+  arrears: "Who owes, and for how long", feestructure: "Fees set for each class",
+  expenses: "What the school spent", sponsors: "Sponsors and bursaries",
+  financereports: "Fee reports and exports", staff: "Staff list and assignments",
+  leave: "Staff leave and lesson cover", transport: "Routes and riders",
+  inventory: "Stock and issues", library: "Catalogue and loans",
+  announcements: "Notices to staff and parents", calendar: "Terms, holidays and events",
+  audit: "Who changed what",
+};
+
 export default function DirectorDashboard() {
   useDashboardSkin("paper");
   const [currentTab, setCurrentTab] = useState("overview");
@@ -249,6 +279,14 @@ export default function DirectorDashboard() {
     },
   ];
 
+  // Tag each item with its sidebar group; anything not listed stays top-level.
+  const groupOf = Object.fromEntries(MODULE_GROUPS.flatMap((g) => g.ids.map((id) => [id, g.title])));
+  const sortedNav = [
+    ...navItems.filter((i) => !groupOf[i.id]),
+    ...MODULE_GROUPS.flatMap((g) => g.ids.map((id) => navItems.find((i) => i.id === id)).filter(Boolean)),
+  ].map((i) => (groupOf[i.id] ? { ...i, group: groupOf[i.id] } : i));
+  // Subscription belongs after the groups, not before; keep the order the
+  // sidebar renders: loose items first, then each group.
   const currentNavItem = navItems.find((i) => i.id === currentTab);
 
   if (loading) {
@@ -275,7 +313,7 @@ export default function DirectorDashboard() {
 
   return (
     <DashboardShell
-      navItems={navItems}
+      navItems={sortedNav}
       currentTab={currentTab}
       onTabChange={setCurrentTab}
       title={currentTab === "overview" ? "School Overview" : currentNavItem?.label}
@@ -301,6 +339,9 @@ export default function DirectorDashboard() {
           loading={overviewLoading}
           pendingTransfers={pending}
           onOpenTab={setCurrentTab}
+          navItems={navItems}
+          moduleGroups={MODULE_GROUPS}
+          moduleHints={MODULE_HINTS}
         />
       ) : (
         currentNavItem?.component || null
