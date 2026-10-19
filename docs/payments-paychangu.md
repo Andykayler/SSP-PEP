@@ -184,6 +184,8 @@ of them reach the browser bundle — `vite.config.js` allowlists only `VITE_`,
 | `FIREBASE_ADMIN_PRIVATE_KEY` | Firebase service account — the full PEM, newlines as `\n` |
 | `APP_URL` | `https://ssp-pep.vercel.app` — used to build the callback and return URLs |
 
+Optional: `PAYCHANGU_SEND_PAYER_EMAIL=true` sends the payer's email to PayChangu with each hosted checkout. Off by default: with an email, the checkout opens on "Vault" (saved numbers behind an emailed code) instead of the payment methods.
+
 Optional: `PAYCHANGU_API_BASE` (defaults to `https://api.paychangu.com`).
 
 In the PayChangu dashboard, set the webhook URL to:

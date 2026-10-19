@@ -121,7 +121,13 @@ export async function createCheckout({
       tx_ref: txRef,
       amount: String(amount),
       currency: CURRENCY,
-      email: email || undefined,
+      // The payer's email is NOT sent by default. PayChangu's hosted checkout
+      // uses it to offer "Vault" (saved numbers, unlocked by an emailed code),
+      // which then opens as the default method and, when PayChangu's own mail
+      // delivery fails, blocks the payer behind an error. Without an email the
+      // checkout goes straight to the payment methods. Set
+      // PAYCHANGU_SEND_PAYER_EMAIL=true to send it again.
+      email: process.env.PAYCHANGU_SEND_PAYER_EMAIL === "true" ? (email || undefined) : undefined,
       first_name: firstName || undefined,
       last_name: lastName || undefined,
       // PayChangu calls `callback_url` on completion (server to server) and
