@@ -51,6 +51,32 @@ export async function startCheckout(payload) {
   return res.json();   // { txRef, checkoutUrl, amount, currency }
 }
 
+/**
+ * Asks the server for the link that sends a school to PayChangu to connect its
+ * own account. Administrator only; the server decides that, not this file.
+ * @returns {Promise<{ url: string }>}
+ */
+export async function startConnect() {
+  const res = await fetch("/api/payments/initiate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await authHeader()) },
+    body: JSON.stringify({ action: "connect_start" }),
+  });
+  if (!res.ok) throw new Error(await readError(res, "Could not start the connection."));
+  return res.json();
+}
+
+/** Hands the server what PayChangu sent the browser back with. Values are never shown or logged here. */
+export async function completeConnect(params) {
+  const res = await fetch("/api/payments/initiate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await authHeader()) },
+    body: JSON.stringify({ action: "connect_complete", params }),
+  });
+  if (!res.ok) throw new Error(await readError(res, "Could not finish the connection."));
+  return res.json();
+}
+
 /** One look at a transaction. Settles it server-side if the webhook is late. */
 export async function checkStatus(txRef) {
   const res = await fetch(`/api/payments/status?tx_ref=${encodeURIComponent(txRef)}`, {

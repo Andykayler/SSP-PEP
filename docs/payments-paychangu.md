@@ -124,29 +124,49 @@ means `PAYCHANGU_WEBHOOK_SECRET` is wrong; watch the function logs for
 
 ## The Connect app (schools linking their own PayChangu account)
 
-Not built yet beyond three stubs, because the linking and split-payment calls
-have not been confirmed against PayChangu's documentation:
+PayChangu Connect lets a school authorise the Acalink app on its OWN PayChangu
+account, so Acalink never holds that school's money and takes a commission
+(the app's Connect fee, 1.5%) on each payment. The school needs a PayChangu
+account first.
 
-- **Redirect URL** `https://ssp-pep.vercel.app/pay/connected` — a public,
-  inert page (`src/pages/PayConnected.jsx`) that trusts nothing in its URL.
-- **Webhook URL** `https://ssp-pep.vercel.app/api/payments/webhook?source=connect`
-  — recorded only (`api/_lib/connectWebhook.js`): the event is logged with
-  secret-looking fields removed so the real payload can be read from the
-  function logs, and nothing acts on it. It shares the checkout webhook's file
-  because Vercel's plan caps the number of functions.
-- **Webhook secret** — `PAYCHANGU_CONNECT_WEBHOOK_SECRET`, the same value as
-  the Live secret on the Connect app. Checked advisorily, like the checkout one.
+**Built:** the connection.
+1. Admin → School Settings → *Online Payment Account* → **Connect my PayChangu
+   account** calls `POST /api/payments/initiate` with `action: connect_start`
+   (`api/_lib/connectLink.js`). The server notes who started it, then calls
+   PayChangu's `POST /connect/authorize-link` (client_id, redirect_uri, scope
+   `payments:write payments:read`, mode, and a per-school webhook URL + secret)
+   and sends the administrator to the URL it returns.
+2. The administrator approves on PayChangu, which redirects the browser to the
+   app's redirect URL with an access token.
+3. `/pay/connected` (`src/pages/PayConnected.jsx`) removes the query string from
+   the address bar and sends it to the server (`action: connect_complete`). The
+   server accepts it only from the administrator who started this connection,
+   within 30 minutes (PayChangu returns no `state`, so that note is what binds
+   the return to a school), and stores it untouched in `connect_links/{schoolCode}`
+   — a collection no browser can read.
 
-- **Admin side** — Admin → School Settings → *Online Payment Account*: says
-  where a school's online payments go today and lets its administrator
-  **request its own PayChangu account**. That writes `connect_requests/{schoolCode}`
-  (status `requested`; browsers cannot edit it afterwards) and changes nothing
-  about how the school is paid. Linking the account itself is not built yet.
+**Not built:** using the token. Exchanging it and charging on a school's behalf,
+with the commission, is the next step; until then every school is still paid
+the original way (Acalink's account, then payout), whatever `connect_links` holds.
 
-PayChangu settings for the app: Connect fee 1.5% (Acalink's commission, within
-the 4.5% surcharge) and fee responsibility "Connected account", so the 3%
-processing fee comes out of the school's side of the split, which the family's
-surcharge covers.
+Environment variables for Connect (Vercel):
+
+| Variable | What |
+|---|---|
+| `PAYCHANGU_CONNECT_CLIENT_ID` | the app's Client ID (`ca_…`) |
+| `PAYCHANGU_CONNECT_REDIRECT_URI` | exactly the redirect URL registered on the app. Must be on the SAME site as the admin portal, or the administrator's sign-in is not there when PayChangu sends them back |
+| `PAYCHANGU_CONNECT_WEBHOOK_SECRET` | master secret; each school's webhook secret is derived from it, so one school's cannot sign another's events |
+
+The Connect webhook (`/api/payments/webhook?source=connect[&school=CODE]`) is
+still record-only (`api/_lib/connectWebhook.js`): events are logged with
+secret-looking fields removed and nothing acts on them.
+
+PayChangu app settings: Connect fee 1.5% and fee responsibility "Connected
+account", so the ~3% processing fee comes out of the school's side of the
+split, which the family's 4.5% surcharge covers.
+
+Schools that have not connected, or asked to (`connect_requests/{schoolCode}`),
+are paid as before.
 
 ## Environment variables
 

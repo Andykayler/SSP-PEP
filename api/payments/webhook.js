@@ -82,7 +82,8 @@ export default async function handler(req, res) {
 
   // The Connect app's own webhook (a school linking its PayChangu account) is
   // pointed at ?source=connect. It is only recorded — see api/_lib/connectWebhook.js.
-  const isConnect = new URL(req.url || "/", "http://localhost").searchParams.get("source") === "connect";
+  const query = new URL(req.url || "/", "http://localhost").searchParams;
+  const isConnect = query.get("source") === "connect";
 
   let payload = {};
   try {
@@ -90,7 +91,7 @@ export default async function handler(req, res) {
     payload = parseBody(raw, req.body);
 
     if (isConnect) {
-      recordConnectEvent({ payload, raw, headers: req.headers });
+      recordConnectEvent({ payload, raw, headers: req.headers, schoolCode: query.get("school") || "" });
       return res.status(200).json({ received: true });
     }
 

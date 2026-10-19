@@ -34,6 +34,7 @@
 //   APP_URL                  public origin, used to build the return URL
 // ─────────────────────────────────────────────────────────────────────────────
 import crypto from "node:crypto";
+import { buildAuthorizeQuery, extractConnectUrl } from "./connectLinkCore.js";
 
 const API_BASE = process.env.PAYCHANGU_API_BASE || "https://api.paychangu.com";
 
@@ -337,6 +338,22 @@ export function verifyWebhookSignature(rawBody, signatureHeader) {
   const b = Buffer.from(given, "utf8");
   if (a.length !== b.length) return false;
   return crypto.timingSafeEqual(a, b);
+}
+
+/**
+ * Asks PayChangu for the Connect authorization URL a school is sent to.
+ * POST /connect/authorize-link with the parameters in the query string.
+ */
+export async function createConnectLink({ clientId, redirectUri, mode, whUrl, whSecret }) {
+  const query = buildAuthorizeQuery({ clientId, redirectUri, mode, whUrl, whSecret });
+  const data = await call(`/connect/authorize-link?${query}`, { method: "POST" });
+  const url = extractConnectUrl(data);
+  if (!url) {
+    // The reply's shape is not documented; say what it looked like (keys only).
+    console.error("[connect] no link found in authorize-link reply; keys:", Object.keys(data || {}).join(", "));
+    throw new Error("PayChangu did not return a connect link.");
+  }
+  return { url };
 }
 
 /** True when the gateway is configured at all — used for a clear 503. */

@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react";
 import { Landmark, CheckCircle2 } from "lucide-react";
 import { auth } from "../../firebase";
+import { startConnect } from "../../services/paychangu";
 import { fetchConnectRequest, requestOwnAccount, CONNECT_REQUESTED } from "../../services/connectRequests";
 
 export default function OnlinePaymentAccount({ schoolCode }) {
@@ -39,6 +40,19 @@ export default function OnlinePaymentAccount({ schoolCode }) {
     setBusy(false);
   }
 
+  // Sends the administrator to PayChangu to approve the Acalink app on their
+  // own account. The page they come back to is /pay/connected.
+  async function connect() {
+    setBusy(true); setError("");
+    try {
+      const { url } = await startConnect();
+      window.location.assign(url);
+    } catch (err) {
+      setError(err.message || "Could not start the connection.");
+      setBusy(false);
+    }
+  }
+
   const requested = request?.status === CONNECT_REQUESTED;
 
   return (
@@ -49,27 +63,33 @@ export default function OnlinePaymentAccount({ schoolCode }) {
       <p style={{ fontSize: 12, color: "var(--text3)", marginTop: 2, marginBottom: 14 }}>
         Right now families&apos; online payments go through Acalink&apos;s PayChangu account and
         your share is paid out to the mobile money number above. If you would rather
-        receive them straight into your school&apos;s own PayChangu account, ask below.
+        receive them straight into your school&apos;s own PayChangu account, connect it
+        below. You need a PayChangu account first.
       </p>
 
       {error && <div className="alert alert--error" style={{ marginBottom: 12 }}><span>{error}</span></div>}
 
       {request === undefined ? (
         <p className="text-muted" style={{ fontSize: 13 }}>Checking…</p>
-      ) : requested ? (
-        <div className="alert alert--success" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <CheckCircle2 size={16} aria-hidden="true" />
-          <span>
-            Request sent. Acalink will contact you to link your PayChangu account. Until then
-            nothing changes and your payments keep arriving as before.
-          </span>
-        </div>
       ) : (
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <button type="button" className="btn btn--accent btn--md" onClick={ask} disabled={busy}>
-            {busy ? "Sending…" : "Request my own PayChangu account"}
-          </button>
-        </div>
+        <>
+          {requested && (
+            <div className="alert alert--success" style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
+              <CheckCircle2 size={16} aria-hidden="true" />
+              <span>Request sent. Acalink will contact you. Until then nothing changes.</span>
+            </div>
+          )}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
+            {!requested && (
+              <button type="button" className="btn btn--secondary btn--md" onClick={ask} disabled={busy}>
+                Ask Acalink to set it up
+              </button>
+            )}
+            <button type="button" className="btn btn--accent btn--md" onClick={connect} disabled={busy}>
+              {busy ? "Opening PayChangu…" : "Connect my PayChangu account"}
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

@@ -28,6 +28,7 @@ import { isDeactivated } from "../../src/services/staffAccountCore.js";
 import { createCheckout, makeTxRef, isConfigured, CURRENCY } from "../_lib/paychangu.js";
 import { TX_COLLECTION } from "../_lib/settle.js";
 import { quote } from "../../src/services/pricing.js";
+import { startConnect, completeConnect } from "../_lib/connectLink.js";
 import { calculateTransactionFee } from "../../src/services/transactionFeeCore.js";
 
 const FINANCE_ROLES = ["admin", "bursar"];
@@ -94,6 +95,21 @@ export default async function handler(req, res) {
 
   const auth = await authenticate(req);
   if (auth.error) return res.status(401).json({ error: auth.error });
+
+  // A school linking its own PayChangu account shares this endpoint (see
+  // api/_lib/connectLink.js) — the function budget leaves no room for another.
+  if (body.action === "connect_start" || body.action === "connect_complete") {
+    try {
+      const out = body.action === "connect_start"
+        ? await startConnect({ auth, origin: originOf(req) })
+        : await completeConnect({ auth, body });
+      if (out.error) return res.status(out.status || 400).json({ error: out.error });
+      return res.status(200).json(out);
+    } catch (err) {
+      console.error("[connect]", body.action, "failed:", err);
+      return res.status(502).json({ error: err.message || "Could not reach PayChangu." });
+    }
+  }
 
   const purpose = body.purpose === "subscription" ? "subscription" : "school_fee";
 

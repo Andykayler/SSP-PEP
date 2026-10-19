@@ -14,6 +14,7 @@
 // built to avoid.
 // ─────────────────────────────────────────────────────────────────────────────
 import crypto from "node:crypto";
+import { deriveSchoolWebhookSecret } from "./connectLinkCore.js";
 
 const SECRETISH = /token|secret|key|password|authorization|signature|code$/i;
 
@@ -30,8 +31,11 @@ export function redact(value, depth = 0) {
 }
 
 /** Advisory, like the checkout webhook: HMAC-SHA256 of the raw body with the Connect webhook secret. */
-export function verifyConnectSignature(rawBody, signatureHeader) {
-  const secret = process.env.PAYCHANGU_CONNECT_WEBHOOK_SECRET;
+export function verifyConnectSignature(rawBody, signatureHeader, schoolCode = "") {
+  const master = process.env.PAYCHANGU_CONNECT_WEBHOOK_SECRET;
+  // An event for one school's link is signed with that school's own derived
+  // secret (see connectLinkCore.js); the app-level webhook uses the master.
+  const secret = schoolCode ? deriveSchoolWebhookSecret(master, schoolCode) : master;
   if (!secret || !signatureHeader || !rawBody) return false;
   const expected = crypto.createHmac("sha256", secret).update(rawBody, "utf8").digest("hex");
   const given = String(signatureHeader).trim().toLowerCase();
@@ -41,10 +45,11 @@ export function verifyConnectSignature(rawBody, signatureHeader) {
 }
 
 /** Logs one Connect event. Never throws and never acts on the payload. */
-export function recordConnectEvent({ payload, raw, headers = {} }) {
+export function recordConnectEvent({ payload, raw, headers = {}, schoolCode = "" }) {
   const signature = headers.signature || headers["x-paychangu-signature"];
-  const signed = raw ? verifyConnectSignature(raw, signature) : null;
+  const signed = raw ? verifyConnectSignature(raw, signature, schoolCode) : null;
   console.log("[connect] webhook received", JSON.stringify({
+    school: schoolCode || undefined,
     signatureValid: signed,
     headerNames: Object.keys(headers).filter((h) => /sign|paychangu|event/i.test(h)),
     event: redact(payload),

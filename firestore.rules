@@ -1577,6 +1577,10 @@ service cloud.firestore {
     //   wa_payment_attempts  fee payments started from WhatsApp
     //   wa_reminders_sent    api/whatsapp/send-reminders.js dedupe log
     // ─────────────────────────────────────────────────────────────────────────
+    //   connect_links        api/_lib/connectLink.js (a school linking its own
+    //                        PayChangu account; holds what PayChangu returned,
+    //                        access token included — no browser may read it)
+    match /connect_links/{id}       { allow read, write: if false; }
     match /otp_challenges/{id}      { allow read, write: if false; }
     match /wa_sessions/{id}         { allow read, write: if false; }
     match /wa_optouts/{id}          { allow read, write: if false; }
