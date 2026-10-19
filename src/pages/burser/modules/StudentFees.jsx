@@ -454,8 +454,8 @@ export default function StudentFees({ schoolCode, currentUser }) {
           <Btn variant="secondary" onClick={() => { setLoading(true); fetchAll({ sync: Boolean(currentTerm) }); }} loading={loading} title="Refresh and update billing">
             <RefreshCw size={16} />
           </Btn>
-          <Btn variant="secondary" onClick={() => setResetOpen(true)} disabled={!currentTerm} title="Take this term off every student's bill">
-            <Eraser size={16} /> Reset billing
+          <Btn variant="secondary" onClick={() => setResetOpen(true)} disabled={!currentTerm} title="Remove every student from this term and enrol them again">
+            <Eraser size={16} /> Re-enrol everyone
           </Btn>
         </div>
       </div>
@@ -667,7 +667,7 @@ export default function StudentFees({ schoolCode, currentUser }) {
       {/* Optional fee add / remove */}
       {resetOpen && (
         <Modal
-          title="Reset this term's billing"
+          title="Remove everyone and enrol again"
           subtitle={currentTerm}
           onClose={() => !actionLoading && setResetOpen(false)}
         >
@@ -675,24 +675,18 @@ export default function StudentFees({ schoolCode, currentUser }) {
             <div className="alert alert--warning">
               <AlertTriangle size={16} />
               <div>
-                This removes <strong>every charge</strong> on {currentTerm} for <strong>all students</strong> —
-                compulsory fees, optional fees you added, and any charge entered by hand. Payments are not
-                touched. Optional fees have to be added again afterwards.
+                This removes <strong>every student</strong> from {currentTerm} — all their charges, including
+                optional fees you added and any charge entered by hand — and then enrols every active student
+                again from their class&apos;s compulsory fees. Payments are not touched. Optional fees have to be
+                added again afterwards.
               </div>
             </div>
-            <div className="flex gap-4 mt-4" style={{ flexWrap: "wrap" }}>
+            <div className="flex gap-4 mt-4">
               <Btn variant="secondary" onClick={() => setResetOpen(false)} disabled={actionLoading} className="flex-1">Cancel</Btn>
-              <Btn variant="secondary" onClick={() => confirmReset(false)} loading={actionLoading} className="flex-1">
-                Unbill everyone
-              </Btn>
               <Btn variant="accent" onClick={() => confirmReset(true)} loading={actionLoading} className="flex-1">
-                Unbill, then bill again
+                Remove and enrol again
               </Btn>
             </div>
-            <p className="text-muted" style={{ fontSize: 12 }}>
-              &ldquo;Unbill everyone&rdquo; leaves the term empty until you press refresh or reopen this page,
-              which bills every active student from their class&apos;s compulsory fees again.
-            </p>
           </div>
         </Modal>
       )}

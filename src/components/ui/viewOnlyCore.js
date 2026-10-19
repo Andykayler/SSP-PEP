@@ -10,7 +10,7 @@ const WRITE_VERBS = [
   "promote", "generate", "revoke", "grant", "confirm", "verify", "allocate",
   "check in", "check out", "reply", "notify", "remind", "write", "change",
   "rename", "duplicate", "reopen", "re-issue", "reissue", "withdraw", "lend",
-  "renew", "reset", "unbill",
+  "renew", "reset", "unbill", "re-enrol",
 ];
 
 // Anchored at the start, optionally after a "+" or an icon glyph, and followed
