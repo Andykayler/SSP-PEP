@@ -16,11 +16,11 @@ customer, and a client-set price would let a school subscribe for one kwacha.
 
 ## The transaction fee (school fees only)
 
-A family paying a fee balance pays a 3.5% processing surcharge on top —
+A family paying a fee balance pays a 4.5% processing surcharge on top —
 `src/services/transactionFeeCore.js`, the one place this is calculated, used
 by every channel (portal, parent app, WhatsApp bot) so the total is never
-different depending on how a family paid. Of that 3.5%: ~3% is PayChangu's
-own processing cost, 0.5% is Acalink's own share.
+different depending on how a family paid. Of that 4.5%: ~3% is PayChangu's
+own processing cost, 1.5% is Acalink's own share (its commission).
 
 **The school is always credited with the full balance the family chose to
 pay — never less.** The fee comes entirely out of the family's side:

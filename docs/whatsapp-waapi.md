@@ -69,7 +69,7 @@ screen instead of re-implementing it.
 
 ## The transaction fee
 
-Every WhatsApp payment carries the same 3.5% processing surcharge as every
+Every WhatsApp payment carries the same 4.5% processing surcharge as every
 other channel — see "The transaction fee" in `payments-paychangu.md` for the
 full breakdown. The confirm step shows the family the fee and total before
 anything is charged; the amount credited to the student's balance is always
