@@ -26,6 +26,9 @@ const VerifyEmail = lazy(() => import("../pages/verifyEmail"));
 // once per payment, from an external redirect, and has nothing to do with the
 // portal chunk the payer happened to start from.
 const PayReturn = lazy(() => import("../pages/PayReturn"));
+// Where a school lands after approving the Acalink app on its own PayChangu
+// account. Public and inert — see the page for why.
+const PayConnected = lazy(() => import("../pages/PayConnected"));
 
 // Matches the loading state the dashboards render themselves while they check
 // auth, so a split chunk arriving is visually indistinguishable from the auth
@@ -107,6 +110,10 @@ const router = createBrowserRouter([
   {
     path: "/pay/return",
     element: portal(<PayReturn />),
+  },
+  {
+    path: "/pay/connected",
+    element: portal(<PayConnected />),
   },
 ]);
 
