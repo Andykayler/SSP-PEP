@@ -22,6 +22,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { verifyWebhookSignature } from "../_lib/paychangu.js";
 import { recordConnectEvent } from "../_lib/connectWebhook.js";
+import { payerReturnUrl } from "../_lib/webhookRedirect.js";
 import { settleTransaction } from "../_lib/settle.js";
 import { sendWhatsAppText, isConfigured as waConfigured } from "../_lib/waapi.js";
 
@@ -74,7 +75,32 @@ function parseBody(raw, parsed) {
   return parsed || {};
 }
 
+/** Our public origin, for sending a payer's browser on to the result page. */
+function originOf(req) {
+  if (process.env.APP_URL) {
+    const url = process.env.APP_URL;
+    return (/^https?:\/\//i.test(url) ? url : `https://${url}`).replace(/\/$/, "");
+  }
+  const host = req.headers["x-forwarded-host"] || req.headers.host;
+  const proto = req.headers["x-forwarded-proto"] || "https";
+  return `${proto}://${host}`;
+}
+
 export default async function handler(req, res) {
+  // PayChangu sometimes sends the PAYER'S BROWSER to the callback address
+  // after a payment (a GET carrying ?tx_ref=…), not just its server (a POST).
+  // A person landing on a JSON error is told their payment failed when it did
+  // not, so a browser is passed on to the page that shows the real result.
+  // Nothing is settled here: that page asks the status endpoint, which asks
+  // PayChangu, exactly as it does for the normal return.
+  if (req.method === "GET") {
+    const to = payerReturnUrl(req.url, originOf(req));
+    if (to) {
+      res.setHeader("Location", to);
+      return res.status(302).end();
+    }
+  }
+
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
