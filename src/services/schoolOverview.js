@@ -63,6 +63,8 @@ export async function loadSchoolOverview({ schoolCode, campuses = [], academicYe
 
   const billed = new Map();
   for (const a of assignments) {
+    // Optional fees (bus, uniform…) are not part of what families owe.
+    if (a.optional) continue;
     const key = campusOfStudent.get(a.studentId);
     if (!key) continue;
     billed.set(key, (billed.get(key) || 0) + Number(a.amount || a.totalAmount || 0));

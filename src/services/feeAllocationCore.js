@@ -64,7 +64,7 @@ export function bucketFor(termsOld) {
  */
 export function allocate(charges, paid, currentTerm) {
   const byTerm = new Map();
-  (charges || []).forEach((c) => {
+  compulsoryOnly(charges).forEach((c) => {
     // Charges are stored by the fee modules as "Term 1" or "Full Year";
     // resolving them against the running term is what makes an arrear
     // sortable, and therefore ageable. An unresolvable term keeps its raw
@@ -110,6 +110,15 @@ export function allocate(charges, paid, currentTerm) {
 }
 
 /**
+ * Optional (secondary) fees — bus, uniform, a trip — are billed to the students
+ * who take them (`optional: true` on the charge) and are NOT part of what the
+ * school counts as owed: they are left out of the charged, paid, owed and
+ * balance figures, so a family is never held or chased for something that was
+ * never compulsory.
+ */
+export const compulsoryOnly = (charges) => (charges || []).filter((c) => !c.optional);
+
+/**
  * A student's position in the ONE term they are in — the school's current
  * term. Earlier terms are not a second enrolment: whatever is still unpaid
  * from them is carried forward as a single figure. Uses the same oldest-first
@@ -123,7 +132,7 @@ export function allocate(charges, paid, currentTerm) {
  */
 export function termPosition(charges, paid, currentTerm) {
   const a = allocate(charges, paid, currentTerm);
-  const charged = (charges || [])
+  const charged = compulsoryOnly(charges)
     .filter((c) => (resolveTerm(c.term, currentTerm) || c.term) === currentTerm)
     .reduce((s, c) => s + (Number(c.amount) || 0), 0);
   const owed = a.outstandingByTerm.find((o) => o.term === currentTerm)?.amount || 0;

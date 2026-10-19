@@ -276,15 +276,15 @@ export default function StudentFees({ schoolCode, currentUser }) {
       const pos = positions.get(s.id) || { charged: 0, paid: 0, owed: 0, broughtForward: 0, balance: 0, percentage: 0 };
       const release = releases.get(s.id) || null;
       const access = resultsAccess({ balance: pos.balance, release, clearance: clearances.get(s.id), term: currentTerm });
-      // Optional fees the student has been added to, kept apart from the
-      // compulsory fees the whole class owes.
+      // Optional fees the student has been added to. Shown for reference only:
+      // positions (charged / owed / balance) count compulsory fees alone.
       const optionalCharged = studentFees
         .filter((f) => f.studentId === s.id && f.optional && f.term === currentTerm)
         .reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
       return {
         ...s,
         optionalCharged,
-        compulsoryCharged: pos.charged - optionalCharged,
+        compulsoryCharged: pos.charged,
         // This term only — the one term the student is in (compulsory + optional).
         totalCharged: pos.charged,
         totalPaid: pos.paid,
