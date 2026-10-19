@@ -186,3 +186,16 @@ export function planOptionalFees({ schoolCode, term, line, students = [], assign
   }
   return plan;
 }
+
+/**
+ * Every charge on `term`'s bill, for taking the whole term's billing off so it
+ * can be raised again from the fee structure. Matches the term the same way
+ * the rest of billing does ("Term 1" and "Term 1 2026" are the same term).
+ * Payments are not touched — only what students were charged.
+ *
+ * @returns {string[]} fee_assignment ids
+ */
+export function planUnbillTerm({ term, assignments = [] }) {
+  if (!parseTerm(term)) return [];
+  return assignments.filter((a) => resolveTerm(a.term, term) === term).map((a) => a.id);
+}

@@ -3,7 +3,7 @@
 // the reads and writes. Safe to run as often as you like.
 import { db } from "../firebase";
 import { collection, doc, getDocs, query, where, writeBatch, serverTimestamp } from "firebase/firestore";
-import { planTermFees, planOptionalFees } from "./termFeesCore";
+import { planTermFees, planOptionalFees, planUnbillTerm } from "./termFeesCore";
 
 const CHUNK = 400;
 
@@ -35,6 +35,20 @@ export async function applyOptionalFee({ schoolCode, term, line, students, actio
     ...plan.remove.map((id) => (b) => b.delete(doc(db, "fee_assignments", id))),
   ]);
   return { added: plan.create.length, removed: plan.remove.length };
+}
+
+/**
+ * Takes every student's charges for `term` off the books — compulsory, optional
+ * and hand-entered alike. Payments stay. Billing is raised again by
+ * syncTermFees (optional fees are re-added by hand).
+ * @returns {Promise<{ removed: number }>}
+ */
+export async function unbillTerm({ schoolCode, term }) {
+  if (!schoolCode || !term) return { removed: 0 };
+  const assignments = await loadAll(schoolCode, "fee_assignments");
+  const ids = planUnbillTerm({ term, assignments });
+  await commit(ids.map((id) => (b) => b.delete(doc(db, "fee_assignments", id))));
+  return { removed: ids.length };
 }
 
 export async function syncTermFees({ schoolCode, term }) {

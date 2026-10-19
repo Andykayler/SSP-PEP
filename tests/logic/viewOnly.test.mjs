@@ -7,7 +7,7 @@ import { looksLikeWrite, isDismissal } from "../../src/components/ui/viewOnlyCor
 
 describe("looksLikeWrite", () => {
   it("catches the verbs that change records", () => {
-    for (const label of ["Add class", "+ New student", "Edit", "Delete", "Save changes",
+    for (const label of ["Reset billing", "Add class", "+ New student", "Edit", "Delete", "Save changes",
       "Approve", "Decline", "Send reminder", "Enrol student", "Issue report card", "Import CSV"]) {
       assert.equal(looksLikeWrite(label), true, label);
     }

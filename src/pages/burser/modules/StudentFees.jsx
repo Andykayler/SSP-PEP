@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { db } from "../../../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { subscribeSchoolSettings } from "../../../services/academicTerm";
-import { syncTermFees, applyOptionalFee } from "../../../services/termFees";
+import { syncTermFees, applyOptionalFee, unbillTerm } from "../../../services/termFees";
 import { structuresForTerm, isOptionalLine } from "../../../services/termFeesCore";
 import { termPosition } from "../../../services/feeAllocationCore";
 import { fetchClearances } from "../../../services/feeClearance";
@@ -12,7 +12,7 @@ import {
 } from "../../../services/resultsRelease";
 import {
   Search, X, Check, Users, Info, AlertTriangle, RefreshCw, Unlock,
-  GraduationCap, Wallet, AlertCircle, CheckCircle2, PlusCircle,
+  GraduationCap, Wallet, AlertCircle, CheckCircle2, PlusCircle, Eraser,
 } from "lucide-react";
 import "./staff-management.css";
 
@@ -194,6 +194,7 @@ export default function StudentFees({ schoolCode, currentUser }) {
   const [optionalLineId, setOptionalLineId] = useState("");
   const [optionalAction, setOptionalAction] = useState("add");
 
+  const [resetOpen, setResetOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -382,6 +383,32 @@ export default function StudentFees({ schoolCode, currentUser }) {
     setActionLoading(false);
   }
 
+  // Takes the whole term off every student's bill. `rebill` then raises the
+  // compulsory fees again straight away; without it the term stays unbilled
+  // until billing is next brought up to date (refresh, or reopening this page).
+  async function confirmReset(rebill) {
+    if (!currentTerm) return;
+    setActionLoading(true);
+    try {
+      const r = await unbillTerm({ schoolCode, term: currentTerm });
+      let note = `${currentTerm}: ${r.removed} charge${r.removed === 1 ? "" : "s"} removed from students' bills.`;
+      if (rebill) {
+        const b = await syncTermFees({ schoolCode, term: currentTerm });
+        note += ` Billed again: ${b.created} charge${b.created === 1 ? "" : "s"} for ${b.billed} student${b.billed === 1 ? "" : "s"}.`;
+      }
+      setBillingNote(note);
+      showToast("success", note);
+      setResetOpen(false);
+      setSelectedIds(new Set());
+      setLoading(true);
+      await fetchAll();
+    } catch (err) {
+      console.error(err);
+      showToast("error", `Couldn't reset billing: ${err.message}`);
+    }
+    setActionLoading(false);
+  }
+
   async function confirmRelease() {
     if (!releaseFor || !currentTerm) return;
     setActionLoading(true);
@@ -426,6 +453,9 @@ export default function StudentFees({ schoolCode, currentUser }) {
           {currentTerm && <span className="tag tag--blue" style={{ alignSelf: "center" }}>{currentTerm}</span>}
           <Btn variant="secondary" onClick={() => { setLoading(true); fetchAll({ sync: Boolean(currentTerm) }); }} loading={loading} title="Refresh and update billing">
             <RefreshCw size={16} />
+          </Btn>
+          <Btn variant="secondary" onClick={() => setResetOpen(true)} disabled={!currentTerm} title="Take this term off every student's bill">
+            <Eraser size={16} /> Reset billing
           </Btn>
         </div>
       </div>
@@ -635,6 +665,38 @@ export default function StudentFees({ schoolCode, currentUser }) {
       )}
 
       {/* Optional fee add / remove */}
+      {resetOpen && (
+        <Modal
+          title="Reset this term's billing"
+          subtitle={currentTerm}
+          onClose={() => !actionLoading && setResetOpen(false)}
+        >
+          <div className="space-y-4">
+            <div className="alert alert--warning">
+              <AlertTriangle size={16} />
+              <div>
+                This removes <strong>every charge</strong> on {currentTerm} for <strong>all students</strong> —
+                compulsory fees, optional fees you added, and any charge entered by hand. Payments are not
+                touched. Optional fees have to be added again afterwards.
+              </div>
+            </div>
+            <div className="flex gap-4 mt-4" style={{ flexWrap: "wrap" }}>
+              <Btn variant="secondary" onClick={() => setResetOpen(false)} disabled={actionLoading} className="flex-1">Cancel</Btn>
+              <Btn variant="secondary" onClick={() => confirmReset(false)} loading={actionLoading} className="flex-1">
+                Unbill everyone
+              </Btn>
+              <Btn variant="accent" onClick={() => confirmReset(true)} loading={actionLoading} className="flex-1">
+                Unbill, then bill again
+              </Btn>
+            </div>
+            <p className="text-muted" style={{ fontSize: 12 }}>
+              &ldquo;Unbill everyone&rdquo; leaves the term empty until you press refresh or reopen this page,
+              which bills every active student from their class&apos;s compulsory fees again.
+            </p>
+          </div>
+        </Modal>
+      )}
+
       {optionalOpen && (
         <Modal
           title="Optional fees"

@@ -2,7 +2,7 @@
 // the class mark sheets.
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { planTermFees, planOptionalFees, structuresForTerm, termFeeId, yearOfTerm } from "../../src/services/termFeesCore.js";
+import { planUnbillTerm, planTermFees, planOptionalFees, structuresForTerm, termFeeId, yearOfTerm } from "../../src/services/termFeesCore.js";
 import { resultsAccess, releaseActive, withheldMessage } from "../../src/services/resultsAccessCore.js";
 import { childResults } from "../../src/services/resultsCore.js";
 import { termPosition } from "../../src/services/feeAllocationCore.js";
@@ -230,5 +230,22 @@ describe("optional fees", () => {
   });
   it("ignores mandatory lines", () => {
     assert.deepEqual(planOptionalFees({ schoolCode: S, term: TERM, line: tuition, students, assignments: [] }).create, []);
+  });
+});
+
+describe("unbilling a term", () => {
+  const rows = [
+    { id: "a", term: TERM },
+    { id: "b", term: TERM, optional: true },
+    { id: "c", term: "Term 1 2025" },
+    { id: "d", term: "Term 1" , academicYear: "2025/2026" },
+  ];
+  it("picks every charge on the term, optional and hand-entered included", () => {
+    const ids = planUnbillTerm({ term: TERM, assignments: rows });
+    assert.ok(ids.includes("a") && ids.includes("b"));
+    assert.ok(!ids.includes("c"));
+  });
+  it("does nothing without a valid term", () => {
+    assert.deepEqual(planUnbillTerm({ term: "", assignments: rows }), []);
   });
 });
