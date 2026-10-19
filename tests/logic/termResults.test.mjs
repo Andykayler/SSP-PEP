@@ -2,7 +2,7 @@
 // the class mark sheets.
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { planUnbillTerm, planTermFees, planOptionalFees, structuresForTerm, termFeeId, yearOfTerm } from "../../src/services/termFeesCore.js";
+import { planEnrolInTerm, enrolableTerms, planUnbillTerm, planTermFees, planOptionalFees, structuresForTerm, termFeeId, yearOfTerm } from "../../src/services/termFeesCore.js";
 import { resultsAccess, releaseActive, withheldMessage } from "../../src/services/resultsAccessCore.js";
 import { childResults } from "../../src/services/resultsCore.js";
 import { termPosition } from "../../src/services/feeAllocationCore.js";
@@ -247,5 +247,37 @@ describe("unbilling a term", () => {
   });
   it("does nothing without a valid term", () => {
     assert.deepEqual(planUnbillTerm({ term: "", assignments: rows }), []);
+  });
+});
+
+describe("enrolling students in a term", () => {
+  const structures = [
+    { id: "f1", classId: "c1", name: "Tuition", amount: 1000, term: TERM, mandatory: true },
+    { id: "f2", classId: "c1", name: "Bus", amount: 300, term: TERM, mandatory: false },
+    { id: "f3", classId: "c1", name: "Tuition", amount: 900, term: "Term 1 2026", mandatory: true },
+  ];
+  const students = [
+    { id: "s1", classId: "c1", fullName: "A", status: "active" },
+    { id: "s2", classId: "c1", fullName: "B", status: "active" },
+    { id: "s3", classId: "", fullName: "C", status: "active" },
+    { id: "s4", classId: "c9", fullName: "D", status: "active" },
+  ];
+  const already = [{ id: "x", studentId: "s2", feeStructureId: "f1", term: TERM, auto: true, amount: 1000 }];
+
+  it("bills only the unbilled, and says who was skipped and why", () => {
+    const r = planEnrolInTerm({ schoolCode: S, term: TERM, students, structures, assignments: already });
+    assert.deepEqual(r.billed, ["s1"]);
+    assert.deepEqual(r.already, ["s2"]);
+    assert.deepEqual(r.noClass, ["s3"]);
+    assert.deepEqual(r.noFees, ["s4"]);
+    assert.deepEqual(r.create.map((c) => c.data.feeStructureId), ["f1"]);
+  });
+  it("can enrol in a term other than the open one", () => {
+    const r = planEnrolInTerm({ schoolCode: S, term: "Term 1 2026", students: [students[0]], structures, assignments: [] });
+    assert.equal(r.create[0].data.term, "Term 1 2026");
+    assert.equal(r.create[0].data.amount, 900);
+  });
+  it("lists the terms that have fees, plus the open one", () => {
+    assert.deepEqual(enrolableTerms(structures, TERM), ["Term 1 2026", TERM]);
   });
 });

@@ -199,3 +199,48 @@ export function planUnbillTerm({ term, assignments = [] }) {
   if (!parseTerm(term)) return [];
   return assignments.filter((a) => resolveTerm(a.term, term) === term).map((a) => a.id);
 }
+
+/**
+ * The terms a student can be enrolled in: every term that has fee lines, plus
+ * the running one, oldest first. Legacy lines ("Term 2" + an academic year)
+ * are resolved against the running term like the rest of billing.
+ */
+export function enrolableTerms(structures = [], currentTerm = "") {
+  const found = new Set();
+  if (parseTerm(currentTerm)) found.add(currentTerm);
+  for (const s of structures) {
+    const t = resolveTerm(s.term, currentTerm) || s.term;
+    if (parseTerm(t)) found.add(t);
+  }
+  return [...found].sort((a, b) => {
+    const pa = parseTerm(a), pb = parseTerm(b);
+    return pa.year - pb.year || pa.number - pb.number;
+  });
+}
+
+/**
+ * Bills the chosen students for `term` from their class's compulsory fees —
+ * for students who were never billed, or who joined after billing ran. Only
+ * ever creates: nobody's existing charges are changed or removed, and a
+ * student already billed for the term is left alone.
+ *
+ * @returns {{ create: {id, data}[], billed: string[], already: string[],
+ *             noClass: string[], noFees: string[] }}  student ids by outcome
+ */
+export function planEnrolInTerm({ schoolCode, term, students = [], structures = [], assignments = [] }) {
+  const out = { create: [], billed: [], already: [], noClass: [], noFees: [] };
+  if (!schoolCode || !parseTerm(term)) return out;
+
+  const lines = structuresForTerm(structures, term).filter((l) => !isOptionalLine(l));
+  for (const s of students) {
+    if (!s.classId) { out.noClass.push(s.id); continue; }
+    if (!lines.some((l) => l.classId === s.classId)) { out.noFees.push(s.id); continue; }
+    const mine = assignments.filter((a) => a.studentId === s.id);
+    // Hand the planner only this student's charges, so nothing else is touched.
+    const plan = planTermFees({ schoolCode, term, students: [{ ...s, status: "active" }], structures, assignments: mine });
+    if (plan.create.length === 0) { out.already.push(s.id); continue; }
+    out.create.push(...plan.create);
+    out.billed.push(s.id);
+  }
+  return out;
+}

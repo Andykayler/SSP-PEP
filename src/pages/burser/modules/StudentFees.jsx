@@ -3,8 +3,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { db } from "../../../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { subscribeSchoolSettings } from "../../../services/academicTerm";
-import { syncTermFees, applyOptionalFee, unbillTerm } from "../../../services/termFees";
-import { structuresForTerm, isOptionalLine } from "../../../services/termFeesCore";
+import { syncTermFees, applyOptionalFee, unbillTerm, enrolStudentsInTerm } from "../../../services/termFees";
+import { structuresForTerm, isOptionalLine, enrolableTerms } from "../../../services/termFeesCore";
 import { termPosition } from "../../../services/feeAllocationCore";
 import { fetchClearances } from "../../../services/feeClearance";
 import {
@@ -12,7 +12,7 @@ import {
 } from "../../../services/resultsRelease";
 import {
   Search, X, Check, Users, Info, AlertTriangle, RefreshCw, Unlock,
-  GraduationCap, Wallet, AlertCircle, CheckCircle2, PlusCircle, Eraser,
+  GraduationCap, Wallet, AlertCircle, CheckCircle2, PlusCircle, Eraser, CalendarPlus,
 } from "lucide-react";
 import "./staff-management.css";
 
@@ -195,6 +195,8 @@ export default function StudentFees({ schoolCode, currentUser }) {
   const [optionalAction, setOptionalAction] = useState("add");
 
   const [resetOpen, setResetOpen] = useState(false);
+  const [enrolOpen, setEnrolOpen] = useState(false);
+  const [enrolTerm, setEnrolTerm] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -386,6 +388,33 @@ export default function StudentFees({ schoolCode, currentUser }) {
   // Takes the whole term off every student's bill. `rebill` then raises the
   // compulsory fees again straight away; without it the term stays unbilled
   // until billing is next brought up to date (refresh, or reopening this page).
+  // Enrols the selected students in a chosen term — for students who were never
+  // billed, or joined after billing ran. Creates charges only.
+  const enrolTerms = useMemo(() => enrolableTerms(structures, currentTerm), [structures, currentTerm]);
+
+  async function confirmEnrol() {
+    if (!enrolTerm || selectedStudents.length === 0) return;
+    setActionLoading(true);
+    try {
+      const r = await enrolStudentsInTerm({ schoolCode, term: enrolTerm, students: selectedStudents });
+      const skipped = [
+        r.already && `${r.already} already billed`,
+        r.noClass && `${r.noClass} with no class`,
+        r.noFees && `${r.noFees} whose class has no fees for ${enrolTerm}`,
+      ].filter(Boolean);
+      showToast(r.billed > 0 ? "success" : "error",
+        `${enrolTerm}: ${r.billed} student${r.billed === 1 ? "" : "s"} enrolled${skipped.length ? ` (skipped: ${skipped.join(", ")})` : ""}.`);
+      setEnrolOpen(false);
+      setSelectedIds(new Set());
+      setLoading(true);
+      await fetchAll();
+    } catch (err) {
+      console.error(err);
+      showToast("error", `Couldn't enrol: ${err.message}`);
+    }
+    setActionLoading(false);
+  }
+
   async function confirmReset(rebill) {
     if (!currentTerm) return;
     setActionLoading(true);
@@ -538,6 +567,15 @@ export default function StudentFees({ schoolCode, currentUser }) {
 
             <Btn
               variant="secondary"
+              onClick={() => { setEnrolTerm(currentTerm || enrolTerms[0] || ""); setEnrolOpen(true); }}
+              disabled={!someSelected || enrolTerms.length === 0}
+              title={someSelected ? "Enrol the selected students in a term" : "Select students first (filter by \u201cNot billed this term\u201d to find them)"}
+            >
+              <CalendarPlus size={16} /> Enrol in term{someSelected ? ` (${selectedIds.size})` : ""}
+            </Btn>
+
+            <Btn
+              variant="secondary"
               onClick={() => { setOptionalLineId(optionalLines[0]?.id || ""); setOptionalAction("add"); setOptionalOpen(true); }}
               disabled={!currentTerm || optionalLines.length === 0}
               title={someSelected ? "Add or remove an optional fee for the selected students" : "Select students first"}
@@ -665,6 +703,36 @@ export default function StudentFees({ schoolCode, currentUser }) {
       )}
 
       {/* Optional fee add / remove */}
+      {enrolOpen && (
+        <Modal
+          title="Enrol in a term"
+          subtitle={`${selectedStudents.length} student${selectedStudents.length === 1 ? "" : "s"} selected`}
+          onClose={() => !actionLoading && setEnrolOpen(false)}
+        >
+          <div className="space-y-4">
+            <div className="field">
+              <label className="field__label" htmlFor="enrol-term">Term</label>
+              <select id="enrol-term" className="form-input" value={enrolTerm} onChange={(e) => setEnrolTerm(e.target.value)}>
+                {enrolTerms.map((t) => <option key={t} value={t}>{t}{t === currentTerm ? " (open)" : ""}</option>)}
+              </select>
+            </div>
+            <div className="alert alert--info">
+              <Info size={16} />
+              <div>
+                Each selected student is billed that term&apos;s compulsory fees for their class. Students already
+                billed for it, students with no class, and classes with no fees for that term are skipped.
+                Nobody&apos;s existing charges change. Optional fees are not added.
+                {enrolTerm && enrolTerm !== currentTerm && " Fees for a term other than the open one show as brought forward until it opens."}
+              </div>
+            </div>
+            <div className="flex gap-4 mt-4">
+              <Btn variant="secondary" onClick={() => setEnrolOpen(false)} disabled={actionLoading} className="flex-1">Cancel</Btn>
+              <Btn variant="accent" onClick={confirmEnrol} loading={actionLoading} disabled={!enrolTerm} className="flex-1">Enrol</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {resetOpen && (
         <Modal
           title="Remove everyone and enrol again"

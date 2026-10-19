@@ -3,7 +3,7 @@
 // the reads and writes. Safe to run as often as you like.
 import { db } from "../firebase";
 import { collection, doc, getDocs, query, where, writeBatch, serverTimestamp } from "firebase/firestore";
-import { planTermFees, planOptionalFees, planUnbillTerm } from "./termFeesCore";
+import { planTermFees, planOptionalFees, planUnbillTerm, planEnrolInTerm } from "./termFeesCore";
 
 const CHUNK = 400;
 
@@ -49,6 +49,22 @@ export async function unbillTerm({ schoolCode, term }) {
   const ids = planUnbillTerm({ term, assignments });
   await commit(ids.map((id) => (b) => b.delete(doc(db, "fee_assignments", id))));
   return { removed: ids.length };
+}
+
+/**
+ * Enrols the chosen students in `term`: bills each from their class's
+ * compulsory fees. Creates charges only.
+ * @returns {Promise<{ billed: number, already: number, noClass: number, noFees: number }>}
+ */
+export async function enrolStudentsInTerm({ schoolCode, term, students }) {
+  if (!schoolCode || !term || !students?.length) return { billed: 0, already: 0, noClass: 0, noFees: 0 };
+  const [structures, assignments] = await Promise.all([
+    loadAll(schoolCode, "fee_structures"),
+    loadAll(schoolCode, "fee_assignments"),
+  ]);
+  const plan = planEnrolInTerm({ schoolCode, term, students, structures, assignments });
+  await commit(plan.create.map((c) => (b) => b.set(doc(db, "fee_assignments", c.id), { ...c.data, createdAt: serverTimestamp() })));
+  return { billed: plan.billed.length, already: plan.already.length, noClass: plan.noClass.length, noFees: plan.noFees.length };
 }
 
 export async function syncTermFees({ schoolCode, term }) {
