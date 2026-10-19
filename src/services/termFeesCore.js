@@ -115,13 +115,23 @@ export function planTermFees({ schoolCode, term, students = [], structures = [],
     }
   }
 
+  // Charges billed while a line was still compulsory keep no `optional` flag
+  // when the bursar later unticks "Mandatory", so they would go on counting
+  // toward the student's balance. Flag them, in every term, so an optional fee
+  // from the fee structure never sits on a balance.
+  const optionalLineIds = new Set(structures.filter(isOptionalLine).map((l) => l.id));
+  for (const a of assignments) {
+    if (a.optional || !optionalLineIds.has(a.feeStructureId)) continue;
+    plan.update.push({ id: a.id, data: { optional: true } });
+  }
+
   // Automatic charges whose fee line was removed, or that belong to a class the
   // student has since left, come off. Hand-entered charges are never touched.
   for (const [key, a] of existing) {
     if (!a.auto || wanted.has(key)) continue;
     const line = lineById.get(a.feeStructureId);
-    // A line the bursar has since marked optional: what was already billed
-    // stays, so no one's balance changes behind their back.
+    // A line the bursar has since marked optional: the charge stays on record
+    // (flagged optional above) but no longer counts toward the balance.
     if (line && isOptionalLine(line)) continue;
     const student = students.find((s) => s.id === a.studentId);
     // A student who left the school still owes what they were billed.

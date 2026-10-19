@@ -211,6 +211,16 @@ describe("optional fees", () => {
     const off = planOptionalFees({ schoolCode: S, term: TERM, line: bus, students: [students[1]], assignments, action: "remove" });
     assert.deepEqual(off.remove, [assignments[1].id]);
   });
+  it("flags charges billed before the line became optional, in any term", () => {
+    const old = [
+      { id: "a1", studentId: "s1", feeStructureId: "f2", term: TERM, auto: true, amount: 300 },
+      { id: "a2", studentId: "s1", feeStructureId: "f1", term: TERM, auto: true, amount: 1000 },
+      { id: "a3", studentId: "s2", feeStructureId: "f2", term: TERM, optional: true, amount: 300 },
+    ];
+    const sync = planTermFees({ schoolCode: S, term: TERM, students, structures, assignments: old });
+    assert.deepEqual(sync.update.filter((u) => u.data.optional).map((u) => u.id), ["a1"]);
+    assert.deepEqual(sync.remove, []);
+  });
   it("follows the fee line when its amount changes", () => {
     const assignments = planOptionalFees({ schoolCode: S, term: TERM, line: bus, students: [students[0]], assignments: [] })
       .create.map((c) => ({ id: c.id, ...c.data }));
