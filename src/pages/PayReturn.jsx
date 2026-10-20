@@ -47,10 +47,11 @@ export default function PayReturn() {
     // the auth state rather than firing a request that would 401.
     const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) {
-        setState({
-          phase: "error", tx: null,
-          error: "Your session has ended. Sign in again to see this payment — it is unaffected.",
-        });
+        // Not a failure. Staff are signed in on this device; a parent who paid
+        // from the Acalink app or WhatsApp is not — they opened this page from
+        // PayChangu's browser tab. Their result is on the app, and the payment
+        // is confirmed on our servers either way.
+        setState({ phase: "elsewhere", tx: null, error: "" });
         return;
       }
 
@@ -66,7 +67,9 @@ export default function PayReturn() {
   }, [txRef]);
 
   const tx = state.tx;
-  const backHref = PORTALS[tx?.purpose === "subscription" ? "admin" : "bursar"] || "/";
+  const backHref = state.phase === "elsewhere"
+    ? "https://parents.acalinks.com"
+    : PORTALS[tx?.purpose === "subscription" ? "admin" : "bursar"] || "/";
 
   return (
     <div style={{
@@ -121,6 +124,18 @@ export default function PayReturn() {
           </>
         )}
 
+        {state.phase === "elsewhere" && (
+          <>
+            <CheckCircle2 size={46} style={{ color: "var(--primary)", margin: "0 auto 14px" }} />
+            <p className="module-title" style={{ fontSize: 18 }}>Thank you</p>
+            <p className="module-sub">
+              If you approved the payment, it is being confirmed. You can close this page and go
+              back to Acalink — your receipt appears there once it clears, and you will also be told
+              by message. If you did not finish paying, nothing has been charged.
+            </p>
+          </>
+        )}
+
         {state.phase === "error" && (
           <>
             <XCircle size={46} style={{ color: "var(--danger, #ef4444)", margin: "0 auto 14px" }} />
@@ -129,7 +144,7 @@ export default function PayReturn() {
           </>
         )}
 
-        {state.phase !== "loading" && state.phase !== "error" && state.error && (
+        {state.phase !== "loading" && state.phase !== "error" && state.phase !== "elsewhere" && state.error && (
           <p className="text-muted" style={{ fontSize: 12, marginTop: 10 }}>{state.error}</p>
         )}
 
@@ -138,7 +153,7 @@ export default function PayReturn() {
           className="btn btn--accent btn--md"
           style={{ marginTop: 22, display: "inline-flex", gap: 8, alignItems: "center" }}
         >
-          Back to the portal <ArrowRight size={15} />
+          {state.phase === "elsewhere" ? "Open Acalink" : "Back to the portal"} <ArrowRight size={15} />
         </a>
       </div>
     </div>
