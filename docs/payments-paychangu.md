@@ -81,8 +81,10 @@ actions). The `payouts` and `payout_destinations` collections are server-only.
 PayChangu stubbed.
 
 The earlier automatic mobile-money payout was removed; payments recorded since
-are marked `payoutStatus: "held"`. A payment the old payout already sent
-(`payoutStatus: "sent"`) is left out of the balance.
+are marked `payoutStatus: "held"`, and **only those count** in a school's
+balance. Payments from before — whether their old payout sent, failed, was
+pending or never set up — are left out, so a failed old payout cannot inflate
+it. To include one deliberately, set its `payoutStatus` to `"held"`.
 
 ## The rule the whole design rests on
 
