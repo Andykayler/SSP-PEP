@@ -16,6 +16,7 @@
 // serverless instances.
 // ─────────────────────────────────────────────────────────────────────────────
 import { adminDb, FieldValue } from "./firebaseAdmin.js";
+import { yearOfTerm } from "../../src/services/termFeesCore.js";
 import {
   verifyTransaction, verifyDirectCharge, mobileMoneyOperatorRef, initiateMobileMoneyPayout,
 } from "./paychangu.js";
@@ -212,8 +213,28 @@ async function payoutToSchool(tx, paymentRef) {
   }
 }
 
+/**
+ * The term and academic year a payment belongs to. A payment started from the
+ * portal carries them; one started from WhatsApp does not, and without a year
+ * the bursar's ledger (which lists by year) never showed it. So the school's
+ * open term fills the gap.
+ */
+async function termAndYearOf(tx) {
+  if (tx.term && tx.academicYear) return { term: tx.term, academicYear: tx.academicYear };
+  let current = "";
+  try {
+    const snap = await adminDb.collection("school_settings").doc(tx.schoolCode).get();
+    current = snap.exists ? String(snap.data().currentTerm || "") : "";
+  } catch (err) {
+    console.error("[settle] could not read the open term for", tx.schoolCode, err);
+  }
+  const term = tx.term || current;
+  return { term, academicYear: tx.academicYear || yearOfTerm(term) };
+}
+
 async function recordFeePayment(tx, verified) {
   const receipt = receiptNo();
+  const { term, academicYear } = await termAndYearOf(tx);
   const ref = await adminDb.collection("payments").add({
     studentId: tx.studentId || "",
     studentName: tx.studentName || "",
@@ -232,12 +253,12 @@ async function recordFeePayment(tx, verified) {
     paychanguFee: tx.paychanguFee || 0,
     method: methodLabel(verified),
     referenceNo: verified.gatewayRef || tx.txRef,
-    term: tx.term || "",
+    term,
     notes: tx.note || "",
     paymentDate: new Date().toISOString().split("T")[0],
     receiptNo: receipt,
     recordedBy: tx.initiatedByName || "Online payment",
-    academicYear: tx.academicYear || "",
+    academicYear,
     schoolCode: tx.schoolCode,
     source: "paychangu",
     status: "verified",

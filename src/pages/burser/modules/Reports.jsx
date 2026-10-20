@@ -1,7 +1,8 @@
 // pages/bursar/modules/Reports.jsx
+import { loadPaymentsForYear } from "../../../services/paymentsLoad";
 import { useState, useEffect, useMemo } from "react";
 import { db } from "../../../firebase";
-import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { Download, TrendingUp, Users, AlertTriangle, Receipt, BarChart3, Check } from "lucide-react";
 import "./staff-management.css";
 
@@ -30,17 +31,17 @@ export default function Reports({ schoolCode, schoolName }) {
   async function fetchAll() {
     setLoading(true);
     try {
-      const [stSnap, clSnap, faSnap, pySnap] = await Promise.all([
+      const [stSnap, clSnap, faSnap, paymentRows] = await Promise.all([
         getDocs(query(collection(db, "students"), where("schoolCode", "==", schoolCode))),
         getDocs(query(collection(db, "school_classes"), where("schoolCode", "==", schoolCode))),
         getDocs(query(collection(db, "fee_assignments"), where("schoolCode", "==", schoolCode), where("academicYear", "==", academicYear))),
-        getDocs(query(collection(db, "payments"), where("schoolCode", "==", schoolCode), where("academicYear", "==", academicYear), orderBy("createdAt", "desc"))),
+        loadPaymentsForYear(schoolCode, academicYear),
       ]);
 
       setStudents(stSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       setClasses(clSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
       setFeeAssignments(faSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setPayments(pySnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setPayments(paymentRows);
     } catch (e) {
       console.error(e);
     }

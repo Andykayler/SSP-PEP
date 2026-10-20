@@ -1,7 +1,8 @@
 // pages/bursar/modules/Receipts.jsx
+import { loadPaymentsForYear } from "../../../services/paymentsLoad";
 import { useState, useEffect, useRef } from "react";
 import { db } from "../../../firebase";
-import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { Search, X, Printer, Receipt as ReceiptIcon } from "lucide-react";
 import "./staff-management.css";
 
@@ -169,16 +170,11 @@ export default function Receipts({ schoolCode, schoolName }) {
   async function fetchData() {
     setLoading(true);
     try {
-      const [pySnap, clSnap] = await Promise.all([
-        getDocs(query(
-          collection(db, "payments"),
-          where("schoolCode", "==", schoolCode),
-          where("academicYear", "==", academicYear),
-          orderBy("createdAt", "desc")
-        )),
+      const [paymentRows, clSnap] = await Promise.all([
+        loadPaymentsForYear(schoolCode, academicYear),
         getDocs(query(collection(db, "school_classes"), where("schoolCode", "==", schoolCode))),
       ]);
-      setPayments(pySnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setPayments(paymentRows);
       setClasses(clSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
     } catch (e) {
       console.error(e);

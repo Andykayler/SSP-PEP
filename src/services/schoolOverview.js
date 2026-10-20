@@ -19,6 +19,7 @@
 import { db } from "../firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { isDeactivated } from "./staffAccountCore";
+import { loadPaymentsForYear } from "./paymentsLoad";
 
 /** Roles that count as staff on the establishment, in the order they are shown. */
 const STAFF_ROLES = ["head_teacher", "class_teacher", "bursar", "librarian", "director"];
@@ -47,7 +48,7 @@ export async function loadSchoolOverview({ schoolCode, campuses = [], academicYe
   const [students, users, payments, assignments] = await Promise.all([
     loadAll(schoolCode, "students"),
     loadAll(schoolCode, "users"),
-    loadAll(schoolCode, "payments", feeFilters),
+    loadPaymentsForYear(schoolCode, academicYear),
     loadAll(schoolCode, "fee_assignments", feeFilters),
   ]);
 
