@@ -26,17 +26,14 @@ const sum = (rows) => rows.reduce((n, r) => n + (Number(r.amount) || 0), 0);
 
 /**
  * What the school is owed from online payments.
- *   earned    confirmed online payments recorded under this flow — the ones
- *             marked `payoutStatus: "held"` when they settled. Payments from
- *             before it (whose old automatic payout sent, failed, was pending
- *             or was never set up) do not count: they were never part of this
- *             balance, and a failed old payout must not inflate it
+ *   earned    every confirmed online payment the school has received, apart from
+ *             ones the old automatic payout already sent to its phone
  *   reserved  payouts that are waiting, in flight or done
  * A failed, declined or cancelled payout releases its amount back.
  */
 export function availableBalance({ payments = [], payouts = [] }) {
   const earned = sum(payments.filter((p) =>
-    p.source === "paychangu" && p.status === "verified" && p.payoutStatus === "held"));
+    p.source === "paychangu" && p.status === "verified" && p.payoutStatus !== "sent"));
   const reserved = sum(payouts.filter((p) => RESERVING.includes(p.status)));
   return {
     earned,

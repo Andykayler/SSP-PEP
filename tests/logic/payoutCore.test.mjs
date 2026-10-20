@@ -6,7 +6,7 @@ import {
   maskAccount, canApprovePayout, payoutOutcome,
 } from "../../api/_lib/payoutCore.js";
 
-const pay = (amount, extra = {}) => ({ amount, source: "paychangu", status: "verified", payoutStatus: "held", ...extra });
+const pay = (amount, extra = {}) => ({ amount, source: "paychangu", status: "verified", ...extra });
 
 describe("availableBalance", () => {
   it("counts confirmed online payments only", () => {
@@ -17,13 +17,9 @@ describe("availableBalance", () => {
     assert.equal(b.earned, 1500);
     assert.equal(b.available, 1500);
   });
-  it("leaves out payments from before this flow, whatever happened to their old payout", () => {
-    const b = availableBalance({
-      payments: [pay(1000, { payoutStatus: "sent" }), pay(400, { payoutStatus: "failed" }),
-        pay(300, { payoutStatus: "pending" }), pay(200, { payoutStatus: "not_configured" }),
-        pay(100, { payoutStatus: undefined }), pay(50)],
-    });
-    assert.equal(b.available, 50);
+  it("leaves out payments the old automatic payout already sent", () => {
+    const b = availableBalance({ payments: [pay(1000, { payoutStatus: "sent" }), pay(400, { payoutStatus: "failed" })] });
+    assert.equal(b.available, 400);
   });
   it("reserves waiting, in-flight and finished payouts, and releases the rest", () => {
     const b = availableBalance({
