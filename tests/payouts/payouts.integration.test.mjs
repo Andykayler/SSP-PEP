@@ -214,22 +214,22 @@ describe("declining and the outcome webhook", () => {
 });
 
 describe("temporary payment clean-up", () => {
-  it("deletes an online payment of the school, keeping a copy, and refuses everything else", async () => {
+  it("deletes any payment of the school, keeping a copy, and refuses the wrong people and schools", async () => {
     await adminDb.collection("payments").doc("p-online").set({ schoolCode: SCHOOL, source: "paychangu", status: "verified", amount: 500, receiptNo: "RCP-1" });
-    await adminDb.collection("payments").doc("p-cash").set({ schoolCode: SCHOOL, source: "bursar", status: "verified", amount: 700 });
+    await adminDb.collection("payments").doc("p-cash").set({ schoolCode: SCHOOL, source: "bursar", status: "verified", amount: 700, receiptNo: "RCP-2" });
     await adminDb.collection("payments").doc("p-other").set({ schoolCode: "OTHER", source: "paychangu", status: "verified", amount: 900 });
 
     await assert.rejects(P.PAYOUT_ACTIONS.payment_delete({ auth: director, body: { id: "p-online" } }), /bursar or administrator/);
-    await assert.rejects(P.PAYOUT_ACTIONS.payment_delete({ auth: bursar, body: { id: "p-cash" } }), /online payments/);
+    await assert.rejects(P.PAYOUT_ACTIONS.payment_delete({ auth: teacher, body: { id: "p-online" } }), /bursar or administrator/);
     await assert.rejects(P.PAYOUT_ACTIONS.payment_delete({ auth: bursar, body: { id: "p-other" } }), /not found/);
 
-    const out = await P.PAYOUT_ACTIONS.payment_delete({ auth: bursar, body: { id: "p-online" } });
-    assert.equal(out.receiptNo, "RCP-1");
-    assert.equal((await adminDb.collection("payments").doc("p-online").get()).exists, false);
-    const copy = await adminDb.collection("deleted_payments").doc("p-online").get();
-    assert.equal(copy.data().amount, 500);
-    assert.equal(copy.data().deletedById, "b1");
-    assert.equal((await adminDb.collection("payments").doc("p-cash").get()).exists, true);
-    assert.equal((await adminDb.collection("payments").doc("p-other").get()).exists, true);
+    for (const id of ["p-online", "p-cash"]) {
+      await P.PAYOUT_ACTIONS.payment_delete({ auth: bursar, body: { id } });
+      assert.equal((await adminDb.collection("payments").doc(id).get()).exists, false);
+      const copy = await adminDb.collection("deleted_payments").doc(id).get();
+      assert.equal(copy.data().deletedById, "b1");
+    }
+    assert.equal((await adminDb.collection("deleted_payments").doc("p-cash").get()).data().amount, 700);
+    assert.equal((await adminDb.collection("payments").doc("p-other").get()).exists, true, "another school's payment is untouched");
   });
 });
