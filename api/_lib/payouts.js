@@ -19,7 +19,7 @@ import { adminDb, FieldValue } from "./firebaseAdmin.js";
 import { listPayoutBanks, initiateBankPayout } from "./paychangu.js";
 import {
   availableBalance, feeConfigFromEnv, payoutFee, checkRequestAmount, checkDestination,
-  maskAccount, canApprovePayout, payoutOutcome,
+  maskAccount, canApprovePayout, payoutOutcome, settlementHourFromEnv,
 } from "./payoutCore.js";
 
 export const PAYOUTS = "payouts";
@@ -43,7 +43,11 @@ async function schoolBalance(schoolCode) {
     adminDb.collection("payments").where("schoolCode", "==", schoolCode).where("source", "==", "paychangu").get(),
     adminDb.collection(PAYOUTS).where("schoolCode", "==", schoolCode).get(),
   ]);
-  return availableBalance({ payments: pay.docs.map((d) => d.data()), payouts: out.docs.map((d) => d.data()) });
+  return availableBalance({
+    payments: pay.docs.map((d) => d.data()),
+    payouts: out.docs.map((d) => d.data()),
+    settlementHour: settlementHourFromEnv(process.env),
+  });
 }
 
 async function schoolHasDirector(schoolCode) {
@@ -84,6 +88,7 @@ export async function payoutState({ auth }) {
       bankName: dest.bankName, accountName: dest.accountName, accountMask: maskAccount(dest.accountNumber),
     },
     feeConfig: feeConfigFromEnv(process.env),
+    settlementHour: settlementHourFromEnv(process.env),
     canRequest: ["bursar", "admin"].includes(me.role),
     canEditDestination: me.role === "admin",
     approverIsDirector: hasDirector,

@@ -60,6 +60,17 @@ been paid out or is on its way — and the school is paid from it in a payout:
    `pending`; the outcome arrives on the `api.payout` webhook and is only acted
    on when its signature checks out.
 
+**Settlement.** PayChangu moves collected money into the Main Balance — where
+payouts are paid from — the next morning. So a school's balance has two parts:
+*available* (settled; can be requested now) and *settling* (received, but not
+payable until its settlement time). A payment becomes payable at
+`PAYCHANGU_SETTLEMENT_HOUR` (default 8, Malawi time, UTC+2) on the day after it
+was made; the Payouts screen shows both figures and when the next amount
+settles, and a request cannot exceed what is available. This assumes PayChangu
+settles every calendar day — if weekends or holidays are skipped, a Friday
+payment will show as available before PayChangu has actually moved it, so check
+the PayChangu Main Balance before approving.
+
 PayChangu's fee for the payout is taken out of what the school receives, not out
 of Acalink's margin. It is set with `PAYCHANGU_BANK_PAYOUT_FEE_RATE` (a fraction,
 e.g. `0.01`) and/or `PAYCHANGU_BANK_PAYOUT_FEE_FLAT` (kwacha); both default to 0.

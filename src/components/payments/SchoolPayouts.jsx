@@ -23,6 +23,18 @@ import { PAYOUT_STATUS_LABEL, payoutFee } from "../../../api/_lib/payoutCore";
 
 const TONE = { requested: "warning", processing: "warning", paid: "success", failed: "danger", declined: "danger", cancelled: "neutral" };
 
+/** "tomorrow 8:00 am" / "Thu 8:00 am", in the viewer's own clock. */
+function settlesOn(ms) {
+  if (!ms) return "tomorrow morning";
+  const d = new Date(ms);
+  const time = d.toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true });
+  const tomorrow = new Date(Date.now() + 24 * 3600 * 1000);
+  const day = d.toDateString() === tomorrow.toDateString() ? "tomorrow"
+    : d.toDateString() === new Date().toDateString() ? "today"
+      : d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  return `${day} ${time}`;
+}
+
 const when = (ms) => (ms ? new Date(ms).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—");
 
 export default function SchoolPayouts() {
@@ -71,11 +83,19 @@ export default function SchoolPayouts() {
       <Notice tone={notice?.tone} onDismiss={() => setNotice(null)}>{notice?.text}</Notice>
 
       <StatGrid>
-        <StatCard label="Available to pay out" value={money(balance.available)} tone={balance.available > 0 ? "success" : undefined} sub="Online payments not yet paid out" />
+        <StatCard label="Available to pay out" value={money(balance.available)} tone={balance.available > 0 ? "success" : undefined} sub="Settled, and not yet paid out" />
+        <StatCard
+          label="Settling"
+          value={money(balance.settling || 0)}
+          sub={balance.settling > 0 ? `Available ${settlesOn(balance.nextSettlementAtMs)}` : "Nothing waiting to settle"}
+        />
         <StatCard label="Awaiting approval" value={money(balance.awaiting)} sub="Requested, not yet approved" />
         <StatCard label="Paid out" value={money(balance.paidOut)} sub="Sent to the school's bank" />
-        <StatCard label="Received online" value={money(balance.earned)} sub="Confirmed by PayChangu" />
       </StatGrid>
+      <p className="text-muted" style={{ fontSize: 12 }}>
+        PayChangu moves collected money into the account payouts are sent from the next morning,
+        so a payment received today can be paid out from tomorrow. Received online so far: {money(balance.earned)}.
+      </p>
 
       <div className="card" style={{ padding: 20 }}>
         <p className="module-title" style={{ fontSize: 15, display: "flex", alignItems: "center", gap: 8 }}>

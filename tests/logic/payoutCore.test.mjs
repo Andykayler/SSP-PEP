@@ -2,7 +2,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  availableBalance, payoutFee, feeConfigFromEnv, checkRequestAmount, checkDestination,
+  availableBalance, availableAtMs, settlementHourFromEnv, payoutFee, feeConfigFromEnv, checkRequestAmount, checkDestination,
   maskAccount, canApprovePayout, payoutOutcome,
 } from "../../api/_lib/payoutCore.js";
 
@@ -96,5 +96,60 @@ describe("payoutOutcome", () => {
     assert.equal(payoutOutcome("failed"), "failed");
     assert.equal(payoutOutcome("pending"), "processing");
     assert.equal(payoutOutcome(undefined), "processing");
+  });
+});
+
+describe("settlement: collected money is payable the next morning", () => {
+  // 10:00 Malawi time (UTC+2) on 2026-10-20 is 08:00 UTC.
+  const at = (iso) => Date.parse(iso);
+  const stamp = (iso) => ({ toMillis: () => at(iso) });
+
+  it("a payment becomes payable at the settlement hour the next day, Malawi time", () => {
+    assert.equal(availableAtMs(at("2026-10-20T08:00:00Z"), 8), at("2026-10-21T06:00:00Z")); // 08:00 CAT next day
+    // Paid 23:30 Malawi time on the 20th: still "the next day" by Malawi's clock, so 08:00 on the 21st.
+    assert.equal(availableAtMs(at("2026-10-20T21:30:00Z"), 8), at("2026-10-21T06:00:00Z"));
+    // Paid 00:30 Malawi time on the 21st (22:30Z on the 20th): the 22nd, even though UTC still says the 20th.
+    assert.equal(availableAtMs(at("2026-10-20T22:30:00Z"), 8), at("2026-10-22T06:00:00Z"));
+  });
+  it("splits what is settled from what is still settling", () => {
+    const now = at("2026-10-21T07:00:00Z"); // 09:00 CAT on the 21st
+    const b = availableBalance({
+      now, settlementHour: 8,
+      payments: [
+        { ...pay(1000), createdAt: stamp("2026-10-20T08:00:00Z") },   // yesterday: settled at 08:00 today
+        { ...pay(400), createdAt: stamp("2026-10-21T05:00:00Z") },    // 07:00 today: settles tomorrow
+      ],
+    });
+    assert.equal(b.settled, 1000);
+    assert.equal(b.settling, 400);
+    assert.equal(b.earned, 1400);
+    assert.equal(b.available, 1000);
+    assert.equal(b.nextSettlementAtMs, at("2026-10-22T06:00:00Z"));
+  });
+  it("before the morning cut-off, yesterday's payment is still settling", () => {
+    const now = at("2026-10-21T05:00:00Z"); // 07:00 CAT
+    const b = availableBalance({ now, settlementHour: 8, payments: [{ ...pay(1000), createdAt: stamp("2026-10-20T08:00:00Z") }] });
+    assert.equal(b.available, 0);
+    assert.equal(b.settling, 1000);
+  });
+  it("reservations come off what has settled, and settling money is not reserved against", () => {
+    const now = at("2026-10-21T07:00:00Z");
+    const b = availableBalance({
+      now, settlementHour: 8,
+      payments: [{ ...pay(1000), createdAt: stamp("2026-10-20T08:00:00Z") }, { ...pay(500), createdAt: stamp("2026-10-21T05:00:00Z") }],
+      payouts: [{ amount: 700, status: "requested" }],
+    });
+    assert.equal(b.available, 300);
+    assert.equal(b.settling, 500);
+  });
+  it("falls back to the payment date, and treats a payment with no time as settled", () => {
+    const now = at("2026-10-21T07:00:00Z");
+    const b = availableBalance({ now, payments: [{ ...pay(200), paymentDate: "2026-10-20" }, pay(100)] });
+    assert.equal(b.available, 300);
+  });
+  it("reads the settlement hour from configuration, defaulting to 8", () => {
+    assert.equal(settlementHourFromEnv({}), 8);
+    assert.equal(settlementHourFromEnv({ PAYCHANGU_SETTLEMENT_HOUR: "6" }), 6);
+    assert.equal(settlementHourFromEnv({ PAYCHANGU_SETTLEMENT_HOUR: "30" }), 8);
   });
 });

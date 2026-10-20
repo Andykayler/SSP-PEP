@@ -79,6 +79,21 @@ describe("balance and bank account", () => {
   });
 });
 
+describe("settlement", () => {
+  it("money collected today cannot be requested until it has settled", async () => {
+    await seed({ paid: 100000 });
+    await adminDb.collection("payments").add({
+      schoolCode: SCHOOL, source: "paychangu", status: "verified", amount: 25000, payoutStatus: "held", createdAt: new Date(),
+    });
+    const s = await P.payoutState({ auth: bursar });
+    assert.equal(s.balance.available, 100000);
+    assert.equal(s.balance.settling, 25000);
+    assert.ok(s.balance.nextSettlementAtMs > Date.now());
+    await assert.rejects(P.requestPayout({ auth: bursar, body: { amount: 110000 } }), /tomorrow morning/);
+    await P.requestPayout({ auth: bursar, body: { amount: 100000 } });
+  });
+});
+
 describe("requesting", () => {
   it("reserves the amount and takes the fee out of what the school receives", async () => {
     await seed();
