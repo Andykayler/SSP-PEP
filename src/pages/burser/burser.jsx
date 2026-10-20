@@ -6,6 +6,7 @@ import DashboardShell from "../../components/DashboardShell";
 import FeeStructure from "./modules/Feestructure";
 import StudentFees from "./modules/StudentFees";
 import Payments from "./modules/Payments";
+import SchoolPayouts from "../../components/payments/SchoolPayouts";
 import Reports from "./modules/Reports";
 import Receipts from "./modules/Receipts";
 import Sponsors from "./modules/Sponsors";
@@ -38,7 +39,7 @@ const IC = {
 const MODULE_GROUPS = [
   { title: "Fees in", ids: ["fee-structure", "student-fees", "payments", "receipts"] },
   { title: "Follow-up", ids: ["arrears", "sponsors"] },
-  { title: "Money out & reporting", ids: ["expenses", "reports"] },
+  { title: "Money out & reporting", ids: ["payouts", "expenses", "reports"] },
   { title: "You", ids: ["leave"] },
 ];
 
@@ -49,6 +50,7 @@ const MODULE_HINTS = {
   receipts: "Printable official receipts",
   arrears: "Who owes, and what was decided",
   sponsors: "Who pays for which student",
+  payouts: "Send the school its online payments",
   expenses: "Money out and petty cash",
   reports: "Summaries and exports",
   leave: "Your own leave requests",
@@ -243,6 +245,7 @@ export default function BursarDashboard() {
     { id: "receipts", label: "Receipts", icon: IC.billing },
     { id: "arrears", label: "Arrears & Clearance", icon: IC.students },
     { id: "sponsors", label: "Sponsors & Bursaries", icon: IC.students },
+    { id: "payouts", label: "Payouts to School", icon: IC.billing },
     { id: "expenses", label: "Expenses", icon: IC.billing },
     { id: "reports", label: "Reports", icon: IC.audit },
     { id: "leave", label: "Leave", icon: IC.leave },
@@ -299,6 +302,7 @@ export default function BursarDashboard() {
         <StudentFees schoolCode={schoolCode} currentUser={{ id: uid, name: displayName, role: "bursar" }} />
       )}
       {currentTab === "payments" && <Payments schoolCode={schoolCode} schoolName={schoolName} bursarName={displayName} />}
+      {currentTab === "payouts" && <SchoolPayouts />}
       {currentTab === "receipts" && <Receipts schoolCode={schoolCode} schoolName={schoolName} />}
       {currentTab === "arrears" && (
         <ArrearsModule

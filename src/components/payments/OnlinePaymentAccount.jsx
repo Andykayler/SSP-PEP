@@ -61,8 +61,8 @@ export default function OnlinePaymentAccount({ schoolCode }) {
         <Landmark size={16} aria-hidden="true" /> Online Payment Account
       </p>
       <p style={{ fontSize: 12, color: "var(--text3)", marginTop: 2, marginBottom: 14 }}>
-        Right now families&apos; online payments go through Acalink&apos;s PayChangu account and
-        your share is paid out to the mobile money number above. If you would rather
+        Right now families&apos; online payments are collected by Acalink and paid out to your
+        bank account when the bursar requests it and the director approves. If you would rather
         receive them straight into your school&apos;s own PayChangu account, connect it
         below. You need a PayChangu account first.
       </p>

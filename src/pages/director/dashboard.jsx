@@ -69,6 +69,7 @@ import FinanceReports from "../burser/modules/Reports";
 import LibraryModule from "../library/modules/LibraryModule";
 import AuditLog from "../admin/modules/AuditLog";
 import HomeworkMonitor from "./modules/HomeworkMonitor";
+import SchoolPayouts from "../../components/payments/SchoolPayouts";
 import SchoolOverview from "./modules/SchoolOverview";
 import CampusPerformance from "./modules/CampusPerformance";
 import FeePosition from "./modules/FeePosition";
@@ -87,7 +88,7 @@ import useDashboardSkin from "../../hooks/useDashboardSkin";
 const MODULE_GROUPS = [
   { title: "Learning & results", ids: ["students", "classes", "attendance", "homework", "performance", "exams", "readiness", "reports", "timetable", "lessonplans", "classmonitor"] },
   { title: "Welfare & admissions", ids: ["discipline", "atrisk", "health", "admissions", "boarding"] },
-  { title: "Fees & finance", ids: ["finance", "studentfees", "payments", "receipts", "arrears", "feestructure", "expenses", "sponsors", "financereports"] },
+  { title: "Fees & finance", ids: ["finance", "studentfees", "payments", "receipts", "payouts", "arrears", "feestructure", "expenses", "sponsors", "financereports"] },
   { title: "Staff & operations", ids: ["staff", "leave", "transport", "inventory", "library", "announcements", "calendar", "audit"] },
 ];
 
@@ -101,7 +102,7 @@ const MODULE_HINTS = {
   atrisk: "Learners who need attention", health: "Sick bay and health records",
   admissions: "Applications and enrolment", boarding: "Hostels and allocations",
   finance: "Billed, collected, outstanding", studentfees: "Balances per student",
-  payments: "Every payment received", receipts: "Receipts issued",
+  payments: "Every payment received", payouts: "Approve sending money to the school", receipts: "Receipts issued",
   arrears: "Who owes, and for how long", feestructure: "Fees set for each class",
   expenses: "What the school spent", sponsors: "Sponsors and bursaries",
   financereports: "Fee reports and exports", staff: "Staff list and assignments",
@@ -254,6 +255,8 @@ export default function DirectorDashboard() {
     { id: "finance", label: "Fee Position", icon: icon(Wallet), component: <FeePosition overview={overviewData} loading={overviewLoading} academicYear={academicYear} /> },
     { id: "studentfees", label: "Student Fees", icon: icon(Receipt), component: view(<StudentFees schoolCode={schoolCode} currentUser={currentUser} />) },
     { id: "payments", label: "Payments", icon: icon(Landmark), component: view(<Payments schoolCode={schoolCode} bursarName={displayName} />) },
+    // The one finance screen the director acts in: approving a payout moves real money.
+    { id: "payouts", label: "Payouts to School", icon: icon(Landmark), badge: undefined, component: <SchoolPayouts /> },
     { id: "receipts", label: "Receipts", icon: icon(Receipt), component: view(<Receipts schoolCode={schoolCode} schoolName={schoolName} />) },
     { id: "arrears", label: "Arrears & Clearance", icon: icon(Wallet), component: view(<ArrearsModule schoolCode={schoolCode} currentUser={currentUser} />) },
     { id: "feestructure", label: "Fee Structure", icon: icon(Landmark), component: view(<FeeStructure schoolCode={schoolCode} schoolName={schoolName} />) },

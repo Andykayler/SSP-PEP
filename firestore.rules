@@ -1580,7 +1580,12 @@ service cloud.firestore {
     //   connect_links        api/_lib/connectLink.js (a school linking its own
     //                        PayChangu account; holds what PayChangu returned,
     //                        access token included — no browser may read it)
+    //   payouts              api/_lib/payouts.js (what is paid out to a school's
+    //                        bank; two people must act, so no browser writes it)
+    //   payout_destinations  the school's bank account for those payouts
     match /connect_links/{id}       { allow read, write: if false; }
+    match /payouts/{id}             { allow read, write: if false; }
+    match /payout_destinations/{id} { allow read, write: if false; }
     match /otp_challenges/{id}      { allow read, write: if false; }
     match /wa_sessions/{id}         { allow read, write: if false; }
     match /wa_optouts/{id}          { allow read, write: if false; }

@@ -18,7 +18,7 @@
 import { adminDb, FieldValue } from "./firebaseAdmin.js";
 import { yearOfTerm } from "../../src/services/termFeesCore.js";
 import {
-  verifyTransaction, verifyDirectCharge, mobileMoneyOperatorRef, initiateMobileMoneyPayout,
+  verifyTransaction, verifyDirectCharge,
 } from "./paychangu.js";
 import { paidThroughAfter } from "../../src/services/subscriptionState.js";
 
@@ -154,66 +154,6 @@ export async function settleTransaction(txRef) {
 }
 
 /**
- * A school fee, landing in the same `payments` ledger the bursar reads.
- *
- * `source: 'paychangu'` and `status: 'verified'` are what make this row
- * different from the parent app's self-reported claim: the money is confirmed
- * by the gateway before the row exists, so the bursar's totals can be trusted
- * without a second confirmation step.
- */
-/**
- * PayChangu's payout API wants the bare 9-digit local number, same as its
- * charge API — see the identical comment in api/_lib/waFeeCheckout.js.
- */
-function localMobileNumber(phone) {
-  return String(phone || "").replace(/^\+265/, "");
-}
-
-/**
- * Pushes the school's share out to their own mobile money number the moment
- * their fee payment settles — see "Fee Payout Destination" on School
- * Settings, and initiateMobileMoneyPayout() in api/_lib/paychangu.js for why
- * this needs no PayChangu account on the school's side.
- *
- * Never allowed to fail the payment it is attached to: the family's payment
- * is already confirmed and credited by the time this runs, and a payout
- * hiccup is Acalink's problem to retry, not a reason to make a settled
- * payment look unsettled. `payoutStatus` on the payments doc is what makes a
- * stuck payout visible for that retry rather than silently lost.
- */
-async function payoutToSchool(tx, paymentRef) {
-  try {
-    const schoolSnap = await adminDb.collection("schools").doc(tx.schoolCode).get();
-    const school = schoolSnap.exists ? schoolSnap.data() : {};
-
-    if (!school.payoutMobile || !school.payoutOperator) {
-      await paymentRef.update({ payoutStatus: "not_configured" });
-      return;
-    }
-
-    const operatorRefId = await mobileMoneyOperatorRef(school.payoutOperator);
-    const payoutId = `PYT-${tx.txRef}`;
-    const payout = await initiateMobileMoneyPayout({
-      chargeId: payoutId,
-      mobile: localMobileNumber(school.payoutMobile),
-      operatorRefId,
-      // Acalink absorbs PayChangu's own payout fee — the school is always
-      // sent the full fee amount it was credited with, never less.
-      amount: Math.round(Number(tx.amount || 0)),
-      firstName: school.name || tx.schoolCode,
-    });
-
-    await paymentRef.update({
-      payoutStatus: payout.status === "success" ? "sent" : payout.status || "pending",
-      payoutChargeId: payoutId,
-    });
-  } catch (err) {
-    console.error("[settle] payout to school failed for", tx.txRef, err);
-    await paymentRef.update({ payoutStatus: "failed", payoutError: err.message }).catch(() => {});
-  }
-}
-
-/**
  * The term and academic year a payment belongs to. A payment started from the
  * portal carries them; one started from WhatsApp does not, and without a year
  * the bursar's ledger (which lists by year) never showed it. So the school's
@@ -232,6 +172,14 @@ async function termAndYearOf(tx) {
   return { term, academicYear: tx.academicYear || yearOfTerm(term) };
 }
 
+/**
+ * A school fee, landing in the same `payments` ledger the bursar reads.
+ *
+ * `source: 'paychangu'` and `status: 'verified'` are what make this row
+ * different from the parent app's self-reported claim: the money is confirmed
+ * by the gateway before the row exists, so the bursar's totals can be trusted
+ * without a second confirmation step.
+ */
 async function recordFeePayment(tx, verified) {
   const receipt = receiptNo();
   const { term, academicYear } = await termAndYearOf(tx);
@@ -272,7 +220,11 @@ async function recordFeePayment(tx, verified) {
   // the instant its response is sent, so the payout has to actually happen
   // within this same invocation to happen at all — which is also what makes
   // it feel instant to the school rather than caught by some later sweep.
-  await payoutToSchool(tx, ref);
+  // No automatic payout any more: the money stays in Acalink's PayChangu account
+  // and is credited to the school's balance. The bursar requests a payout and
+  // the director approves it (api/_lib/payouts.js). `held` is what marks a
+  // payment as part of that balance.
+  await ref.update({ payoutStatus: "held" });
 
   return {
     txPatch: { paymentId: ref.id, receiptNo: receipt },

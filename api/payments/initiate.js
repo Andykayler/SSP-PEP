@@ -29,6 +29,7 @@ import { createCheckout, makeTxRef, isConfigured, CURRENCY } from "../_lib/paych
 import { TX_COLLECTION } from "../_lib/settle.js";
 import { quote } from "../../src/services/pricing.js";
 import { startConnect, completeConnect } from "../_lib/connectLink.js";
+import { PAYOUT_ACTIONS, isPayoutAction, UserError } from "../_lib/payouts.js";
 import { calculateTransactionFee } from "../../src/services/transactionFeeCore.js";
 
 const FINANCE_ROLES = ["admin", "bursar"];
@@ -108,6 +109,17 @@ export default async function handler(req, res) {
     } catch (err) {
       console.error("[connect]", body.action, "failed:", err);
       return res.status(502).json({ error: err.message || "Could not reach PayChangu." });
+    }
+  }
+
+  // Paying a school what its families paid online (api/_lib/payouts.js).
+  if (isPayoutAction(body.action)) {
+    try {
+      return res.status(200).json(await PAYOUT_ACTIONS[body.action]({ auth, body }));
+    } catch (err) {
+      if (err instanceof UserError) return res.status(err.status).json({ error: err.message });
+      console.error("[payout]", body.action, "failed:", err);
+      return res.status(502).json({ error: err.message || "Could not complete that." });
     }
   }
 

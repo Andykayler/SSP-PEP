@@ -42,35 +42,47 @@ someone else's behalf.
 
 ## Getting the money to the school
 
-Every fee payment lands in Acalink's own PayChangu balance first — schools
-don't have their own PayChangu accounts. So that a school actually receives
-its share, `api/_lib/settle.js` pushes it straight back out via PayChangu's
-**payout** API (`initiateMobileMoneyPayout()` in `api/_lib/paychangu.js`) the
-moment a fee payment settles — the school needs no PayChangu account of its
-own, just a mobile money number, which it registers once under **Admin →
-School Settings → Fee Payout Destination** (`payoutMobile` / `payoutOperator`
-on the school's Firestore doc).
+Every online fee payment lands in Acalink's own PayChangu balance and is
+credited to the student in full. **Nothing is sent to the school automatically.**
+Each school instead has a *balance* — confirmed online payments, less what has
+been paid out or is on its way — and the school is paid from it in a payout:
 
-This runs *inside* the same request that settles the payment — awaited, not
-fired-and-forgotten — because a serverless function can stop the instant its
-response is sent, so the payout has to actually happen within that window to
-happen at all. That's also what makes it feel instant rather than caught by
-some later reconciliation sweep.
+1. The school's **administrator** saves a bank account (Admin → School Settings →
+   *Payout Bank Account*). Only the administrator can change it.
+2. The **bursar** requests an amount (Bursar → *Payouts to School*), up to the
+   available balance.
+3. The **director** approves it (Director → Fees & finance → *Payouts to School*).
+   Nobody approves their own request; a school with no director can have its
+   administrator approve instead.
+4. On approval the server sends it with PayChangu's bank payout API
+   (`POST /direct-charge/payouts/initialize`, `payout_method: bank_transfer`),
+   to the account as it was when the payout was requested. PayChangu answers
+   `pending`; the outcome arrives on the `api.payout` webhook and is only acted
+   on when its signature checks out.
 
-Acalink absorbs PayChangu's own payout fee — the school is always sent the
-full amount it was credited with. A payout failure never unsettles the
-payment itself (the family already paid; a stuck payout is Acalink's own
-problem to retry) — it's recorded as `payoutStatus` on the `payments` row
-(`sent`, `failed`, `pending`, or `not_configured` if the school hasn't set a
-payout number yet), so it's visible rather than silently lost.
+PayChangu's fee for the payout is taken out of what the school receives, not out
+of Acalink's margin. It is set with `PAYCHANGU_BANK_PAYOUT_FEE_RATE` (a fraction,
+e.g. `0.01`) and/or `PAYCHANGU_BANK_PAYOUT_FEE_FLAT` (kwacha); both default to 0.
 
-**Not built:** a retry mechanism for a `payoutStatus: "failed"` row, and bank
-transfer as a payout option (mobile money only, for now — see
-`docs/whatsapp-waapi.md`'s network options for the same Airtel/TNM split).
-**Also not built:** PayChangu Connect, the alternative where each school
-holds its own PayChangu account and funds split automatically without
-Acalink's account ever holding the school's share — considered, but ruled out
-since it would require every school to create a PayChangu account first.
+If PayChangu refuses an approval (a 4xx: payouts not enabled, a bad account) it
+goes back to *awaiting approval* with the reason, and can be approved again. If
+there is no clear answer (a timeout, a 5xx) the payout is marked *failed* and is
+**not** retried automatically — it may have gone through, so someone checks the
+PayChangu dashboard before a new request is raised.
+
+**Bank payouts are not on by default.** PayChangu requires KYC to be complete
+and bank payouts to be activated on the account (by email or their support
+form) before `initialize` will accept one.
+
+Code: `api/_lib/payouts.js` (the steps), `api/_lib/payoutCore.js` (balance, fee,
+who may approve), reached through `api/payments/initiate.js` (`payout_*`
+actions). The `payouts` and `payout_destinations` collections are server-only.
+`npm run test:payouts` runs the flow against the Firestore emulator with
+PayChangu stubbed.
+
+The earlier automatic mobile-money payout was removed; payments recorded since
+are marked `payoutStatus: "held"`. A payment the old payout already sent
+(`payoutStatus: "sent"`) is left out of the balance.
 
 ## The rule the whole design rests on
 

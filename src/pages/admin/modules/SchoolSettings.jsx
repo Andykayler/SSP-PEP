@@ -16,6 +16,7 @@ import {
 } from "../../../services/curriculum";
 import CurriculumSettings from "../../../components/setup/CurriculumSettings";
 import OnlinePaymentAccount from "../../../components/payments/OnlinePaymentAccount";
+import PayoutBankAccount from "../../../components/payments/PayoutBankAccount";
 import {
   SMS_ALWAYS_CATEGORIES, SMS_FALLBACK_CATEGORIES,
   smsFallbackCategories, setSmsFallbackCategories,
@@ -65,14 +66,10 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
   const [settings, setSettings]     = useState(null);
   const [savingType, setSavingType] = useState(false);
   const [classSearch, setClassSearch] = useState("");
-  const [payout, setPayout] = useState({ mobile: "", operator: "airtel" });
-  const [savingPayout, setSavingPayout] = useState(false);
-  const [payoutSaved, setPayoutSaved] = useState(false);
 
   useEffect(() => {
     if (schoolData) {
       setForm({ name: schoolData.name||"", district: schoolData.district||"", address: schoolData.address||"", phone: schoolData.phone||"", email: schoolData.email||"" });
-      setPayout({ mobile: schoolData.payoutMobile || "", operator: schoolData.payoutOperator || "airtel" });
     }
     fetchClasses();
   }, [schoolData]);
@@ -149,24 +146,6 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
       setTimeout(() => setSaved(false), 3000);
     } catch (err) { setError("Save failed: " + err.message); }
     setLoading(false);
-  }
-
-  /**
-   * Where a family's fee payment is sent, moments after it settles — see
-   * api/_lib/settle.js. A plain mobile money number, not a PayChangu account:
-   * the school never signs up for anything to receive it.
-   */
-  async function savePayout(e) {
-    e.preventDefault(); setSavingPayout(true); setError(""); setPayoutSaved(false);
-    try {
-      const payoutMobile = normalisePhone(payout.mobile);
-      await updateDoc(doc(db, "schools", schoolCode), {
-        payoutMobile, payoutOperator: payout.operator, updatedAt: serverTimestamp(),
-      });
-      setPayoutSaved(true); if (onUpdate) onUpdate({ ...schoolData, payoutMobile, payoutOperator: payout.operator });
-      setTimeout(() => setPayoutSaved(false), 3000);
-    } catch (err) { setError("Save failed: " + err.message); }
-    setSavingPayout(false);
   }
 
   function openClassModal(cls = null) {
@@ -334,36 +313,7 @@ export default function SchoolSettings({ schoolCode, schoolData, onUpdate }) {
         </div>
       </div>
 
-      <div className="card" style={{ padding: 28 }}>
-        <p style={{ fontFamily: "var(--font-display)", fontSize: 16, color: "var(--text)", letterSpacing: 0.5 }}>
-          Fee Payout Destination
-        </p>
-        <p style={{ fontSize: 12, color: "var(--text3)", marginTop: 2, marginBottom: 16 }}>
-          Where the school's share of an online fee payment is sent automatically, within
-          moments of a family paying. A mobile money number your bursar's office already uses —
-          not a PayChangu account, nothing to sign up for.
-        </p>
-        {payoutSaved && <div className="alert alert--success" style={{ marginBottom: 16 }}>{IC.check}<span>Payout destination saved.</span></div>}
-        <div className="grid-2">
-          <Input
-            label="Mobile Money Number" type="tel" required
-            value={payout.mobile}
-            onChange={e => setPayout(p => ({...p, mobile: e.target.value}))}
-            placeholder="+265 9xx xxx xxx"
-          />
-          <Select
-            label="Network" required
-            value={payout.operator}
-            onChange={e => setPayout(p => ({...p, operator: e.target.value}))}
-          >
-            <option value="airtel">Airtel Money</option>
-            <option value="tnm">TNM Mpamba</option>
-          </Select>
-        </div>
-        <div className="data-table__actions" style={{ display: "flex", justifyContent: "flex-end", paddingTop: 8 }}>
-          <Btn onClick={savePayout} loading={savingPayout} variant="accent">Save Payout Destination</Btn>
-        </div>
-      </div>
+      <PayoutBankAccount />
 
       <OnlinePaymentAccount schoolCode={schoolCode} />
 

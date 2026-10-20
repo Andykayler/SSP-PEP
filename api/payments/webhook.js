@@ -23,6 +23,7 @@
 import { verifyWebhookSignature } from "../_lib/paychangu.js";
 import { recordConnectEvent } from "../_lib/connectWebhook.js";
 import { payerReturnUrl } from "../_lib/webhookRedirect.js";
+import { applyPayoutEvent } from "../_lib/payouts.js";
 import { settleTransaction } from "../_lib/settle.js";
 import { sendWhatsAppText, isConfigured as waConfigured } from "../_lib/waapi.js";
 
@@ -112,6 +113,7 @@ export default async function handler(req, res) {
   const isConnect = query.get("source") === "connect";
 
   let payload = {};
+  let signatureOk = false;
   try {
     const raw = await rawBody(req);
     payload = parseBody(raw, req.body);
@@ -124,6 +126,7 @@ export default async function handler(req, res) {
     if (raw) {
       const signature = req.headers.signature || req.headers["x-paychangu-signature"];
       const valid = verifyWebhookSignature(raw, signature);
+      signatureOk = valid;
       if (!valid) {
         // Logged, not fatal: the verify call below is what decides whether any
         // money moved. Worth watching, though — a signature that never
@@ -133,6 +136,16 @@ export default async function handler(req, res) {
     }
   } catch (err) {
     console.error("[payments] could not read webhook body:", err);
+    return res.status(200).json({ received: true });
+  }
+
+  // The outcome of a payout we sent to a school's bank (api.payout).
+  if (payload?.event_type === "api.payout") {
+    try {
+      await applyPayoutEvent(payload, signatureOk);
+    } catch (err) {
+      console.error("[payout] webhook handling failed:", err);
+    }
     return res.status(200).json({ received: true });
   }
 

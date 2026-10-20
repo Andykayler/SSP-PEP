@@ -77,6 +77,21 @@ export async function completeConnect(params) {
   return res.json();
 }
 
+/**
+ * One call to the payout actions (api/_lib/payouts.js): state, banks, saving the
+ * school's bank account, requesting, approving, declining. The server decides
+ * who may do what; this file only carries the request.
+ */
+export async function payoutAction(action, payload = {}) {
+  const res = await fetch("/api/payments/initiate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await authHeader()) },
+    body: JSON.stringify({ ...payload, action }),
+  });
+  if (!res.ok) throw new Error(await readError(res, "That did not work."));
+  return res.json();
+}
+
 /** One look at a transaction. Settles it server-side if the webhook is late. */
 export async function checkStatus(txRef) {
   const res = await fetch(`/api/payments/status?tx_ref=${encodeURIComponent(txRef)}`, {

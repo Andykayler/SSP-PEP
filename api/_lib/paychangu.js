@@ -321,6 +321,53 @@ export async function initiateMobileMoneyPayout({
   };
 }
 
+let banksCache = null;
+
+/**
+ * The banks PayChangu can pay out to, each with the uuid a payout needs.
+ * GET /direct-charge/payouts/supported-banks?currency=MWK
+ */
+export async function listPayoutBanks(currency = CURRENCY) {
+  if (!banksCache) {
+    const data = await call(`/direct-charge/payouts/supported-banks?currency=${encodeURIComponent(currency)}`);
+    const rows = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+    banksCache = rows
+      .map((b) => ({ uuid: b.uuid || b.bank_uuid || b.id || "", name: b.name || b.bank_name || "" }))
+      .filter((b) => b.uuid && b.name)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+  return banksCache;
+}
+
+/**
+ * Sends money OUT of Acalink's PayChangu balance to a bank account.
+ * POST /direct-charge/payouts/initialize with payout_method "bank_transfer".
+ * PayChangu answers "pending"; the outcome arrives by webhook (event_type
+ * api.payout). Bank payouts must be activated on the PayChangu account first.
+ *
+ * `chargeId` is ours and unique per payout, so a payout is identifiable on both
+ * sides and never sent twice for the same request.
+ */
+export async function initiateBankPayout({ chargeId, amount, bankUuid, accountName, accountNumber }) {
+  const data = await call("/direct-charge/payouts/initialize", {
+    method: "POST",
+    body: {
+      payout_method: "bank_transfer",
+      bank_uuid: bankUuid,
+      amount: String(amount),
+      charge_id: chargeId,
+      bank_account_name: accountName,
+      bank_account_number: accountNumber,
+    },
+  });
+  const d = data?.data || data || {};
+  return {
+    status: String(d.status || data?.status || "pending").toLowerCase(),
+    gatewayRef: d.ref_id || d.reference || d.trans_id || d.transaction?.ref_id || "",
+    raw: d,
+  };
+}
+
 /**
  * Whether a webhook body really came from PayChangu.
  *

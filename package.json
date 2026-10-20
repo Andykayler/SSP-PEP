@@ -11,7 +11,8 @@
     "push-worker": "node scripts/push-worker.js",
     "make-platform-owner": "node scripts/make-platform-owner.mjs",
     "test:logic": "node --test tests/logic/*.test.mjs",
-    "test:rules": "firebase emulators:exec --only firestore \"node --test tests/rules/*.test.js\""
+    "test:rules": "firebase emulators:exec --only firestore \"node --test tests/rules/*.test.js\"",
+    "test:payouts": "firebase emulators:exec --only firestore \"node --test tests/payouts/*.test.mjs\""
   },
   "dependencies": {
     "cors": "^2.8.6",
