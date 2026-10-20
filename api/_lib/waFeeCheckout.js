@@ -92,10 +92,16 @@ function baseRecord(student, amount, payerPhone) {
   };
 }
 
-export async function openWhatsAppDirectCharge({ student, amount, payerPhone, network }) {
+/**
+ * `payerPhone` is the WhatsApp number the parent chatted from — replies and CHECK
+ * go there. `mobile` is the mobile money number the PIN prompt is sent to, which
+ * the parent chose and which may be someone else's; it defaults to payerPhone.
+ */
+export async function openWhatsAppDirectCharge({ student, amount, payerPhone, network, mobile }) {
   const txRef = makeTxRef("school_fee");
   const operatorRefId = await mobileMoneyOperatorRef(network);
-  const record = { ...baseRecord(student, amount, payerPhone), chargeMethod: "direct", network };
+  const payMobile = mobile || payerPhone;
+  const record = { ...baseRecord(student, amount, payerPhone), chargeMethod: "direct", network, payMobile };
 
   // Written before the charge is initiated, same as initiate.js: if
   // PayChangu is reached and the response is lost, the next CHECK or poll
@@ -113,7 +119,7 @@ export async function openWhatsAppDirectCharge({ student, amount, payerPhone, ne
 
   const charge = await initiateMobileMoneyCharge({
     chargeId: txRef,
-    mobile: localMobileNumber(payerPhone),
+    mobile: localMobileNumber(payMobile),
     operatorRefId,
     amount: record.chargeAmount,
     email: student.guardianEmail || "",

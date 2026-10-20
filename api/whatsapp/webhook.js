@@ -65,6 +65,7 @@ import { isGuardianPhone } from "../../src/services/guardians.js";
 import { handleGuardianSend } from "../_lib/guardianSend.js";
 import { parseParentCommand, startParentCommand, continueParentSession } from "../_lib/waParent.js";
 import { calculateTransactionFee } from "../../src/services/transactionFeeCore.js";
+import { parsePayNumber, numberFitsNetwork, localDisplay, NETWORK_LABEL } from "../../src/services/waPayCore.js";
 
 const ATTEMPTS = "wa_payment_attempts";
 
@@ -341,15 +342,14 @@ async function handleNetwork(senderPhone, text, session) {
     return;
   }
 
-  // Cleared before charging, not after: a WaAPI retry of this same message
-  // finding no session in "network" state can't trigger a second charge.
-  await clearSession(senderPhone);
-
   // Card and bank transfer need a PCI-compliant page to type a card number
-  // into — this product never builds that itself (see api/_lib/paychangu.js)
-  // — so that one case still hands off to PayChangu's hosted checkout link,
+  // into — this product never builds that itself (see api/_lib/paychangu.js) —
+  // so that one case still hands off to PayChangu's hosted checkout link,
   // settled the normal webhook-driven way rather than polled.
   if (network === "card") {
+    // Cleared before charging, not after: a WaAPI retry of this same message
+    // finding no session in "network" state can't trigger a second charge.
+    await clearSession(senderPhone);
     try {
       const { checkoutUrl, chargeAmount } = await openWhatsAppFeeCheckout({
         student, amount: session.amount, payerPhone: senderPhone,
@@ -363,12 +363,75 @@ async function handleNetwork(senderPhone, text, session) {
     return;
   }
 
+  // Mobile money: ask which number the payment will come from before anything
+  // is charged — see src/services/waPayCore.js.
+  await setSession(senderPhone, { awaiting: "number", studentId: student.id, amount: session.amount, network });
+  await reply(senderPhone,
+    `Which ${NETWORK_LABEL[network]} number will you pay from?\n\n`
+    + `Reply with the number (e.g. 0991234567), or reply SAME to use this WhatsApp number (${localDisplay(senderPhone)}).`);
+}
+
+/** Asks the parent to confirm the number back, then — and only then — charges. */
+async function askToConfirmNumber(senderPhone, session, mobile) {
+  const { total } = calculateTransactionFee(session.amount);
+  await setSession(senderPhone, { ...session, awaiting: "confirm_number", mobile });
+  await reply(senderPhone,
+    `We'll send a payment request of MK ${fmt(total)} to *${localDisplay(mobile)}* (${NETWORK_LABEL[session.network]}).\n\n`
+    + `Reply YES to send it, send a different number to change it, or CANCEL to stop.`);
+}
+
+async function handleNumber(senderPhone, text, session) {
+  const parsed = parsePayNumber(text, senderPhone);
+  if (!parsed.ok) {
+    await reply(senderPhone,
+      `That doesn't look like a Malawian mobile money number. Reply with it like 0991234567, or SAME to use this WhatsApp number.`);
+    return;
+  }
+  if (!numberFitsNetwork(parsed.mobile, session.network)) {
+    const other = session.network === "airtel" ? "TNM Mpamba" : "Airtel Money";
+    await reply(senderPhone,
+      `${localDisplay(parsed.mobile)} looks like a ${other} number, but you chose ${NETWORK_LABEL[session.network]}. `
+      + `Send a ${NETWORK_LABEL[session.network]} number, or reply CANCEL and start again to choose ${other}.`);
+    return;
+  }
+  await askToConfirmNumber(senderPhone, session, parsed.mobile);
+}
+
+async function handleConfirmNumber(senderPhone, text, session) {
+  if (!YES_RE.test(text)) {
+    // Anything else that reads as a number replaces the one on screen.
+    const parsed = parsePayNumber(text, senderPhone);
+    if (parsed.ok && !/^\s*1\s*$/.test(text)) {
+      if (!numberFitsNetwork(parsed.mobile, session.network)) return handleNumber(senderPhone, text, session);
+      return askToConfirmNumber(senderPhone, session, parsed.mobile);
+    }
+    await reply(senderPhone, "Reply YES to send the request, send a different number, or CANCEL to stop.");
+    return;
+  }
+
+  const student = await loadStudent(session.studentId);
+  if (!student) {
+    await clearSession(senderPhone);
+    await reply(senderPhone, "Sorry, that record could not be found.");
+    return;
+  }
+  if (!(await stillOwnsStudent(senderPhone, student))) {
+    await clearSession(senderPhone);
+    await logAttempt({ senderPhone, matchedStudentIds: [student.id], outcome: "mismatch_at_number" });
+    await reply(senderPhone, "This number is not registered to this student. Please contact the school office.");
+    return;
+  }
+
+  // Cleared before charging, not after: a WaAPI retry of this same message
+  // finding no session in "confirm_number" state can't trigger a second charge.
+  await clearSession(senderPhone);
+
   try {
     const { txRef, chargeAmount, operatorName } = await openWhatsAppDirectCharge({
-      student, amount: session.amount, payerPhone: senderPhone, network,
+      student, amount: session.amount, payerPhone: senderPhone, network: session.network, mobile: session.mobile,
     });
     await reply(senderPhone,
-      `Sending a request for MK ${fmt(chargeAmount)} to your phone via ${operatorName || network}. `
+      `Sending a request for MK ${fmt(chargeAmount)} to ${localDisplay(session.mobile)} via ${operatorName || NETWORK_LABEL[session.network]}. `
       + `Enter your mobile money PIN when prompted to approve it.`);
     await pollAndReport(senderPhone, txRef, operatorName);
   } catch (err) {
@@ -476,6 +539,8 @@ async function route(senderPhone, text) {
   if (session?.awaiting === "amount") return handleAmount(senderPhone, text, session);
   if (session?.awaiting === "confirm") return handleConfirm(senderPhone, text, session);
   if (session?.awaiting === "network") return handleNetwork(senderPhone, text, session);
+  if (session?.awaiting === "number") return handleNumber(senderPhone, text, session);
+  if (session?.awaiting === "confirm_number") return handleConfirmNumber(senderPhone, text, session);
 
   if (CHECK_RE.test(text)) return handleCheckCommand(senderPhone);
   if (TRIGGER_RE.test(text)) return startPaymentFlow(senderPhone);

@@ -153,7 +153,14 @@ Bot:    "Confirm: pay MK 20,000 for <name>'s school fees?
 Parent: "YES"
 Bot:    "How would you like to pay?\n\n1) Airtel Money\n2) TNM Mpamba\n3) Card or bank transfer"
 Parent: "1"
-Bot:    initiates a direct PayChangu charge, replies "Sending a request... enter your PIN"
+Bot:    "Which Airtel Money number will you pay from?
+         Reply with the number (e.g. 0991234567), or reply SAME to use this WhatsApp number (0991 234 567)."
+Parent: "0999 888 777"   (or SAME)
+Bot:    "We'll send a payment request of MK 20,700 to *0999 888 777* (Airtel Money).
+         Reply YES to send it, send a different number to change it, or CANCEL to stop."
+Parent: "YES"
+Bot:    initiates a direct PayChangu charge to THAT number, replies "Sending a request... enter your PIN"
+        (card/bank skips the number step: it goes straight to the hosted checkout link)
         [parent approves the prompt on their phone]
 Bot:    "Payment received — thank you!" (from pollAndReport() in api/whatsapp/webhook.js,
         having asked PayChangu itself — there is no callback for this kind of charge)
