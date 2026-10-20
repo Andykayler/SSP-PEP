@@ -15,6 +15,7 @@ import {
   AlertTriangle, Smartphone, MessageCircle,
 } from "lucide-react";
 import PayChanguCheckout from "../../../components/payments/PayChanguCheckout";
+import { payoutAction } from "../../../services/paychangu";
 import "./staff-management.css";
 
 // ─── Shared Modal ───────────────────────────────────────────────────────────
@@ -421,6 +422,26 @@ export default function Payments({ schoolCode, bursarName }) {
   // Claims from the parent app, waiting for the bursar to confirm the money arrived.
   const claims = useMemo(() => payments.filter((p) => p.status === "unverified"), [payments]);
 
+  // TEMPORARY: removes an online payment recorded by mistake (a test on a live
+  // school). The server keeps a copy; see api/_lib/paymentDelete.js.
+  async function deleteOnline(p) {
+    const ok = window.confirm(
+      `Delete this online payment?\n\n${p.studentName} · ${fmt(p.amount)} · ${p.receiptNo || "no receipt"}\n\n`
+      + `The ledger row is removed and the amount goes back on the student's balance. `
+      + `It does NOT refund the money, which already moved through PayChangu.`,
+    );
+    if (!ok) return;
+    setDeciding(p.id);
+    try {
+      await payoutAction("payment_delete", { id: p.id });
+      setPayments((prev) => prev.filter((x) => x.id !== p.id));
+      showToast("success", `Deleted ${p.receiptNo || "the payment"}.`);
+    } catch (e) {
+      showToast("error", e.message || "Could not delete that payment.");
+    }
+    setDeciding("");
+  }
+
   async function decideClaim(p, confirmed) {
     let reason = "";
     if (!confirmed) {
@@ -633,6 +654,16 @@ export default function Payments({ schoolCode, bursarName }) {
                       <td data-label="Date" className="text-muted">{p.paymentDate}</td>
                       <td data-label="Amount" className="text-right font-semibold text-success">{fmt(p.amount)}</td>
                       <td className="text-center">
+                        {p.source === "paychangu" && (
+                          <button
+                            onClick={() => deleteOnline(p)}
+                            className="icon-btn icon-btn--danger"
+                            title="Delete this online payment"
+                            disabled={deciding === p.id}
+                          >
+                            <X size={16} />
+                          </button>
+                        )}
                         {student && (
                           <button
                             onClick={() => openModal(student)}

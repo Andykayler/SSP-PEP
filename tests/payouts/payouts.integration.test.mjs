@@ -38,7 +38,7 @@ const admin = { uid: "a1", isAnonymous: false, user: { role: "admin", schoolCode
 const teacher = { uid: "t1", isAnonymous: false, user: { role: "class_teacher", schoolCode: SCHOOL } };
 
 async function wipe() {
-  for (const c of ["payments", "payouts", "payout_destinations", "users"]) {
+  for (const c of ["payments", "payouts", "payout_destinations", "users", "deleted_payments"]) {
     const snap = await adminDb.collection(c).get();
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
   }
@@ -210,5 +210,26 @@ describe("declining and the outcome webhook", () => {
     const s = await P.payoutState({ auth: director });
     assert.equal(s.payouts[0].status, "paid");
     assert.equal(s.balance.paidOut, 1000);
+  });
+});
+
+describe("temporary payment clean-up", () => {
+  it("deletes an online payment of the school, keeping a copy, and refuses everything else", async () => {
+    await adminDb.collection("payments").doc("p-online").set({ schoolCode: SCHOOL, source: "paychangu", status: "verified", amount: 500, receiptNo: "RCP-1" });
+    await adminDb.collection("payments").doc("p-cash").set({ schoolCode: SCHOOL, source: "bursar", status: "verified", amount: 700 });
+    await adminDb.collection("payments").doc("p-other").set({ schoolCode: "OTHER", source: "paychangu", status: "verified", amount: 900 });
+
+    await assert.rejects(P.PAYOUT_ACTIONS.payment_delete({ auth: director, body: { id: "p-online" } }), /bursar or administrator/);
+    await assert.rejects(P.PAYOUT_ACTIONS.payment_delete({ auth: bursar, body: { id: "p-cash" } }), /online payments/);
+    await assert.rejects(P.PAYOUT_ACTIONS.payment_delete({ auth: bursar, body: { id: "p-other" } }), /not found/);
+
+    const out = await P.PAYOUT_ACTIONS.payment_delete({ auth: bursar, body: { id: "p-online" } });
+    assert.equal(out.receiptNo, "RCP-1");
+    assert.equal((await adminDb.collection("payments").doc("p-online").get()).exists, false);
+    const copy = await adminDb.collection("deleted_payments").doc("p-online").get();
+    assert.equal(copy.data().amount, 500);
+    assert.equal(copy.data().deletedById, "b1");
+    assert.equal((await adminDb.collection("payments").doc("p-cash").get()).exists, true);
+    assert.equal((await adminDb.collection("payments").doc("p-other").get()).exists, true);
   });
 });
