@@ -307,6 +307,14 @@ export default function PayChanguCheckout({
           </div>
         )}
 
+        {canPromptPhone && (
+          <div className="card p-4 text-muted" style={{ fontSize: 12, lineHeight: 1.6 }}>
+            <p><b>Mobile money:</b> a PIN prompt appears on the number you enter. Approve it there.</p>
+            <p><b>Bank transfer:</b> we show an account number and the exact amount. Send it from your own bank app or USSD (Instant Transfer).</p>
+            <p><b>Card:</b> opens PayChangu's secure page in a new tab.</p>
+          </div>
+        )}
+
         <Input label="Payer name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Mwale" />
         <Input
           label="Mobile money number"

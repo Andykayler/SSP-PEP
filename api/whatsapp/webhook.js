@@ -282,7 +282,7 @@ async function handleConfirm(senderPhone, text, session) {
 
   await setSession(senderPhone, { awaiting: "network", studentId: student.id, amount: session.amount });
   await reply(senderPhone,
-    "How would you like to pay?\n\n1) Airtel Money\n2) TNM Mpamba\n3) Bank transfer\n4) Card");
+    "How would you like to pay?\n\n1) Airtel Money — a PIN prompt is sent to your phone\n2) TNM Mpamba — a PIN prompt is sent to your phone\n3) Bank transfer — we send you an account number to pay into from your bank app\n4) Card — opens a secure payment link");
 }
 
 /**
