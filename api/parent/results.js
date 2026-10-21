@@ -21,6 +21,7 @@
 // its own, so the request names the child and the guardian phone the family
 // signed in with, and the phone must match the child's record.
 // ─────────────────────────────────────────────────────────────────────────────
+import { cors } from "../_lib/cors.js";
 import { adminAuth, adminDb } from "../_lib/firebaseAdmin.js";
 import { readBody } from "../_lib/auth.js";
 import { confirmGuardianLink } from "../_lib/guardianLink.js";
@@ -54,6 +55,7 @@ async function caller(req) {
 }
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
   // POST /api/parent/confirm is rewritten here (vercel.json) so guardian link
   // confirmation doesn't cost a function of its own.
   if (req.query?.task === "confirm") return confirmGuardianLink(req, res);

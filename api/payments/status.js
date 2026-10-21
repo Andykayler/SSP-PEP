@@ -14,6 +14,7 @@
 // that caller is entitled to see: the person who started it, a member of staff
 // at the school it belongs to, or the guardian session paying for it.
 // ─────────────────────────────────────────────────────────────────────────────
+import { cors } from "../_lib/cors.js";
 import { adminAuth, adminDb } from "../_lib/firebaseAdmin.js";
 import { settleTransaction, TX_COLLECTION } from "../_lib/settle.js";
 
@@ -33,6 +34,7 @@ function publicView(tx) {
 }
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
     return res.status(405).json({ error: "Method not allowed" });

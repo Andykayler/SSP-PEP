@@ -23,6 +23,7 @@
 // guardian is bound instead to the student they name, exactly as
 // firestore.rules does it.
 // ─────────────────────────────────────────────────────────────────────────────
+import { cors } from "../_lib/cors.js";
 import { adminAuth, adminDb, FieldValue } from "../_lib/firebaseAdmin.js";
 import { isDeactivated } from "../../src/services/staffAccountCore.js";
 import { createCheckout, makeTxRef, isConfigured, CURRENCY } from "../_lib/paychangu.js";
@@ -83,6 +84,7 @@ async function authenticate(req) {
 }
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
