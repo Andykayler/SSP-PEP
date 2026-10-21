@@ -26,7 +26,9 @@
 import { cors } from "../_lib/cors.js";
 import { adminAuth, adminDb, FieldValue } from "../_lib/firebaseAdmin.js";
 import { isDeactivated } from "../../src/services/staffAccountCore.js";
-import { createCheckout, makeTxRef, isConfigured, CURRENCY } from "../_lib/paychangu.js";
+import {
+  createCheckout, makeTxRef, isConfigured, CURRENCY, mobileMoneyOperatorRef, initiateMobileMoneyCharge,
+} from "../_lib/paychangu.js";
 import { TX_COLLECTION } from "../_lib/settle.js";
 import { quote } from "../../src/services/pricing.js";
 import { startConnect, completeConnect } from "../_lib/connectLink.js";
@@ -152,6 +154,48 @@ export default async function handler(req, res) {
       createdAt: FieldValue.serverTimestamp(),
       ...prepared.record,
     });
+
+    // Mobile money paid from inside the app: PayChangu pushes a PIN prompt to
+    // the phone and the app waits on /api/payments/status, so the payer never
+    // leaves Acalink. Cards still need the hosted checkout below — a card
+    // number is never typed into anything this product builds.
+    if (purpose === "school_fee" && body.method === "mobile_money") {
+      const network = String(body.network || "").toLowerCase();
+      if (!["airtel", "tnm"].includes(network)) {
+        return res.status(400).json({ error: "Choose Airtel Money or TNM Mpamba." });
+      }
+      const digits = String(body.mobile || "").replace(/\D/g, "");
+      const local = digits.startsWith("265") ? digits.slice(3) : digits.replace(/^0/, "");
+      if (!/^[89]\d{8}$/.test(local)) {
+        return res.status(400).json({ error: "Enter the mobile money number to pay from, e.g. 0888 123 456." });
+      }
+      await adminDb.collection(TX_COLLECTION).doc(txRef).update({
+        chargeMethod: "direct", network, payMobile: `+265${local}`, channel: "app",
+      });
+      const charge = await initiateMobileMoneyCharge({
+        chargeId: txRef,
+        mobile: local,
+        operatorRefId: await mobileMoneyOperatorRef(network),
+        amount: prepared.record.chargeAmount || prepared.record.amount,
+        email: prepared.payer.email,
+        firstName: prepared.payer.firstName,
+        lastName: prepared.payer.lastName,
+      });
+      await adminDb.collection(TX_COLLECTION).doc(txRef).update({
+        gatewayRefId: charge.refId || "",
+        gatewayTransId: charge.transId || "",
+        gatewayInitialStatus: charge.status || "",
+      });
+      return res.status(200).json({
+        txRef,
+        direct: true,
+        operator: charge.operator,
+        amount: prepared.record.amount,
+        fee: prepared.record.transactionFee,
+        chargeAmount: prepared.record.chargeAmount,
+        currency: CURRENCY,
+      });
+    }
 
     const { checkoutUrl } = await createCheckout({
       txRef,
