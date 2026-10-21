@@ -1585,8 +1585,6 @@ service cloud.firestore {
     //   payout_destinations  the school's bank account for those payouts
     match /connect_links/{id}       { allow read, write: if false; }
     match /payouts/{id}             { allow read, write: if false; }
-    //   deleted_payments     copies of payments removed by the clean-up tool
-    match /deleted_payments/{id}    { allow read, write: if false; }
     match /payout_destinations/{id} { allow read, write: if false; }
     match /otp_challenges/{id}      { allow read, write: if false; }
     match /wa_sessions/{id}         { allow read, write: if false; }

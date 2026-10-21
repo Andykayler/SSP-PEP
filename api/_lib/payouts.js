@@ -17,7 +17,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { adminDb, FieldValue } from "./firebaseAdmin.js";
 import { listPayoutBanks, initiateBankPayout } from "./paychangu.js";
-import { deletePayment, RefusedError } from "./paymentDelete.js";
 import {
   availableBalance, feeConfigFromEnv, payoutFee, checkRequestAmount, checkDestination,
   maskAccount, canApprovePayout, payoutOutcome, settlementHourFromEnv,
@@ -283,11 +282,6 @@ export const PAYOUT_ACTIONS = {
   payout_request: requestPayout,
   payout_approve: approvePayout,
   payout_decline: declinePayout,
-  // Temporary clean-up of test payments — see api/_lib/paymentDelete.js.
-  payment_delete: async (args) => {
-    try { return await deletePayment(args); }
-    catch (err) { throw err instanceof RefusedError ? new UserError(err.message, err.status) : err; }
-  },
 };
 
 export function isPayoutAction(action) {
