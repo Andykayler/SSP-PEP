@@ -28,6 +28,9 @@ import { startCheckout, watchTransaction, openCheckout, CHECKOUT_METHODS } from 
 import { calculateTransactionFee } from "../../services/transactionFeeCore";
 import "../../pages/burser/modules/staff-management.css";
 
+// Card payments are hidden until PayChangu activates them on the account.
+const CARD_ENABLED = false;
+
 export default function PayChanguCheckout({
   purpose = "school_fee",
   title = "Pay online",
@@ -311,7 +314,7 @@ export default function PayChanguCheckout({
           <div className="card p-4 text-muted" style={{ fontSize: 12, lineHeight: 1.6 }}>
             <p><b>Mobile money:</b> a PIN prompt appears on the number you enter. Approve it there.</p>
             <p><b>Bank transfer:</b> we show an account number and the exact amount. Send it from your own bank app or USSD (Instant Transfer).</p>
-            <p><b>Card:</b> opens PayChangu's secure page in a new tab.</p>
+            {CARD_ENABLED && <p><b>Card:</b> opens PayChangu's secure page in a new tab.</p>}
           </div>
         )}
 
@@ -336,7 +339,7 @@ export default function PayChanguCheckout({
           {canPromptPhone && (
             <>
               <Btn variant="ghost" disabled={busy} onClick={() => begin(false, true)}>Pay by bank transfer</Btn>
-              <Btn variant="ghost" disabled={busy} onClick={() => begin(true)}>Pay by card</Btn>
+              {CARD_ENABLED && <Btn variant="ghost" disabled={busy} onClick={() => begin(true)}>Pay by card</Btn>}
             </>
           )}
           <Btn variant="accent" loading={busy} onClick={() => begin(false)} icon={<Smartphone size={15} />}>

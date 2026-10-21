@@ -79,6 +79,8 @@ const STOP_RE = /^\s*(stop|unsubscribe|imani)\s*$/i;
 const START_RE = /^\s*(start|subscribe|yambani)\s*$/i;
 const AIRTEL_RE = /^\s*(1|airtel)\s*$/i;
 const TNM_RE = /^\s*(2|tnm|mpamba)\s*$/i;
+// Card payments are hidden until PayChangu activates them on the account.
+const CARD_ENABLED = false;
 const BANK_RE = /^\s*(3|bank|bank transfer)\s*$/i;
 const CARD_RE = /^\s*(4|card)\s*$/i;
 
@@ -282,7 +284,7 @@ async function handleConfirm(senderPhone, text, session) {
 
   await setSession(senderPhone, { awaiting: "network", studentId: student.id, amount: session.amount });
   await reply(senderPhone,
-    "How would you like to pay?\n\n1) Airtel Money — a PIN prompt is sent to your phone\n2) TNM Mpamba — a PIN prompt is sent to your phone\n3) Bank transfer — we send you an account number to pay into from your bank app\n4) Card — opens a secure payment link");
+    `How would you like to pay?\n\n1) Airtel Money — a PIN prompt is sent to your phone\n2) TNM Mpamba — a PIN prompt is sent to your phone\n3) Bank transfer — we send you an account number to pay into from your bank app${CARD_ENABLED ? "\n4) Card — opens a secure payment link" : ""}`);
 }
 
 /**
@@ -330,9 +332,9 @@ async function pollAndReport(senderPhone, txRef, operatorName, { bank = false } 
 }
 
 async function handleNetwork(senderPhone, text, session) {
-  const network = AIRTEL_RE.test(text) ? "airtel" : TNM_RE.test(text) ? "tnm" : BANK_RE.test(text) ? "bank" : CARD_RE.test(text) ? "card" : null;
+  const network = AIRTEL_RE.test(text) ? "airtel" : TNM_RE.test(text) ? "tnm" : BANK_RE.test(text) ? "bank" : CARD_ENABLED && CARD_RE.test(text) ? "card" : null;
   if (!network) {
-    await reply(senderPhone, "Please reply 1 for Airtel Money, 2 for TNM Mpamba, 3 for bank transfer, or 4 for card.");
+    await reply(senderPhone, CARD_ENABLED ? "Please reply 1 for Airtel Money, 2 for TNM Mpamba, 3 for bank transfer, or 4 for card." : "Please reply 1 for Airtel Money, 2 for TNM Mpamba, or 3 for bank transfer.");
     return;
   }
 
