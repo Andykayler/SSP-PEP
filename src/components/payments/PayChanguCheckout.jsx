@@ -54,6 +54,7 @@ export default function PayChanguCheckout({
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [tx, setTx] = useState(null);
+  const [network, setNetwork] = useState("airtel");
 
   const stopWatching = useRef(null);
 
@@ -66,8 +67,15 @@ export default function PayChanguCheckout({
   // passed through the processor on someone else's behalf — no surcharge.
   const fee = purpose === "subscription" ? null : calculateTransactionFee(payable);
 
-  async function begin() {
+  // A fee is paid with a PIN prompt on the payer's phone, inside this dialog.
+  // A subscription, and anyone who wants to pay by card or bank, uses the
+  // hosted checkout — a card number is never typed into anything we build.
+  const canPromptPhone = purpose !== "subscription";
+
+  async function begin(card = false) {
     if (amountEditable && payable <= 0) { setError("Enter an amount to pay."); return; }
+    const inApp = canPromptPhone && !card;
+    if (inApp && phone.replace(/\D/g, "").length < 9) { setError("Enter the mobile money number to pay from."); return; }
 
     setBusy(true);
     setError("");
@@ -78,16 +86,20 @@ export default function PayChanguCheckout({
         payerName: name,
         payerEmail: email,
         payerPhone: phone,
+        ...(inApp ? { method: "mobile_money", network, mobile: phone } : {}),
         ...context,
       });
 
       setTx(created);
       setStage("waiting");
 
-      const sameTab = !openCheckout(created.checkoutUrl);
-      if (sameTab) return;   // this tab is navigating away; nothing left to do
-
-      setNotice("Complete the payment in the tab that just opened. This page updates on its own.");
+      if (!created.direct) {
+        const sameTab = !openCheckout(created.checkoutUrl);
+        if (sameTab) return;   // this tab is navigating away; nothing left to do
+        setNotice("Complete the payment in the tab that just opened. This page updates on its own.");
+      } else {
+        setNotice("");
+      }
 
       stopWatching.current = watchTransaction(created.txRef, {
         onSettled: (state) => {
@@ -178,11 +190,19 @@ export default function PayChanguCheckout({
 
           {notice && <Notice tone="info">{notice}</Notice>}
 
-          <ol className="text-muted" style={{ fontSize: 12.5, paddingLeft: 18, lineHeight: 1.7 }}>
-            <li>Choose Airtel Money, TNM Mpamba or card on the PayChangu page.</li>
-            <li>Approve the prompt on the phone the number belongs to.</li>
-            <li>Come back here — this updates by itself, usually within a minute.</li>
-          </ol>
+          {tx?.direct ? (
+            <ol className="text-muted" style={{ fontSize: 12.5, paddingLeft: 18, lineHeight: 1.7 }}>
+              <li>A payment prompt has been sent to {phone}.</li>
+              <li>Enter your {network === "tnm" ? "TNM Mpamba" : "Airtel Money"} PIN to approve it.</li>
+              <li>This updates by itself once it clears, usually within a minute.</li>
+            </ol>
+          ) : (
+            <ol className="text-muted" style={{ fontSize: 12.5, paddingLeft: 18, lineHeight: 1.7 }}>
+              <li>Choose Airtel Money, TNM Mpamba or card on the PayChangu page.</li>
+              <li>Approve the prompt on the phone the number belongs to.</li>
+              <li>Come back here — this updates by itself, usually within a minute.</li>
+            </ol>
+          )}
 
           <Notice tone="info">
             You can close this. The payment is confirmed on our servers whether or not this
@@ -190,7 +210,7 @@ export default function PayChanguCheckout({
           </Notice>
 
           <div className="flex justify-between" style={{ gap: 8, alignItems: "center" }}>
-            <a
+            {tx?.checkoutUrl ? <a
               href={tx?.checkoutUrl}
               target="_blank"
               rel="noopener noreferrer"
@@ -198,7 +218,7 @@ export default function PayChanguCheckout({
               style={{ display: "inline-flex", gap: 6, alignItems: "center" }}
             >
               <ExternalLink size={14} /> Reopen checkout
-            </a>
+            </a> : <span />}
             <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
               <Spinner /> <span className="text-muted" style={{ fontSize: 12 }}>Checking…</span>
             </span>
@@ -214,6 +234,21 @@ export default function PayChanguCheckout({
       <div className="space-y-4">
         {error && <Notice tone="danger">{error}</Notice>}
 
+        {canPromptPhone ? (
+          <div style={{ display: "flex", gap: 10 }}>
+            {[["airtel", "Airtel Money"], ["tnm", "TNM Mpamba"]].map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setNetwork(id)}
+                className={network === id ? "btn btn--accent" : "btn btn--ghost"}
+                style={{ flex: 1 }}
+              >
+                <Smartphone size={14} /> {label}
+              </button>
+            ))}
+          </div>
+        ) : (
         <div className="card p-4" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {CHECKOUT_METHODS.map((m) => (
             <span key={m.id} className="tag" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
@@ -222,6 +257,7 @@ export default function PayChanguCheckout({
             </span>
           ))}
         </div>
+        )}
 
         {amountEditable ? (
           <Input
@@ -260,7 +296,7 @@ export default function PayChanguCheckout({
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="+265 9xx xxx xxx"
-          hint="The handset that will approve the payment."
+          hint={canPromptPhone ? "The phone that will get the PIN prompt." : "The handset that will approve the payment."}
         />
         <Input
           label="Email for the receipt"
@@ -272,8 +308,11 @@ export default function PayChanguCheckout({
 
         <div className="flex justify-end" style={{ gap: 8, paddingTop: 4 }}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-          <Btn variant="accent" loading={busy} onClick={begin} icon={<CreditCard size={15} />}>
-            Continue to PayChangu
+          {canPromptPhone && (
+            <Btn variant="ghost" disabled={busy} onClick={() => begin(true)}>Pay by card or bank</Btn>
+          )}
+          <Btn variant="accent" loading={busy} onClick={() => begin(false)} icon={<Smartphone size={15} />}>
+            {canPromptPhone ? "Pay now" : "Continue to PayChangu"}
           </Btn>
         </div>
       </div>
