@@ -38,6 +38,7 @@
 import { adminDb, FieldValue } from "./firebaseAdmin.js";
 import {
   createCheckout, makeTxRef, CURRENCY, mobileMoneyOperatorRef, initiateMobileMoneyCharge,
+  initiateBankTransferCharge,
 } from "./paychangu.js";
 import { TX_COLLECTION } from "./settle.js";
 import { calculateTransactionFee } from "../../src/services/transactionFeeCore.js";
@@ -137,6 +138,39 @@ export async function openWhatsAppDirectCharge({ student, amount, payerPhone, ne
     txRef, amount: record.amount, fee: record.transactionFee, chargeAmount: record.chargeAmount,
     operatorName: charge.operator,
   };
+}
+
+/**
+ * A bank transfer to a one-off account PayChangu generates. Nothing leaves the
+ * chat: the parent is sent the bank details and the exact amount, transfers
+ * from their bank app, and the payment settles like any other.
+ */
+export async function openWhatsAppBankTransfer({ student, amount, payerPhone }) {
+  const txRef = makeTxRef("school_fee");
+  const record = { ...baseRecord(student, amount, payerPhone), chargeMethod: "bank_transfer" };
+
+  await adminDb.collection(TX_COLLECTION).doc(txRef).set({
+    txRef,
+    purpose: "school_fee",
+    status: "pending",
+    currency: CURRENCY,
+    initiatedById: "whatsapp-bot",
+    initiatedByName: student.guardianName || "Guardian (WhatsApp)",
+    createdAt: FieldValue.serverTimestamp(),
+    ...record,
+  });
+
+  const transfer = await initiateBankTransferCharge({ chargeId: txRef, amount: record.chargeAmount });
+
+  await adminDb.collection(TX_COLLECTION).doc(txRef).update({
+    gatewayRefId: transfer.refId || "",
+    bankName: transfer.bankName,
+    bankAccountNumber: transfer.accountNumber,
+    bankAccountName: transfer.accountName,
+    bankExpiresAt: transfer.expiresAt || null,
+  });
+
+  return { txRef, ...transfer, chargeAmount: record.chargeAmount };
 }
 
 export async function openWhatsAppFeeCheckout({ student, amount, payerPhone }) {

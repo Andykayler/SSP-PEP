@@ -58,7 +58,7 @@ import {
 } from "../_lib/waapi.js";
 import { findStudentsByGuardianPhone, computeStudentBalance } from "../_lib/feeBalance.js";
 import { getSession, setSession, clearSession } from "../_lib/waSession.js";
-import { openWhatsAppDirectCharge, openWhatsAppFeeCheckout } from "../_lib/waFeeCheckout.js";
+import { openWhatsAppDirectCharge, openWhatsAppFeeCheckout, openWhatsAppBankTransfer } from "../_lib/waFeeCheckout.js";
 import { settleTransaction, TX_COLLECTION } from "../_lib/settle.js";
 import { normalisePhone } from "../../src/services/phone.js";
 import { isGuardianPhone } from "../../src/services/guardians.js";
@@ -79,7 +79,8 @@ const STOP_RE = /^\s*(stop|unsubscribe|imani)\s*$/i;
 const START_RE = /^\s*(start|subscribe|yambani)\s*$/i;
 const AIRTEL_RE = /^\s*(1|airtel)\s*$/i;
 const TNM_RE = /^\s*(2|tnm|mpamba)\s*$/i;
-const CARD_RE = /^\s*(3|card|bank)\s*$/i;
+const BANK_RE = /^\s*(3|bank|bank transfer)\s*$/i;
+const CARD_RE = /^\s*(4|card)\s*$/i;
 
 /** Mirrors the single-payment ceiling in api/payments/initiate.js. */
 const MAX_AMOUNT = 50_000_000;
@@ -281,7 +282,7 @@ async function handleConfirm(senderPhone, text, session) {
 
   await setSession(senderPhone, { awaiting: "network", studentId: student.id, amount: session.amount });
   await reply(senderPhone,
-    "How would you like to pay?\n\n1) Airtel Money\n2) TNM Mpamba\n3) Card or bank transfer");
+    "How would you like to pay?\n\n1) Airtel Money\n2) TNM Mpamba\n3) Bank transfer\n4) Card");
 }
 
 /**
@@ -292,7 +293,7 @@ async function handleConfirm(senderPhone, text, session) {
  * idempotent settleTransaction() the PayChangu webhook uses, so nothing about
  * how a payment is recorded differs between the two payment paths.
  */
-async function pollAndReport(senderPhone, txRef, operatorName) {
+async function pollAndReport(senderPhone, txRef, operatorName, { bank = false } = {}) {
   for (let i = 0; i < MAX_POLLS; i += 1) {
     await sleep(POLL_INTERVAL_MS);
 
@@ -317,15 +318,21 @@ async function pollAndReport(senderPhone, txRef, operatorName) {
     // Still pending — keep polling.
   }
 
+  if (bank) {
+    await reply(senderPhone,
+      `We haven't seen your transfer yet. Once you've sent it, reply CHECK — or just wait, we'll message you here when it arrives.`);
+    return;
+  }
+
   await reply(senderPhone,
     `Still waiting to hear back from ${operatorName || "your mobile money provider"} — `
     + `if you haven't approved the prompt on your phone yet, do that now. Reply CHECK in a minute either way.`);
 }
 
 async function handleNetwork(senderPhone, text, session) {
-  const network = AIRTEL_RE.test(text) ? "airtel" : TNM_RE.test(text) ? "tnm" : CARD_RE.test(text) ? "card" : null;
+  const network = AIRTEL_RE.test(text) ? "airtel" : TNM_RE.test(text) ? "tnm" : BANK_RE.test(text) ? "bank" : CARD_RE.test(text) ? "card" : null;
   if (!network) {
-    await reply(senderPhone, "Please reply 1 for Airtel Money, 2 for TNM Mpamba, or 3 for card/bank.");
+    await reply(senderPhone, "Please reply 1 for Airtel Money, 2 for TNM Mpamba, 3 for bank transfer, or 4 for card.");
     return;
   }
 
@@ -342,7 +349,29 @@ async function handleNetwork(senderPhone, text, session) {
     return;
   }
 
-  // Card and bank transfer need a PCI-compliant page to type a card number
+  if (network === "bank") {
+    // Cleared first, as with the other paths, so a retried message can't open
+    // a second account.
+    await clearSession(senderPhone);
+    try {
+      const t = await openWhatsAppBankTransfer({ student, amount: session.amount, payerPhone: senderPhone });
+      const until = t.expiresAt
+        ? ` It is valid until ${new Date(t.expiresAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Blantyre" })}.`
+        : " It is valid for one hour.";
+      await reply(senderPhone,
+        `Send an Instant Transfer from any bank app or USSD to:\n\n`
+        + `*Bank:* ${t.bankName}\n*Account name:* ${t.accountName}\n*Account number:* ${t.accountNumber}\n`
+        + `*Amount:* MK ${fmt(t.chargeAmount)} (send exactly this — a different amount is declined)\n${until}\n\n`
+        + `We'll message you here with your receipt once it arrives.`);
+      await pollAndReport(senderPhone, t.txRef, "", { bank: true });
+    } catch (err) {
+      console.error("[whatsapp] could not open bank transfer:", err);
+      await reply(senderPhone, "Sorry, we couldn't get bank details right now. Please try again shortly or use the Acalink app.");
+    }
+    return;
+  }
+
+  // Card needs a PCI-compliant page to type a card number
   // into — this product never builds that itself (see api/_lib/paychangu.js) —
   // so that one case still hands off to PayChangu's hosted checkout link,
   // settled the normal webhook-driven way rather than polled.
