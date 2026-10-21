@@ -304,7 +304,10 @@ export async function initiateBankTransferCharge({ chargeId, amount }) {
       amount: String(amount),
       currency: CURRENCY,
       charge_id: chargeId,
-      create_permanent_account: "false",
+      // PayChangu's own docs show this quoted ("false"), but its validator
+      // rejects that string outright ("The selected create_permanent_account
+      // is invalid.") — it wants an actual JSON boolean.
+      create_permanent_account: false,
     },
   });
 
