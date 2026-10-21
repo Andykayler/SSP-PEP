@@ -72,9 +72,9 @@ export default function PayChanguCheckout({
   // hosted checkout — a card number is never typed into anything we build.
   const canPromptPhone = purpose !== "subscription";
 
-  async function begin(card = false) {
+  async function begin(card = false, bank = false) {
     if (amountEditable && payable <= 0) { setError("Enter an amount to pay."); return; }
-    const inApp = canPromptPhone && !card;
+    const inApp = canPromptPhone && !card && !bank;
     if (inApp && phone.replace(/\D/g, "").length < 9) { setError("Enter the mobile money number to pay from."); return; }
 
     setBusy(true);
@@ -87,13 +87,14 @@ export default function PayChanguCheckout({
         payerEmail: email,
         payerPhone: phone,
         ...(inApp ? { method: "mobile_money", network, mobile: phone } : {}),
+        ...(canPromptPhone && bank ? { method: "bank_transfer" } : {}),
         ...context,
       });
 
       setTx(created);
       setStage("waiting");
 
-      if (!created.direct) {
+      if (!created.direct && !created.bankTransfer) {
         const sameTab = !openCheckout(created.checkoutUrl);
         if (sameTab) return;   // this tab is navigating away; nothing left to do
         setNotice("Complete the payment in the tab that just opened. This page updates on its own.");
@@ -190,7 +191,23 @@ export default function PayChanguCheckout({
 
           {notice && <Notice tone="info">{notice}</Notice>}
 
-          {tx?.direct ? (
+          {tx?.bankTransfer ? (
+            <>
+              <div className="card p-4" style={{ fontSize: 13.5, lineHeight: 1.9 }}>
+                <div className="flex justify-between"><span className="text-muted">Bank</span><b>{tx.bankTransfer.bankName}</b></div>
+                <div className="flex justify-between"><span className="text-muted">Account name</span><b>{tx.bankTransfer.accountName}</b></div>
+                <div className="flex justify-between"><span className="text-muted">Account number</span>
+                  <b>{tx.bankTransfer.accountNumber}{" "}
+                    <button type="button" className="btn btn--ghost btn--sm" onClick={() => navigator.clipboard?.writeText(tx.bankTransfer.accountNumber)}>Copy</button></b></div>
+                <div className="flex justify-between"><span className="text-muted">Send exactly</span><b>{money(tx.bankTransfer.payExactly)}</b></div>
+              </div>
+              <ol className="text-muted" style={{ fontSize: 12.5, paddingLeft: 18, lineHeight: 1.7 }}>
+                <li>Use Instant Transfer from any bank app or USSD.</li>
+                <li>Send exactly {money(tx.bankTransfer.payExactly)}. A different amount is declined.</li>
+                <li>This updates by itself once the transfer arrives. The account is valid for an hour.</li>
+              </ol>
+            </>
+          ) : tx?.direct ? (
             <ol className="text-muted" style={{ fontSize: 12.5, paddingLeft: 18, lineHeight: 1.7 }}>
               <li>A payment prompt has been sent to {phone}.</li>
               <li>Enter your {network === "tnm" ? "TNM Mpamba" : "Airtel Money"} PIN to approve it.</li>
@@ -309,7 +326,10 @@ export default function PayChanguCheckout({
         <div className="flex justify-end" style={{ gap: 8, paddingTop: 4 }}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
           {canPromptPhone && (
-            <Btn variant="ghost" disabled={busy} onClick={() => begin(true)}>Pay by card or bank</Btn>
+            <>
+              <Btn variant="ghost" disabled={busy} onClick={() => begin(false, true)}>Pay by bank transfer</Btn>
+              <Btn variant="ghost" disabled={busy} onClick={() => begin(true)}>Pay by card</Btn>
+            </>
           )}
           <Btn variant="accent" loading={busy} onClick={() => begin(false)} icon={<Smartphone size={15} />}>
             {canPromptPhone ? "Pay now" : "Continue to PayChangu"}

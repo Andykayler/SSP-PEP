@@ -150,7 +150,8 @@ export default async function handler(req, res) {
   }
 
   const txRef =
-    payload?.tx_ref || payload?.data?.tx_ref || payload?.reference || payload?.meta?.txRef || "";
+    payload?.tx_ref || payload?.data?.tx_ref || payload?.charge_id || payload?.data?.charge_id
+    || payload?.data?.transaction?.charge_id || payload?.reference || payload?.meta?.txRef || "";
 
   if (!txRef) {
     console.warn("[payments] webhook carried no transaction reference");

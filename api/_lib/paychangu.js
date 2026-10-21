@@ -285,6 +285,88 @@ export async function verifyDirectCharge(chargeId) {
   };
 }
 
+// ─── Direct bank transfer charge ────────────────────────────────────────────
+//
+// PayChangu generates a one-off bank account for the payment; the payer sends
+// exactly `amount` to it from any bank's app or USSD (instant transfer). The
+// account expires after an hour. Like the mobile money charge, there is no
+// return page — the only way to know it landed is to ask (or the webhook).
+
+/**
+ * POST /direct-charge/payments/initialize, payment_method "mobile_bank_transfer".
+ * `chargeId` plays the same role `txRef` does for the hosted checkout.
+ */
+export async function initiateBankTransferCharge({ chargeId, amount }) {
+  const data = await call("/direct-charge/payments/initialize", {
+    method: "POST",
+    body: {
+      payment_method: "mobile_bank_transfer",
+      amount: String(amount),
+      currency: CURRENCY,
+      charge_id: chargeId,
+      create_permanent_account: "false",
+    },
+  });
+
+  const d = data?.data || {};
+  const acct = d.payment_account_details || {};
+  if (!acct.account_number) {
+    throw new Error("PayChangu did not return bank account details for the transfer.");
+  }
+  const expiry = Number(acct.account_expiration_timestamp || 0);
+  return {
+    bankName: acct.bank_name || "",
+    accountNumber: String(acct.account_number),
+    accountName: acct.account_name || "",
+    // PayChangu sends unix seconds; the app works in milliseconds.
+    expiresAt: expiry ? (expiry < 1e12 ? expiry * 1000 : expiry) : 0,
+    amount: Number(d.transaction?.amount ?? amount),
+    status: String(d.transaction?.status || "pending").toLowerCase(),
+    refId: d.transaction?.ref_id || "",
+    raw: d,
+  };
+}
+
+/**
+ * Asks PayChangu what happened to a bank transfer charge. The verify endpoint
+ * for this kind of charge is not spelled out in PayChangu's bank transfer guide
+ * (it points at the general "single transaction" lookup), so the likely paths
+ * are tried in order and the first that recognises the charge wins. A path that
+ * errors is skipped, not treated as "failed" — only an explicit failed status
+ * from PayChangu ever marks the payment failed.
+ */
+export async function verifyBankTransferCharge(chargeId) {
+  const id = encodeURIComponent(chargeId);
+  const paths = [`/verify-payment/${id}`, `/direct-charge/payments/${id}/verify`];
+  let lastError = null;
+  for (const path of paths) {
+    try {
+      const data = await call(path);
+      const t = data?.data?.transaction || data?.data || data;
+      const rawStatus = String(t?.status || "").toLowerCase();
+      if (!t || !rawStatus) continue;
+      return {
+        found: true,
+        paid: rawStatus === "success" || rawStatus === "successful",
+        failed: rawStatus === "failed" || rawStatus === "cancelled" || rawStatus === "expired",
+        status: rawStatus,
+        amount: Number(t.amount ?? 0),
+        currency: CURRENCY,
+        txRef: chargeId,
+        gatewayRef: t.ref_id || t.reference || t.charge_id || "",
+        channel: "bank_transfer",
+        operator: "",
+        payerEmail: "",
+        raw: t,
+      };
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  if (lastError) throw lastError;
+  return { found: false, paid: false, failed: false, status: "unknown", amount: 0, currency: CURRENCY, txRef: chargeId, gatewayRef: "", channel: "bank_transfer", operator: "", payerEmail: "", raw: null };
+}
+
 /**
  * Pushes money OUT of Acalink's own PayChangu balance to a school's mobile
  * money number — the other direction from initiateMobileMoneyCharge() above.

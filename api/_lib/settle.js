@@ -18,7 +18,7 @@
 import { adminDb, FieldValue } from "./firebaseAdmin.js";
 import { yearOfTerm } from "../../src/services/termFeesCore.js";
 import {
-  verifyTransaction, verifyDirectCharge,
+  verifyTransaction, verifyDirectCharge, verifyBankTransferCharge,
 } from "./paychangu.js";
 import { paidThroughAfter } from "../../src/services/subscriptionState.js";
 
@@ -33,6 +33,7 @@ export const TX_COLLECTION = "payment_transactions";
  * treats them identically.
  */
 function verifierFor(tx) {
+  if (tx.chargeMethod === "bank_transfer") return verifyBankTransferCharge;
   return tx.chargeMethod === "direct" ? verifyDirectCharge : verifyTransaction;
 }
 

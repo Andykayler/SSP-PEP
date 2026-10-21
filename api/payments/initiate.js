@@ -28,6 +28,7 @@ import { adminAuth, adminDb, FieldValue } from "../_lib/firebaseAdmin.js";
 import { isDeactivated } from "../../src/services/staffAccountCore.js";
 import {
   createCheckout, makeTxRef, isConfigured, CURRENCY, mobileMoneyOperatorRef, initiateMobileMoneyCharge,
+  initiateBankTransferCharge,
 } from "../_lib/paychangu.js";
 import { TX_COLLECTION } from "../_lib/settle.js";
 import { quote } from "../../src/services/pricing.js";
@@ -190,6 +191,37 @@ export default async function handler(req, res) {
         txRef,
         direct: true,
         operator: charge.operator,
+        amount: prepared.record.amount,
+        fee: prepared.record.transactionFee,
+        chargeAmount: prepared.record.chargeAmount,
+        currency: CURRENCY,
+      });
+    }
+
+    // Bank transfer inside the app: PayChangu issues a one-off account; the
+    // payer sends exactly chargeAmount to it and the app waits on the status.
+    if (purpose === "school_fee" && body.method === "bank_transfer") {
+      await adminDb.collection(TX_COLLECTION).doc(txRef).update({ chargeMethod: "bank_transfer", channel: "app" });
+      const transfer = await initiateBankTransferCharge({
+        chargeId: txRef,
+        amount: prepared.record.chargeAmount || prepared.record.amount,
+      });
+      await adminDb.collection(TX_COLLECTION).doc(txRef).update({
+        gatewayRefId: transfer.refId || "",
+        bankName: transfer.bankName,
+        bankAccountNumber: transfer.accountNumber,
+        bankAccountName: transfer.accountName,
+        bankExpiresAt: transfer.expiresAt || null,
+      });
+      return res.status(200).json({
+        txRef,
+        bankTransfer: {
+          bankName: transfer.bankName,
+          accountNumber: transfer.accountNumber,
+          accountName: transfer.accountName,
+          expiresAt: transfer.expiresAt,
+          payExactly: transfer.amount,
+        },
         amount: prepared.record.amount,
         fee: prepared.record.transactionFee,
         chargeAmount: prepared.record.chargeAmount,
